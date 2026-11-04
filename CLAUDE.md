@@ -3508,6 +3508,42 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     at the opening zoom. Handles ride on their tile's elevation like the tiles do,
     or they float below a terrace. `selHandleGrab` is where to look if the feel of
     this needs changing; a test bounds it across six zooms and both pointers.
+    **The action pill is placed by its real size** (`selectionPillSpot`,
+    `positionSelectionActions`, tray.js; `usableCanvasRect().clear`, view.js; 0.9.72).
+    It was anchored on one edge midpoint with `translate(-50%,-100%)` and clamped by
+    `safe.top+26` and `±78`, numbers for a pill 156 wide and 26 tall, against a real
+    one of 291x75. It reached `top:-88` on a phone with Move and Duplicate off the
+    screen and Menu's centre under it. On a seeded sweep of 1,440 selection x camera x
+    zoom x rotation x sheet states per viewport, it was over the bar in 310-719 of them
+    and took Menu in up to 201 (on the dock the stage clips it instead, so the top
+    of the pill was simply gone). After: 0 of each, and the share of the on-screen
+    marquee it covers fell from 9-16% to 0-5%. Four things had to change together.
+    **Its width depended on where it was put**: an absolute box shrink-fits to the room
+    between its `left` and the edge, so it was 415px wide on the left of an iPad and
+    137px and five rows tall near the right of a phone, and every clamp was aiming at
+    a size that moved. It is `width:max-content` now, placed by its top-left corner,
+    with the buttons in a row of their own so that natural width is theirs (the summary
+    as a sibling flex item made it the two laid end to end). **`usableCanvasRect`'s
+    fallbacks are for framing**: with a full sheet up there is no room, so it hands back
+    `top:8`, which is the bar. `.clear` is the same rect before those fallbacks, and it
+    also keeps off a collapsed sheet's handle, which framing ignores on purpose. A
+    control should read `.clear`; it may have no height at all. **The signature never
+    saw the chrome**, so the pill sat where it was when the sheet moved, right up to the
+    next pan; `usableRectRev` rides it now, moved by `invalidateUsableRect`. **The rule**:
+    above the marquee, flipped below when that leaves the clear rect, and where neither
+    fits, whichever end hides less. Its top edge never leaves the clear rect, because a
+    pill too tall for the room costs a sliver of sheet handle where the alternative
+    costs Menu. A full sheet stands it down (`visibility`, so its size still reads): the
+    selection is underneath anyway. A selection's box is read off `selHandlePoints`, so
+    it rides terraces and turns with the view; the old anchor was the far edge at half
+    the rotations. Its size is read only when the chrome or the summary text moved, never
+    for a camera move, and those frames do no layout reads (~1us to ~2us a call). On a
+    canvas with no row to spare (`max-width:359px` or `max-height:420px`) the summary
+    joins the buttons' last row, 123px to 104px on a 320x568 phone. That phone remains
+    the tight case, with 179px between the bar and a half sheet, and collapsing the sheet
+    is the way out. The More menu follows the same rule, opening downward when above
+    would meet the bar. Note the fix can cover MORE of a selection than the old pill did
+    in the cramped cases: the old one covered less there by being over the bar instead.
     **A dragged selection ghosts through the SPRITE CACHE, on the SOURCE tile's
     seed** (Sep 2026). Drawn procedurally this was the most expensive thing in
     the app: every selected plant re-ran its whole recipe every frame, so a

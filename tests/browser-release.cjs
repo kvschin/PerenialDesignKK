@@ -201,6 +201,75 @@ async function scenario(browser, profile){
       await reopenGarden(page, id);
       assert.deepEqual(await page.evaluate(()=>game.plants['4,4']), saved.plants['4,4']);
     });
+    /* The sandbox pins the placement rule. Only a browser has the pill's real size,
+       its real stacking over the bar, and a press that lands on what is really there. */
+    await check(label('a selection near the top leaves the top bar tappable, at every sheet state'), async()=>{
+      // reopening reports inGarden while the opening cover is still over the canvas
+      await page.locator('#gardenOpening').waitFor({state:'hidden'});
+      const cdp = profile.touch ? await context.newCDPSession(page) : null;
+      const quiet = ms=>page.waitForTimeout(ms);
+      const tap = async p=>{ if (profile.touch) await page.touchscreen.tap(p.x,p.y); else await page.mouse.click(p.x,p.y); };
+      const drag = async (a,b)=>{
+        if (!profile.touch){ await page.mouse.move(a[0],a[1]); await page.mouse.down(); await page.mouse.move(b[0],b[1],{steps:8}); await page.mouse.up(); return; }
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:a[0],y:a[1]}]});
+        for (let i=1;i<=8;i++) await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:a[0]+(b[0]-a[0])*i/8,y:a[1]+(b[1]-a[1])*i/8}]});
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      };
+      // Chrome swallows a tap that lands within a moment of a fast synthetic drag.
+      const settleDrag = ()=>quiet(800);
+      const sheet = async s=>{ await page.evaluate(s=>setSheetState(s),s); await quiet(400); };
+      const look = ()=>page.evaluate(()=>{
+        const answers = id=>{
+          const el=document.getElementById(id), r=el.getBoundingClientRect();
+          const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+          return {x:r.left+r.width/2, y:r.top+r.height/2, ok:!!hit&&(hit===el||el.contains(hit))};
+        };
+        const pill=document.getElementById('selectionActions'), box=pill.getBoundingClientRect();
+        const bar=document.querySelector('.hud-top').getBoundingClientRect();
+        return {menu:answers('btnMenu'), season:answers('btnSeasonBox'), barBottom:bar.bottom,
+          shown:!pill.classList.contains('hidden')&&getComputedStyle(pill).visibility!=='hidden',
+          pill:{top:box.top,left:box.left,right:box.right,bottom:box.bottom,height:box.height}, width:innerWidth};
+      });
+      const rail = await page.evaluate(()=>{ const b=[...document.querySelectorAll('#canvasTools button')].find(x=>x.textContent.trim()==='Select');
+        const r=b.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2}; });
+      await tap(rail);
+      if (profile.touch) await sheet('half');
+      // The highest 9x8 marquee both of whose corners a finger could really press.
+      const corners = await page.evaluate(()=>{
+        const f=canvasViewportRect(), W=VW/ZOOM, H=VH/ZOOM;
+        const at=(x,y)=>{ const p=screenOf(x,y,W,H); return [p[0]*ZOOM+f.left, p[1]*ZOOM+f.top+TILE_H/2*ZOOM]; };
+        // around the point as well: Chrome's touch adjustment snaps a press to anything nearby
+        const open=p=>[[0,0],[12,0],[-12,0],[0,12],[0,-12]].every(([dx,dy])=>{
+          const e=document.elementFromPoint(p[0]+dx,p[1]+dy); return e&&e.id==='gameCanvas'; });
+        let best=null;
+        for (let y=0;y<GH-7;y++) for (let x=0;x<GW-8;x++){
+          const a=at(x,y), b=at(x+8,y+7);
+          if (open(a)&&open(b)&&(!best||a[1]<best.a[1])) best={a,b};
+        }
+        return best;
+      });
+      assert(corners,'a 9x8 selection fits on open canvas at the opening zoom');
+      await drag(corners.a,corners.b); await settleDrag();
+      assert(await page.evaluate(()=>!!game.sel),'a real drag made the selection');
+      for (const s of profile.touch ? ['half','collapsed','full','half'] : ['full']){
+        if (profile.touch) await sheet(s);
+        const now = await look();
+        assert(now.menu.ok && now.season.ok, `${s}: Menu and the season box answer a press at their centres`);
+        if (profile.touch && s==='full') assert(!now.shown,'a full sheet is hiding the selection, and the pill stands down');
+        else {
+          assert(now.shown,`${s}: the pill is up`);
+          assert(now.pill.top>=now.barBottom,`${s}: the pill stays below the bar (${now.pill.top} against ${now.barBottom})`);
+          assert(now.pill.left>=0 && now.pill.right<=now.width,`${s}: the pill stays on screen`);
+          assert(now.pill.height<=130,`${s}: it wraps to its content, not to where it happens to sit (${now.pill.height}px)`);
+        }
+      }
+      // And the press itself, with the selection up.
+      const open = await look();
+      await tap(open.menu);
+      await page.waitForFunction(()=>!document.getElementById('gardenMenu').classList.contains('hidden'));
+      await page.evaluate(()=>closeOverlay('gardenMenu'));
+      await page.evaluate(()=>{ setTool('hand',null); game.sel=null; game.selItems=null; refreshCanvasTools(); });
+    });
     await check(label('automatic portraits, unchanged editing views, and legacy fallbacks'), async()=>{
       const demo=JSON.parse(fs.readFileSync(path.join(root,'demo-garden.json'),'utf8'));
       const portraitResult=await page.evaluate(async demo=>{

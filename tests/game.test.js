@@ -3851,6 +3851,143 @@ test('the selection pill is not measured against a layout it just dirtied', () =
     'settleViewportChange drops that cache — it is the choke point every tier, dock and orientation change takes');
 });
 
+test('the selection pill sits above its marquee, flips below it, and never reaches the top bar', () => {
+  // the clear canvas on a 390x844 phone with the sheet at half, and the pill it holds
+  const clear={left:70,top:69,right:382,bottom:372}, w=291, h=75;
+  const at=(top,bottom,left=120,right=330)=>selectionPillSpot({left,right,top,bottom},w,h,clear);
+  assertEqual(at(200,300).y,200-SEL_PILL_GAP-h,'room above: it sits just above the marquee, clear of the top handle');
+  assertEqual(at(80,200).y,200+SEL_PILL_GAP,'no room above: it flips below rather than climbing onto the bar');
+  // Exactly fitting is fitting: the boundary is where a flip would be a needless jump.
+  assertEqual(at(69+h+SEL_PILL_GAP,300).y,69,'a pill that just fits above stays above');
+  // A marquee taller than the room leaves two imperfect spots; it takes the one that hides less.
+  assertEqual(at(40,330).y,clear.bottom-h,'it hides less at the bottom (it runs off the top)');
+  assertEqual(at(120,400).y,69,'it hides less at the top (it runs off the bottom)');
+  // Panned away, nothing is hidden either way, so it waits at the nearer end.
+  assertEqual(at(-400,-200).y,69,'a marquee off the top: the pill waits at the top');
+  assertEqual(at(900,1000).y,clear.bottom-h,'a marquee off the bottom: the pill waits at the bottom');
+  // Sideways it centres on the marquee and stays between the rail and the screen edge.
+  assertEqual(at(200,300,120,330).x,Math.round((120+330-w)/2),'centred on the marquee');
+  assertEqual(at(200,300,-500,-300).x,clear.left,'never slides under the rail');
+  assertEqual(at(200,300,700,900).x,clear.right-w,'never runs off the far edge');
+  // A pill taller than the room keeps its top edge: over the sheet costs a sliver of
+  // handle, over the bar costs Menu.
+  assertEqual(selectionPillSpot({left:0,right:100,top:70,bottom:90},w,h,{...clear,bottom:clear.top+60}).y,69,
+    'too tall for the room, it still starts below the bar');
+  // No room to be a control at all: a full sheet, which is hiding the selection anyway.
+  assertEqual(selectionPillSpot({left:0,right:100,top:70,bottom:90},w,h,{...clear,bottom:53}),null,
+    'a full sheet leaves negative room, and the pill stands down');
+  assertEqual(selectionPillSpot({left:0,right:100,top:70,bottom:90},w,h,{...clear,bottom:clear.top+SEL_PILL_MIN_ROOM-1}),null,
+    'under one touch target of room, it stands down');
+  // Wherever the marquee is, it never leaves the clear rect. (Seeded, so a failure repeats.)
+  const rng=mulberry(4242);
+  for (let i=0;i<4000;i++){
+    const room=SEL_PILL_MIN_ROOM+Math.floor(rng()*500), c={left:8+rng()*80,top:8+rng()*90,right:0,bottom:0};
+    c.right=c.left+300+rng()*500; c.bottom=c.top+room;
+    const pw=120+rng()*180, ph=50+rng()*80, tall=rng()*700, top=-300+rng()*1200, left=-300+rng()*1200;
+    const s=selectionPillSpot({left,right:left+rng()*500,top,bottom:top+tall},pw,ph,c);
+    assert(s.y>=Math.round(c.top),'never above the clear rect, whatever the marquee');
+    assert(s.x>=Math.round(c.left),'never left of the clear rect');
+    assert(s.x+pw<=c.right+1,'never right of the clear rect');
+    if (ph<=room) assert(s.y+ph<=c.bottom+1,'never below it while the pill fits');
+  }
+});
+
+test('the clear rect tells a control the truth the framing rect cannot', () => {
+  /* usableCanvasRect's fallbacks are right for framing the plot, which must get
+     SOME answer. Trusted by the pill, the one for a full sheet put it over the top
+     bar on every phone: a sheet reaching the bar leaves negative room, the fallback
+     hands back top:8, and that is the bar. Same harness as the safe-canvas test. */
+  const oldVW=VW, oldVH=VH, oldQuery=document.querySelector, oldGet=document.getElementById;
+  const top=document.createElement('div'), tools=document.createElement('div'), sheet=document.createElement('div');
+  top.getBoundingClientRect=()=>({left:0,top:0,right:390,bottom:61,width:390,height:61});
+  tools.getBoundingClientRect=()=>({left:8,top:73,right:62,bottom:400,width:54,height:327});
+  try {
+    VW=390; VH=844;
+    document.querySelector=sel=>sel==='.hud-top'?top:sel==='.hud-bottom'?sheet:oldQuery.call(document,sel);
+    document.getElementById=id=>id==='canvasTools'?tools:oldGet.call(document,id);
+    sheet.getBoundingClientRect=()=>({left:0,top:380,right:390,bottom:844,width:390,height:464});
+    invalidateUsableRect();
+    assertEqual(usableCanvasRect().clear.top,69,'half sheet: starts below the bar');
+    assertEqual(usableCanvasRect().clear.bottom,372,'half sheet: ends above the sheet');
+    sheet.getBoundingClientRect=()=>({left:0,top:61,right:390,bottom:844,width:390,height:783});
+    invalidateUsableRect();
+    const full=usableCanvasRect();
+    assertEqual(full.top,8,'full sheet: framing still gets its fallback, unchanged');
+    assert(full.clear.top===69 && full.clear.bottom<full.clear.top,'full sheet: the clear rect admits there is no room');
+    sheet.classList.add('sheet-collapsed');
+    sheet.getBoundingClientRect=()=>({left:0,top:796,right:390,bottom:844,width:390,height:48});
+    invalidateUsableRect();
+    assertEqual(usableCanvasRect().bottom,836,'collapsed: framing gets the height back, as it always has');
+    assertEqual(usableCanvasRect().clear.bottom,788,'collapsed: a control still keeps off the handle');
+  } finally {
+    VW=oldVW; VH=oldVH; document.querySelector=oldQuery; document.getElementById=oldGet;
+    invalidateUsableRect();
+  }
+});
+
+test('the pill follows the chrome without measuring anything per frame', () => {
+  /* It runs for every frame the camera moves, right after updateCompass has dirtied
+     the layout, so a size read there is the thrash the test above guards against.
+     And it has to notice the sheet moving with the camera still, which its old
+     signature could not: the pill stayed where it was until the next pan. */
+  const oldGet=document.getElementById, oldRect=usableCanvasRect, oldSel=game.sel, oldCamX=cam.x;
+  // wide enough that the pan below is not clamped away
+  let reads=0, clear={left:-5000,top:-5000,right:5000,bottom:5000};
+  const el={classList:{contains:()=>false}, style:{},
+    get offsetWidth(){ reads++; return 291; }, get offsetHeight(){ return 75; }};
+  try {
+    document.getElementById=id=>id==='selectionActions'?el:oldGet.call(document,id);
+    usableCanvasRect=()=>({clear});
+    game.sel={x0:5,y0:5,x1:13,y1:12};
+    positionSelectionActions();
+    assertEqual(reads,1,'the first placement measures the pill');
+    const left=el.style.left, sig=el._sig;
+    positionSelectionActions();
+    assert(el._sig===sig && reads===1,'nothing moved: nothing recomputed, nothing read');
+    for (let i=1;i<=30;i++){ cam.x=oldCamX+i*7; positionSelectionActions(); }
+    assertEqual(reads,1,'thirty frames of panning read its size zero more times');
+    assert(el.style.left!==left,'and it travelled with the selection');
+    // The sheet moves and the camera does not.
+    clear={left:70,top:69,right:382,bottom:53};
+    invalidateUsableRect();
+    positionSelectionActions();
+    assertEqual(el.style.visibility,'hidden','a full sheet stands the pill down without waiting for a pan');
+    assertEqual(reads,2,'the chrome moved, so it may measure once more');
+    assertEqual(el.style.maxWidth,'312px','and caps it at the clear canvas, so it wraps instead of sliding under the rail');
+    clear={left:70,top:69,right:382,bottom:372};
+    invalidateUsableRect();
+    positionSelectionActions();
+    assertEqual(el.style.visibility,'','and the sheet coming back down brings it back');
+  } finally {
+    document.getElementById=oldGet; usableCanvasRect=oldRect; game.sel=oldSel; cam.x=oldCamX;
+    invalidateUsableRect();
+  }
+});
+
+test('the pill keeps its size unless its text changes, and is sized by its own content', () => {
+  /* refreshCanvasTools lands in renderSelectionActions on every tool change and
+     undo, and rebuilds the pill; only the summary can change its size. */
+  const el=document.getElementById('selectionActions'), oldTool=game.tool, oldSel=game.sel, oldItems=game.selItems;
+  try {
+    game.tool='select'; game.sel={x0:2,y0:2,x1:6,y1:6}; game.selItems=[];
+    renderSelectionActions();
+    const size=el._size={w:291,h:75};
+    renderSelectionActions();
+    assert(el._size===size,'the same selection rebuilt: its measured size stands');
+    game.sel={x0:2,y0:2,x1:9,y1:9};
+    renderSelectionActions();
+    assert(el._size!==size,'a new summary line: it is measured again');
+  } finally {
+    game.tool=oldTool; game.sel=oldSel; game.selItems=oldItems; renderSelectionActions();
+  }
+  const css=readRepoFile('styles.css');
+  const rule=css.slice(css.indexOf('.selection-actions{'),css.indexOf('}',css.indexOf('.selection-actions{')));
+  assert(/width:max-content/.test(rule),
+    'its width is its own: shrink-to-fit made it 137px and five rows tall near the right edge');
+  assert(!/selection-actions\{[^}]*translate/.test(css),
+    'placed by its corner: a translate back to centre would undo the sums selectionPillSpot does');
+});
+
 test('desktop canvas recovery reserves the Organic side library', () => {
   const oldVW=VW, oldVH=VH, oldQuery=document.querySelector, oldGet=document.getElementById;
   const top=document.createElement('div'), tools=document.createElement('div'), sheet=document.createElement('div');

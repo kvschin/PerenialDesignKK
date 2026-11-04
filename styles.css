@@ -1380,17 +1380,32 @@ canvas.layer-eye{display:block}
 .zoom-pill button .ui-icon{width:15px;height:15px}
 .zoom-pill button:hover{background:var(--surface-control-hover)}
 .zoom-pill #zoomLabel{min-width:42px;text-align:center;font-size:11px;font-weight:700;color:var(--text-secondary)}
-.selection-actions{position:absolute;left:50%;top:50%;z-index:14;pointer-events:auto;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;
-  max-width:min(92vw,560px);overflow:visible;padding:5px;background:var(--surface-overlay);
-  border:1.5px solid var(--border-selection);border-radius:var(--radius-pill);box-shadow:var(--shadow-overlay);
-  transform:translate(-50%,-100%)}
+/* Placed by its top-left corner (selectionPillSpot), and width:max-content is what
+   makes that possible. Left to shrink-to-fit, an absolute box is only as wide as
+   the room between its own `left` and the edge, so the pill's size depended on
+   where it had just been put: 415px wide on the left of an iPad, 137px and five
+   rows tall near the right of a phone. Its width is its own now, capped from JS at
+   the clear canvas. */
+.selection-actions{position:absolute;left:0;top:0;z-index:14;pointer-events:auto;display:flex;flex-direction:column;align-items:center;
+  width:max-content;max-width:min(92vw,560px);overflow:visible;padding:5px;background:var(--surface-overlay);
+  border:1.5px solid var(--border-selection);border-radius:var(--radius-pill);box-shadow:var(--shadow-overlay)}
+.selection-buttons{display:flex;flex-wrap:wrap;justify-content:center;gap:4px}
+/* A short or narrow canvas has no row to spare: with a half sheet up, a 320x568
+   phone has 179px between the bar and the sheet. The summary joins the buttons'
+   last row instead of taking one of its own, which is a line of pill the selection
+   gets back and no information lost. */
+@media (max-width:359px),(max-height:420px){
+  .selection-actions{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:4px}
+  .selection-buttons{display:contents}
+  .selection-summary{order:1;padding:2px 7px}
+}
 .selection-actions button{border:1px solid var(--border-quiet);border-radius:var(--radius-pill);background:var(--surface-control);
   color:var(--text-secondary);padding:8px 11px;font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif;white-space:nowrap}
 .selection-actions button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
 .selection-actions button.sel{background:var(--surface-selection);border-color:var(--selection);color:var(--text-primary)}
 .selection-actions button.danger{border-color:rgba(224,138,122,.5);color:var(--action-danger-text);background:var(--surface-danger)}
 .selection-actions button.disabled{opacity:var(--disabled-opacity);pointer-events:none}
-.selection-summary{flex:1 0 100%;padding:2px 7px 4px;text-align:center;color:var(--text-primary);font-size:10px;font-weight:700;white-space:nowrap}
+.selection-summary{padding:2px 7px 4px;text-align:center;color:var(--text-primary);font-size:10px;font-weight:700;white-space:nowrap}
 /* Move | Duplicate is one control — what a drag does — so it reads as a joined
    pair with a gap after it, not as two more of the action buttons. */
 .selection-mode{display:inline-flex;margin-right:6px}
@@ -1904,7 +1919,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .zoom-pill{right:8px;bottom:calc(112px + env(safe-area-inset-bottom));padding:3px}
   .zoom-pill button{min-width:32px;height:32px;font-size:12px}
   .zoom-pill #zoomLabel{display:none}
-  .selection-actions{max-width:calc(100vw - 16px);border-radius:var(--radius-panel);padding:5px;transform:translate(-50%,-106%)}
+  .selection-actions{max-width:calc(100vw - 16px);border-radius:var(--radius-panel);padding:5px}
   .selection-actions button{padding:9px 10px;font-size:11px}
   #plantCard{top:128px;right:8px;max-width:76vw;padding:10px 22px 10px 12px}
   .pill.iconbar .lbl{display:none}

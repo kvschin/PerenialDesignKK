@@ -1241,12 +1241,16 @@ function renderSelectionActions(){
   el.innerHTML='';
   const oldMore=document.getElementById('selectionMore'); if (oldMore) oldMore.remove();
   if (game.tool!=='select' || !game.sel){ el.classList.add('hidden'); return; }
+  /* The buttons sit in a row of their own, so the pill's natural width is that
+     row's. With the summary as a flex item beside them it was the two laid end to
+     end, ~130px wider than anything it ever draws. */
+  const row=document.createElement('div'); row.className='selection-buttons';
   const btn=(label,sel,fn,title,cls)=>{
     const b=document.createElement('button');
     b.className=(sel?'sel ':'')+(cls||'');
     b.textContent=label; b.title=title||label;
     b.onclick=e=>{ e.stopPropagation(); fn&&fn(); };
-    el.appendChild(b);
+    row.appendChild(b);
     return b;
   };
   const est=selectionEstimate(game.sel,3,game.selItems);
@@ -1255,6 +1259,12 @@ function renderSelectionActions(){
      formats them rather than the estimator pre-baking a unit into its result. */
   summary.textContent=`${fmtFeet(est.widthFt,1)} x ${fmtFeet(est.heightFt,1)} - ${fmtAreaSqFt(est.areaSqFt,0)}`;
   el.appendChild(summary);
+  el.appendChild(row);
+  /* The summary is the only text here that changes, so its width is the only
+     thing a rebuild can do to the pill's size. refreshCanvasTools lands here on
+     every tool change and undo, and none of those should force a layout to find
+     that out. */
+  if (el._summary!==summary.textContent){ el._summary=summary.textContent; el._size=null; el._sig=null; }
   /* Move and Duplicate are a MODE — what dragging the selection does — so they
      are one pressed/unpressed pair, set apart from the one-shot actions after
      them. They were styled like the actions beside them, and the second was
@@ -1262,7 +1272,7 @@ function renderSelectionActions(){
      More as "Save area": two copies, neither named for what it does. */
   const mode=document.createElement('span'); mode.className='selection-mode';
   mode.setAttribute('role','group'); mode.setAttribute('aria-label','Dragging the selection will');
-  el.appendChild(mode);
+  row.appendChild(mode);
   const modeBtn=(label,id,title)=>{ const b=btn(label,game.selMode===id,()=>{ game.selMode=id; renderSelectionActions(); updateActiveToolStatus(); },title);
     b.setAttribute('aria-pressed',game.selMode===id?'true':'false'); mode.appendChild(b); };
   modeBtn('Move','move','Drag the selection to move it');
@@ -1292,9 +1302,13 @@ function showSelectionMore(anchor){
   add('Copy area',()=>saveSelectedArea(),null,false,'Copy everything in the selection to paste elsewhere (Ctrl+C)');
   add('Paste area',()=>pasteSavedArea(),null,!storedArea(),'Paste the copied area here (Ctrl+V)');
   document.body.appendChild(pop);
-  const r=anchor.getBoundingClientRect(), w=pop.offsetWidth||190;
+  const r=anchor.getBoundingClientRect(), w=pop.offsetWidth||190, h=pop.offsetHeight;
   pop.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
-  pop.style.top=Math.max(8,r.top-pop.offsetHeight-6)+'px';
+  /* Above the button, unless that would run up over the top bar; a pill at the
+     top of the canvas opens its menu downward instead. This is a fixed element
+     measured in client px, and the clear rect is the canvas's, hence the frame. */
+  const safe=usableCanvasRect(), barEdge=canvasViewportRect().top+(safe.clear||safe).top, above=r.top-h-6;
+  pop.style.top=(above>=barEdge ? above : Math.max(barEdge,Math.min(innerHeight-h-8,r.bottom+6)))+'px';
   const dismiss=e=>{ if (!pop.contains(e.target)){ pop.remove(); document.removeEventListener('pointerdown',dismiss,true); } };
   setTimeout(()=>document.addEventListener('pointerdown',dismiss,true),0);
   const first=pop.querySelector('button:not(:disabled)'); if (first) first.focus();
@@ -1320,25 +1334,71 @@ function openSelectionEstimate(){
   if (!game.sel){ toast('Select an area first.'); return; }
   renderSelectionEstimate(); openOverlay('estimateScreen','#estimateDepth');
 }
+/* Where the selection pill goes: its top-left corner, in canvas px. Pure, so the
+   rule can be tested without a layout engine.
+   Above the marquee by choice, and flipped below it when that would leave the
+   clear canvas. Where neither fits (a marquee taller than the room, or one panned
+   away) it takes whichever end of the canvas hides less, or the nearer end if both
+   hide nothing. It never leaves the top of the clear rect: a pill too tall for the
+   room runs out over the sheet, where it costs a sliver of handle, rather than
+   over the top bar, where it takes Menu. Null means no room to be a control at
+   all: a full sheet, which is hiding the selection anyway. */
+const SEL_PILL_GAP=12;        // clears the marquee's corner handle (radius ~7)
+const SEL_PILL_MIN_ROOM=44;   // one row of touch targets
+function selectionPillSpot(box,w,h,clear){
+  if (!(clear.bottom-clear.top>=SEL_PILL_MIN_ROOM)) return null;
+  const x=Math.max(clear.left,Math.min(clear.right-w,(box.left+box.right-w)/2));
+  const top=clear.top, low=Math.max(top,clear.bottom-h);
+  const above=box.top-SEL_PILL_GAP-h, below=box.bottom+SEL_PILL_GAP;
+  let y;
+  if (above>=top && above<=low) y=above;
+  else if (below>=top && below<=low) y=below;
+  else {
+    const hides=t=>Math.max(0,Math.min(t+h,box.bottom)-Math.max(t,box.top));
+    const atTop=hides(top), atLow=hides(low);
+    y=atTop!==atLow ? (atTop<atLow?top:low)
+      : box.top+box.bottom<top+low+h ? top : low;
+  }
+  return {x:Math.round(x), y:Math.round(y)};
+}
 function positionSelectionActions(){
   const el=document.getElementById('selectionActions');
   if (!el || el.classList.contains('hidden') || !game.sel) return;
   const r=game.sel, W=VW/ZOOM, H=VH/ZOOM;
-  /* Called once per frame from render(). Nothing below can have moved unless
-     the selection, the camera or the viewport did, so answer that first — the
-     write was already change-guarded, but the WORK to decide it was not. */
-  const sig=r.x0+','+r.y0+','+r.x1+','+r.y1+'|'+cam.x+','+cam.y+'|'+ZOOM+'|'+VW+'x'+VH;
+  /* Called once per frame from render(). Nothing below can have moved unless the
+     selection, the camera, the viewport or the chrome did, so answer that first —
+     the write was already change-guarded, but the WORK to decide it was not.
+     usableRectRev is the chrome: without it the pill stayed where it was when the
+     sheet moved, right up to the next pan. */
+  const sig=r.x0+','+r.y0+','+r.x1+','+r.y1+'|'+cam.x+','+cam.y+'|'+ZOOM+'|'+VW+'x'+VH+'|'+usableRectRev;
   if (el._sig===sig) return;
   el._sig=sig;
-  const top=screenOf((r.x0+r.x1)/2, r.y0-0.7, W, H);
-  let x=Math.round(top[0]*ZOOM), y=Math.round(top[1]*ZOOM);
-  const safe=typeof usableCanvasRect==='function' ? usableCanvasRect() : {left:86,top:118,right:VW-86,bottom:VH-120};
-  x=Math.max(safe.left+78,Math.min(safe.right-78,x));
-  y=Math.max(safe.top+26,Math.min(safe.bottom-12,y));
-  if (el._px===x && el._py===y) return;   // called per frame — write only on change
-  el._px=x; el._py=y;
-  el.style.left=x+'px';
-  el.style.top=y+'px';
+  const safe=usableCanvasRect(), clear=safe.clear||safe;
+  /* Its size is read only when the chrome has moved or its text changed, never
+     for a camera move: updateCompass has just dirtied the layout on those frames,
+     and this runs for every one of them. The width is capped at the clear rect,
+     so it wraps rather than sliding under the rail. */
+  if (el._rev!==usableRectRev){ el._rev=usableRectRev; el._size=null; }
+  if (!el._size){
+    el.style.maxWidth=Math.max(0,Math.round(clear.right-clear.left))+'px';
+    el._size={w:el.offsetWidth, h:el.offsetHeight};
+  }
+  /* The marquee as drawn, from the handles that sit on it: they ride the terraces
+     and turn with the view, where the one edge midpoint this used to read was the
+     far side of the selection at half the rotations. */
+  let left=Infinity, right=-Infinity, up=Infinity, down=-Infinity;
+  for (const p of selHandlePoints(r,W,H)){
+    const px=p.x*ZOOM, py=p.y*ZOOM;
+    if (px<left) left=px; if (px>right) right=px;
+    if (py<up) up=py; if (py>down) down=py;
+  }
+  const spot=selectionPillSpot({left,right,top:up,bottom:down},el._size.w,el._size.h,clear);
+  const vis=spot?'':'hidden';
+  if (el._vis!==vis){ el._vis=vis; el.style.visibility=vis; }
+  if (!spot || (el._px===spot.x && el._py===spot.y)) return;   // called per frame — write only on change
+  el._px=spot.x; el._py=spot.y;
+  el.style.left=spot.x+'px';
+  el.style.top=spot.y+'px';
 }
 /* a small themed yes/no modal, built on the fly (matches the .screen panels).
    Returns nothing; calls onOk only if the user confirms. */
@@ -4646,7 +4706,7 @@ function toolGuide(){
   }
   const guides={
     hand:{k:'Hand',v:'Drag to pan — pinch, wheel, or View Tools to zoom'},
-    select:{k:'Select',v:game.sel?`${game.selMode==='copy'?'Duplicate':'Move'} — drag the selection to ${game.selMode==='copy'?'place a duplicate':'move it'}; Delete erases it`:'Drag a box around an area, then use the actions above it'},
+    select:{k:'Select',v:game.sel?`${game.selMode==='copy'?'Duplicate':'Move'} — drag the selection to ${game.selMode==='copy'?'place a duplicate':'move it'}; Delete erases it`:'Drag a box around an area, then use the actions that appear'},
     ruler:{k:'Tape measure',v:'Tap two points or drag between them'},
     pick:{k:'Eyedropper',v:'Tap an existing plant, material, or structure to copy it'},
     shovel:{k:'Erase',v:`${cap(game.eraseMode)} layer — tap or drag — ${game.brushSize}-tile brush`},

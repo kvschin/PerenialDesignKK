@@ -88,7 +88,10 @@ function updateZoomPill(){
    by a ResizeObserver over the elements themselves, which catches whatever the
    explicit path misses. */
 let usableRectCache=null, usableRectObs=null;
-function invalidateUsableRect(){ usableRectCache=null; }
+/* Moves whenever the chrome might have, which a per-frame caller can compare
+   without measuring anything (positionSelectionActions). */
+let usableRectRev=0;
+function invalidateUsableRect(){ usableRectCache=null; usableRectRev++; }
 function watchUsableRect(){
   if (typeof ResizeObserver!=='function') return;
   if (!usableRectObs) usableRectObs=new ResizeObserver(invalidateUsableRect);
@@ -125,15 +128,25 @@ function measureUsableCanvasRect(){
   const rail=document.getElementById('canvasTools');
   if (rail){ const rr=rail.getBoundingClientRect(); take(rail,rr.left-frame.left+rr.width/2>VW/2?'right':'left'); }
   const sheet=document.querySelector('.hud-bottom');
-  if (sheet && !sheet.classList.contains('sheet-collapsed') && getComputedStyle(sheet).visibility!=='hidden'){
+  let handleTop=null;
+  if (sheet && getComputedStyle(sheet).visibility!=='hidden'){
     const r=sheet.getBoundingClientRect();
     if (r.width && r.height){
       const sideDocked=r.left>VW*.45 && r.top<VH*.3 && r.height>VH*.45;
-      if (sideDocked) out.right=Math.min(out.right,Math.max(8,r.left-8));
+      if (sheet.classList.contains('sheet-collapsed')){ if (!sideDocked) handleTop=r.top; }
+      else if (sideDocked) out.right=Math.min(out.right,Math.max(8,r.left-8));
       else out.bottom=Math.min(out.bottom,Math.max(8,r.top-8));
     }
   }
   take(document.getElementById('sitePhotoEditor'),'bottom');
+  /* What is genuinely free of chrome, BEFORE the two fallbacks below. Those are
+     right for framing the plot, which has to get some answer even with a full
+     sheet up, and wrong for a control: with the sheet at full they hand back
+     nearly the whole screen, top bar included. It also leaves out a collapsed
+     sheet's handle, which framing ignores on purpose and a control must not
+     cover. It may have no height at all, which is the honest answer then. */
+  out.clear={left:out.left, top:out.top, right:out.right,
+    bottom:handleTop===null ? out.bottom : Math.min(out.bottom,Math.max(8,handleTop-8))};
   if (out.right-out.left<120){ out.left=8; out.right=Math.max(8,VW-8); }
   if (out.bottom-out.top<120){ out.top=8; out.bottom=Math.max(8,VH-8); }
   return out;
