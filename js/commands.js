@@ -2143,28 +2143,40 @@ function selectionPergolaAt(x,y,ctx){
   return p ? {moving:false, p} : null;
 }
 /* The multi-tile object of one kind standing on a tile in the post-move world,
-   as {key,x,y,...record}; `ownKey` is the destination origin of the object
-   asking, so it never finds itself. */
-function selectionObjectAt(x,y,ctx,f,ownKey){
+   as {key,x,y,...record}. */
+function selectionObjectAt(x,y,ctx,f){
   const F=SEL_FOOTPRINTS[f];
   if (ctx) for (const [key,o] of ctx.dest[F.layer]){
-    if (key===ownKey || !liveSelectionValue(o)) continue;
+    if (!liveSelectionValue(o)) continue;
     const sz=F.size(o);
     if (x>=o.x && x<o.x+sz.w && y>=o.y && y<o.y+sz.h) return Object.assign({key},o);
   }
   const live=F.at(x,y);
   if (!live || selectionIgnored(ctx,F.layer,live.key)) return null;
-  // a copy onto itself still collides; a live object is never "own"
   return live;
 }
 function selectionWaterFeatureAt(x,y,ctx){ return selectionObjectAt(x,y,ctx,'waterFeature'); }
 function selectionFirepitAt(x,y,ctx){ return selectionObjectAt(x,y,ctx,'firepit'); }
 function selectionBoulderAt(x,y,ctx){ return selectionObjectAt(x,y,ctx,'boulder'); }
-// any solid piece on the tile other than the asker (a pet claims nothing)
-function selectionSolidAt(x,y,ctx,selfF,selfKey){
-  for (const f of SEL_FOOTPRINT_KEYS)
-    if (selectionObjectAt(x,y,ctx,f,f===selfF?selfKey:undefined)) return f;
+/* What a moving piece can collide with is what is STAYING. A move, a copy and a
+   turn are all rigid, so the pieces of one selection keep their places relative
+   to each other and can only meet at the destination if they already overlap
+   where they stand. Older gardens can hold that: the placers used to disagree
+   (F08), and water could be painted under a pot or a seat (F09). Counting those
+   as collisions left such a group immovable wherever it was dragged, so these
+   never look at the selection's own destinations. A copy's source stays, so a
+   copy onto itself still collides. A pet claims nothing. */
+function selectionStayingSolidAt(x,y,ctx){
+  for (const f of SEL_FOOTPRINT_KEYS){
+    const F=SEL_FOOTPRINTS[f], live=F.at(x,y);
+    if (live && !selectionIgnored(ctx,F.layer,live.key)) return f;
+  }
   return null;
+}
+function selectionStayingFenceAt(x,y,ctx){ return !selectionIgnored(ctx,'fences',`${x},${y}`) && !!fenceAt(x,y); }
+function selectionStayingLightAt(x,y,ctx){ return !selectionIgnored(ctx,'lights',`${x},${y}`) && !!lightAt(x,y); }
+function selectionStayingWaterAt(x,y,ctx){
+  return selectionTerrainKindAt(x,y,ctx)==='water' && !liveSelectionValue(selectionDest(ctx,'terrain',`${x},${y}`));
 }
 /* What a plant on this tile would climb, in the post-move world: a placed
    frame, a fence that is not a gate, or a pergola roof. The supportAt rule,
@@ -2204,7 +2216,7 @@ function selectionPlantDestValid(rec,x,y,ctx,isBulb){
   const terr=selectionTerrainKindAt(x,y,ctx);
   if (P.type==='water' && !isBulb){
     if (terr!=='water') return false;
-  } else if (terr==='water' || (!pot && terr==='path')) return false;
+  } else if ((pot ? selectionStayingWaterAt(x,y,ctx) : terr==='water') || (!pot && terr==='path')) return false;
   if (isBulb){
     if (selectionBulbAt(x,y,ctx,k)) return false;
     const above=selectionPlantAt(x,y,ctx,null);
@@ -2237,21 +2249,22 @@ function selItemTiles(c,x,y){
 function selItemValidDest(c,x,y){
   return selItemTiles(c,x,y).every(([xx,yy])=>selValidDest(xx,yy));
 }
-/* A solid piece landing on its footprint: nothing else solid may share a tile,
-   and it refuses what its own placement refuses — a fence or light, water
-   (a water feature is wholly in or wholly out), a planting, and for a fire pit
-   or a climbing frame, a pergola roof. A pot takes no new in-ground plant
-   under it, but its own planting travels with it and is judged from the plant
-   side; a frame carries its climbers. */
+/* A solid piece landing on its footprint: nothing else solid that is staying
+   may share a tile, and it refuses what its own placement refuses — a fence or
+   light, water (a water feature is wholly in or wholly out), a planting, and for
+   a fire pit or a climbing frame, a pergola roof. A pot takes no new in-ground
+   plant under it, but its own planting travels with it and is judged from the
+   plant side; a frame carries its climbers. */
 function selectionFootprintDestValid(f,o,x,y,ctx){
-  const sz=SEL_FOOTPRINTS[f].size(o), own=`${x},${y}`;
-  let wet=0, n=0;
+  const sz=SEL_FOOTPRINTS[f].size(o);
+  let wet=0, stayingWet=0, n=0;
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++){
     n++;
     if (!selValidDest(xx,yy)) return false;
-    if (selectionSolidAt(xx,yy,ctx,f,own)) return false;
-    if (selectionFenceAt(xx,yy,ctx) || selectionLightAt(xx,yy,ctx)) return false;
+    if (selectionStayingSolidAt(xx,yy,ctx)) return false;
+    if (selectionStayingFenceAt(xx,yy,ctx) || selectionStayingLightAt(xx,yy,ctx)) return false;
     if (selectionTerrainKindAt(xx,yy,ctx)==='water') wet++;
+    if (selectionStayingWaterAt(xx,yy,ctx)) stayingWet++;
     if ((f==='firepit'||f==='support') && selectionPergolaAt(xx,yy,ctx)) return false;
     const k=`${xx},${yy}`, p=selectionPlantAt(xx,yy,ctx,null), b=selectionBulbAt(xx,yy,ctx,null);
     if (f==='pot'){
@@ -2262,7 +2275,7 @@ function selectionFootprintDestValid(f,o,x,y,ctx){
     } else if (p || b) return false;
   }
   if (f==='waterFeature') return !wet || wet===n;
-  return !wet;
+  return !stayingWet;
 }
 function selItemDestValid(c,x,y,ctx){
   if (!selItemValidDest(c,x,y)) return false;
@@ -2270,11 +2283,13 @@ function selItemDestValid(c,x,y,ctx){
   for (const f of SEL_FOOTPRINT_KEYS)
     if (c[f] && !selectionFootprintDestValid(f,c[f],x,y,ctx)) return false;
   if (c.fence || c.light){
-    if (selectionSolidAt(x,y,ctx)) return false;
+    if (selectionStayingSolidAt(x,y,ctx)) return false;
+    if (c.fence && selectionStayingLightAt(x,y,ctx)) return false;
+    if (c.light && selectionStayingFenceAt(x,y,ctx)) return false;
     if (c.fence && selectionPergolaAt(x,y,ctx)) return false;
   }
   if (c.pergola){
-    if (selectionTerrainKindAt(x,y,ctx)==='water' || selectionFenceAt(x,y,ctx)) return false;
+    if (selectionStayingWaterAt(x,y,ctx) || selectionFenceAt(x,y,ctx)) return false;
     if (selectionObjectAt(x,y,ctx,'firepit') || selectionObjectAt(x,y,ctx,'support')) return false;
     const p=selectionPlantAt(x,y,ctx,null);
     if (p && PLANTS[p.s] && isTreeDef(plantDef(p.s,p.v))) return false;

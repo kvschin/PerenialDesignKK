@@ -19443,3 +19443,245 @@ test('sDel and the index batch report IndexedDB failure, atomically (F03)', asyn
   assertEqual(store.get('hortus:worlds').length, 0, 'row removed');
   assert(!store.has('hortus:world:w-idb'), 'blob removed in the same write');
 });
+
+/* ---------- the 0.9.71 merge: what no single branch could test ----------
+   Twenty branches were written apart from one master, each green on its own and
+   none able to see the others. These pin the seams between them: the footprint
+   index against the code that moves and restyles what it indexes, the elevation
+   range against the code that levels and erases ground, and the two rule sets
+   (placement and selection) that must agree about what can share a tile. */
+function assertFootprintIndexesTrue(label){
+  const layers = [['seats', seatTileSize, seatAt], ['firepits', firepitTileSize, firepitAt],
+    ['waterFeatures', waterFeatureTileSize, waterFeatureAt], ['boulders', boulderTileSize, boulderAt]];
+  for (const [layer, size, at] of layers) for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++){
+    const want = footprintScan(game[layer], size, x, y), got = at(x, y);
+    assertEqual(JSON.stringify(got), JSON.stringify(want), `${label}: ${layer} at ${x},${y}`);
+  }
+}
+function furnishForSeams(){
+  game.seatDraft = { type: 'bench6', finish: 'teak', face: 0 }; assert(placeSeatAt(5, 5), 'bench');
+  game.boulderDraft = { type: 'oblong21', stone: 'granite', face: 0 }; assert(placeBoulderAt(5, 7), 'long boulder');
+  game.firepitDraft = { shape: 'rect', size: 'rect2448', face: 0 }; assert(placeFirepitAt(9, 5), 'oblong fire pit');
+  game.waterFeatureDraft = { form: 'birdbath', finish: 'stone', face: 0 }; assert(placeWaterFeatureAt(9, 9), 'birdbath');
+}
+test('the structure indexes stay true through every way a selection or restyle changes a footprint', () => {
+  setup(30, 30);
+  furnishForSeams();
+  // asking first is the point: it builds and caches each index, so a later edit
+  // that fails to invalidate one answers from a stale map here
+  assertFootprintIndexesTrue('placed');
+
+  game.sel = { x0: 5, y0: 5, x1: 11, y1: 10 }; game.selItems = selectionPayload(game.sel);
+  assert(commitSelectionOffset(3, 2, false), 'the group moves');
+  assertFootprintIndexesTrue('moved');
+  assert(seatAt(8, 7) && !seatAt(5, 5), 'the bench is found where it went, not where it was');
+
+  rotateSelection();
+  assertFootprintIndexesTrue('turned');
+  const seatKey = Object.keys(game.seats).find(k => !game.seats[k].removed);
+  assertEqual(game.seats[seatKey].face, 1, 'the bench turned, which is what moves its footprint');
+
+  const turnedRect = Object.assign({}, game.sel);
+  doUndo(); assertFootprintIndexesTrue('undone');
+  doRedo(); assertFootprintIndexesTrue('redone');
+
+  // an undo drops the selection, as it does for any edit, so take it up again
+  game.sel = turnedRect; game.selItems = selectionPayload(game.sel);
+  assert(commitSelectionOffset(0, 8, true), 'the group duplicates');
+  assertFootprintIndexesTrue('duplicated');
+
+  saveSelectedArea();
+  game.sel = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  pasteSavedArea();
+  assertFootprintIndexesTrue('pasted');
+  doUndo(); assertFootprintIndexesTrue('paste undone');
+
+  // a resize re-owns what is inside the rect and must leave the world alone
+  const before = JSON.stringify(game.seats);
+  game.sel = { x0: 8, y0: 15, x1: 14, y1: 20 };
+  game.sel = selResizeRect(game.sel, SEL_HANDLES.find(h => h.id === 'se'), 18, 24);
+  game.selItems = selectionPayload(game.sel);
+  assertEqual(JSON.stringify(game.seats), before, 'a resize moves nothing');
+  assertFootprintIndexesTrue('resized');
+  eraseSelection();
+  assertFootprintIndexesTrue('erased');
+  doUndo(); assertFootprintIndexesTrue('erase undone');
+});
+test('restyling a piece in place moves its footprint in the index too', () => {
+  setup(30, 30);
+  game.seatDraft = { type: 'bench6', finish: 'teak', face: 0 }; placeSeatAt(5, 5);
+  const longW = seatTileSize(game.seats['5,5']).w;
+  assert(seatAt(5 + longW - 1, 5), 'the far end of the long bench is claimed');
+  game.seatDraft = { type: 'stool', finish: 'teak', face: 0 };
+  assert(placeSeatAt(5, 5), 'restyled to a stool where it stands');
+  assertFootprintIndexesTrue('restyled smaller');
+  assert(!seatAt(5 + longW - 1, 5), 'the ground the bench gave up is free again');
+});
+test('a light or pot finish rides a move, a turn and an undo', () => {
+  setup(24, 24);
+  game.lightDraft = { type: 'lantern', tone: 'warm', finish: 'brass' }; placeLightAt(5, 5);
+  const fin = game.lights['5,5'].finish;
+  assert(fin, 'the light stores its finish');
+  game.potDraft = { style: 'glazed', size: 'p18', finish: 'cobalt' }; placePotAt(7, 5);
+  const potFin = game.pots['7,5'].finish;
+  game.sel = { x0: 5, y0: 5, x1: 7, y1: 5 }; game.selItems = selectionPayload(game.sel);
+  assert(commitSelectionOffset(4, 4, false), 'moved');
+  assertEqual(game.lights['9,9'].finish, fin, 'the light keeps its metal');
+  assertEqual(game.pots['11,9'].finish, potFin, 'the pot keeps its colour');
+  rotateSelection();
+  const moved = Object.keys(game.lights).filter(k => !game.lights[k].removed);
+  assertEqual(moved.length, 1, 'one light');
+  assertEqual(game.lights[moved[0]].finish, fin, 'and still its metal after a turn');
+  doUndo(); doUndo();
+  assertEqual(game.lights['5,5'].finish, fin, 'both undos land back on the original');
+});
+test('a selection cannot move a solid onto anything its own placer would refuse', () => {
+  const names = Object.keys(SOLID_PLACERS), bad = [];
+  for (const a of names) for (const b of names){
+    if (a === b) continue;
+    setup(30, 30);
+    if (!SOLID_PLACERS[a]()) { bad.push(`${a} alone did not place`); continue; }
+    // carry a out of the way, put b where it was, then try to carry a back
+    game.sel = { x0: 6, y0: 6, x1: 6, y1: 6 }; game.selItems = selectionPayload(game.sel);
+    if (!commitSelectionOffset(12, 12, false)) { bad.push(`${a} would not move away`); continue; }
+    if (!SOLID_PLACERS[b]()) { bad.push(`${b} did not place where ${a} left`); continue; }
+    if (commitSelectionOffset(-12, -12, false)) bad.push(`${a} moved onto ${b}`);
+  }
+  assertEqual(bad.join('; '), '', 'moving and placing agree about what can share a tile');
+});
+/* Older builds let these overlaps be made (F08, F09), so a saved garden can hold
+   them, and refusing them made the whole group immovable wherever it was dragged
+   -- the demo garden has none, so nothing else in the suite could see that. */
+test('pieces an older garden already overlaps still move and turn together', () => {
+  const water = { k: 'water', c: 'pond', t: 1 };
+  const groups = {
+    'a light on a bench':   () => { setTile('seats', '5,5', { type: 'bench6', finish: 'teak', face: 0, t: 1 }); setTile('lights', '6,5', { type: 'path', tone: 'warm', t: 1 }); },
+    'a fence on a pot':     () => { setTile('pots', '5,5', { style: 'terracotta', size: 'p18', t: 1 }); setTile('fences', '5,5', { style: 'black', height: 4, t: 1 }); },
+    'a boulder on a pot':   () => { setTile('pots', '5,5', { style: 'terracotta', size: 'p18', t: 1 }); setTile('boulders', '5,5', { type: 'round1', t: 1 }); },
+    'a fire pit on a seat': () => { setTile('seats', '5,5', { type: 'stool', finish: 'teak', face: 0, t: 1 }); setTile('firepits', '5,5', { shape: 'round', size: 'round36', t: 1 }); },
+    'a pot on a frame':     () => { setTile('supports', '5,5', { style: 'obelisk', mat: 'timber', face: 0, t: 1 }); setTile('pots', '5,5', { style: 'terracotta', size: 'p18', t: 1 }); },
+    'a light on a fence':   () => { setTile('fences', '5,5', { style: 'black', height: 4, t: 1 }); setTile('lights', '5,5', { type: 'path', tone: 'warm', t: 1 }); },
+    'a seat in a pond':     () => { setTile('terrain', '5,5', water); setTile('seats', '5,5', { type: 'stool', finish: 'teak', face: 0, t: 1 }); },
+    'a pot in a pond, planted': () => {
+      setTile('terrain', '5,5', water); setTile('pots', '5,5', { style: 'terracotta', size: 'p18', t: 1 });
+      setTile('plants', '5,5', { s: firstOfType('forb'), d: 0, t: 1 });
+    },
+    'a pergola over a pond': () => { setTile('terrain', '5,5', water); setTile('pergolas', '5,5', { mat: 'timber', height: 8, t: 1 }); },
+  };
+  const take = () => { game.sel = { x0: 4, y0: 4, x1: 9, y1: 7 }; game.selItems = selectionPayload(game.sel); };
+  for (const [name, build] of Object.entries(groups)){
+    setup(30, 30); build(); take();
+    assert(commitSelectionOffset(10, 10, false), `${name} moves`);
+    setup(30, 30); build(); take();
+    assert(commitSelectionOffset(10, 10, true), `${name} duplicates`);
+    setup(30, 30); build(); take();
+    const where = () => JSON.stringify(GAME_MAPS.map(L => Object.keys(game[L.k] || {}).filter(k => !game[L.k][k].removed).sort()));
+    const before = where();
+    rotateSelection();
+    assert(where() !== before, `${name} turns`);
+  }
+});
+test('that allowance stops at what is staying: a group still cannot land on a stationary piece', () => {
+  const overlap = () => { setTile('pots', '5,5', { style: 'terracotta', size: 'p18', t: 1 }); setTile('fences', '5,5', { style: 'black', height: 4, t: 1 }); };
+  const take = () => { game.sel = { x0: 5, y0: 5, x1: 5, y1: 5 }; game.selItems = selectionPayload(game.sel); };
+  for (const [name, plant] of Object.entries({
+    'a stationary boulder': () => setTile('boulders', '15,15', { type: 'round1', t: 1 }),
+    'a stationary light':   () => setTile('lights', '15,15', { type: 'path', tone: 'warm', t: 1 }),
+    'a stationary fence':   () => setTile('fences', '15,15', { style: 'black', height: 4, t: 1 }),
+    'a stationary pond':    () => setTile('terrain', '15,15', { k: 'water', c: 'pond', t: 1 }),
+  })){
+    setup(30, 30); overlap(); plant(); take();
+    assert(!commitSelectionOffset(10, 10, false), `the overlapping pair cannot land on ${name}`);
+    assert(potAt(5, 5) && fenceAt(5, 5), 'and nothing moved');
+  }
+  // a copy's source stays, so a copy cannot land on itself
+  setup(30, 30);
+  setTile('seats', '5,5', { type: 'bench6', finish: 'teak', face: 0, t: 1 });
+  game.sel = { x0: 5, y0: 5, x1: 5, y1: 5 }; game.selItems = selectionPayload(game.sel);
+  assert(!commitSelectionOffset(1, 0, true), 'a bench duplicated one tile along would stand on itself');
+});
+test('a fence moved with its climber keeps it, and erasing the moved fence takes both', () => {
+  setup(24, 24);
+  game.fenceDraft = { style: 'black', height: 4, gate: false }; placeFenceAt(6, 6);
+  game.tool = 'trumpethoneysuckle'; game.toolVar = null;
+  assert(placePlantAt(6, 6), 'the climber goes on the fence');
+  game.sel = { x0: 6, y0: 6, x1: 6, y1: 6 }; game.selItems = selectionPayload(game.sel);
+  assert(commitSelectionOffset(4, 0, false), 'the pair moves');
+  assert(fenceAt(10, 6) && game.plants['10,6'] && !game.plants['10,6'].removed, 'landed together');
+  game.eraseMode = 'terrain'; game.brushSize = 1;
+  game.layerVis = Object.assign({}, game.layerVis);
+  eraseBrush(10, 6, {});
+  assert(!fenceAt(10, 6), 'the fence is gone');
+  assert(!game.plants['10,6'] || game.plants['10,6'].removed, 'and the climber with it');
+});
+test('tileAt agrees with the full probe as ground is levelled and its walls erased', () => {
+  setup(21, 21);
+  const W = 1200, H = 800;
+  const fullProbe = (sx, sy) => {
+    for (let h = ELEV_MAX; h >= ELEV_MIN; h--){
+      if (h === 0) continue;
+      const [x, y] = tileAtElevation(sx, sy, W, H, h);
+      if (inWorldTile(x, y) && elevationAt(x, y) === h && pointInTileDiamond(sx, sy, x, y, W, H)) return [x, y];
+    }
+    const [vx, vy] = viewPointAt(sx, sy, W, H);
+    return viewToWorld(Math.round(vx), Math.round(vy));
+  };
+  const agree = label => {
+    const rot0 = game.rot;
+    for (let rot = 0; rot < 4; rot++){
+      game.rot = rot;
+      for (let sy = 0; sy < H; sy += 29) for (let sx = 0; sx < W; sx += 41)
+        assertEqual(JSON.stringify(tileAt(sx, sy, W, H)), JSON.stringify(fullProbe(sx, sy)), `${label} rot ${rot} at ${sx},${sy}`);
+    }
+    game.rot = rot0;
+  };
+  agree('flat');
+  for (let y = 8; y <= 11; y++) for (let x = 6; x <= 8; x++) setTile('elevation', `${x},${y}`, { h: 2, w: 'drystone', t: 1 });
+  for (let y = 8; y <= 11; y++) for (let x = 9; x <= 11; x++) setTile('elevation', `${x},${y}`, { h: -2, t: 1 });
+  agree('terrace beside hollow');
+  setElevationAt(8, 9, 0);
+  assert(game.elevation['8,9'] && !game.elevation['8,9'].removed && game.elevation['8,9'].h === 0, 'the levelled rim keeps its wall record');
+  agree('levelled rim');
+  game.eraseMode = 'terrain'; game.brushSize = 1;
+  eraseBrush(8, 9, {});
+  agree('erased rim');
+  for (let y = 8; y <= 11; y++) for (let x = 6; x <= 11; x++) setElevationAt(x, y, 0);
+  const E = elevationGrid();
+  assertEqual(E.lo, 0, 'levelling everything closes the range from below');
+  assertEqual(E.hi, 0, 'and from above');
+  agree('levelled flat');
+});
+test('a save written after moves and erasures has no tombstones, and reopens exactly', async () => {
+  setup(24, 24);
+  furnishForSeams();
+  game.fenceDraft = { style: 'black', height: 4, gate: false }; placeFenceAt(2, 2);
+  game.sel = { x0: 5, y0: 5, x1: 11, y1: 10 }; game.selItems = selectionPayload(game.sel);
+  assert(commitSelectionOffset(3, 2, false), 'moved');
+  clearSelection();
+  game.eraseMode = 'terrain'; game.brushSize = 1; eraseBrush(2, 2, {});
+  assert(game.seats['5,5'] && game.seats['5,5'].removed, 'the live map keeps its tombstone for undo');
+  const blob = buildSaveBlob();
+  for (const L of GAME_LAYERS){
+    if (L.array){ assert(Array.isArray(blob[L.k]), `${L.k} is still an array`); continue; }
+    const dead = Object.keys(blob[L.k] || {}).filter(k => blob[L.k][k].removed);
+    assertEqual(dead.length, 0, `${L.k} carries no tombstones`);
+  }
+  // what the import validator makes of it, since a shared file is this same blob
+  assertEqual(gardenFileProblem({ pocketPrairie: 1, v: 1, world: JSON.parse(JSON.stringify(blob)) }), null, 'a compacted save is a valid garden file');
+  const want = {};
+  for (const L of GAME_MAPS) want[L.k] = JSON.stringify(blob[L.k]);
+  game.worldId = 'seam-roundtrip';
+  assert(await saveSolo(true), 'saved');
+  assert(await loadSolo('seam-roundtrip'), 'reloaded');
+  for (const L of GAME_MAPS) assertEqual(JSON.stringify(game[L.k]), want[L.k], `${L.k} came back identical`);
+  assertFootprintIndexesTrue('after reload');
+});
+test('a landscape search result arms a row whose placement keeps the finish it arms', () => {
+  setup(24, 24);
+  const up = landscapeSearchItems('uplight').find(i => i.option === 'uplight');
+  assert(up, 'uplight is findable by name');
+  up.arm(); setTool(up.tool, null);
+  assertEqual(placeLightAt(5, 5), 'light', 'and places');
+  assertEqual(game.lights['5,5'].type, 'uplight', 'as the fixture searched for');
+  assert(game.lights['5,5'].finish, 'with a finish on the record');
+});
