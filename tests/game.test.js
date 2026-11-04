@@ -151,6 +151,69 @@ test('tileAt picks the drawn diamond for elevated terrain', () => {
   }
 });
 
+/* tileAt used to probe all six non-zero levels on every call — every canvas
+   pointermove, and the renderer's corner inversions every frame — though only a
+   level some tile actually stands at can match. It is now bounded by the
+   elevation grid's lo/hi. The old loop is kept here verbatim as the reference. */
+function tileAtFullProbe(sx,sy,W,H){
+  for (let h=ELEV_MAX; h>=ELEV_MIN; h--){
+    if (h===0) continue;
+    const [x,y]=tileAtElevation(sx,sy,W,H,h);
+    if (inWorldTile(x,y) && elevationAt(x,y)===h && pointInTileDiamond(sx,sy,x,y,W,H)) return [x,y];
+  }
+  const [vx,vy]=viewPointAt(sx,sy,W,H);
+  return viewToWorld(Math.round(vx), Math.round(vy));
+}
+test('tileAt probes only the levels the garden holds, and answers exactly as the full probe', () => {
+  const W = 900, H = 700;
+  const configs = [
+    ['no elevation map', () => { game.elevation = null; }],
+    ['empty map', () => { game.elevation = {}; }],
+    ['terrace', () => { game.elevation = {}; for (let x = 4; x < 9; x++) for (let y = 4; y < 9; y++) setElevationAt(x, y, 2); }],
+    ['hollow', () => { game.elevation = {}; for (let x = 6; x < 10; x++) for (let y = 3; y < 7; y++) setElevationAt(x, y, -2); }],
+    ['stepped both ways', () => {
+      game.elevation = {};
+      for (let x = 2; x < 8; x++) for (let y = 2; y < 8; y++) setElevationAt(x, y, 1);
+      for (let x = 3; x < 6; x++) for (let y = 3; y < 6; y++) setElevationAt(x, y, ELEV_MAX);
+      for (let x = 10; x < 14; x++) for (let y = 9; y < 13; y++) setElevationAt(x, y, ELEV_MIN);
+      setElevationAt(12, 3, -1);
+    }],
+    ['levelled back flat (tombstones only)', () => {
+      game.elevation = {}; setElevationAt(5, 5, 3); setElevationAt(5, 5, 0);
+    }],
+  ];
+  let points = 0;
+  for (const [label, build] of configs){
+    setup(17, 15);
+    build();
+    for (let rot = 0; rot < 4; rot++){
+      game.rot = rot; snapCam();
+      for (let sy = -40; sy <= H + 40; sy += 9) for (let sx = -40; sx <= W + 40; sx += 11){
+        const a = tileAt(sx, sy, W, H), b = tileAtFullProbe(sx, sy, W, H);
+        if (a[0] !== b[0] || a[1] !== b[1])
+          assert(false, `${label}: (${sx},${sy}) at rot ${rot} gave ${a} where the full probe gives ${b}`);
+        points++;
+      }
+    }
+  }
+  assert(points > 20000, 'compared over a dense grid of screen points');
+
+  // the work: a flat garden inverts no elevated level at all; a terrace only its own
+  const probes = (fn) => {
+    const saved = globalThis.tileAtElevation; let n = 0;
+    globalThis.tileAtElevation = function(){ n++; return saved.apply(this, arguments); };
+    try { fn(); } finally { globalThis.tileAtElevation = saved; }
+    return n;
+  };
+  const sweep = () => { for (let i = 0; i < 100; i++) tileAt(100 + i * 7, 200 + i * 3, W, H); };
+  setup(17, 15); game.rot = 0; snapCam();
+  assertEqual(probes(sweep), 0, 'a flat garden probes no elevated level (it was 6 per call)');
+  game.elevation = {}; setElevationAt(4, 4, 2);
+  assertEqual(probes(sweep), 200, 'a garden raised to level 2 probes levels 2 and 1 only');
+  assertEqual(probes(() => { for (let i = 0; i < 100; i++) tileAtFullProbe(100 + i * 7, 200 + i * 3, W, H); }), 600,
+    'against six for the old loop');
+});
+
 test('multi-tile structure depth follows the rotated footprint', () => {
   setup(21, 21);
   const house = { x: 4, y: 6, w: 5, h: 3 };
