@@ -66,7 +66,8 @@ async function exercise(scenario){
   let wanted=null, stale=0, draws=0, doneCalls=0;
   const draw=drawPlantMaybeCached, blit=blitPlantSprite, request=requestSkipTo;
   drawPlantMaybeCached=function(ctx,bx,by,key,growth,season,seed,sway,v,detail,use,rec){
-    wanted=rec.kSlot+'|'+gbucket(growth,9)+'|'+(rec.hasBloom?gbucket(bloomLevel(key,v),4):0)+rec.kTail;
+    wanted=rec.kSlot+'|'+gbucket(growth,9)+'|'+(rec.hasBloom?gbucket(bloomLevel(key,v),4):0)+
+      (rec.leafOut?'|L'+leafStageForFrame(rec.sv,key,v,season):'')+rec.kTail;
     draws++; try{return draw.apply(this,arguments);}finally{wanted=null;}
   };
   blitPlantSprite=function(ctx,e){if(wanted&&PSPRITE.map.get(wanted)!==e)stale++;return blit.apply(this,arguments);};
