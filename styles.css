@@ -825,7 +825,7 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
 #worldsScreen #worldList+.row{margin-top:0;padding-top:14px;border-top:1px solid var(--border-quiet)}
 
 /* One width for both the rendered portrait and its map fallback. */
-.world-row{--thumb-w:136px;display:grid;grid-template-columns:var(--thumb-w) minmax(0,1fr) auto;
+.world-row{--thumb-w:136px;position:relative;display:grid;grid-template-columns:var(--thumb-w) minmax(0,1fr) auto;
   align-items:center;column-gap:14px;row-gap:4px;width:100%;padding:12px 14px;margin-bottom:8px;
   border:1.5px solid var(--border-control);background:var(--surface-input);border-radius:var(--radius-control);
   color:var(--text-primary);text-align:left;font-size:14px}
@@ -834,11 +834,20 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
 .world-row .wname{grid-column:2/4;grid-row:1;align-self:end;display:block;font-weight:600;font-size:16px;line-height:1.3;overflow-wrap:anywhere}
 .world-row .meta{grid-column:2/4;grid-row:2;display:block;font-size:12px;line-height:1.5;color:var(--text-muted)}
 .world-row .world-details{grid-column:2;grid-row:3}
+/* The garden's name is the Open button (U04), and its ::after covers the whole
+   row, so the picture and details open it too without the row being a button
+   that contains another. The focus ring goes on that overlay, round the row. */
+.world-open{margin:0;padding:0;border:0;background:none;color:inherit;font-family:inherit;
+  text-align:left;cursor:pointer}
+.world-open::after{content:"";position:absolute;inset:0;border-radius:inherit}
+.world-open:focus-visible{outline:none!important}   /* the shared button ring is !important */
+.world-open:focus-visible::after{outline:2px solid var(--focus-ring);outline-offset:2px;
+  border-radius:var(--radius-control)}
 /* Same 4:3 frame for the automatic portrait and the older-save map fallback. */
 .world-thumb{grid-column:1;grid-row:1/4;width:var(--thumb-w);height:calc(var(--thumb-w) * .75);border-radius:var(--radius-control);
   background:#241a16;border:1px solid var(--border-quiet)}
 /* One overflow control per row, replacing Rename/Duplicate/Delete inline. */
-.world-more{grid-column:3;grid-row:3;display:flex;align-items:center;justify-content:center;
+.world-more{grid-column:3;grid-row:3;position:relative;z-index:1;display:flex;align-items:center;justify-content:center;
   width:40px;height:40px;background:var(--surface-control);border:1px solid var(--border-control);
   color:var(--text-primary);border-radius:var(--radius-control);
   transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}

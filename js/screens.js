@@ -1009,14 +1009,23 @@ async function openWorlds(){
     ? 'Continue a planting plan, or start a new one.'
     : 'Nothing planted yet. Start a garden, or import one someone shared with you.';
   $('btnNewWorld').textContent='Design a new garden';
-  const list=$('worldList'); list.innerHTML='';
+  const list=$('worldList'); list.innerHTML=''; list.setAttribute('role','list');
   idx.sort((a,b)=>b.ts-a.ts).forEach(w=>{
-    const row=document.createElement('button'); row.className='world-row';
+    /* U04: the row used to be a <button> with the Actions <button> inside it,
+       which is invalid HTML (interactive content inside a button) and left
+       screen readers announcing one control that contained another. The row
+       is a plain list item now; the garden's NAME is the Open button, and its
+       ::after stretches over the whole row (styles.css, .world-open), so the
+       picture and the details still open the garden on a click or tap.
+       Actions sits above that overlay as a separate button. */
+    const row=document.createElement('div'); row.className='world-row'; row.setAttribute('role','listitem');
     const thumb=document.createElement('canvas'); thumb.className='world-thumb';
     thumb.width=280; thumb.height=210;
     thumb.setAttribute('aria-hidden','true');
     const info=document.createElement('span'); info.className='world-info';
-    const nm=document.createElement('span'); nm.className='wname'; nm.textContent=w.name||'My garden';
+    const nm=document.createElement('button'); nm.type='button'; nm.className='wname world-open';
+    nm.textContent=w.name||'My garden';
+    nm.onclick=()=>enterWorld(w.id);
     const meta=document.createElement('span'); meta.className='meta';
     /* 1.5 was feet-per-tile written as a literal in three places (here and
        twice on the plan sheet). It reads TILE_IN now, so the row cannot start
@@ -1026,6 +1035,10 @@ async function openWorlds(){
     // plot screen the garden was made on
     meta.textContent=`${fmtFeet((w.gw||31)*ftPerTile,1)} × ${fmtFeet((w.gh||31)*ftPerTile,1)} · ${new Date(w.ts).toLocaleDateString()}`;
     const details=document.createElement('span'); details.className='meta world-details';
+    // the size, date and plant count are read with the Open button, not as stray text
+    const metaId='world-meta-'+w.id, detailsId='world-details-'+w.id;
+    meta.id=metaId; details.id=detailsId;
+    nm.setAttribute('aria-describedby',metaId+' '+detailsId);
     info.append(nm,meta,details);
     // the save blob fills in the picture + living details (async, per row)
     sGet('hortus:world:'+w.id).then(s=>{
@@ -1053,7 +1066,6 @@ async function openWorlds(){
     more.setAttribute('aria-haspopup','menu'); more.setAttribute('aria-expanded','false');
     more.onclick=e=>{ e.stopPropagation(); showWorldMenu(more,w); };
     row.append(thumb,info,more);
-    row.onclick=()=>enterWorld(w.id);
     list.appendChild(row);
   });
   show('worldsScreen');

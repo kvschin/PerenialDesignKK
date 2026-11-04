@@ -303,7 +303,7 @@ function actHere(opts){
     if (r){
       hapticFeedback('place');
       toast(game.tool==='path'
-        ? (wasSame?`${pathColor(game.pathColor).label} path color applied.`:`${pathColor(game.pathColor).label} path laid.`)
+        ? (wasSame?`${pathColor(game.pathColor).label} path applied.`:`${pathColor(game.pathColor).label} path laid.`)
         : game.tool==='water'
         ? (wasSame?`${waterStyle(game.waterStyle).label} water applied.`:`${waterStyle(game.waterStyle).label} water laid.`)
         : (wasSame?`${bedStyle(game.bedStyle).label} bed applied.`:`${bedStyle(game.bedStyle).label} bed dug. Ready for planting.`));
