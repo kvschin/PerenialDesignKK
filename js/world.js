@@ -1730,12 +1730,12 @@ function tileTerrain(x,y){ const t=terrainAt(x,y); return t?t.k:null; }
    which a planting edit never raises — so a paint drag does not rebuild this.
    Object identity and the plot size ride along to catch a wholesale swap.
    Int8Array is enough: ELEV_MIN/MAX are +-4. */
-let elevGrid={rev:-1, ref:null, gw:-1, gh:-1, g:null, empty:true};
+let elevGrid={rev:-1, ref:null, gw:-1, gh:-1, g:null, empty:true, lo:0, hi:0};
 function elevationGrid(){
   const src=game.elevation;
   if (elevGrid.rev===game.terrainRev && elevGrid.ref===src && elevGrid.gw===GW && elevGrid.gh===GH)
     return elevGrid;
-  const g=new Int8Array(GW*GH); let empty=true, sunken=false;
+  const g=new Int8Array(GW*GH); let empty=true, sunken=false, lo=0, hi=0;
   for (const k in src||{}){
     const e=src[k]; if (!e || e.removed) continue;
     const h=+e.h; if (!Number.isFinite(h)) continue;
@@ -1743,8 +1743,14 @@ function elevationGrid(){
     if (!(x>=0 && y>=0 && x<GW && y<GH)) continue;   // off-grid: the slow path below still finds it
     const v=Math.max(ELEV_MIN,Math.min(ELEV_MAX,h|0));
     g[y*GW+x]=v; if (v) empty=false; if (v<0) sunken=true;
+    if (v<lo) lo=v; if (v>hi) hi=v;
   }
-  elevGrid={rev:game.terrainRev, ref:src, gw:GW, gh:GH, g, empty, sunken};
+  /* lo/hi: the lowest and highest level any in-grid tile stands at (0 when
+     flat). Recorded for tileAt, which used to probe all six non-zero levels on
+     every pointermove of a garden that has none. Only the LAST write per tile
+     lands in g, so a duplicate key could in principle widen this range beyond
+     what g holds — harmless, since a wider range only probes more. */
+  elevGrid={rev:game.terrainRev, ref:src, gw:GW, gh:GH, g, empty, sunken, lo, hi};
   return elevGrid;
 }
 /* Does this garden hold any ground BELOW grade? The face of a hollow belongs
@@ -2019,8 +2025,18 @@ function tileAtElevation(sx,sy,W,H,h){
   const [vx,vy]=viewPointAt(sx,sy+h*ELEV_STEP,W,H);
   return viewToWorld(Math.round(vx),Math.round(vy));
 }
+/* Screen point -> tile, nearest the camera first: a raised tile's top is drawn
+   above its ground position, so each level is tried from the highest down
+   before the grade inversion. Only the levels the garden actually HOLDS can
+   match (elevationAt(x,y)===h is the test), so the loop is bounded by the
+   elevation grid's own lo/hi — on a flat garden, which is most of them, it
+   runs zero times instead of six. Every canvas pointermove (evPlacement) and
+   the renderer's corner inversions come through here. A test compares it with
+   the full six-level probe over a grid of screen points at all four rotations. */
 function tileAt(sx,sy,W,H){
-  for (let h=ELEV_MAX; h>=ELEV_MIN; h--){
+  const E=game.elevation ? elevationGrid() : null;
+  const hi=E ? Math.min(E.hi,ELEV_MAX) : 0, lo=E ? Math.max(E.lo,ELEV_MIN) : 0;
+  for (let h=hi; h>=lo; h--){
     if (h===0) continue;
     const [x,y]=tileAtElevation(sx,sy,W,H,h);
     if (inWorldTile(x,y) && elevationAt(x,y)===h && pointInTileDiamond(sx,sy,x,y,W,H)) return [x,y];
