@@ -583,6 +583,12 @@ See §13a.
   warns **once** and stays quiet until a save succeeds again (`saveFailureReported`);
   a toast per day change would be its own bug. The message names the way out
   (export), not the cause.
+- **A save carries no tombstones** (0.9.71). `buildSaveBlob` runs each keyed layer
+  through `compactSoloMap`, the filter `loadSolo` applies on the way back in, because
+  every autosave was cloning and writing one `{removed:true,t}` for each tile erased
+  that session and nothing that reads a save ever wants one. The LIVE maps keep theirs
+  and their identity, which undo snapshots and `sceneStale` read; array layers pass
+  through untouched (`L.array`, or `houses` would save as an object).
 - **Paused editing autosaves.** `markModelChanged()` schedules a save after
   750 ms of quiet through `requestGardenAutosave()`; a held undo gesture or
   site-photo draft defers it. Tile edits only move a deadline, with one timer
@@ -1786,7 +1792,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     offset and must round onto its tile rather than truncate off it — and the
     keyed map as a fallback for coordinates outside the grid, which is the only
     way a legacy blob's off-plot record stays visible. A test compares the two
-    paths tile by tile, fractional coordinates included.
+    paths tile by tile, fractional coordinates included. The grid also records
+    `lo`/`hi`, the lowest and highest level any tile stands at, and **`tileAt` probes
+    only those levels** (0.9.71): it runs on every pointermove and in the renderer's
+    corner inversions, and used to try all six non-zero levels on a garden that has
+    none. A test compares it with the full probe at all four rotations.
     Fences live in `game.fences` as tile structures (`{style,height,gate}`):
     normal fence tiles block movement, gate tiles are walkable, and adjacent
     fence/gate tiles visually connect. **They are drawn at `PX_PER_FT`
@@ -3462,7 +3472,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     tile of every multi-tile piece (`SEL_FOOTPRINTS`, F06) and the ordinary
     planting rules for a moved plant (`selectionPlantDestValid`, F07 — a potted
     plant may land on paving with its pot, a vine must land on a support; shade
-    and spacing advice are not re-asked). Rotation turns each piece's `face`
+    and spacing advice are not re-asked). **A moving piece is judged against what
+    is STAYING** (`selectionStayingSolidAt` and its siblings): a move, a copy and a
+    turn are rigid, so two pieces of one selection can only meet at the destination
+    if they already overlap where they stand, which an older garden can (the placers
+    used to disagree, F08, and water could be painted under a pot or a seat, F09).
+    Counting that as a collision left such a group immovable wherever it was
+    dragged, and the demo garden has no overlaps, so only a test written for it can
+    see it. Rotation turns each piece's `face`
     and lands it on the turned image of its far corner, in an item of its own
     (`rotatedSelectionItems`, F05); four turns restore the original exactly.
     `drawSelectionOverlay` (called near the end of `render`)
@@ -3732,9 +3749,16 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     that flattened key safe — without it a negative x aliases onto the previous
     row — and the lookup floors rather than rounds, because the old scan tested
     `x>=px && x<px+w`. A test pins the answer against the old scan, tile by
-    tile. `seatAt`, `firepitAt` and `boulderAt` are still the old shape; they
-    are in the per-tile paint path rather than the per-frame one, and want the
-    same treatment when it bites.
+    tile. **`seatAt`, `firepitAt`, `waterFeatureAt` and `boulderAt` are on the same
+    footing** (`footprintIndex`, commands.js; 0.9.71), sitting under every placement
+    guard, keyed on `LAYER_REV[layer]` (a per-layer counter bumped by
+    `markLayerCacheChanged`, so a planting drag does not rebuild them) plus map
+    identity and plot size. **That key is why these four layers must only ever be
+    written through `setTile`/`clearTile`**: a direct `game.seats[k]=...` moves no
+    revision and leaves the index answering from before the write. A record with a
+    non-integer origin or a footprint off the plot (only an odd imported file) drops
+    the layer back to the old scan, `footprintScan`. `structureSupportAt` is still a
+    scan, and the next one to convert.
     A pot exempts its plant from the in-GROUND rules — bed spacing, matrix
     thinning, shrub crowding advice, the free-planting jitter — and from
     nothing else. **Hardiness is deliberately NOT relaxed**: the library is
@@ -6075,7 +6099,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     see — and on sustained jank adds `body.no-glass` for the session (blur off
     everywhere, near-solid chrome fills; force with `?noglass`; state shown in
     the debug HUD). Per-frame HUD DOM writes are change-guarded (`hudText`/
-    `hudDisplay` in ui.js) so identical values never touch the DOM.
+    `hudDisplay`/`hudClass` in ui.js) so identical values never touch the DOM. A
+    `classList` write is an attribute write even when the class is already in that
+    state, which was six mutation records a frame before `hudClass`.
     Garden time uses accumulated open-play milliseconds (`elapsedMs`) instead
     of raw wall-clock time since creation. `suspendClock()` banks elapsed time
     before hidden/pagehide saves, and `resumeClockSession()` restarts the session
@@ -7659,8 +7685,7 @@ export/import (`btnShare` / `btnImport`) — a friend imports your JSON and open
 it in their own planner. The shared-garden lobby that had sat unreachable
 behind it was deleted in the same pass. (Fuller record: `docs/direction.md`.)
 
-Still open: finer tree-canopy depth slices, selection resizing, regional and
-seasonal accuracy, practical-export acceptance, and physical-device validation.
+Still open: finer tree-canopy depth slices, regional and seasonal accuracy, practical-export acceptance, and physical-device validation.
 **Site placement is built** through Draw/Edit footprint. Legacy roofed houses
 still load and render, but their old House picker is unexposed; reintroducing
 that picker is an optional feature decision, separate from site authoring.

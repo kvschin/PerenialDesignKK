@@ -2495,7 +2495,8 @@ const PLANTS = {
     }},
   hyacinth:{ name:'Hyacinth', latin:'Hyacinthus orientalis', form:'spike', type:'bulb', h:11, heightIn:10,
     space:6, spread:6, zones:[4,8], nativeTo:['asia'], provenance:'species', sun:'full', moist:'medium', phen:'cool', bloomDay:4,
-    look:{art2:true, spikeStyle:'bulbRaceme', floretShape:'star', florets:18, racemeSpan:0.5, floretR:1.85,
+    // a solid column of bells: star florets on stalks, at this height, drew a splayed fan
+    look:{art2:true, spikeStyle:'bulbRaceme', floretShape:'grapeBell', florets:14, racemeSpan:0.62, floretR:1.75, stems:3, stemSpread:8,
       leaves:6, leafShape:'linear', leafHW:1.45, leafFan:1.20, leafRise:0.78, leafRib:false, leafBow:0.10},
     blurb:'Dense, waxy spikes of starry bells in mid-spring and the strongest scent of any bulb. The fat spikes of the first year relax into looser ones after.',
     sea:{Spring:{fol:'#5f8a4e',bloom:'#6f7ec8',eye:'#5562b0'}, Summer:{}, Fall:{}, Winter:{}},
