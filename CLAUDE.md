@@ -1463,6 +1463,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    an airy green-barked canopy. No renderer checks a Phase 4 species key.
    `dev/phase4-review.html` covers the Texas and Arizona batches in both
    renderer modes, all seasons, and sprite-edge checks.
+   The 27 cultivar-free Southwest/desert forbs carry a sourced `heightIn`
+   (2026-11-03, plant work log), the typical height in flower — except the
+   agaves and sotol, whose flower stalk is rare or once-in-a-lifetime and
+   whose `heightIn` is the rosette's; ocotillo's is its canes (15 ft).
    **Carolinas/humid Southeast Phase 5:** eight straight species bring the
    catalog to 535 base records / 377 nested choices. The independent woodland
    and meadow/woody source reviews and implementation decisions live in
