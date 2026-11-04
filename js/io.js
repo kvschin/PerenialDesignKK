@@ -451,7 +451,14 @@ function buildSaveBlob(){
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
-  for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
+  /* Keyed layers go out WITHOUT tombstones. clearTile leaves {removed:true,t}
+     on every erased tile, and loadSolo's GAME_MAPS loop drops them on the way
+     back in (compactSoloMap), so nothing that reads a save ever sees one -- yet
+     every autosave was structuredCloning and writing all of them, and a session
+     of painting and erasing only grows the pile. Compacting here is the same
+     filter load applies, one step earlier; the live maps keep their tombstones
+     and their identity (undo snapshots and sceneStale read those). */
+  for (const L of GAME_LAYERS) blob[L.k]=L.array ? game[L.k] : compactSoloMap(game[L.k]);   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
   const challenge=normalizeDailyChallenge(game.challenge); if(challenge)blob.challenge=challenge;
   // where the garden was being looked at (view.js): reopened there, not re-centred
   const view=typeof gardenViewNow==='function' ? gardenViewNow() : null; if (view) blob.view=view;
