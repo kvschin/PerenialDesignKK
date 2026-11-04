@@ -19685,3 +19685,73 @@ test('a landscape search result arms a row whose placement keeps the finish it a
   assertEqual(game.lights['5,5'].type, 'uplight', 'as the fixture searched for');
   assert(game.lights['5,5'].finish, 'with a finish on the record');
 });
+test('selection handles ride on the marquee on raised and sunken ground, at every rotation', () => {
+  setup(24, 24);
+  const W = 1200, H = 800;
+  for (const level of [3, -2]){
+    for (let y = 6; y <= 14; y++) for (let x = 6; x <= 14; x++) setTile('elevation', `${x},${y}`, { h: level, t: 1 });
+    const r = { x0: 8, y0: 8, x1: 12, y1: 11 };
+    for (let rot = 0; rot < 4; rot++){
+      game.rot = rot;
+      for (const h of selHandlePoints(r, W, H)){
+        if (!h.sx || !h.sy) continue;
+        // a corner handle is a vertex of the tile it is the corner of, as drawn
+        const [sx, sy] = screenOf(r[h.sx], r[h.sy], W, H);
+        const verts = [[sx, sy], [sx + TILE_W / 2, sy + TILE_H / 2], [sx, sy + TILE_H], [sx - TILE_W / 2, sy + TILE_H / 2]];
+        const off = Math.min(...verts.map(v => Math.hypot(v[0] - h.x, v[1] - h.y)));
+        assert(off < 0.5, `level ${level} rot ${rot} ${h.id} sits ${off.toFixed(1)} units off its tile`);
+        const hit = selHandleAt(selHandlePoints(r, W, H), h.x, h.y, 2);
+        assert(hit && hit.id === h.id, `and is found where it is drawn: ${h.id}`);
+      }
+    }
+    game.rot = 0;
+  }
+});
+test('a small selection can still be dragged: inside the marquee a press means move until a handle has room', () => {
+  setup(40, 40);
+  const W = 1600, H = 1000;
+  // the share of a selection's own tiles where a press would take a handle
+  const grabbedShare = (r, cssRadius, zoom) => {
+    const pts = selActiveHandles(r, W, H, zoom), radius = cssRadius / zoom;
+    let inside = 0, grabbed = 0;
+    for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++){
+      const [sx, sy] = screenOf(x, y, W, H);
+      for (let u = -0.975; u < 1; u += 0.05) for (let v = -0.975; v < 1; v += 0.05){
+        if (Math.abs(u) + Math.abs(v) > 1) continue;
+        inside++;
+        if (selHandleGrab(pts, sx + u * TILE_W / 2, sy + TILE_H / 2 + v * TILE_H / 2, radius, true)) grabbed++;
+      }
+    }
+    return grabbed / inside;
+  };
+  const rect = (w, h) => ({ x0: 15, y0: 15, x1: 15 + w - 1, y1: 15 + h - 1 });
+  const { fine, coarse } = SEL_HANDLE_HIT_PX;
+
+  // the zoom a garden opens at: the sizes that were completely immovable
+  for (const [w, h] of [[1, 1], [2, 1], [4, 1]]){
+    assertEqual(grabbedShare(rect(w, h), fine, 0.42), 0, `mouse, opening zoom, ${w}x${h}`);
+    assertEqual(grabbedShare(rect(w, h), coarse, 0.42), 0, `finger, opening zoom, ${w}x${h}`);
+  }
+  assertEqual(grabbedShare(rect(1, 1), coarse, 0.75), 0, 'finger, phone zoom, one tile');
+  // and across every size and zoom, most of a selection is always a move
+  for (const zoom of [0.42, 0.75, 1, 1.5, 2, 2.8]) for (const cssR of [fine, coarse])
+    for (const [w, h] of [[1, 1], [2, 1], [4, 1], [3, 3], [6, 4], [10, 8]]){
+      const share = grabbedShare(rect(w, h), cssR, zoom);
+      assert(share <= 0.3, `${w}x${h} at zoom ${zoom}, reach ${cssR}px: ${Math.round(share * 100)}% of it takes a handle`);
+    }
+
+  // a tiny selection can still be resized, from just outside its corner
+  const one = rect(1, 1), pts = selActiveHandles(one, W, H, 0.42);
+  assertEqual(pts.length, 4, 'a one-tile selection at this zoom keeps only its corners');
+  const se = pts.find(p => p.id === 'se'), [cx, cy] = screenOf(15, 15, W, H), mid = [cx, cy + TILE_H / 2];
+  const out = Math.hypot(se.x - mid[0], se.y - mid[1]), step = (8 / 0.42) / out;
+  const px = se.x + (se.x - mid[0]) * step, py = se.y + (se.y - mid[1]) * step;
+  const got = selHandleGrab(pts, px, py, fine / 0.42, false);
+  assert(got && got.id === 'se', 'a press 8px outside a corner takes it');
+
+  // a big selection at a working zoom keeps all eight, and its handles work from inside too
+  const big = rect(10, 8), all = selActiveHandles(big, W, H, 1);
+  assertEqual(all.length, 8, 'a large selection keeps its edge midpoints');
+  const nw = all.find(p => p.id === 'nw');
+  assert(selHandleGrab(all, nw.x, nw.y + 4, fine, true), 'and a press just inside its corner still takes the corner');
+});

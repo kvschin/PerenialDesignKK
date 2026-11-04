@@ -408,7 +408,7 @@ cnv.addEventListener('pointerdown',e=>{
   }
   const place=evPlacement(e), x=place.x, y=place.y;
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
-  if (game.tool==='select' && selHandlePointerDown(e)) return;
+  if (game.tool==='select' && selHandlePointerDown(e,place)) return;
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='building'){ buildingPointerDown(place); return; }
   if (game.tool==='select'){ selPointerDown(x,y,e); return; }

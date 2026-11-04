@@ -2697,7 +2697,8 @@ function clearSelection(){ resetSelectionState(); buildToolTray(); refreshCanvas
    (selectionPayload), exactly as drawing a fresh marquee does.
    Handles are hit-tested in SCREEN space, not by tile, because the tiles under
    a handle belong to the selection and a press inside the selection means
-   'move' — that has to stay true everywhere except within reach of a handle.
+   'move' — that has to stay true except right on a handle that has room to be
+   one (selHandleGrab, below).
    Each handle names which rect sides it moves: sx/sy are 'x0'|'x1'|null. */
 const SEL_HANDLES=[
   {id:'nw',sx:'x0',sy:'y0'},{id:'n',sx:null,sy:'y0'},{id:'ne',sx:'x1',sy:'y0'},
@@ -2720,7 +2721,12 @@ function selHandleCorners(r){
 function selHandlePoints(r,W,H){
   return selHandleCorners(r).map(h=>{
     const [px,py]=screenOfCorner(h.cx,h.cy,W,H);
-    return {id:h.id, sx:h.sx, sy:h.sy, x:px, y:py};
+    /* The corner lattice is ground level and the marquee is not: selDrawRect
+       draws each tile through screenOf, which lifts it by its elevation. So a
+       handle rides on the tile it belongs to, or on a terrace it floats below
+       the very outline it is a corner of. */
+    const tx=h.sx?r[h.sx]:Math.floor(h.cx), ty=h.sy?r[h.sy]:Math.floor(h.cy);
+    return {id:h.id, sx:h.sx, sy:h.sy, x:px, y:py-elevationAt(tx,ty)*ELEV_STEP};
   });
 }
 /* The handle nearest (px,py) within `radius` (draw units), or null. Corners win
@@ -2732,6 +2738,37 @@ function selHandleAt(points,px,py,radius){
     if (d<bd || (d===bd && best && !(best.sx&&best.sy) && h.sx&&h.sy)){ best=h; bd=d; }
   }
   return best;
+}
+/* A tile is ~32x16px at the zoom a garden opens at, so a handle's reach can cover
+   a small selection entirely: measured, a press anywhere on a 1x1 or 2x1 selection
+   took a handle, on a phone up to 4x1, and a pot could be selected and never
+   dragged. So handles make room, in two ways, and a press inside the marquee
+   always means 'move' on anything too small to hold them.
+   An edge midpoint needs an edge long enough for it: below this many screen px it
+   drops out, drawn and hit-tested alike, and the corners do the job. */
+const SEL_HANDLE_MID_EDGE_PX=48;
+function selHandleSides(points){
+  const p=id=>points.find(h=>h.id===id), d=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  return {wide:d(p('nw'),p('ne')), tall:d(p('nw'),p('sw'))};
+}
+function selActiveHandles(r,W,H,zoom=ZOOM){
+  const pts=selHandlePoints(r,W,H), s=selHandleSides(pts), need=SEL_HANDLE_MID_EDGE_PX/zoom;
+  return pts.filter(h=>(h.sx&&h.sy) || (h.sy ? s.wide>=need : s.tall>=need));
+}
+/* Which handle a press takes. Outside the marquee a handle has its whole reach.
+   Inside it, that reach is nothing while two handles' reaches would meet across
+   the selection, and after that 14% of the shorter side: eight handles reaching
+   that far in cover about a quarter of a square marquee's area (3*pi*r^2 of
+   0.8*a^2, the diamond's sin), so the interior stays a thing you can grab. Without
+   that limit a 3x3 selection at the opening zoom was 58% handle. `radius` and the
+   points are in the same (draw) units. */
+const SEL_HANDLE_INNER_SHARE=0.14;
+function selHandleGrab(points,px,py,radius,inside){
+  const h=selHandleAt(points,px,py,radius);
+  if (!h || !inside) return h;
+  const s=selHandleSides(points), short=Math.min(s.wide,s.tall);
+  const inner=short<2*radius ? 0 : Math.min(radius,short*SEL_HANDLE_INNER_SHARE);
+  return Math.hypot(h.x-px,h.y-py)<=inner ? h : null;
 }
 function clampSelRect(r){
   const cl=(v,hi)=>Math.max(0,Math.min(hi,v));
@@ -2749,10 +2786,11 @@ function selResizeRect(r0,handle,tx,ty){
 /* Pointerdown with Select armed and a selection up: start a resize if the press
    is on a handle. Runs BEFORE the off-plot early return in input.js, because a
    corner handle of a selection touching the plot edge sits on its outer line. */
-function selHandlePointerDown(e){
+function selHandlePointerDown(e,tile){
   if (!game.sel || selMove || selDrag || typeof canvasClientPoint!=='function') return false;
   const W=VW/ZOOM, H=VH/ZOOM, pt=canvasClientPoint(e);
-  const h=selHandleAt(selHandlePoints(game.sel,W,H), pt.x/ZOOM, pt.y/ZOOM, selHandleHitPx()/ZOOM);
+  const inside=!!tile && inRect(game.sel,tile.x,tile.y);
+  const h=selHandleGrab(selActiveHandles(game.sel,W,H), pt.x/ZOOM, pt.y/ZOOM, selHandleHitPx()/ZOOM, inside);
   if (!h) return false;
   try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
   selResize={handle:h, r0:{...game.sel}};

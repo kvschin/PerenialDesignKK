@@ -4458,7 +4458,7 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
   drawSelectionMetrics(cx,W,H,game.sel);
   drawSelHandles(cx,W,H,game.sel);
 }
-/* The resize handles (selHandlePoints, commands.js). Drawn at a constant
+/* The resize handles (selActiveHandles, commands.js). Drawn at a constant
    SCREEN size, so divided by ZOOM; a little larger on a finger, though the
    hit radius is larger still — the dot marks the spot, it is not the target.
    The handle being dragged is filled with the selection blue. */
@@ -4467,7 +4467,7 @@ function drawSelHandles(cx,W,H,r){
   const rad=(coarse?6.5:4.5)/ZOOM, active=selResize&&selResize.handle.id;
   cx.save();
   cx.lineWidth=1.6/ZOOM;
-  for (const h of selHandlePoints(r,W,H)){
+  for (const h of selActiveHandles(r,W,H)){
     cx.beginPath();
     if (h.sx&&h.sy) cx.arc(h.x,h.y,rad,0,Math.PI*2);
     else cx.rect(h.x-rad*0.8,h.y-rad*0.8,rad*1.6,rad*1.6);

@@ -3478,8 +3478,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     contents; release re-owns them through `selectionPayload`, and no undo step
     is made because no garden data moved. Handles are hit-tested in SCREEN space
     (44px target on a coarse pointer, 24px on a mouse) before input.js's off-plot
-    return, so a press inside the selection away from a handle still means move,
-    and a corner on the plot's edge is still reachable.
+    return, so a corner on the plot's edge is still reachable.
+    **A handle must not take the press that means move** (`selHandleGrab`,
+    `selActiveHandles`, 0.9.71). A tile is ~32x16px at the opening zoom, so a
+    handle's whole reach covered a small selection: measured against real
+    pointerdowns, a press anywhere on a 1x1 or 2x1 selection took a handle, on a
+    phone up to 4x1, and a selected pot could not be dragged at all. Outside the
+    marquee a handle has its full reach; inside, it reaches nothing while two
+    reaches would meet across the selection and 14% of the shorter side after that,
+    and an edge midpoint drops out on an edge under 48 screen px. A press is now a
+    move on at least ~75% of any selection at any zoom, and on all of a small one
+    at the opening zoom. Handles ride on their tile's elevation like the tiles do,
+    or they float below a terrace. `selHandleGrab` is where to look if the feel of
+    this needs changing; a test bounds it across six zooms and both pointers.
     **A dragged selection ghosts through the SPRITE CACHE, on the SOURCE tile's
     seed** (Sep 2026). Drawn procedurally this was the most expensive thing in
     the app: every selected plant re-ran its whole recipe every frame, so a
