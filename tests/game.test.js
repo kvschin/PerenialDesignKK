@@ -11792,6 +11792,84 @@ test('the pot index answers exactly as a full pots scan did', () => {
   assertEqual(potAt(4, 4), null, 'and so is lifting one');
 });
 
+test('seat, fire pit, water feature and boulder lookups answer as the old scans did, and stop rescanning', () => {
+  /* seatAt, firepitAt, waterFeatureAt and boulderAt scanned their whole layer
+     (tombstones included, a string split and two arrays per record) on every
+     lookup, and they sit under every placement guard -- placePlantAt,
+     canPlaceShrubAt, each tile of every canPlace* footprint check. They share a
+     tile index now (footprintIndex). This pins the ANSWER tile by tile against
+     the old scan, and COUNTS the work: size-function calls, which the scan made
+     once per live record per lookup. */
+  setup(21, 21);
+  const layers = [
+    { fn:'seatAt', layer:'seats', size:'seatTileSize' },
+    { fn:'firepitAt', layer:'firepits', size:'firepitTileSize' },
+    { fn:'waterFeatureAt', layer:'waterFeatures', size:'waterFeatureTileSize' },
+    { fn:'boulderAt', layer:'boulders', size:'boulderTileSize' },
+  ];
+  const scan = (layer, sizeOf, x, y) => {     // the old implementation, verbatim
+    const m = game[layer]; if (!m) return null;
+    for (const k in m){
+      const r = m[k]; if (!r || r.removed) continue;
+      const [rx, ry] = k.split(',').map(Number), sz = sizeOf(r);
+      if (x >= rx && x < rx + sz.w && y >= ry && y < ry + sz.h) return Object.assign({ key:k, x:rx, y:ry }, r);
+    }
+    return null;
+  };
+  const bench = SEAT_TYPES.find(t => seatTileSize({ type:t.id }).w > 1).id;
+  setTile('seats', '2,2', { type:bench, face:0, t:1 });
+  setTile('seats', '2,6', { type:bench, face:1, t:1 });          // turned: footprint swaps
+  setTile('seats', '9,9', { type:'chair', t:1 });
+  setTile('seats', '15,15', { type:bench, t:1 }); clearTile('seats', '15,15');   // tombstone
+  setTile('firepits', '12,2', { style:'stone', size:'round48', t:1 });
+  setTile('firepits', '5,14', { style:'stone', size:'round24', t:1 });
+  const tank = WATER_FEATURES.find(w => waterFeatureTileSize({ form:w.id }).w > 2) || WATER_FEATURES[0];
+  setTile('waterFeatures', '14,8', { form:tank.id, t:1 });
+  setTile('waterFeatures', '8,17', { form:'birdbath', t:1 });
+  const big = BOULDER_TYPES.find(b => b.w !== b.h) || BOULDER_TYPES.find(b => b.w > 1);
+  setTile('boulders', '17,2', { type:big.id, face:1, t:1 });
+  setTile('boulders', '1,18', { type:'small1', t:1 });
+  setTile('boulders', '3,10', { type:'medium2', t:1 }); clearTile('boulders', '3,10');
+  const pts = [];
+  for (let y = -1; y <= GH; y++) for (let x = -1; x <= GW; x++) pts.push([x, y]);
+  pts.push([2.6, 2.4], [13.9, 3.1], [-0.5, 4], [4, 20.99], [NaN, 3]);
+  const check = (why) => {
+    for (const L of layers) for (const [x, y] of pts){
+      const want = scan(L.layer, globalThis[L.size], x, y), got = globalThis[L.fn](x, y);
+      assertEqual(JSON.stringify(got), JSON.stringify(want), `${L.fn}(${x},${y}) matches the old scan (${why})`);
+    }
+  };
+  check('fresh');
+
+  // COUNT: size calls across a whole-plot sweep of all four lookups
+  const live = L => Object.values(game[L.layer]).filter(r => r && !r.removed).length;
+  const count = (fn) => {
+    const saved = {}, n = { calls:0 };
+    for (const L of layers){ saved[L.size] = globalThis[L.size]; const f = saved[L.size];
+      globalThis[L.size] = function(){ n.calls++; return f.apply(this, arguments); }; }
+    try { fn(); } finally { for (const L of layers) globalThis[L.size] = saved[L.size]; }
+    return n.calls;
+  };
+  const sweep = () => { for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) for (const L of layers) globalThis[L.fn](x, y); };
+  const records = layers.reduce((a, L) => a + live(L), 0);
+  const oldCalls = count(() => { for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) for (const L of layers) scan(L.layer, globalThis[L.size], x, y); });
+  setTile('seats', '9,9', { type:'chair', t:2 });               // dirty one layer
+  const newCalls = count(sweep);
+  assert(newCalls <= live(layers[0]), `a sweep rebuilds only the edited layer (${newCalls} size calls, ${live(layers[0])} seats)`);
+  assert(oldCalls > records * GW * GH / 4, `the old scan paid per record per lookup (${oldCalls})`);
+  assertEqual(count(sweep), 0, 'an unchanged garden costs no size calls at all');
+  setTile('plants', '10,10', { s:PLANT_KEYS[0], d:0 });         // a planting stamp moves sceneRev...
+  assertEqual(count(sweep), 0, '...and must not rebuild a structure index');
+
+  // the index notices edits, wholesale swaps and an off-plot record
+  setTile('seats', '9,9', { type:bench, face:1, t:3 }); clearTile('firepits', '12,2');
+  check('after edits');
+  game.boulders = Object.assign({}, game.boulders, { '6,6':{ type:'small1', t:4 } });   // swap, as undo does
+  check('after a wholesale swap');
+  game.seats = Object.assign({}, game.seats, { '20,20':{ type:bench, t:5 } });          // reaches off the plot
+  check('with an off-plot footprint (falls back to the scan)');
+});
+
 test('the shade map is keyed on the trees, so planting a forb does not rebuild it', () => {
   /* shadeMapKey rode plantsRev, which bumps for ANY plant edit — so a
      drag-to-plant stroke threw the map away on every stamped tile, and a
