@@ -184,6 +184,7 @@ function adoptGroundJob(t){
   groundKey=j.struct+'|'+j.data; groundKeyStruct=j.struct; groundZoom=j.zoom;
   groundCamX=j.camX; groundCamY=j.camY; groundRefs=j.refs;
   groundMarginStale=false; clearGroundDamage(); groundEditT=t;
+  noteGroundBaked();    // a job is dropped the moment the data moves, so this is the ground it baked
   groundJob=null;
   dev('adopt',performance.now());
 }
@@ -491,21 +492,160 @@ function scrollGroundBake(t,W,H,amb,MD,pad){
   groundCamX=bakeCamX; groundCamY=bakeCamY;
   return true;
 }
-/* ---- an EDIT re-bakes only what is on screen ----
+/* ---- an EDIT re-bakes what it changed ----
 
-   A brush stroke does not move the camera, and while the camera has not moved
-   the baked margin is entirely OFF screen — that is the whole point of it. So
-   an edit bake can leave the margin alone and repaint the viewport, which on a
-   1440x900 desktop is 47% of the canvas. The margin then holds ground from
-   before the edit, which is invisible until the camera moves, so the first
-   camera move afterwards has to bake in full rather than scroll: `marginStale`
-   says so, and both the trigger and the scroll test read it.
+   A stroke cannot scroll, since the data changed and not the camera. But it can
+   name what it changed, and repaint that (groundEditRect) with the margin
+   included, so the next pan can still scroll.
 
-   This is the one lever available for painting. A stroke cannot scroll (the
-   data changed, not the camera) and the organic contour genuinely can move
-   anywhere along a traced arc, so repainting only the brushed tiles would be
-   wrong; halving the area is what is provably safe. */
+   Repainting only the brushed tiles would be wrong: the simplifier can move an
+   organic contour anywhere along its run. So the outline is compared too, as
+   PIECES (tracePiecesOf): one corner's curve at a time. Comparing whole arcs
+   instead would be useless, because an island bed is one closed loop and every
+   edit to it would flag the lot. A closed chain changing inside a box cannot change what is
+   inside the outline away from that box, so the fill and the clip are covered by
+   the same box as the stroke. A bump on a long straight bed edge still repaints
+   about half the bed, because that is really how far its rounding moves.
+
+   Three things reach further than that, and keep the old viewport repaint:
+   - WATER depth and flow are fields over the whole body (waterSetSig).
+   - ELEVATION: walls are traced along their whole run, and a face reads its
+     neighbours. Edits say nothing (groundDamageFull); an undo names its tiles for
+     the throttle, so it says so separately (groundDamageBroad).
+   - Anything unlocated: a house, a footprint, a load.
+   That path repaints the viewport and leaves the margin holding older ground,
+   invisible until the camera moves, so the first move afterwards has to bake in
+   full: `marginStale` says so, and both the trigger and the scroll test read it.
+   It also takes over when the changed box would cost more than the viewport.
+
+   Known and accepted: two materials of one rank that share a hard edge paint in
+   region order, and removing the first-laid tile of one can flip that order. Only
+   the ~1px seam differs, and only until the next full bake. */
 let groundMarginStale=false;
+const GROUND_EDIT_PAD=3;       // tiles round an edited tile: a flagstone reaches ~2.3 past the tile that draws it
+const GROUND_EDIT_ARC_PAD=1;   // tiles round a moved piece of outline: its stroke and edging
+let groundBaked=null;          // {pieces, water}: what the canvas was last painted from
+const TRACE_Q=256;             // outline points compare at 1/256 tile, as text
+/* Every piece of every outline in a trace, each with its box in tile-corner
+   space, for comparing with another trace. Once per trace, so once per edit. An
+   arc carrying EDGING is one piece, because its joints are set out from the arc's
+   start and a change anywhere moves all of them. */
+function tracePiecesOf(regions){
+  const keys=new Map(), boxes=[];
+  const add=(key,pts)=>{
+    if (keys.has(key)) return;
+    let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+    for (const p of pts){ if (p[0]<x0) x0=p[0]; if (p[0]>x1) x1=p[0]; if (p[1]<y0) y0=p[1]; if (p[1]>y1) y1=p[1]; }
+    keys.set(key,boxes.length); boxes.push(x0,y0,x1,y1);
+  };
+  const pointKey=p=>Math.round(p[0]*TRACE_Q)+','+Math.round(p[1]*TRACE_Q);
+  const heading=(from,to)=>{ const dx=to[0]-from[0], dy=to[1]-from[1], l=Math.hypot(dx,dy)||1;
+    return Math.round(dx/l*1024)+'/'+Math.round(dy/l*1024); };
+  /* A piece is named by what it DRAWS, not by which neighbours it has. A corner is
+     its curve: from where it starts rounding to where it stops, which on a bed is
+     halfway along both runs (TERRAIN_FILLET Infinity), so a bump on a long side
+     really does move the outline that far, and on paving is a fixed radius, so it
+     does not. Anything else is a point and the directions leaving it. The straights
+     between need no piece of their own: a point that keeps its place and its
+     directions still draws along the same lines, so a run can only have changed
+     between points that did not, and the edit is repainted as ONE box round them. */
+  const addLine=(tag,pts,closed,curved,fillet)=>{
+    const n=pts.length, f=(curved&&n>=3)?filletFractions(pts,closed,fillet):null;
+    for (let i=0;i<n;i++){
+      const a=i>0?i-1:(closed?n-1:-1), c=i<n-1?i+1:(closed?0:-1), fi=f&&f[i], p=pts[i];
+      if (fi){ const s=_tlLerp(p,pts[a],fi[0]), e=_tlLerp(p,pts[c],fi[1]);
+        add(tag+'|'+pointKey(s)+'|'+pointKey(p)+'|'+pointKey(e),[s,p,e]); }
+      else add(tag+'|'+(a<0?'':heading(p,pts[a]))+'|'+pointKey(p)+'|'+(c<0?'':heading(p,pts[c])),[p]);
+    }
+  };
+  for (const r of regions){
+    const head=r.kind+'|'+(r.c||'')+'|'+r.elev+'|', edging=regionEdging(r), edged=edgingStyle(edging).w;
+    for (const loop of r.loops) for (const arc of (loop.closed?[loop]:loop.arcs)){
+      const tag=head+(arc.hard?'h':'s')+(arc.covered?'c':'');
+      if (edged && !arc.hard && !arc.covered) add(tag+'|'+edging+'|'+arc.pts.map(pointKey).join(';'),arc.pts);
+      else addLine(tag,arc.pts,!!loop.closed,!arc.hard,arc.fillet);
+    }
+    if (r.skirts) for (const s of r.skirts){
+      for (const ring of s.rings) addLine(head+'skirt',ring,true,false);
+      // the coverer's tiles that show this band's grain, read off the coverer's curve
+      for (const k of s.tiles){ const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+        add(head+'skirttile|'+k,[[x,y],[x+1,y+1]]); }
+    }
+  }
+  return {keys,boxes};
+}
+function terrainTracePieces(){
+  const regions=buildTerrainRegions();     // first, so edging is read against the state this trace is of
+  return terrainLoopCache.pieces||(terrainLoopCache.pieces=tracePiecesOf(regions));
+}
+function waterSetSig(){
+  let s='';
+  for (const k in game.terrain){ const t=game.terrain[k];
+    if (t && !t.removed && t.k==='water') s+=k+':'+(t.c||'')+';'; }
+  return s;
+}
+const organicGroundOn=()=>layerShown('landscape') && game.edgeStyle==='organic';
+// the canvas now shows the ground as it stands; the next edit is measured from here
+function noteGroundBaked(){
+  groundBaked={pieces:organicGroundOn()?terrainTracePieces():null, water:waterSetSig()};
+}
+// grow `box` by every piece of `a` that `b` does not have
+function growBoxByPieces(box,a,b){
+  const P=GROUND_EDIT_ARC_PAD;
+  for (const [k,i] of a.keys){
+    if (b.keys.has(k)) continue;
+    const q=a.boxes;
+    if (q[i]-P<box[0]) box[0]=q[i]-P;
+    if (q[i+1]-P<box[1]) box[1]=q[i+1]-P;
+    if (q[i+2]+P>box[2]) box[2]=q[i+2]+P;
+    if (q[i+3]+P>box[3]) box[3]=q[i+3]+P;
+  }
+}
+/* What an edit changed, as one box in tile-corner space, or null if it cannot be
+   bounded. Measured against groundBaked and not the previous trace: a plan sheet
+   or a list can retrace between the edit and its bake. */
+function groundEditBox(){
+  if (groundDamageFull || groundDamageBroad || !groundBaked) return null;
+  if (!groundDamage.size || groundDamage.size>GROUND_DAMAGE_CAP) return null;
+  if (waterSetSig()!==groundBaked.water) return null;
+  const box=[Infinity,Infinity,-Infinity,-Infinity], P=GROUND_EDIT_PAD;
+  for (const k of groundDamage){
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (!Number.isFinite(x)||!Number.isFinite(y)) return null;
+    if (x-P<box[0]) box[0]=x-P;
+    if (y-P<box[1]) box[1]=y-P;
+    if (x+1+P>box[2]) box[2]=x+1+P;
+    if (y+1+P>box[3]) box[3]=y+1+P;
+  }
+  if (organicGroundOn()){
+    if (!groundBaked.pieces) return null;
+    const now=terrainTracePieces();
+    growBoxByPieces(box,now,groundBaked.pieces);
+    growBoxByPieces(box,groundBaked.pieces,now);
+  }
+  return box;
+}
+/* That box as a rectangle of the bake, in device pixels: possibly empty, for an
+   edit off the canvas altogether. Null when it cannot be bounded, or when it would
+   cost more than the viewport repaint it is standing in for. A terrace draws up to
+   its full lift above where the flat lattice puts it, a hollow's faces below. */
+function groundEditRect(W,H,MD){
+  const box=groundEditBox(); if (!box) return null;
+  const s=DPR*ZOOM, E=elevationGrid();
+  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  for (const [gx,gy] of [[box[0],box[1]],[box[2],box[1]],[box[0],box[3]],[box[2],box[3]]]){
+    const p=screenOfCorner(gx,gy,W,H);
+    if (p[0]<x0) x0=p[0];
+    if (p[0]>x1) x1=p[0];
+    if (p[1]<y0) y0=p[1];
+    if (p[1]>y1) y1=p[1];
+  }
+  const px=Math.max(0,Math.floor(x0*s+MD)), py=Math.max(0,Math.floor((y0-E.hi*ELEV_STEP)*s+MD));
+  const qx=Math.min(groundCanvas.width,Math.ceil(x1*s+MD)), qy=Math.min(groundCanvas.height,Math.ceil((y1-E.lo*ELEV_STEP)*s+MD));
+  const pw=Math.max(0,qx-px), ph=Math.max(0,qy-py);
+  if (pw*ph>=cnv.width*cnv.height) return null;
+  return [px,py,pw,ph];
+}
 /* The transient stand-in for tiles edited since the last authoritative bake.
    Drawn onto the LIVE canvas every frame, never cached — so it cannot go stale
    and needs no invalidation of its own. It reads current model state, so a tile
@@ -3768,13 +3908,16 @@ function render(t){
        the kept pixels wrong, and each of those keeps the full bake. */
     const scrolled = groundKey!=='' && gkey===groundKey && !groundRefsChanged()
       && !zoomStale && camStale && !groundMarginStale && scrollGroundBake(t,W,H,amb,MD,pad);
-    /* An edit with the camera still: repaint the viewport, leave the margin.
-       It needs a bake already on the canvas to leave a margin OF, and the same
-       structure and scale, since a season turn or a zoom invalidates every
-       pixel including the ones off screen. */
-    const viewportOnly = !scrolled && groundKey!=='' && groundKeyStruct===gStruct
+    /* An edit with the camera still: repaint what it changed, or failing that
+       the viewport and leave the margin. Either needs a bake already on the
+       canvas to keep, and the same structure and scale, since a season turn or a
+       zoom invalidates every pixel including the ones off screen. */
+    const inPlace = !scrolled && groundKey!=='' && groundKeyStruct===gStruct
       && !groundRefsChanged() && !zoomStale && !camStale;
-    if (viewportOnly){
+    const editRect = inPlace ? groundEditRect(W,H,MD) : null;
+    if (editRect){
+      bakeGroundRect(editRect[0],editRect[1],editRect[2],editRect[3],W,H,amb,t,MD,pad,MD/(DPR*ZOOM));
+    } else if (inPlace){
       /* a few pixels INTO the margin, so the clip boundary — where the repaint
          antialiases against nothing — sits off screen rather than on the
          outermost row of pixels the gardener can see */
@@ -3796,10 +3939,11 @@ function render(t){
     }
     groundKey=gkey; groundKeyStruct=gStruct; groundZoom=ZOOM;
     groundRefs={terrain:game.terrain,elevation:game.elevation,houses:game.houses};
+    if (!scrolled) noteGroundBaked();   // a scroll moves the picture, not the data
     // this bake is authoritative for everything edited up to now, and it starts
     // the next throttle window
     clearGroundDamage(); groundEditT=t;
-    bakeMs=dev(scrolled?'bakePan':'bake',tBake,groundCtx);   // the bake DRAWS, so flush mode attributes its raster
+    bakeMs=dev(scrolled?'bakePan':editRect?'bakeEdit':'bake',tBake,groundCtx);   // the bake DRAWS, so flush mode attributes its raster
   }
   // affine blit: exact 1:1 copy for pans (k=1, integer offset); a scaled
   // approximation mid-zoom-gesture that the settle rebake replaces crisp.

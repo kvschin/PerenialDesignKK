@@ -18577,7 +18577,7 @@ test('an edit bake leaves the margin, and the next camera move pays for it', () 
      move, because the blit shows one device pixel of margin per pixel of pan. */
   assert(/camStale && groundMarginStale/.test(src),
     'a stale margin forces a bake as soon as the camera moves');
-  const bake = src.slice(src.indexOf('const viewportOnly'), src.indexOf('} else if (!scrolled)'));
+  const bake = src.slice(src.indexOf('const inPlace'), src.indexOf('} else if (!scrolled)'));
   for (const guard of ['!scrolled', "groundKey!==''", 'groundKeyStruct===gStruct', '!zoomStale', '!camStale'])
     assert(bake.includes(guard), 'the viewport-only bake is guarded on ' + guard);
 });
@@ -18782,6 +18782,318 @@ test('a clipped grain pass starts its own stone list and always closes it', () =
   let threw = false;
   try { run(); } catch (e) { threw = true; } finally { drawGroundTexture = grain; }
   assert(threw && flagRegionSeen === null, 'a painter that throws leaves no list behind for a formal tile to find');
+});
+
+/* ---------- an edit repaints what it changed ---------- */
+const editFixture = (gw) => {
+  setup(gw || 40, gw || 40);
+  game.edgeStyle = 'organic'; game.layerVis.landscape = true;
+};
+const layBlock = (x0, y0, x1, y1, k, c, extra) => {
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++)
+    setTile('terrain', x + ',' + y, Object.assign({ k, c, t: 1 }, extra || {}));
+};
+const bakedNow = () => { noteGroundBaked(); clearGroundDamage(); };
+// every point the outlines draw through, flattened: what an edit must not move unseen
+const curvePoints = () => {
+  const pts = new Set(), add = (r, drawLoops) => {
+    for (const ring of terrainRingsOf(drawLoops)) for (const p of ring)
+      pts.add(r.kind + '|' + (r.c || '') + '|' + Math.round(p[0] * 256) + '|' + Math.round(p[1] * 256));
+  };
+  for (const r of buildTerrainRegions()){
+    add(r, ctx => { for (const loop of r.loops) terrainLoopPath(ctx, loop, p => p); });
+    if (r.skirts) for (const s of r.skirts) add(r, ctx => terrainSkirtPath(ctx, s, p => p));
+  }
+  return pts;
+};
+
+test("an edit's box holds every point of every outline that moved", () => {
+  editFixture();
+  // long staircases are what the simplifier collapses, so a jog moves a whole run
+  for (let i = 0; i < 26; i++) layBlock(4 + i, 6 + (i >> 1), 7 + i, 9 + (i >> 1), 'bed', 'mulch');
+  layBlock(8, 22, 26, 25, 'bed', 'gravel');
+  for (let i = 0; i < 16; i++) layBlock(14, 4 + i, 15, 4 + i, 'path', 'gravel');
+  let edits = 0, farthest = 0;
+  const walk = [];
+  for (let y = 4; y < 30; y += 2) for (let x = 3; x < 34; x += 3) walk.push([x, y]);
+  for (const [x, y] of walk){
+    const k = x + ',' + y, was = terrainAt(x, y);
+    for (const next of [null, { k: 'bed', c: 'soil', t: 2 }, { k: 'path', c: 'slate', t: 2 }]){
+      if (!next && !was) continue;
+      bakedNow();
+      const before = curvePoints();
+      if (next) setTile('terrain', k, next); else clearTile('terrain', k);
+      const box = groundEditBox(), after = curvePoints();
+      assert(box, 'a located terrain edit can be bounded');
+      for (const [a, b] of [[before, after], [after, before]]) for (const p of a) if (!b.has(p)){
+        const q = p.split('|'), px = +q[2] / 256, py = +q[3] / 256;
+        /* Pieces compare at 1/256 tile, so a point that stayed within that of itself
+           has not moved, it has only crossed a rounding boundary here. */
+        let stayed = false;
+        for (let dx = -2; dx <= 2 && !stayed; dx++) for (let dy = -2; dy <= 2; dy++)
+          if (b.has(q[0] + '|' + q[1] + '|' + (+q[2] + dx) + '|' + (+q[3] + dy))){ stayed = true; break; }
+        if (stayed) continue;
+        assert(px >= box[0] && px <= box[2] && py >= box[1] && py <= box[3],
+          `edit ${k}: ${q[0]} moved at ${px},${py}, outside ${box}`);
+        farthest = Math.max(farthest, Math.abs(px - x - 0.5), Math.abs(py - y - 0.5));
+      }
+      edits++;
+      if (was) setTile('terrain', k, was); else clearTile('terrain', k);
+    }
+  }
+  assert(edits > 150, `the walk covers plenty of edits (${edits})`);
+  // proof that the outline diff is doing something the tile pad alone would not
+  assert(farthest > GROUND_EDIT_PAD + 1, `an edit moved an outline further than its pad (${farthest.toFixed(1)} tiles)`);
+});
+
+test('a piece that went and a piece that came both grow the box', () => {
+  editFixture();
+  layBlock(6, 6, 16, 16, 'bed', 'mulch');
+  bakedNow();
+  setTile('terrain', '30,30', { k: 'bed', c: 'soil', t: 2 });
+  const now = terrainTracePieces(), base = groundEditBox();
+  assert(base[0] > 5, 'the fixture box stays clear of the corner tested below');
+  // only in what the canvas shows: an outline the edit took away
+  const was = groundBaked.pieces;
+  groundBaked.pieces = { keys: new Map(was.keys).set('gone', was.boxes.length), boxes: was.boxes.concat([1, 1, 2, 2]) };
+  assert(groundEditBox()[0] <= 1 - GROUND_EDIT_ARC_PAD, 'one that went');
+  // only in the trace: an outline the edit put there
+  const held = new Map(was.keys), fresh = [...now.keys.keys()].find(k => !was.keys.has(k));
+  now.keys.set('came', now.boxes.length); now.boxes.push(1, 1, 2, 2);
+  groundBaked.pieces = { keys: held, boxes: was.boxes };
+  assert(fresh && groundEditBox()[0] <= 1 - GROUND_EDIT_ARC_PAD, 'one that came');
+  now.keys.delete('came'); now.boxes.length -= 4;
+  groundBaked.pieces = was;
+});
+
+test('a skirt is part of what an edit can move', () => {
+  editFixture();
+  layBlock(8, 8, 24, 24, 'bed', 'mulch');
+  for (let i = 0; i < 14; i++) layBlock(10 + i, 9 + i, 11 + i, 9 + i, 'path', 'gravel');
+  const regions = buildTerrainRegions();
+  assert(regions.some(r => r.skirts && r.skirts.some(s => s.tiles.length)), 'the fixture bed has a skirt, with grain showing');
+  const keys = [...tracePiecesOf(regions).keys.keys()];
+  assert(keys.some(k => k.includes('skirt|')), 'its outline is compared');
+  assert(keys.some(k => k.includes('skirttile|')), 'and which tiles show its grain');
+});
+
+test('editing an island bed does not flag its whole outline', () => {
+  /* It is one closed loop, so comparing whole arcs would call every edit to it a
+     change to the entire bed. */
+  editFixture();
+  layBlock(6, 6, 30, 30, 'bed', 'mulch');
+  bakedNow();
+  setTile('terrain', '31,18', { k: 'bed', c: 'mulch', t: 2 });
+  const box = groundEditBox();
+  /* A bed rounds from the middle of each run, so a bump on a side moves the outline
+     halfway along the two sides beside it, and no further. */
+  assert(box[0] > 12 && box[2] < 36, `the far half of the bed is left alone (${box})`);
+  bakedNow();
+  assertEqual(groundEditBox(), null, 'with nothing edited there is nothing to repaint');
+  /* Paving rounds by a fixed radius, so its corners keep their curves. The side still
+     shifts along its length, since jitter leaves it not quite straight between its
+     corners, but the rest of the patio is left alone. */
+  editFixture();
+  layBlock(6, 6, 30, 30, 'path', 'gravel');
+  bakedNow();
+  setTile('terrain', '31,18', { k: 'path', c: 'gravel', t: 2 });
+  const paved = groundEditBox();
+  assert(paved[2] - paved[0] < 12 && paved[0] > 12, `one side of the patio (${paved})`);
+});
+
+test('an edged arc counts as one piece, since its joints run from its start', () => {
+  editFixture();
+  layBlock(6, 6, 30, 30, 'bed', 'mulch', { e: 'brick' });
+  assert(edgingStyle(regionEdging(buildTerrainRegions()[0])).w, 'the fixture bed draws its edging');
+  bakedNow();
+  setTile('terrain', '31,18', { k: 'bed', c: 'mulch', e: 'brick', t: 2 });
+  const box = groundEditBox();
+  assert(box[0] <= 6 && box[1] <= 6 && box[2] >= 31 && box[3] >= 31, `the whole bed's outline (${box})`);
+  // lifting the edging moves no outline at all, and has to be seen anyway
+  editFixture();
+  layBlock(6, 6, 20, 20, 'bed', 'mulch', { e: 'brick' });
+  bakedNow();
+  for (let y = 6; y <= 20; y++) for (let x = 6; x <= 20; x++) setTile('terrain', x + ',' + y, { k: 'bed', c: 'mulch', t: 2 });
+  const lifted = groundEditBox();
+  assert(lifted[0] <= 6 && lifted[2] >= 21, `lifting edging repaints where it was (${lifted})`);
+  /* Nor does changing it for another move any outline: only the arc's material says
+     so. One tile can do that to a whole bed, since one tile decides it (regionEdging). */
+  const regions = buildTerrainRegions(), named = id => { regions[0].edging = id; return [...tracePiecesOf(regions).keys.keys()].join(); };
+  assert(named('brick') !== named('steel'), 'steel for brick is a different outline');
+  regions[0].edging = null;
+});
+
+test('water depth reaches across its whole body, so a change to it is not bounded', () => {
+  editFixture();
+  layBlock(6, 6, 16, 16, 'water', 'pond');
+  layBlock(24, 6, 30, 12, 'bed', 'mulch');
+  bakedNow();
+  setTile('terrain', '17,10', { k: 'water', c: 'pond', t: 2 });
+  assertEqual(groundEditBox(), null, 'adding to the pond');
+  bakedNow();
+  clearTile('terrain', '17,10');
+  assertEqual(groundEditBox(), null, 'taking from it');
+  bakedNow();
+  setTile('terrain', '8,8', { k: 'water', c: 'lake', t: 2 });
+  assertEqual(groundEditBox(), null, 'restyling a tile of it');
+  bakedNow();
+  setTile('terrain', '17,10', { k: 'bed', c: 'soil', t: 2 });
+  assert(groundEditBox(), 'a bed beside the pond does not move its water');
+  bakedNow();
+  setTile('terrain', '31,9', { k: 'bed', c: 'mulch', t: 2 });
+  assert(groundEditBox(), 'nor does anything elsewhere');
+});
+
+test('an edit that cannot be located or bounded keeps the viewport repaint', () => {
+  editFixture();
+  layBlock(6, 6, 16, 16, 'bed', 'mulch');
+  groundBaked = null; clearGroundDamage();
+  setTile('terrain', '17,10', { k: 'bed', c: 'mulch', t: 2 });
+  assertEqual(groundEditBox(), null, 'with no bake to measure from');
+  bakedNow();
+  setElevationAt(20, 20, 2);
+  assert(groundDamageFull, 'an elevation edit names no tile');
+  assertEqual(groundEditBox(), null, 'its walls and faces reach further than a tile');
+  setElevationAt(20, 20, 0);
+  bakedNow();
+  setTile('terrain', '17,10', { k: 'bed', c: 'soil', t: 2 });
+  markGroundChanged({ terrain: true });
+  assert(groundDamage.size > 0 && groundDamageFull, 'a named tile and something unlocated');
+  assertEqual(groundEditBox(), null, 'the unlocated one wins');
+  bakedNow();
+  for (let i = 0; i <= GROUND_DAMAGE_CAP; i++) groundDamage.add((i % 40) + ',' + (i >> 5));
+  assertEqual(groundEditBox(), null, 'past the cap');
+  bakedNow();
+  groundDamage.add('not a tile');
+  assertEqual(groundEditBox(), null, 'a key that is not a tile');
+  bakedNow();
+});
+
+test('an undo of terrain is bounded, and an undo of elevation is not', () => {
+  editFixture();
+  layBlock(6, 6, 16, 16, 'bed', 'mulch');
+  bakedNow();
+  withUndo(() => setTile('terrain', '17,10', { k: 'bed', c: 'mulch', t: 2 }));
+  bakedNow();
+  assertEqual(applySnapshot(undoStack.pop()), 1, 'a terrain undo names its tile');
+  assert(!groundDamageBroad && groundEditBox(), 'and is bounded like the edit');
+  bakedNow();
+  withUndo(() => setElevationAt(20, 20, 2));
+  bakedNow();
+  assertEqual(applySnapshot(undoStack.pop()), 1, 'an elevation undo names its tile for the throttle');
+  assert(groundDamageBroad, 'but says it reaches further');
+  assertEqual(groundEditBox(), null, 'so the bake does not stop at that tile');
+  clearGroundDamage();
+  assert(!groundDamageBroad, 'and a bake clears that with the rest');
+  // the same tile on both layers, which is where counting a merged set would miss it
+  bakedNow();
+  withUndo(() => { setTile('terrain', '20,20', { k: 'bed', c: 'soil', t: 2 }); setElevationAt(20, 20, 2); });
+  bakedNow();
+  applySnapshot(undoStack.pop());
+  assert(groundDamageBroad, 'elevation moved under a terrain tile counts as well');
+  clearGroundDamage();
+});
+
+test('an edit is measured from what the canvas shows, not from the last trace', () => {
+  /* A plan sheet or a planting list can retrace between the edit and its bake,
+     which would leave nothing to compare if the comparison read the cache. */
+  editFixture();
+  for (let i = 0; i < 26; i++) layBlock(4 + i, 6 + (i >> 1), 7 + i, 9 + (i >> 1), 'bed', 'mulch');
+  bakedNow();
+  clearTile('terrain', '4,6');
+  const box = groundEditBox();
+  buildTerrainRegions();
+  assertEqual(String(groundEditBox()), String(box), 'a retrace in between changes nothing');
+  const a = terrainTracePieces();
+  assert(terrainTracePieces() === a, 'the pieces are kept with their trace');
+  setTile('terrain', '4,6', { k: 'bed', c: 'mulch', t: 3 });
+  assert(terrainTracePieces() !== a, 'and go with it');
+});
+
+test('formal edges have no outline to follow, only the tile and its pad', () => {
+  editFixture();
+  game.edgeStyle = 'formal';
+  layBlock(6, 6, 16, 16, 'bed', 'mulch');
+  bakedNow();
+  assertEqual(groundBaked.pieces, null, 'nothing was traced');
+  setTile('terrain', '20,20', { k: 'bed', c: 'soil', t: 2 });
+  const P = GROUND_EDIT_PAD;
+  assertEqual(String(groundEditBox()), String([20 - P, 20 - P, 21 + P, 21 + P]), 'the tile and its pad');
+  bakedNow();
+  setTile('terrain', '21,21', { k: 'water', c: 'pond', t: 2 });
+  assertEqual(groundEditBox(), null, 'water still reaches further');
+});
+
+test("the pad covers the furthest a tile's own drawing can change", () => {
+  /* A stone drawn only because of one tile can sit its whole size past that tile's
+     reach, and vanish or appear with it. */
+  const pitch = 1.05, stone = pitch * (1 + FLAG_JITTER);
+  assert(GROUND_EDIT_PAD >= FLAG_REGION_REACH + stone, `pad ${GROUND_EDIT_PAD} against ${FLAG_REGION_REACH + stone}`);
+  for (const m of PATH_COLORS) if (m.texture === 'flag') assert((m.pitch || 1.05) <= pitch, m.id + ' is no larger than that');
+});
+
+test('the edit box becomes a device rectangle that holds it, at every rotation', () => {
+  zoomDriftCase(31, () => {
+    const W = VW / ZOOM, H = VH / ZOOM, MD = Math.round(GROUND_MARGIN_CSS * DPR), s = DPR * ZOOM;
+    game.edgeStyle = 'organic'; game.layerVis.landscape = true;
+    for (let rot = 0; rot < 4; rot++){
+      game.rot = rot;
+      bakedNow();
+      setTile('terrain', '15,15', { k: 'bed', c: 'soil', t: rot + 2 });
+      const r = groundEditRect(W, H, MD), box = groundEditBox();
+      assert(r && r[2] > 0 && r[3] > 0, `rot ${rot}: a real rectangle (${r})`);
+      /* Through the CORNER transform, which agrees with the tile one only at rot 0.
+         Off by that much the pad would hide it from a containment check. */
+      const cs = [[box[0], box[1]], [box[2], box[1]], [box[0], box[3]], [box[2], box[3]]].map(([gx, gy]) => screenOfCorner(gx, gy, W, H));
+      assertEqual(r[0], Math.max(0, Math.floor(Math.min(...cs.map(c => c[0])) * s + MD)), `rot ${rot}: left edge`);
+      assertEqual(r[1], Math.max(0, Math.floor(Math.min(...cs.map(c => c[1])) * s + MD)), `rot ${rot}: top edge`);
+      for (const [gx, gy] of [[15, 15], [16, 15], [15, 16], [16, 16]]){
+        const p = screenOfCorner(gx, gy, W, H), dx = p[0] * s + MD, dy = p[1] * s + MD;
+        assert(dx >= r[0] && dx <= r[0] + r[2] && dy >= r[1] && dy <= r[1] + r[3], `rot ${rot}: holds ${gx},${gy}`);
+      }
+      assert(r[0] >= 0 && r[1] >= 0 && r[0] + r[2] <= groundCanvas.width && r[1] + r[3] <= groundCanvas.height, `rot ${rot}: on the canvas`);
+      clearTile('terrain', '15,15');
+    }
+    game.rot = 0;
+
+    // a terrace draws above the flat lattice, by its full lift
+    bakedNow();
+    setTile('terrain', '15,15', { k: 'bed', c: 'soil', t: 2 });
+    const flat = groundEditRect(W, H, MD);
+    setElevationAt(2, 2, 3);
+    clearTile('terrain', '15,15');
+    bakedNow();
+    setTile('terrain', '15,15', { k: 'bed', c: 'soil', t: 3 });
+    const lifted = groundEditRect(W, H, MD);
+    assert(lifted[1] <= flat[1] - 3 * ELEV_STEP * s + 1, `${lifted[1]} against ${flat[1]}`);
+    setElevationAt(2, 2, 0);
+
+    // an edit off the canvas repaints nothing; the next pan scrolls it into view
+    bakedNow();
+    cam.x += 5000;
+    setTile('terrain', '16,16', { k: 'bed', c: 'soil', t: 2 });
+    const off = groundEditRect(W, H, MD);
+    assert(off && (off[2] === 0 || off[3] === 0), `nothing to repaint (${off})`);
+    cam.x -= 5000;
+
+    // bigger than the viewport repaint it stands in for, and it steps aside
+    const cw = cnv.width, ch = cnv.height;
+    bakedNow();
+    setTile('terrain', '17,17', { k: 'bed', c: 'soil', t: 2 });
+    cnv.width = 40; cnv.height = 40;
+    assertEqual(groundEditRect(W, H, MD), null, 'the viewport is cheaper');
+    cnv.width = cw; cnv.height = ch;
+  });
+  clearGroundDamage();
+});
+
+test('the bake repaints the rectangle, and only the viewport path leaves a stale margin', () => {
+  const src = render.toString();
+  const rectAt = src.indexOf('groundEditRect(W,H,MD)'), inPlaceAt = src.indexOf('} else if (inPlace){'), staleAt = src.indexOf('groundMarginStale=true');
+  assert(rectAt > 0 && rectAt < inPlaceAt && inPlaceAt < staleAt, 'the rectangle comes first and the stale margin stays with the fallback');
+  assert(/editRect\?'bakeEdit'/.test(src), 'it is its own event, or the bake timings mix the two');
+  assert(/if \(!scrolled\) noteGroundBaked\(\)/.test(src), 'every bake that changes the data notes it');
+  assert(/noteGroundBaked\(\)/.test(adoptGroundJob.toString()), 'and so does a swapped-in job');
 });
 
 test('a dragged selection ghosts from the sprite cache, on the source tile seed', () => {

@@ -2931,15 +2931,17 @@ function applySnapshotGround(before){
       JSON.stringify(before.buildings)!==JSON.stringify(game.buildings)){
     markGroundChanged({terrain:true}); return 'full';
   }
-  const tiles=new Set();
+  const tiles=new Set(), levels=new Set();
   if (!locatedGroundDiff(before.terrain,game.terrain,tiles) ||
-      !locatedGroundDiff(before.elevation,game.elevation,tiles)){
+      !locatedGroundDiff(before.elevation,game.elevation,levels)){
     markGroundChanged({terrain:true}); return 'full';   // past the cap the overlay stops being cheaper
   }
+  for (const k of levels){ if (tiles.size>=GROUND_DAMAGE_CAP){ markGroundChanged({terrain:true}); return 'full'; } tiles.add(k); }
   // Nothing on the ground moved, so the bake and the traced contours still
   // stand — this is the planting undo, and it is the common case.
   if (!tiles.size) return 0;
   for (const k of tiles) markGroundChanged({terrain:true, tile:k});
+  if (levels.size) groundDamageBroad=true;
   return tiles.size;
 }
 /* Restore a keyed layer WITHOUT replacing the object.

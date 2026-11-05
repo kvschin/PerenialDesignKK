@@ -389,10 +389,10 @@ function markModelChanged(){
   if (game.inGarden && typeof requestGardenAutosave==='function') requestGardenAutosave();
 }
 /* ---------- ground damage: which tiles changed since the last bake ----------
-   The bake is all-or-nothing and viewport-wide, so a brush drag rebakes the
-   whole visible garden every frame it paints a tile. The renderer throttles
-   that (GROUND_EDIT_SETTLE) and covers the not-yet-baked tiles with a transient
-   overlay — but only when it knows WHICH tiles those are.
+   A brush drag changes the ground on every frame it paints a tile. The renderer
+   throttles that (GROUND_EDIT_SETTLE), covers the not-yet-baked tiles with a
+   transient overlay, and repaints only what changed (groundEditRect) — but only
+   when it knows WHICH tiles those are.
 
    So the contract is: name the tile you touched and you can be deferred;
    say nothing and you force a full authoritative bake. Undo, load, plot
@@ -404,7 +404,11 @@ function markModelChanged(){
    only grow: a tile painted and then erased inside one window redraws as
    whatever it is now. */
 let groundDamage=new Set(), groundDamageFull=false;
-function clearGroundDamage(){ groundDamage.clear(); groundDamageFull=false; }
+/* Named for the throttle's sake, but reaching further than the named tiles: an
+   undo that moved elevation. The bake must not treat those tiles as all it needs
+   to repaint (groundEditBox). */
+let groundDamageBroad=false;
+function clearGroundDamage(){ groundDamage.clear(); groundDamageFull=false; groundDamageBroad=false; }
 function markGroundChanged(opts){
   game.groundRev++;
   if (opts && opts.terrain) game.terrainRev++;
