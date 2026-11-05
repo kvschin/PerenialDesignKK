@@ -18600,6 +18600,52 @@ test('a partial bake bounds its tile LOOP, not just its raster', () => {
     'the reject allows for what a tile draws outside its own diamond');
 });
 
+/* A context that counts every call and answers nothing, for asking what a
+   painter does rather than what it looks like. */
+const countingCtx = () => {
+  const n = {}, props = {};
+  const ctx = new Proxy(props, {
+    get: (t, k) => k === 'n' ? n : (k in t ? t[k] : () => { n[k] = (n[k] || 0) + 1; }),
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  return ctx;
+};
+
+test('a band of the ground bake lays grain only for the tiles that can reach it', () => {
+  setup(31, 31);
+  game.edgeStyle = 'organic';
+  for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++) setTile('terrain', x + ',' + y, { k: 'bed', c: 'mulch', t: 1 });
+  for (let y = 22; y < 28; y++) for (let x = 22; x < 28; x++) setTile('terrain', x + ',' + y, { k: 'path', c: 'gravel', t: 1 });
+  const W = 800, H = 600, amb = AMBIENCE.Summer;
+  const corner = screenOf(5, 5, W, H);
+  const rect = [corner[0] - 60, corner[1] - 20, corner[0] + 60, corner[1] + 20];   // a strip over the bed
+  const grain = drawGroundTexture, seen = new Set();
+  drawGroundTexture = function (c, sx, sy, x, y) { seen.add(x + ',' + y); };
+  try {
+    paintTerrainBlobs(countingCtx(), 0, GW - 1, 0, GH - 1, W, H, amb, 0);
+    assertEqual(seen.size, 136, 'with no rectangle, every tile lays its grain');
+    seen.clear();
+    const ctx = countingCtx();
+    paintTerrainBlobs(ctx, 0, GW - 1, 0, GH - 1, W, H, amb, 0, rect);
+    assert(seen.size > 0 && seen.size < 40, `a band lays a fraction of the grain (${seen.size} of 136)`);
+    /* Nothing the band could show may be dropped: a tile's diamond, plus the half
+       tile a laid-over edge bleeds and a skirt reaches past it. */
+    for (const k of Object.keys(game.terrain)){
+      const [x, y] = k.split(',').map(Number), [sx, sy] = screenOf(x, y, W, H);
+      const near = sx + TILE_W * 0.75 >= rect[0] && sx - TILE_W * 0.75 <= rect[2]
+        && sy + TILE_H * 1.25 >= rect[1] && sy - TILE_H * 0.25 <= rect[3];
+      if (near) assert(seen.has(k), `tile ${k} can reach the band and laid no grain`);
+    }
+    assert(![...seen].some(k => +k.split(',')[0] >= 22), 'the far region lays none');
+    assertEqual(ctx.n.clip || 0, 1, 'and the far region is not even clipped: only the bed is');
+  } finally { drawGroundTexture = grain; }
+  // and the bake really does hand its rectangle down
+  const blobs = paintTerrainBlobs; let got = null;
+  paintTerrainBlobs = function () { got = arguments[9]; };
+  try { paintGround(countingCtx(), 0, GW - 1, 0, GH - 1, W, H, amb, 0, 0, rect); } finally { paintTerrainBlobs = blobs; }
+  assertEqual(got, rect, 'paintGround passes its rectangle to the blob pass');
+});
+
 test('a dragged selection ghosts from the sprite cache, on the source tile seed', () => {
   const src = drawSelectionOverlay.toString();
   assert(!/\bdrawPlant\(/.test(src), 'no ghost goes through the procedural painter');

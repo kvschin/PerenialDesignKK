@@ -360,7 +360,7 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex,rect){
     if (rect && (sx<rx0||sx>rx1||sy<ry0||sy>ry1)) continue;
     paintGroundTile(ctx,x,y,W,H,amb,showLand,organic);
   }
-  if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t);
+  if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect);
   if (showLand) paintWallRuns(ctx,W,H);
 }
 /* Repaint ONE rectangle of the bake, in device pixels. Clears it, clips to it,
@@ -1231,12 +1231,42 @@ function buildTerrainRegions(){
   dev('trace',tTrace);
   return regions;
 }
-function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
+/* Could a region tile's drawing land in this band of the bake? The same slack
+   paintGround's tile loop allows: a tile's own diamond, the bleed and skirt past
+   it, an edging stroke, and standing grain. */
+function tileReachesRect(sx,sy,rect){
+  return !(sx<rect[0]-TILE_W||sx>rect[2]+TILE_W||sy<rect[1]-TILE_H*3||sy>rect[3]+TILE_H*3);
+}
+/* One clipped pass of per-tile grain: a region's own, or one of its skirts.
+   A partial bake must bound this loop by its rectangle (paintGround explains why
+   a clip alone does not), and it did not: the tile bbox of a thin band is a wide
+   diagonal parallelogram, so on a small plot every bed tile laid its grain again,
+   all of it clipped away. Measured on a 31x31 garden, one background ground job,
+   48 chunks, cost 11,661 tile draws where a full bake costs 1,618, and Firefox's
+   sustained pan went 28.8ms -> 6.1ms a frame with the band cull. Pixel-identical
+   on a software canvas. */
+function paintRegionGrain(ctx,tiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,rect){
+  for (const kk of tiles){ const c=kk.indexOf(',');
+    const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
+    if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
+    const [sx,sy]=screenOf(tx,ty,W,H);
+    if (rect && !tileReachesRect(sx,sy,rect)) continue;
+    const rs=mulberry(tileSeed(tx,ty));
+    if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,true);
+    // skipBase: the region silhouette above already laid this material's base
+    // across every one of these tiles, so the per-tile base fill would only
+    // repaint it — a full-tile fill on every tile of every bed.
+    else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
+  }
+}
+function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect){
   for (const region of buildTerrainRegions()){
     let vis=false;
     for (const kk of region.tiles){ const c=kk.indexOf(',');
       const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
-      if (tx>=x0-2&&tx<=x1+2&&ty>=y0-2&&ty<=y1+2){ vis=true; break; } }
+      if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
+      if (rect){ const [sx,sy]=screenOf(tx,ty,W,H); if (!tileReachesRect(sx,sy,rect)) continue; }
+      vis=true; break; }
     if (!vis) continue;
     const isWater=region.kind==='water', o={k:region.kind,c:region.c};
     const base = isWater ? waterFill(o,amb.snow)
@@ -1261,17 +1291,7 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     ctx.beginPath();
     for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
     ctx.clip('evenodd');
-    for (const kk of region.tiles){ const c=kk.indexOf(',');
-      const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
-      if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
-      const [sx,sy]=screenOf(tx,ty,W,H);
-      const rs=mulberry(tileSeed(tx,ty));
-      if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,true);
-      // skipBase: the region silhouette above already laid this material's base
-      // across every one of these tiles, so the per-tile base fill would only
-      // repaint it — a full-tile fill on every tile of every bed.
-      else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
-    }
+    paintRegionGrain(ctx,region.tiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,rect);
     ctx.restore();
     /* The skirt's grain (terrainSkirts), clipped to the band, on the coverer's
        tiles. The coverer paints after this, so the band only ever shows where
@@ -1280,14 +1300,7 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
       ctx.save();
       terrainSkirtPath(ctx,s,proj);
       ctx.clip('evenodd');
-      for (const kk of s.tiles){ const c=kk.indexOf(',');
-        const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
-        if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
-        const [sx,sy]=screenOf(tx,ty,W,H);
-        const rs=mulberry(tileSeed(tx,ty));
-        if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,true);
-        else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
-      }
+      paintRegionGrain(ctx,s.tiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,rect);
       ctx.restore();
     }
     /* One continuous edge stroke (replaces the per-tile diamond strokes),
