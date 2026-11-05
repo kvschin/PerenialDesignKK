@@ -18662,6 +18662,41 @@ test('a dragged selection ghosts from the sprite cache, on the source tile seed'
     'and carries the source tile render detail, so it matches the scene key');
 });
 
+test('a selection ghost asks for the growth the scene draws, so the two share a sprite', () => {
+  setup(21, 21);
+  const tree = firstOfType('tree'), sun = firstOfType('grass');
+  setTile('plants', '10,10', { s: tree, d: -10000, t: 1 });
+  game.dayOffset = DAYS_PER_SEASON * 2 + 4;              // early Fall: full grown, with the spring bulbs asleep
+  const asleep = Object.keys(PLANTS).find(k => PLANTS[k].type === 'bulb' && displayPlantGrowth({ s: k, d: 0, t: 1 }) <= 0.02);
+  setTile('plants', '10,9', { s: sun, d: -10000, t: 1 }); // under the canopy
+  setTile('plants', '2,18', { s: sun, d: -10000, t: 1 }); // in the open
+  setTile('bulbs', '3,18', { s: asleep, d: 0, t: 1 });   // underground at this time of year
+  buildScene(800, 600);
+  const rec = (x, y) => scene.ents.find(e => e.kind === SCENE_K.PLANT && e.x === x && e.y === y);
+  assert(rec(10, 9).stunt === true && rec(2, 18).stunt === false, 'the fixture has one struggling plant and one in the open');
+  assert(displayPlantGrowth(game.bulbs['3,18']) <= 0.02, 'the fixture bulb is underground');
+  assert(scene.stunted.has(9 * GW + 10) && !scene.stunted.has(18 * GW + 2), 'the scene lists stunted tiles by tile');
+
+  game.sel = { x0: 0, y0: 0, x1: 20, y1: 20 };
+  game.selItems = selectionPayload(game.sel);
+  selMove = { grabX: 5, grabY: 5, curX: 5, curY: 6, copy: false };
+  const asked = [], was = drawPlantMaybeCached;
+  drawPlantMaybeCached = function (ctx, bx, by, key, growth, season, seed) { asked.push({ key, growth, seed }); };
+  try { drawSelectionOverlay(document.createElement('canvas').getContext('2d'), 800, 600, 0, 'Fall', 0); }
+  finally { drawPlantMaybeCached = was; selMove = null; resetSelectionState(); }
+
+  for (const [x, y] of [[10, 9], [2, 18]]){
+    const r = rec(x, y), g = displayPlantGrowth(r.p) * (r.stunt ? STUNT_GROWTH : 1);
+    const a = asked.find(q => q.seed === r.seed);
+    assert(a, `${x},${y} drew a ghost`);
+    // a different growth bucket under one slot is two sprites retiring each other every frame
+    assertEqual(gbucket(a.growth, 9), gbucket(g, 9), `${x},${y}: the ghost's growth bucket is the scene's`);
+  }
+  assert(gbucket(displayPlantGrowth(rec(10, 9).p), 9) !== gbucket(displayPlantGrowth(rec(10, 9).p) * STUNT_GROWTH, 9),
+    'stunting really does move this plant to another bucket, or the check above proves nothing');
+  assert(!asked.some(q => q.key === asleep), 'an underground bulb asks for no ghost, as it asks for no sprite in the scene');
+});
+
 test('selection move validity is resolved per position, not per frame', () => {
   setup(24, 24);
   const key = firstOfType('forb');

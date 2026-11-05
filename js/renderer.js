@@ -1963,7 +1963,7 @@ function aheadBakePlant(e,prepared=false){
   const was=game.elapsedMs, susp=game.clockSuspended;
   let g, bl, lv;
   game.elapsedMs=AHEAD.at+(prepared?0:DAY_MS*0.02); game.clockSuspended=true;
-  try{ g=displayPlantGrowth(e.p)*(e.stunt?0.45:1); bl=bloomLevel(e.p.s,e.p.v); lv=leafStageNow(plantDef(e.p.s,e.p.v),next); }
+  try{ g=displayPlantGrowth(e.p)*(e.stunt?STUNT_GROWTH:1); bl=bloomLevel(e.p.s,e.p.v); lv=leafStageNow(plantDef(e.p.s,e.p.v),next); }
   finally{ game.elapsedMs=was; game.clockSuspended=susp; }
   if (e.kind===SCENE_K.BULB && g<=0.02){ e.aheadFor=AHEAD.epoch; return; }
   const gB=gbucket(g,9), bB=bloomAppearanceFor(plantDef(e.p.s,e.p.v),next)?gbucket(bl,4):0, lB=lv===undefined?-1:lv;
@@ -2898,7 +2898,8 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
 const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12,WATERF:13,SUPPORT:14,PERGOLA:15};
-let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[]};
+let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[], stunted:new Set()};
+const STUNT_GROWTH=0.45;   // a full-sun plant struggling under an active canopy draws at this share of its growth
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
     (layerShown('bulbs')?4:0)|(layerShown('landscape')?8:0);
@@ -3075,11 +3076,14 @@ function* sceneBuildSteps(W,H){
   // full-sun plants under an ACTIVE canopy render stunted; canopy-granular, so
   // it lives here (against ALL trees, not just the on-screen ones)
   yield* shadeMapSteps();
+  const stunted=new Set();   // by tile, for a selection ghost to draw at the same growth
   for (const rec of plantRecs){
     if (++count%64===0) yield;
     const P2=PLANTS[rec.p.s];
-    if (P2 && P2.sun!=='part' && !isTreeDef(P2))
+    if (P2 && P2.sun!=='part' && !isTreeDef(P2)){
       rec.stunt=shadeScoreAt(rec.x,rec.y)>=SHADE_ACTIVE_SCORE;
+      if (rec.stunt) stunted.add(rec.y*GW+rec.x);
+    }
   }
   if (layerShown('bulbs')) for (const k in game.bulbs){ const p=game.bulbs[k];
     if (++count%64===0) yield;
@@ -3199,7 +3203,7 @@ function* sceneBuildSteps(W,H){
       bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
   }
   scene={key:sceneKey(), refs:sceneRefs(),
-    ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
+    ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders, stunted};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
 function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===cx){
@@ -3241,7 +3245,7 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===
       return 1;
     }
     case SCENE_K.PLANT:{
-      let g=displayPlantGrowth(e.p); if (e.stunt) g*=0.45;      // struggling under canopy
+      let g=displayPlantGrowth(e.p); if (e.stunt) g*=STUNT_GROWTH;      // struggling under canopy
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
       drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
       if (AHEAD.season && useSprites && ctx===cx) aheadBakePlant(e);
@@ -3272,7 +3276,7 @@ function gardenPortraitBounds(){
   }
   for (const e of scene.ents){
     if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB){
-      const growth=displayPlantGrowth(e.p)*(e.stunt?0.45:1);
+      const growth=displayPlantGrowth(e.p)*(e.stunt?STUNT_GROWTH:1);
       if (growth<=0.02) continue;
       const b=plantDrawBox(plantDef(e.p.s,e.p.v),e.p.s,growth);
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,0,0), base=sy+TILE_H/2;
@@ -4441,7 +4445,13 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
        the pointer as it crosses tiles. That variation is a rendering detail, not
        data, and the ghost is a 55%-alpha preview of a plant you are holding; the
        committed plant still takes its destination's seed on drop, exactly as
-       before. */
+       before.
+
+       The ghost asks for what the scene draws for that clump, growth included.
+       A full-sun plant under a canopy is stunted in the scene and was not in the
+       ghost, so the two landed in different growth buckets of one sprite slot and
+       retired each other every frame: 18 such plants in a whole-plot marquee were
+       ~1,750 bakes over 90 frames. A bulb that is underground draws nothing. */
     cx.save(); cx.globalAlpha=0.55;
     const ghostSprites=PSPRITE.active;
     for (let i=0;i<items.length;i++){
@@ -4454,15 +4464,17 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
       if (c.waterFeature) drawWaterFeature(cx,W,H,season,c.waterFeature,nx,ny);
       if (c.support) drawSupport(cx,W,H,season,c.support,nx,ny);
       if (c.boulder) drawBoulder(cx,W,H,season,c.boulder,nx,ny);
-      if (c.bulb) drawPlantMaybeCached(cx,sx,sy+TILE_H/2,c.bulb.s,displayPlantGrowth(c.bulb),season,
-        (tileSeed(c.x,c.y)^0x9e37)>>>0,sway,c.bulb.v,undefined,ghostSprites);
+      if (c.bulb){ const g=displayPlantGrowth(c.bulb);
+        if (g>0.02) drawPlantMaybeCached(cx,sx,sy+TILE_H/2,c.bulb.s,g,season,
+          (tileSeed(c.x,c.y)^0x9e37)>>>0,sway,c.bulb.v,undefined,ghostSprites); }
       /* the SOURCE tile's detail as well as its seed: detail is out of the
          sprite SLOT but in its key, so a ghost that disagreed with the scene
          about a hedge's neighbours would share the clump's slot, miss on the
          key, and the two draws would retire each other's sprite every frame —
          a bake apiece per frame for exactly the plants a cache helps most. */
-      if (c.plant) drawPlantMaybeCached(cx,sx,sy+TILE_H/2,c.plant.s,displayPlantGrowth(c.plant),season,
-        tileSeed(c.x,c.y),sway,c.plant.v,plantRenderDetail(c.x,c.y,c.plant,W,H),ghostSprites);
+      if (c.plant){ const g=displayPlantGrowth(c.plant)*(scene.stunted.has(c.y*GW+c.x)?STUNT_GROWTH:1);
+        drawPlantMaybeCached(cx,sx,sy+TILE_H/2,c.plant.s,g,season,
+          tileSeed(c.x,c.y),sway,c.plant.v,plantRenderDetail(c.x,c.y,c.plant,W,H),ghostSprites); }
     }
     cx.restore();
     return;
