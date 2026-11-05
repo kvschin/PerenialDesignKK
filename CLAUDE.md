@@ -376,8 +376,14 @@ See §13a.
   scrolls: a garden opens fitted since 0.9.29, where its pans stayed inside the
   margin and every arm compared a bake with itself and passed, so for a long stretch
   it was not testing the scrolled bake at all. An arm fails on more than 8 pixels
-  over the bar rather than on its max, because one stray antialiased pixel on formal
-  edges reads 128 against a bar of 113. A band cull with no slack comes out at 15.
+  over the bar rather than on its max. Pixels compare PREMULTIPLIED: `getImageData`
+  divides colour by alpha, so two invisible pixels of alpha 3 and 4 read 64 levels
+  apart, which is what the old 128s at the plot's corner were. **The edit walk** makes
+  ~120 real edits (add, erase, repaint, hole, stamp, edging, water; two rotations,
+  formal, a chain) and compares the WHOLE canvas with a full bake after each, against
+  a bar of 32 since a same-camera repaint has nothing to excuse a difference; a row
+  counts pixels `outside` the rectangle apart, the failure that matters. `--soft`
+  rasterises in software, where a difference cannot be the GPU's noise.
 - `node dev/perf-audit.cjs --profile phone --engine chrome` drives the real app
   at a real viewport and reports where a frame goes. Two halves, deliberately:
   **live**, where the app's own rAF loop draws and the probe only supplies input
@@ -2059,15 +2065,43 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     one. And the camera is borrowed and restored in a `finally`, the
     `gsBorrowCamera` pattern.
     **An EDIT cannot scroll — the data moved, not the camera — so it repaints
-    the VIEWPORT and leaves the margin.** While the camera has not moved the
-    margin is entirely off screen, which is the whole point of it; on a 1440x900
-    desktop that is 47% of the canvas. The margin then holds pre-edit ground,
-    which becomes visible on the very next camera move (one device pixel of
-    margin per pixel of pan), so `groundMarginStale` forces a full bake at that
-    moment and forbids a scroll until it has happened. Repainting only the
-    BRUSHED tiles would be wrong and is the tempting version: `dpOpen` simplifies
-    a whole traced arc, so one added tile can move an organic contour anywhere
-    along its run. Halving the area is what is provably safe.
+    what it changed** (`groundEditRect`, `tracePiecesOf`, `noteGroundBaked`, 0.9.75).
+    Repainting only the BRUSHED tiles is the tempting version and is wrong: `dpOpen`
+    simplifies a whole traced arc, so one added tile can move an organic contour
+    anywhere along its run. Measured with the outline comparison switched off, up to
+    4,186 pixels stayed stale outside the repainted box. So each edit also compares
+    the trace with the one the canvas was last painted from (`groundBaked`, not the
+    cache: a plan sheet can retrace in between), PIECE by piece: a corner's curve,
+    or a point and the directions leaving it. Comparing whole arcs would not help,
+    since an island bed is one closed loop. On a bed a corner rounds from the middle
+    of each run (`TERRAIN_FILLET` Infinity), so a bump on a long straight side
+    really does move the outline halfway along the two sides beside it and repaints
+    that much; on paving it does not. An edged arc IS one piece, since its joints
+    are set out from its start. The box is the tiles ± `GROUND_EDIT_PAD` (3, the
+    furthest a flagstone reaches) grown by the changed pieces ± `GROUND_EDIT_ARC_PAD`,
+    made one rectangle of the bake, margin included, so **the next pan can still
+    scroll**. It costs under 0.1ms a trace.
+    **Three things keep the old viewport repaint**, which leaves the margin holding
+    older ground and sets `groundMarginStale`, so the next camera move bakes in full:
+    a change to WATER (`waterSetSig`: depth and flow are fields over the whole body,
+    though measured the colour moves at most 24/255 far from the edit, so this rule
+    is cautious rather than vital); ELEVATION, whose walls are traced along their
+    whole run (an edit says nothing, `groundDamageFull`; an undo names its tiles for
+    the throttle, so it says so apart, `groundDamageBroad`); and anything unlocated.
+    So does a box dearer than the viewport, which is usually a heavily edged bed.
+    **A region now paints its grain in a fixed order** (`paintTiles`,
+    `tilesInPaintOrder`), not the flood's. Neighbouring grains overlap slightly, and
+    the flood order changes with any edit, so digging one tile out of a bed swapped
+    which shred lay on top dozens of tiles away: pixels the edit does not repaint, and
+    a later full bake would then change under a gardener who had touched nothing.
+    Known and accepted: removing the first-laid tile of one of two materials of one
+    rank that share a hard edge can flip their paint order, which moves only that ~1px
+    seam until the next full bake.
+    On a 31x31 garden, 0.9.74 -> 0.9.75: a tap 96 -> 15ms in Chrome and 51 -> 14ms in
+    Firefox, painting a bed 34 -> 94fps and 60 -> 98fps, an undo 88 -> 14ms and 50 ->
+    12ms, the first pan after an edit 99 -> 8ms and 56 -> 11ms. The demo garden in
+    Chrome: tap 70 -> 13ms, paint 45 -> 99fps, first pan 74 -> 8ms. Most edits repaint
+    8-30% of the canvas. A full bake itself is unchanged.
     **A partial bake must bound its tile LOOP, not just its raster.** A clip
     saves the pixels and not the path setup, and a thin band's tile bbox is a
     wide diagonal parallelogram — on a small plot, very nearly every tile. On
