@@ -26,6 +26,8 @@ const GARDEN = opt('garden');   // an exported garden file; the demo garden when
 const ENGINES = {
   chrome: { exe: ['C:/Program Files/Google/Chrome/Application/chrome.exe'],
     args: (prof, url) => ['--user-data-dir=' + prof, '--no-first-run', '--no-default-browser-check',
+      // --soft: a software canvas is bit-exact from draw to draw, so a difference is a real one
+      ...(argv.includes('--soft') ? ['--disable-accelerated-2d-canvas', '--disable-gpu-rasterization', '--disable-gpu-compositing'] : []),
       '--window-size=1440,900', '--window-position=0,0', '--new-window', url] },
   firefox: { exe: ['C:/Program Files/Mozilla Firefox/firefox.exe'],
     args: (prof, url) => ['-profile', prof, '-no-remote', '-new-instance', '-width', '1440', '-height', '900', url],
@@ -38,13 +40,19 @@ function inPage() {
   const out = { arms: [] };
   const w = () => groundCanvas.width, h = () => groundCanvas.height;
   const shot = () => groundCtx.getImageData(0, 0, w(), h()).data;
+  /* Premultiplied. getImageData returns colour divided by alpha, so a pixel of
+     alpha 3 and one of alpha 4, both invisible, read as tens of levels apart. */
+  const pxDiff = (a, b, i) => {
+    const aa = a[i + 3], ba = b[i + 3]; let d = Math.abs(aa - ba);
+    for (let c = 0; c < 3; c++) { const e = Math.abs(a[i + c] * aa - b[i + c] * ba) / 255; if (e > d) d = e; }
+    return Math.round(d);
+  };
   const diff = (a, b) => {
     let px = 0, sum = 0, max = 0, aBlank = 0, bBlank = 0, over = 0;
     let x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1;
     const W0 = w(), bar = out.control ? Math.max(out.control.max, 8) : 255;
     for (let i = 0; i < a.length; i += 4) {
-      let d = 0;
-      for (let c = 0; c < 4; c++) { const e = Math.abs(a[i + c] - b[i + c]); if (e > d) d = e; }
+      const d = pxDiff(a, b, i);
       if (d) {
         px++; sum += d; if (d > max) max = d; if (d > bar) over++;
         if (a[i + 3] === 0 && b[i + 3] > 0) aBlank++;
@@ -61,6 +69,8 @@ function inPage() {
   const fullsSeen = () => (dbg.ev.bake ? dbg.ev.bake.n : 0);
 
   return (async () => {
+    // a heavier garden is still preparing its first picture after the driver's wait
+    for (let i = 0; gardenOpening && i < 4000; i++) await new Promise(r => setTimeout(r, 5));
     crashed = true;
     await new Promise(r => setTimeout(r, 250));
     game.pausedAt = game.pausedAt || Date.now();
@@ -133,8 +143,7 @@ function inPage() {
     const diffRect = (a, b, rx, ry, rw, rh) => {
       let px = 0, sum = 0, max = 0, over = 0; const W0 = w(), bar = Math.max(out.control.max, 8);
       for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) {
-        const i = (y * W0 + x) * 4; let d = 0;
-        for (let c = 0; c < 4; c++) { const e = Math.abs(a[i + c] - b[i + c]); if (e > d) d = e; }
+        const i = (y * W0 + x) * 4, d = pxDiff(a, b, i);
         if (d) { px++; sum += d; if (d > max) max = d; if (d > bar) over++; }
       }
       return { pct: +(100 * px / (rw * rh)).toFixed(3), mean: px ? +(sum / px).toFixed(2) : 0, max, over, bbox: null, scrollBlank: 0, fullBlank: 0 };
@@ -159,6 +168,121 @@ function inPage() {
     cam.x = cam0.x + 30; cam.y = cam0.y - 20; TE += 20000; render(TE);
     out.arms.push(Object.assign({ arm: "edit then pan (whole canvas)" }, against(shot())));
     game.tool = "hand";
+
+    /* EDIT WALK. An edit now repaints only what it changed (groundEditRect), so the
+       question is whether anything it did NOT repaint should have been. Each step
+       makes one edit, bakes it, and compares the WHOLE canvas with a full bake at
+       the same camera; a rectangle clip on whole pixels leaves nothing to excuse a
+       real difference, so the bar is far tighter than the sub-pixel control. An
+       outline left behind is a line of pixels off by the whole material contrast.
+       A viewport fallback leaves its margin stale on purpose, and is compared over
+       the viewport only. Half the walk runs with the view turned. */
+    {
+      const WALK_BAR = 32;
+      const diffWalk = (a, b, rect, painted) => {
+        let over = 0, outside = 0, max = 0, x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1; const W0 = w();
+        const rx0 = rect ? rect[0] : 0, ry0 = rect ? rect[1] : 0, rx1 = rect ? rect[0] + rect[2] : W0, ry1 = rect ? rect[1] + rect[3] : h();
+        for (let y = ry0; y < ry1; y++) for (let x = rx0; x < rx1; x++) {
+          const i = (y * W0 + x) * 4, d = pxDiff(a, b, i);
+          if (d > max) max = d;
+          if (d > WALK_BAR) { over++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+            if (painted && (x < painted[0] || y < painted[1] || x >= painted[0] + painted[2] || y >= painted[1] + painted[3])) outside++; }
+        }
+        return { over, outside, max, bbox: over ? [x0, y0, x1, y1] : null };
+      };
+      const rects = [], brc = bakeGroundRect;
+      bakeGroundRect = function (px, py, pw, ph) { rects.push([px, py, pw, ph]); return brc.apply(this, arguments); };
+      const edits = () => (dbg.ev.bakeEdit ? dbg.ev.bakeEdit.n : 0);
+      const rng = mulberry(90210), pick = a => a[(rng() * a.length) | 0];
+      const MATS = [{ k: 'bed', c: 'gravel' }, { k: 'bed', c: 'mulch' }, { k: 'bed', c: 'soil' }, { k: 'path', c: 'slate' }, { k: 'path', c: 'gravel' }, { k: 'lawn', c: 'meadow' }];
+      const key = (x, y) => x + ',' + y;
+      const plain = (x, y) => onPlot(x, y) && !buildingAt(x, y) && !houseAt(x, y);
+      /* Tiles on an outline, which is where a change can travel along a run, and
+         lawn beside them, listed fresh for each step since the last one was undone. */
+      const edge = () => { const on = [], off = [];
+        for (let y = 1; y < GH - 1; y++) for (let x = 1; x < GW - 1; x++) {
+          if (!plain(x, y)) continue;
+          const t = terrainAt(x, y), lawnBeside = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => !terrainAt(x + a, y + b));
+          const laidBeside = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => !!terrainAt(x + a, y + b));
+          if (t && lawnBeside) on.push([x, y]); else if (!t && laidBeside) off.push([x, y]);
+        }
+        return { on, off }; };
+      const OPS = {
+        'add beside an outline': () => { const { off } = edge(); if (!off.length) return false; const [x, y] = pick(off), m = pick(MATS); setTile('terrain', key(x, y), { k: m.k, c: m.c, t: 1 }); },
+        'erase on an outline': () => { const { on } = edge(); if (!on.length) return false; const [x, y] = pick(on); clearTile('terrain', key(x, y)); },
+        'repaint on an outline': () => { const { on } = edge(); if (!on.length) return false; const [x, y] = pick(on), m = pick(MATS); setTile('terrain', key(x, y), { k: m.k, c: m.c, t: 1 }); },
+        'dig a hole': () => { const all = Object.keys(game.terrain).filter(k => { const t = game.terrain[k]; return t && !t.removed; }); if (!all.length) return false; clearTile('terrain', pick(all)); },
+        'a 5-wide stamp': () => { const { off } = edge(); if (!off.length) return false; const [x, y] = pick(off), m = pick(MATS);
+          for (const [a, b] of brushOffsets(5)) if (plain(x + a, y + b)) setTile('terrain', key(x + a, y + b), { k: m.k, c: m.c, t: 1 }); },
+        'edge a bed': () => { const beds = edge().on.filter(([x, y]) => terrainAt(x, y).k === 'bed'); if (!beds.length) return false; const [x, y] = pick(beds), t = terrainAt(x, y); setTile('terrain', key(x, y), Object.assign({}, t, { e: 'steel' })); },
+        'water beside an outline': () => { const { off } = edge(); if (!off.length) return false; const [x, y] = pick(off); setTile('terrain', key(x, y), { k: 'water', c: 'pond', t: 1 }); },
+      };
+      out.walk = [];
+      const shotFull = () => { TE += 20000; groundKey = ''; groundJob = null; render(TE); return shot(); };
+      const step = (name, op) => {
+        const snap = snapshotState();
+        if (op() === false) return null;
+        const e0 = edits(); TE += 20000; render(TE);
+        const stale = groundMarginStale, a = shot(), rect = edits() > e0, painted = rect && rects.length ? rects[0].slice() : null;
+        const r = diffWalk(a, shotFull(), stale ? [MDpx, MDpx, cnv.width, cnv.height] : null, painted);
+        applySnapshot(snap); shotFull();
+        return Object.assign(r, { rect, painted });
+      };
+      const walk = (label, perOp) => {
+        for (const name in OPS) {
+          const row = { arm: label + ' ' + name, n: 0, rect: 0, over: 0, outside: 0, max: 0, bbox: null, share: [] };
+          for (let i = 0; i < perOp; i++) {
+            rects.length = 0;
+            const r = step(name, OPS[name]); if (!r) continue;
+            row.n++; if (r.rect) { row.rect++; if (r.painted) row.share.push(r.painted[2] * r.painted[3] / (w() * h())); }
+            if (r.max > row.max) row.max = r.max;
+            if (r.outside > row.outside) row.outside = r.outside;
+            if (r.over > row.over) { row.over = r.over; row.bbox = r.bbox; row.worst = r.painted; }
+          }
+          row.share.sort((a, b) => a - b);
+          row.shareMed = row.share.length ? +row.share[row.share.length >> 1].toFixed(3) : null;
+          row.shareMax = row.share.length ? +row.share[row.share.length - 1].toFixed(3) : null;
+          delete row.share;
+          out.walk.push(row);
+        }
+      };
+      cam.x = cam0.x; cam.y = cam0.y; shotFull();
+      /* A lake, which shelves slowly, big enough that one bank tile moves its colour
+         well past any tile's pad: why a change to water is not bounded at all. */
+      {
+        const snap0 = snapshotState(), n = 18, x0 = Math.max(1, (GW - n) >> 1), y0 = Math.max(1, (GH - n) >> 1);
+        for (let y = y0; y < y0 + n; y++) for (let x = x0; x < x0 + n; x++) setTile('terrain', key(x, y), { k: 'water', c: 'lake', t: 1 });
+        shotFull();
+        const row = { arm: 'a bank tile of a big lake', n: 0, rect: 0, over: 0, outside: 0, max: 0, bbox: null, shareMed: null, shareMax: null };
+        for (let i = 0; i < 6; i++) {
+          rects.length = 0;
+          const r = step('pond', () => { const t = i * 3; clearTile('terrain', i % 2 ? key(x0, y0 + t) : key(x0 + t, y0)); });
+          row.n++; if (r.rect) row.rect++; if (r.max > row.max) row.max = r.max;
+          if (r.outside > row.outside) row.outside = r.outside;
+          if (r.over > row.over) { row.over = r.over; row.bbox = r.bbox; row.worst = r.painted; }
+        }
+        out.walk.push(row);
+        applySnapshot(snap0); shotFull();
+      }
+      walk('rot0', 10);
+      rotateView(1); const c1 = { x: cam.x, y: cam.y }; shotFull();
+      walk('rot1', 6);
+      /* A chain, with no full bake between: rectangles laid over rectangles. */
+      {
+        const snap = snapshotState(); let n = 0;
+        for (let i = 0; i < 30; i++) { if (OPS[pick(['add beside an outline', 'erase on an outline', 'repaint on an outline'])]() !== false) { n++; TE += 20000; render(TE); } }
+        const a = shot(), stale = groundMarginStale;
+        const r = diffWalk(a, shotFull(), stale ? [MDpx, MDpx, cnv.width, cnv.height] : null, null);
+        out.walk.push(Object.assign({ arm: 'chain of ' + n + ' edits', n: 1, rect: edits() ? 1 : 0, shareMed: null, shareMax: null }, r));
+        applySnapshot(snap); shotFull();
+      }
+      rotateView(-1); cam.x = cam0.x; cam.y = cam0.y;
+      game.edgeStyle = 'formal'; markGroundChanged(); shotFull();
+      walk('formal', 4);
+      game.edgeStyle = 'organic'; markGroundChanged();
+      bakeGroundRect = brc;
+      cam.x = cam0.x; cam.y = cam0.y; shotFull();
+    }
 
     /* Variants, because the bake is not one picture: formal edges take the
        per-tile path instead of the traced blobs, and a furnished garden adds
@@ -256,13 +380,22 @@ const driver = `
       + (a.fullBakesInChain ? ' (' + a.fullBakesInChain + ' full inside)' : ''));
   }
   const bar = res.control.max;
-  /* Counted, not the max alone: one stray antialiased pixel at the plot's corner
-     reads 128 against a bar of 113 on formal edges, and has since before this was
-     last able to see it, while a band painted in the wrong place is thousands. */
+  /* Counted, not the max alone: a band painted in the wrong place is thousands of
+     pixels, and a stray antialiased one is not a failure. */
   const STRAY_PX = 8;
   const bad = res.arms.filter(a => a.over > STRAY_PX);
   for (const a of bad) console.log('  over the bar: ' + a.arm + (a.dx !== undefined ? ' ' + a.dx + ',' + a.dy : '') + ' ' + a.over + 'px');
-  const scrolled =res.arms.reduce((n, a) => n + (a.scrolled === true ? 1 : +a.scrolled || 0), 0);
+  console.log('\n' + pad('edit walk', 38) + r('n', 4) + r('rect', 6) + r('over32', 8) + r('outside', 8) + r('max', 6) + r('med%', 7) + r('max%', 7));
+  for (const a of res.walk) console.log(pad(a.arm, 38) + r(a.n, 4) + r(a.rect, 6) + r(a.over, 8) + r(a.outside || 0, 8) + r(a.max, 6)
+    + r(a.shareMed === null ? '-' : (100 * a.shareMed).toFixed(1), 7) + r(a.shareMax === null ? '-' : (100 * a.shareMax).toFixed(1), 7) + (a.bbox ? '  worst ' + JSON.stringify(a.bbox) + ' in ' + JSON.stringify(a.worst || null) : ''));
+  const badWalk = res.walk.filter(a => a.over > STRAY_PX || (a.outside || 0) > STRAY_PX);
+  const rectsUsed = res.walk.reduce((n, a) => n + a.rect, 0);
+  console.log('\nedits repainted by rectangle: ' + rectsUsed);
+  if (badWalk.length) { console.log('FAIL: ' + badWalk.length + ' edit walk row(s) left pixels behind'); process.exit(1); }
+  const lake = res.walk.find(a => a.arm.includes('lake'));
+  if (lake && lake.rect) { console.log('FAIL: a change to water was repainted by rectangle'); process.exit(1); }
+  if (rectsUsed < 40) { console.log('FAIL: too few edits took the rectangle for this to test it'); process.exit(1); }
+  const scrolled = res.arms.reduce((n, a) => n + (a.scrolled === true ? 1 : +a.scrolled || 0), 0);
   console.log('\nscrolls exercised across the arms: ' + scrolled);
   if (scrolled < 20) { console.log('FAIL: too few pans crossed the margin for this to test the scrolled bake'); process.exit(1); }
   console.log('\n' + (bad.length ? 'FAIL: ' + bad.length + ' arm(s) exceed the sub-pixel control' : 'PASS: no arm has more than ' + STRAY_PX + ' pixels over the sub-pixel control (' + bar + '/255)'));
