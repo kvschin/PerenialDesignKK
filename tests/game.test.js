@@ -4704,6 +4704,87 @@ test('a new garden has a start-here list, ticked off by the garden itself', () =
   assertEqual(build[0], 'Site', 'Site leads the Landscape strip, where a design starts');
 });
 
+test('the tool hint steps round the start-here list rather than printing over it', () => {
+  // A 390px phone, measured: the list fills the strip, the hint's CSS home is 7px above it.
+  const shut = { left: 70, top: 69, width: 312, height: 58 };
+  const hint = { left: 70, top: 62, width: 285, height: 37 };
+  assertEqual(JSON.stringify(statusAroundStartHere(hint, shut, 372)), JSON.stringify({ top: 135 }),
+    'on a phone it drops under the list');
+  // The same list open, down to the sheet: nowhere to go, so it stays and carries a plate.
+  const open = { left: 70, top: 69, width: 312, height: 293 };
+  assertEqual(JSON.stringify(statusAroundStartHere(hint, open, 372)), JSON.stringify({ plate: true }),
+    'no room under an open list means a plate, not a hint under the sheet');
+  // The sheet out of the way, the same open list leaves room again.
+  assertEqual(statusAroundStartHere(hint, open, 788).top, 370, 'room under it is taken when there is some');
+
+  // A short docked canvas: the list sits across from the rail, and there is a gap beside it.
+  const dockHint = { left: 86, top: 60, width: 316, height: 43 };
+  const dockList = { left: 326, top: 8, width: 300, height: 285 };
+  assertEqual(JSON.stringify(statusAroundStartHere(dockHint, dockList, 704)), JSON.stringify({ maxWidth: 232 }),
+    'docked it narrows into the gap, staying by the rail');
+  // A gap too thin to read in is not a gap (left-handed, both against the rail).
+  const lefty = { left: 232, top: 60, width: 316, height: 43 };
+  assertEqual(statusAroundStartHere(lefty, { left: 258, top: 8, width: 300, height: 285 }, 704).top, 301,
+    'with no gap worth having, it goes under instead');
+
+  // The two cases that must not move at all: a wide dock, and a list already out of the way.
+  assertEqual(statusAroundStartHere(dockHint, { left: 758, top: 8, width: 300, height: 285 }, 704), null,
+    'a wide dock leaves the hint where it was');
+  assertEqual(statusAroundStartHere(dockHint, { left: 70, top: 8, width: 300, height: 52 }, 704), null,
+    'a list that ends where the hint starts is not in the way');
+  assertEqual(statusAroundStartHere({ left: 70, top: 62, width: 0, height: 0 }, shut, 372), null,
+    'an empty hint has no box to clear');
+
+  // And the real path, including the order things happen in: the hint is up when the list moves.
+  const el = document.getElementById('activeToolStatus'), list = document.getElementById('startHere');
+  const set = (e, r) => { e.offsetLeft = r.left; e.offsetTop = r.top; e.offsetWidth = r.width; e.offsetHeight = r.height; };
+  const zero = { left: 0, top: 0, width: 0, height: 0 };
+  try {
+    setup(21, 21);
+    set(el, hint); set(list, shut);
+    el.classList.add('show');
+    list.classList.add('hidden');
+    startHereSig = '';
+    syncStartHere();
+    assert(!list.classList.contains('hidden'), 'an empty garden shows the list');
+    assertEqual(el.style.top, '135px', 'the list appearing moves a hint that is already up');
+
+    set(list, open);
+    const roomy = usableCanvasRect().bottom;
+    list.offsetHeight = roomy;   // an open list as tall as the canvas, with the hint already up
+    startHereSig = '';
+    syncStartHere();
+    assertEqual(el.style.top, '', 'with no room it goes back to its home');
+    assert(el.classList.contains('over-list'), 'on a plate');
+
+    set(list, shut);
+    el.classList.remove('show');
+    startHereSig = '';
+    syncStartHere();
+    assert(el.classList.contains('over-list'), 'a hint that is not up is left alone: it is placed when it next shows');
+    placeActiveToolStatus(el);
+    assert(!el.classList.contains('over-list'), 'and the plate goes the moment it is not needed');
+    assertEqual(el.style.top, '135px');
+
+    el.classList.add('show');
+    game.plants['6,6'] = { s: firstOfType('forb'), d: absDay(), t: 1 };
+    syncStartHere();
+    assert(list.classList.contains('hidden'), 'the first plant retires the list');
+    assertEqual(el.style.top, '', 'and the hint goes home with it, so a planted garden is as it always was');
+  } finally {
+    set(el, zero); set(list, zero);
+    el.classList.remove('show'); el.classList.remove('over-list');
+    el.style.top = ''; list.classList.add('hidden');
+    startHereSig = '';
+  }
+
+  const css = readRepoFile('styles.css');
+  assert(/\.active-tool-status\.over-list\{background:var\(--color-surface\)\}/.test(css),
+    'the plate is the solid surface: the hint\'s usual one is 72% and the list would read through it');
+  const surfaces = [...css.matchAll(/--color-surface:([^;]+);/g)].map(m => m[1]);
+  assert(surfaces.length >= 2 && surfaces.every(v => /^#[0-9a-f]{6}$/i.test(v)), 'solid in both themes');
+});
+
 test('the guidebook and the tour are in the garden menu, and the guidebook returns there', () => {
   const html = readRepoFile('index.html');
   const menu = html.slice(html.indexOf('id="gardenMenu"'), html.indexOf('id="btnGmClose"'));

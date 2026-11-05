@@ -75,22 +75,29 @@ read-only loopback HTTP server on a free port.
    about 150ms of a fast synthetic drag (pointerdown and pointerup arrive, click does
    not), and its touch adjustment snaps a press to a control a few pixels away, even
    though `elementFromPoint` at that exact point says otherwise.
-5. Capture a planted garden in all four seasons, independently of the editing
+5. In a new, empty garden of its own (a separate context, so the saved gardens the
+   later steps read do not gain a row), arm a tool with a real press and compare the
+   tool hint with the Start here list. They must not overlap, and the hint must stay
+   on screen and off the rail; the same left-handed. Change the list's size with the
+   hint up: the hint must move or carry its opaque plate. The first plant retires the
+   list and the hint must be back at its CSS home. `<profile>-hint-and-start-here.png`
+   and the left-handed one are kept with the report.
+6. Capture a planted garden in all four seasons, independently of the editing
    camera and layer visibility. Verify capture leaves the editing view, model,
    visible canvas and sprite caches intact, including on encoder failure.
    Save & quit, verify the stored JPEG renders, check old and damaged-image
    fallbacks, and confirm narrow cards leave readable names and visible actions.
-6. Stop the HTTP server, open privacy/terms/credits from their own cache entries,
+7. Stop the HTTP server, open privacy/terms/credits from their own cache entries,
    then open the app and garden in a new tab. An uncached request must fail
    while cached scripts, fonts, the ZIP lookup, and the saved planting remain available.
-7. Restart the server with a new build. Confirm the worker waits, both caches
+8. Restart the server with a new build. Confirm the worker waits, both caches
    exist, and the running HTML and scripts remain on the old build. Dismiss
    the offer and confirm no takeover occurs.
-8. Relaunch to re-offer the update, edit the garden, and accept **Reload**.
+9. Relaunch to re-offer the update, edit the garden, and accept **Reload**.
    Verify the latest planting survives, the new HTML and scripts agree, the
    old cache is retired, and the updated installation also reopens offline.
-9. Fail on uncaught page errors, HTTP error responses, or automatic third-party
-   requests.
+10. Fail on uncaught page errors, HTTP error responses, or automatic third-party
+    requests.
 
 The update pair uses the current source with two build labels: a synthetic
 `<version>-release-check-before` and the actual current version. Only served

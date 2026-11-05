@@ -1086,6 +1086,10 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
   font-size:11px;line-height:1.28;box-shadow:var(--shadow-control);opacity:0;visibility:hidden;transform:translateY(-4px);
   transition:opacity var(--motion-menu),transform var(--motion-menu) var(--ease-standard),visibility 0s linear var(--motion-menu)}
 .active-tool-status.show{opacity:1;visibility:visible;transform:none;transition-delay:0s}
+/* Over the open Start here list, when it left nowhere else to go (placeStatusByStartHere):
+   solid, because the list's text must not read through this one's, and a step off the
+   list's own surface, so it reads as a thing lying on the list rather than part of it. */
+.active-tool-status.over-list{background:var(--color-surface)}
 .active-tool-status:empty{display:none}
 .active-tool-status b{display:block;color:var(--bronze);font-size:9px;letter-spacing:.13em;text-transform:uppercase}
 .active-tool-status span{display:block;color:var(--text-secondary);margin-top:1px}

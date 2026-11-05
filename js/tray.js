@@ -4742,7 +4742,7 @@ function toolGuide(){
    edge when the left-handed layout moves it, so the two can never disagree
    again. `usableCanvasRect()` caps the width so a long line cannot run under
    the docked library either. */
-function placeActiveToolStatus(el){
+function placeStatusByRail(el){
   const rail=document.getElementById('canvasTools');
   if (!rail || !rail.getBoundingClientRect || !el.style) return;   // headless: no geometry
   const host=el.offsetParent||document.body;
@@ -4761,6 +4761,51 @@ function placeActiveToolStatus(el){
     el.style.left=Math.round(rr.right-hr.left+gap)+'px';
     if (safe) el.style.maxWidth=Math.round(safe.right-(rr.right+gap))+'px';
   }
+}
+/* Step round the Start here list. Both want the strip under the top bar, and the
+   list's top came from measuring while the hint's was a fixed CSS value, 7px
+   apart on a phone, so in a new garden the hint printed straight over "Start here
+   0 of 5" and neither could be read. The list is what stays, so the hint gives
+   way: narrower, into the gap beside the list (docked, where the list sits across
+   the canvas); else under it (a phone, where it fills the strip); and only where
+   the open list leaves no room at all, where it was, on a plate the list cannot
+   show through. Pure, on layout boxes in the stage's coordinates: offset*, not a
+   rect, because the hint's reveal and the list's entrance both move a rect.
+   Returns null to stay home. */
+const STATUS_MIN_W=120, STATUS_LIST_GAP=8;
+function statusAroundStartHere(hint,list,floor){
+  const meets=hint.left<list.left+list.width && list.left<hint.left+hint.width
+    && hint.top<list.top+list.height && list.top<hint.top+hint.height;
+  if (!meets) return null;
+  const room=list.left-STATUS_LIST_GAP-hint.left;
+  if (room>=STATUS_MIN_W) return {maxWidth:room};
+  const below=list.top+list.height+STATUS_LIST_GAP;
+  if (below+hint.height<=floor) return {top:below};
+  return {plate:true};
+}
+function placeStatusByStartHere(el){
+  if (!el.style) return;
+  el.style.top='';   // home, the CSS value, before measuring anything against it
+  el.classList.remove('over-list');
+  const list=document.getElementById('startHere');
+  if (!list || list.classList.contains('hidden')) return;
+  const box=e=>({left:e.offsetLeft,top:e.offsetTop,width:e.offsetWidth,height:e.offsetHeight});
+  const at=statusAroundStartHere(box(el),box(list),usableCanvasRect().bottom);
+  if (!at) return;
+  if (at.maxWidth) el.style.maxWidth=Math.round(at.maxWidth)+'px';
+  else if (at.top) el.style.top=Math.round(at.top)+'px';
+  else el.classList.add('over-list');
+}
+function placeActiveToolStatus(el){
+  placeStatusByRail(el);
+  placeStatusByStartHere(el);
+}
+/* The list moves on its own (opens, shuts, goes with the first plant, follows a
+   resize) and the hint can be up when it does: for four seconds usually, and for
+   the whole of a footprint draft, which the list's own step starts. */
+function reseatActiveToolStatus(){
+  const el=document.getElementById('activeToolStatus');
+  if (el && el.classList.contains('show')) placeActiveToolStatus(el);
 }
 function updateActiveToolStatus(){
   const el=document.getElementById('activeToolStatus'); if (!el) return;

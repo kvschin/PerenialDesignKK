@@ -265,7 +265,7 @@ let startHereSig='', startHereCollapsed=null;
 function syncStartHere(){
   const el=document.getElementById('startHere'); if (!el) return;
   if (!startHereApplies()){
-    if (!el.classList.contains('hidden')){ el.classList.add('hidden'); startHereSig=''; }
+    if (!el.classList.contains('hidden')){ el.classList.add('hidden'); startHereSig=''; reseatActiveToolStatus(); }
     return;
   }
   if (startHereCollapsed===null) startHereCollapsed=mobileSheetUi();
@@ -300,6 +300,7 @@ function syncStartHere(){
   }
   el.classList.remove('hidden');
   placeStartHere(el);
+  reseatActiveToolStatus();
 }
 /* Beside the library, top right of the clear canvas; across the top of the
    strip on a phone. Measured against usableCanvasRect so it clears the rail,

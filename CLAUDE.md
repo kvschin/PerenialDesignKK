@@ -1291,6 +1291,23 @@ logic is split across ordered modules. They map onto the section list below
   `blob.start`. It STANDS IN for beat 1 in an empty garden — the tip was step 5
   alone, in a second widget beside it — and `syncStartHere` runs from `updateHUD`,
   so it returns on booleans unless the list is up.
+  **The tool hint steps round it** (`statusAroundStartHere`, `placeStatusByStartHere`,
+  tray.js; 0.9.73). Both want the strip under the top bar, and the hint's top was a
+  fixed CSS value where the list's is measured, 7px apart on a phone, so in a new
+  garden the hint printed over "Start here 0 of 5" for four seconds after every tool
+  press, and for the whole of a footprint draft, which the list's own step starts.
+  The same thing happened on a short dock (1024x768, 932x430), over "Set north". The
+  list is what stays, so the hint gives way: narrower into the gap beside the list
+  (the dock, down to `STATUS_MIN_W`, 120px), else under it (a phone, where the list
+  fills the strip), and only where an open list leaves no room at all, where it was
+  on a solid plate (`.over-list`, `--color-surface`; its usual `--surface-overlay` is
+  72% in dark, which is why the two read as one garble). With the list out of the way
+  it is at its CSS home with nothing written, so a planted garden and a wide dock are
+  unchanged. It compares `offset*` boxes rather than rects, because the hint's reveal
+  and the list's entrance both move a rect; the two share an offset parent, and
+  `usableCanvasRect` speaks the same coordinates. The list moves on its own (opens,
+  shuts, retires, follows a resize), so `syncStartHere` re-seats a hint that is up
+  (`reseatActiveToolStatus`), inside its changed-signature path and so never per frame.
 - **The controls tour** (`tourSteps`/`tourNote`/`tourRender`, ui.js) is the
   explicit half of the same system, and it exists because in the DEMO garden the
   ambient beats mostly do not run: beats 2 and 4 are gated on planting, and

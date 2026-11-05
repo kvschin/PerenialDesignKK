@@ -270,6 +270,85 @@ async function scenario(browser, profile){
       await page.evaluate(()=>closeOverlay('gardenMenu'));
       await page.evaluate(()=>{ setTool('hand',null); game.sel=null; game.selItems=null; refreshCanvasTools(); });
     });
+    /* The sandbox pins the rule on given boxes. Only a browser has the real boxes,
+       the real stacking, and the list moving with the hint already up. It takes a
+       context of its own because a planted garden has no list to step round, and the
+       saved gardens the later checks read should not gain a row. */
+    await check(label('the tool hint steps round Start here rather than printing over it'), async()=>{
+      const own = await browser.newContext({viewport:profile.viewport, hasTouch:profile.touch,
+        isMobile:profile.touch, colorScheme:profile.touch?'dark':'light', serviceWorkers:'block'});
+      const p = await own.newPage(), pageErrors = [];
+      p.setDefaultTimeout(15000);
+      p.on('pageerror', e=>pageErrors.push(e.message));
+      try {
+        await boot(p, url, beforeVersion, server.scripts);
+        await p.getByRole('button', {name:'Start from scratch', exact:true}).click();
+        await p.locator('#btnDesign').click(); await p.locator('#btnNewWorld').click();
+        await p.locator('#btnDesignNext').click();
+        await p.locator('#plotName').fill('Hint check');
+        await p.locator('#btnPlotStart').click();
+        await p.waitForFunction(()=>game.inGarden && !!game.worldId);
+        await p.locator('#gardenOpening').waitFor({state:'hidden'});
+        const press = async name=>{
+          const at = await p.evaluate(n=>{ const b=[...document.querySelectorAll('#canvasTools button')].find(x=>x.textContent.trim()===n);
+            const r=b.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2}; }, name);
+          if (profile.touch) await p.touchscreen.tap(at.x,at.y); else await p.mouse.click(at.x,at.y);
+          await p.waitForFunction(n=>document.getElementById('activeToolStatus').classList.contains('show')
+            && game.tool===n, name==='Select'?'select':'ruler');
+          await p.waitForTimeout(260);   // the reveal's 160ms, which moves the rect
+        };
+        const look = ()=>p.evaluate(()=>{
+          const box = el=>{ const r=el.getBoundingClientRect(); return {left:r.left,top:r.top,right:r.right,bottom:r.bottom}; };
+          const hint=document.getElementById('activeToolStatus'), list=document.getElementById('startHere');
+          const a=box(hint), b=box(list), rail=box(document.getElementById('canvasTools'));
+          return {hint:a, list:b, rail, width:innerWidth, styleTop:hint.style.top, plate:hint.classList.contains('over-list'),
+            shown:hint.classList.contains('show'), listUp:!list.classList.contains('hidden'),
+            overlap:Math.min(a.right,b.right)>Math.max(a.left,b.left) && Math.min(a.bottom,b.bottom)>Math.max(a.top,b.top)};
+        });
+        const clear = (now,what)=>{
+          assert(now.shown && now.listUp, what+': both are up');
+          assert(!now.overlap, `${what}: they do not overlap (hint ${JSON.stringify(now.hint)}, list ${JSON.stringify(now.list)})`);
+          assert(!now.plate, what+': and so it needs no plate');
+          assert(now.hint.left>=0 && now.hint.right<=now.width, what+': on screen');
+          assert(now.hint.right<=now.rail.left || now.hint.left>=now.rail.right, what+': and clear of the rail');
+        };
+        await press('Select');
+        const first = await look();
+        clear(first,'a tool armed in a new garden');
+        await p.screenshot({path:path.join(output,profile.name+'-hint-and-start-here.png')});
+        if (profile.touch) assert(first.hint.top>=first.list.bottom,'on a phone the list fills the strip and the hint goes under it');
+        else assert.equal(first.styleTop,'','a wide dock has room and leaves the hint at home');
+
+        // The list moves on its own, with the hint up.
+        await p.locator('#btnStartHereToggle').click();
+        await p.waitForTimeout(100);
+        const flipped = await look();
+        assert(!flipped.overlap || flipped.plate,'the list changing size moves the hint, or gives it a plate');
+        await p.locator('#btnStartHereToggle').click();
+        await p.waitForTimeout(100);
+        const back = await look();
+        assert(!back.overlap && !back.plate,'and back again');
+
+        if (profile.touch){
+          await p.evaluate(()=>setLeftHandedLayout(true));
+          await p.waitForTimeout(260);   // the rail's 180ms move, which moves its rect
+          await press('Ruler');
+          clear(await look(),'left-handed');
+          await p.screenshot({path:path.join(output,profile.name+'-hint-and-start-here-left-handed.png')});
+          await p.evaluate(()=>setLeftHandedLayout(false));
+          await p.waitForTimeout(260);
+          await press('Select');
+        }
+
+        // The first plant retires the list, and the hint is exactly where it always was.
+        await p.evaluate(()=>withUndo(()=>setTile('plants','4,4',{s:'bluestem',d:0,t:Date.now()})));
+        await p.waitForFunction(()=>document.getElementById('startHere').classList.contains('hidden'));
+        const planted = await look();
+        assert.equal(planted.styleTop,'','a planted garden has the hint at its CSS home');
+        assert(!planted.plate,'with no plate');
+        assert.deepEqual(pageErrors,[]);
+      } finally { await own.close(); }
+    });
     await check(label('automatic portraits, unchanged editing views, and legacy fallbacks'), async()=>{
       const demo=JSON.parse(fs.readFileSync(path.join(root,'demo-garden.json'),'utf8'));
       const portraitResult=await page.evaluate(async demo=>{
