@@ -18726,6 +18726,64 @@ test('a grass tile strokes its blades once, without moving the seeded stream', (
   assert(Math.abs(mean - 0.17) < 1e-9, `the inks keep the old range's mean, 0.12 to 0.22 (${mean})`);
 });
 
+test('inside a region a flagstone is drawn once, and the tile loses its clip', () => {
+  setup(31, 31);
+  const HX = TILE_W * 0.5, HY = TILE_H * 0.5, slate = pathColor('slate'), cols = ['#111111', '#222222', '#333333', '#444444'];
+  const polys = (vx, vy) => {
+    const out = []; let cur = null, col = '';
+    const ctx = { set fillStyle(c){ col = c; }, get fillStyle(){ return col; }, beginPath(){}, closePath(){}, fill(){},
+      moveTo(x, y){ cur = [[x, y]]; out.push(cur); }, lineTo(x, y){ cur.push([x, y]); } };
+    drawFlagstone(ctx, slate, (vx - vy) * HX, (vx + vy + 1) * HY, vx, vy, cols);
+    return out.map(p => p.map(([x, y]) => Math.round(x * 100) + ':' + Math.round(y * 100)).join('|'));
+  };
+  // what a tile draws outside a region, for every tile of a block
+  const block = []; for (let y = 5; y < 13; y++) for (let x = 5; x < 13; x++) block.push([x, y]);
+  const clipped = new Set(); for (const [x, y] of block) for (const k of polys(x, y)) clipped.add(k);
+  flagRegionBegin();
+  const once = []; for (const [x, y] of block) once.push(...polys(x, y));
+  flagRegionEnd();
+  assertEqual(new Set(once).size, once.length, 'no stone is drawn twice in a pass');
+  for (const k of clipped) assert(once.includes(k), 'and every stone the tiles used to draw is drawn');
+  assert(once.length > clipped.size, 'the reach also draws stones past the block, for the outline to trim');
+  assert(polys(5, 5).length > 0, 'and outside a pass every tile draws its stones again');
+  // the outline reaches LAID_OVER_BLEED past a tile; short of that a wedge stays bare
+  assert(FLAG_REGION_REACH > LAID_OVER_BLEED, 'the stones reach further than the bleed');
+
+  // the scratch holds a tile's worst case at the wider reach
+  let worst = 0;
+  for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++){ flagRegionBegin(); worst = Math.max(worst, polys(x, y).length); flagRegionEnd(); }
+  assert(worst < FLAG_MAXC * 2 - 1, `a tile never reaches the scratch's limit (${worst} of ${FLAG_MAXC * 2})`);
+
+  const tile = () => { const c = countingCtx(); const save = c.n; drawMaterialGrain(c, 100, 100, slate, '#4a4f51', mulberry(7), 5, 6, AMBIENCE.Summer); return save; };
+  assertEqual(tile().clip, 1, 'with no region round it, a tile keeps its own clip');
+  flagRegionBegin();
+  const inside = tile();
+  flagRegionEnd();
+  assertEqual(inside.clip || 0, 0, 'inside a region it has none');
+  assertEqual(inside.save || 0, inside.restore || 0, 'and the saves still balance');
+});
+
+test('a clipped grain pass starts its own stone list and always closes it', () => {
+  setup(31, 31);
+  game.edgeStyle = 'organic';
+  const tiles = []; for (let y = 5; y < 9; y++) for (let x = 5; x < 9; x++){ tiles.push(x + ',' + y); setTile('terrain', x + ',' + y, { k: 'path', c: 'slate', t: 1 }); }
+  const o = { k: 'path', c: 'slate' }, region = { kind: 'path', c: 'slate' }, was = drawFlagstone, W = 800, H = 600;
+  let inPass = 0;
+  const run = () => paintRegionGrain(countingCtx(), tiles, region, o, '#4a4f51', false, AMBIENCE.Summer, 0, GW - 1, 0, GH - 1, W, H);
+  /* A skirt is clipped elsewhere, so a stone the region's own pass drew has to be
+     drawn again under the skirt's clip; one list across the two leaves it bare. */
+  run();
+  drawFlagstone = function (...a) { if (flagRegionSeen) inPass += flagRegionSeen.size === 0 ? 1 : 0; return was.apply(this, a); };
+  try { run(); } finally { drawFlagstone = was; }
+  assertEqual(inPass, 1, 'the second pass starts from an empty list');
+  assertEqual(flagRegionSeen, null, 'and it ends with none');
+  const grain = drawGroundTexture;
+  drawGroundTexture = function () { throw new Error('boom'); };
+  let threw = false;
+  try { run(); } catch (e) { threw = true; } finally { drawGroundTexture = grain; }
+  assert(threw && flagRegionSeen === null, 'a painter that throws leaves no list behind for a formal tile to find');
+});
+
 test('a dragged selection ghosts from the sprite cache, on the source tile seed', () => {
   const src = drawSelectionOverlay.toString();
   assert(!/\bdrawPlant\(/.test(src), 'no ghost goes through the procedural painter');

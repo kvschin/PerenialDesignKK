@@ -2697,19 +2697,37 @@ const FLAG_JITTER=0.62, FLAG_INSET=0.93, FLAG_MAXC=16;
 const _flagPts=new Float64Array(FLAG_MAXC*2*4*2), _flagN=new Int8Array(FLAG_MAXC*2), _flagTone=new Int8Array(FLAG_MAXC*2);
 const _flagCx=new Float64Array(4), _flagCy=new Float64Array(4);
 const FLAG_WHOLE=[[0,1,2,3]], FLAG_SPLIT_A=[[0,1,2],[0,2,3]], FLAG_SPLIT_B=[[0,1,3],[1,2,3]];
+/* Inside an organic region a stone is drawn ONCE, by the first tile that meets
+   it, and the region's own clip trims it, with no clip per tile. That costs
+   Firefox ~41ms less a full bake on 70 flagstone tiles (Chrome ~3ms), because a
+   clip is what it pays for, and it also fixes the look: clipped to its tile a
+   stone stopped short where the path's outline runs past its tiles, leaving a
+   sawtooth and a flat strip of joint colour down the edge. FLAG_REGION_REACH is
+   how far past a tile it looks for stones, and has to clear LAID_OVER_BLEED, or a
+   wedge of that strip survives where no stone touches a tile of the region.
+   Outside a region (formal edges, a material swatch, the damage overlay) there is
+   no clip to trim it, so the tile keeps its own and flagRegionSeen stays null. */
+const FLAG_REGION_REACH=0.6, FLAG_CELL_KEY=4096;   // plots are at most 256 tiles a side
+let flagRegionSeen=null;
+const _flagSeenCells=new Set();
+function flagRegionBegin(){ _flagSeenCells.clear(); flagRegionSeen=_flagSeenCells; }
+function flagRegionEnd(){ flagRegionSeen=null; }
 function drawFlagstone(ctx,mat,sx,cy,vx,vy,cols){
   const s=mat.pitch||1.05, HX=TILE_W*0.5, HY=TILE_H*0.5;
+  const seen=flagRegionSeen, m=seen?FLAG_REGION_REACH:0;
   // only the cells whose jittered corners can reach this tile: a corner moves
   // at most FLAG_JITTER/2 of a pitch, so cell i spans i*s-0.31s..(i+1)*s+0.31s.
   // A margin of a whole cell either side was 9-16 stones a tile, each drawn
   // whole and clipped, and cost a third again over the paver.
   const r=FLAG_JITTER*0.5;
-  const i0=Math.floor(vx/s-1-r)+1, i1=Math.ceil((vx+1)/s+r)-1;
-  const j0=Math.floor(vy/s-1-r)+1, j1=Math.ceil((vy+1)/s+r)-1;
+  const i0=Math.floor((vx-m)/s-1-r)+1, i1=Math.ceil((vx+1+m)/s+r)-1;
+  const j0=Math.floor((vy-m)/s-1-r)+1, j1=Math.ceil((vy+1+m)/s+r)-1;
   let n=0;
   const cxv=_flagCx, cyv=_flagCy;
   for (let j=j0;j<=j1;j++) for (let i=i0;i<=i1;i++){
     if (n>=FLAG_MAXC*2-1) break;
+    const cell=i*FLAG_CELL_KEY+j;
+    if (seen && seen.has(cell)) continue;
     let xlo=1e9, xhi=-1e9, ylo=1e9, yhi=-1e9;
     for (let q=0;q<4;q++){
       const ci=i+((q===1||q===2)?1:0), cj=j+(q>=2?1:0);
@@ -2718,7 +2736,8 @@ function drawFlagstone(ctx,mat,sx,cy,vx,vy,cols){
       if (cxv[q]<xlo) xlo=cxv[q]; if (cxv[q]>xhi) xhi=cxv[q];
       if (cyv[q]<ylo) ylo=cyv[q]; if (cyv[q]>yhi) yhi=cyv[q];
     }
-    if (xhi<=vx || xlo>=vx+1 || yhi<=vy || ylo>=vy+1) continue;
+    if (xhi<=vx-m || xlo>=vx+1+m || yhi<=vy-m || ylo>=vy+1+m) continue;
+    if (seen) seen.add(cell);
     const split=latHash(i,j,43)<0.25, diag=latHash(i,j,44)<0.5;
     const polys = split ? (diag ? FLAG_SPLIT_A : FLAG_SPLIT_B) : FLAG_WHOLE;
     for (let pi=0;pi<polys.length;pi++){
@@ -2733,6 +2752,7 @@ function drawFlagstone(ctx,mat,sx,cy,vx,vy,cols){
       _flagN[n]=m; _flagTone[n]=(latHash(i*2+pi,j,45)*cols.length)|0; n++;
     }
   }
+  if (!n) return;
   for (let k=0;k<cols.length;k++){
     ctx.fillStyle=cols[k]; ctx.beginPath();
     for (let p=0;p<n;p++){
@@ -2988,11 +3008,11 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     // Irregular flagstone on a jittered lattice: see drawFlagstone. A few
     // grains of the stone's own grain over the top, so a big plate is not a
     // flat swatch.  (~14us)
-    const vv=worldToView(wx|0,wy|0);
-    clipTileDiamond(ctx,sx,cy);
+    const vv=worldToView(wx|0,wy|0), tileClip=!flagRegionSeen;
+    if (tileClip) clipTileDiamond(ctx,sx,cy);
     const cols=_laidCols; cols[0]=T[1]; cols[1]=T[2]; cols[2]=T[3]; cols[3]=T[0];
     drawFlagstone(ctx,mat,sx,cy,vv[0],vv[1],cols);
-    ctx.restore();
+    if (tileClip) ctx.restore();
     for (let i=0;i<8;i++){
       const rx=0.7+rs()*0.9; grainSite(sx,cy,rx,rx*0.6,rs); grainPush(rx,rx*0.6,(rs()*CHIP_SIL)|0);
     }

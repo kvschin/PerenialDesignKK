@@ -1276,20 +1276,26 @@ function tileReachesRect(sx,sy,rect){
    all of it clipped away. Measured on a 31x31 garden, one background ground job,
    48 chunks, cost 11,661 tile draws where a full bake costs 1,618, and Firefox's
    sustained pan went 28.8ms -> 6.1ms a frame with the band cull. Pixel-identical
-   on a software canvas. */
+   on a software canvas.
+   The flagstone scratch lives for one pass and not for the region, because a
+   stone the region drew under its own clip still has to be drawn under the
+   skirt's. */
 function paintRegionGrain(ctx,tiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,rect){
-  for (const kk of tiles){ const c=kk.indexOf(',');
-    const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
-    if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
-    const [sx,sy]=screenOf(tx,ty,W,H);
-    if (rect && !tileReachesRect(sx,sy,rect)) continue;
-    const rs=mulberry(tileSeed(tx,ty));
-    if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,true);
-    // skipBase: the region silhouette above already laid this material's base
-    // across every one of these tiles, so the per-tile base fill would only
-    // repaint it — a full-tile fill on every tile of every bed.
-    else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
-  }
+  flagRegionBegin();
+  try{
+    for (const kk of tiles){ const c=kk.indexOf(',');
+      const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
+      if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
+      const [sx,sy]=screenOf(tx,ty,W,H);
+      if (rect && !tileReachesRect(sx,sy,rect)) continue;
+      const rs=mulberry(tileSeed(tx,ty));
+      if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,true);
+      // skipBase: the region silhouette above already laid this material's base
+      // across every one of these tiles, so the per-tile base fill would only
+      // repaint it — a full-tile fill on every tile of every bed.
+      else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
+    }
+  } finally { flagRegionEnd(); }
 }
 function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect){
   for (const region of buildTerrainRegions()){
