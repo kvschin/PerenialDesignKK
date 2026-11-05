@@ -1340,6 +1340,16 @@ function paintWallRuns(ctx,W,H){
     emit();
   }
 }
+/* A fixed order for painting a region's grain, where the flood's order would do
+   for everything else. Grains of neighbouring tiles overlap a little, so paint
+   order decides a few pixels; the flood's order changes with any edit to the
+   region, so one tile dug out of a bed reshuffled which shred lay on top dozens of
+   tiles away. Those pixels are not repainted by an edit (groundEditRect), and a
+   later full bake would change them under a gardener who had touched nothing. */
+function tilesInPaintOrder(keys){
+  return [...keys].map(k=>{ const ci=k.indexOf(','); return [+k.slice(ci+1),+k.slice(0,ci),k]; })
+    .sort((a,b)=>(a[0]-b[0])||(a[1]-b[1])).map(a=>a[2]);
+}
 function buildTerrainRegions(){
   const sig=terrainRegionKey();
   if (terrainLoopCache.sig===sig && terrainLoopCache.terrainRef===game.terrain &&
@@ -1390,7 +1400,7 @@ function buildTerrainRegions(){
     const coveredAt=(tx,ty)=>{ const kk=tx+','+ty; return !!solid[kk] && rankAt[kk]>rank && elevAt[kk]===elev; };
     const skirts=[];
     for (const es of unit){ const s=terrainSkirts(es,coveredAt); if (s) skirts.push(...s); }
-    regions.push({ kind:o.k, c:o.c, rank, elev, tiles:set,
+    regions.push({ kind:o.k, c:o.c, rank, elev, tiles:set, paintTiles:tilesInPaintOrder(set),
       loops:unit.map(es=>terrainLoopArcs(es,useCount,saddle,terrainFillet(o.k))),
       skirts:skirts.length?skirts:null });
   }
@@ -1399,6 +1409,7 @@ function buildTerrainRegions(){
   // soft-edge classification above assumes exactly this order.
   regions.sort((a,b)=>(a.elev-b.elev)||(a.rank-b.rank));
   exposeSkirtTiles(regions);
+  for (const r of regions) if (r.skirts) for (const s of r.skirts) s.tiles=tilesInPaintOrder(s.tiles);
   terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions};
   dev('trace',tTrace);
   return regions;
@@ -1469,7 +1480,7 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect){
     ctx.beginPath();
     for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
     ctx.clip('evenodd');
-    paintRegionGrain(ctx,region.tiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,rect);
+    paintRegionGrain(ctx,region.paintTiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,rect);
     ctx.restore();
     /* The skirt's grain (terrainSkirts), clipped to the band, on the coverer's
        tiles. The coverer paints after this, so the band only ever shows where

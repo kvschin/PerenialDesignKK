@@ -19096,6 +19096,22 @@ test('the bake repaints the rectangle, and only the viewport path leaves a stale
   assert(/noteGroundBaked\(\)/.test(adoptGroundJob.toString()), 'and so does a swapped-in job');
 });
 
+test('a region paints its grain in a fixed order, whatever the flood found', () => {
+  editFixture();
+  layBlock(6, 6, 14, 14, 'bed', 'mulch');
+  const order = () => buildTerrainRegions()[0].paintTiles;
+  const rank = k => { const [x, y] = k.split(',').map(Number); return y * 1000 + x; };
+  const a = order();
+  for (let i = 1; i < a.length; i++) assert(rank(a[i - 1]) < rank(a[i]), `row by row at ${a[i]}`);
+  // dig one out: the rest must keep their order, or grain far away changes places
+  clearTile('terrain', '6,6');
+  assertEqual(order().join(' '), a.filter(k => k !== '6,6').join(' '), 'the others keep their order');
+  const seen = [], grain = drawGroundTexture;
+  drawGroundTexture = function (c, sx, sy, x, y) { seen.push(x + ',' + y); };
+  try { paintTerrainBlobs(countingCtx(), 0, GW - 1, 0, GH - 1, 800, 600, AMBIENCE.Summer, 0); } finally { drawGroundTexture = grain; }
+  assertEqual(seen.join(' '), order().join(' '), 'and that is the order they are painted in');
+});
+
 test('a dragged selection ghosts from the sprite cache, on the source tile seed', () => {
   const src = drawSelectionOverlay.toString();
   assert(!/\bdrawPlant\(/.test(src), 'no ghost goes through the procedural painter');
