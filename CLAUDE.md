@@ -353,7 +353,10 @@ See §13a.
   261-plant garden at 2130x1259; on 0.9.38, 158-165fps and no demotion. Run
   it on any change to how sprites or other surfaces are made or drawn, with a
   garden heavy enough that the sprite governor engages and a window the size
-  you use. The rule it guards is in §11 (the sprite-bitmap note).
+  you use. The rule it guards is in §11 (the sprite-bitmap note). Read a
+  `DEMOTED` line against the phases after it: on one 270-plant garden it names a
+  single fast-forward frame in 0.9.73 and 0.9.74 alike, while every later phase holds
+  ~160fps with a probe of 0ms, which is not a canvas that went to software for good.
 - `node dev/ground-verify.cjs` is the gate on the ground bake's PARTIAL paths
   (§11): a pan re-bakes only the band that came into view and an edit only the
   viewport, so this asks whether either still draws the ground a full bake
@@ -368,7 +371,13 @@ See §13a.
   Arms: single scrolls at many offsets, chains of 12/40/200 (drift is what a
   per-step test cannot see), a reversing drag, formal edges, a furnished garden
   with terraces and faced walls, and the edit path including "an edit then a
-  pan must bake in FULL". `--engine firefox` for the other rasteriser.
+  pan must bake in FULL". `--engine firefox` for the other rasteriser, `--garden`
+  for an exported file. It runs at 100% zoom and refuses a run with under 20
+  scrolls: a garden opens fitted since 0.9.29, where its pans stayed inside the
+  margin and every arm compared a bake with itself and passed, so for a long stretch
+  it was not testing the scrolled bake at all. An arm fails on more than 8 pixels
+  over the bar rather than on its max, because one stray antialiased pixel on formal
+  edges reads 128 against a bar of 113. A band cull with no slack comes out at 15.
 - `node dev/perf-audit.cjs --profile phone --engine chrome` drives the real app
   at a real viewport and reports where a frame goes. Two halves, deliberately:
   **live**, where the app's own rAF loop draws and the probe only supplies input
@@ -2067,6 +2076,16 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     takes an optional screen-space `rect` and rejects a tile in four compares,
     with slack for the tile's own diamond, its standing grain and an elevation
     face below it.
+    **The blob pass has to be bounded the same way, and for a long time it was
+    not** (`paintRegionGrain`, `tileReachesRect`, 0.9.74). `paintGround` culled its
+    own tile loop and called `paintTerrainBlobs` without the rectangle, so in an
+    organic garden every band relaid the grain of every bed tile in its tile bbox,
+    all of it clipped away: one background ground job (48 chunks) cost 11,661 tile
+    draws where a full bake costs 1,618, and the rotation pre-bake after every edit
+    was a visible hitch in Firefox. Firefox sustained pan 29 -> 6.1ms, pan worst-1%
+    frame 36 -> 6ms, the hitch after a tap 78 -> 12ms, on a 31x31 garden with 469
+    bark mulch tiles. A region with no tile near the band now skips its fill, clip
+    and stroke too. Byte-identical on a software canvas.
     Measured end to end on the demo garden, before → after, as rAF spacing
     rather than JS (the bake's cost is mostly outside every phase timer):
     **pan 50 → 131fps desktop, 66 → 136 phone, 44 → 60 Firefox**, with the
@@ -2930,7 +2949,28 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a 62ft designed garden went 76.5ms → 58.7ms organic (the default — the
     skipped per-tile base fill more than pays for the richer grain) and
     28.0ms → 34.3ms formal; the all-terrain worst case 185ms → 159ms; lawn
-    unchanged. No new cache key: `texture`/`tones` are static data and the
+    unchanged. **Three things ablation later found in a bake** (0.9.74, a garden of
+    656 terrain tiles): *Grass nobody can see.* Under organic edges a terrain tile
+    paints a whole grass tile that its region then covers; where all eight
+    neighbours are terrain at its own height (`innerTerrainGrid`, 443 of the 656) it
+    now lays a flat base and nothing else. Byte-identical in Winter and across the
+    demo garden's grain. The base stays so a hairline between regions shows grass
+    rather than sky. *Blades.* Grass strokes one path a tile in one of four inks
+    (`BLADE_INKS`), not 2-3 strokes with a built colour string each; the seeded
+    stream is drawn in the same order so nothing later in the tile moves, about
+    0.1% of pixels change, by at most 5/255. *Flagstone.* Inside a region a stone is
+    drawn once by the first tile that meets it (`flagRegionSeen`, a per-pass list:
+    a skirt clips elsewhere, so it needs its own) and the region's clip trims it,
+    with no clip per tile, which saves Firefox ~41ms a bake on 70 tiles and Chrome
+    ~3ms. It is also the one visible change: clipped to its tile a stone stopped
+    short of the outline, leaving a sawtooth and a flat strip of joint colour along
+    every path. `FLAG_REGION_REACH` has to clear `LAID_OVER_BLEED` or a wedge of
+    that strip survives. Outside a region (formal edges, swatches, the damage
+    overlay) the tile keeps its own clip. Together with the band cull above, on that
+    garden: a full bake 112 -> 84ms Chrome and 142 -> 61ms Firefox at a new zoom
+    (89 -> 31 and 122 -> 51 at the same zoom, where path caches help), painting a
+    bed 27.5 -> 34fps and 31 -> 61fps, a tap 126 -> 98ms and 99 -> 52ms.
+    No new cache key: `texture`/`tones` are static data and the
     material id is already in `groundDataSig()`.
 11b. **Water** (`waterField` + `drawWaterTexture`, world.js) — pond, river and
     lake used to be three tints of one thing: the same bevelled tile, the same
@@ -3581,6 +3621,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     exactly the plants a cache helps most. What it costs is that a clump's
     seeded variation no longer changes under the pointer as it crosses tiles;
     the committed plant still takes its destination's seed on drop, as before.
+    **Growth is part of that agreement** (`scene.stunted`, `STUNT_GROWTH`, 0.9.74):
+    a full-sun plant under a canopy is stunted in the scene, and its ghost was not,
+    so the two sat in different growth buckets of one slot. 18 such plants in a
+    whole-plot marquee were ~1,700 bakes over 90 frames in Chrome and now none, 22
+    -> 30fps. An underground bulb draws no ghost, as it draws nothing in the scene.
+    A ghost of a struggling plant is therefore small, even over open ground.
     **And the verdicts are resolved per POSITION, not per frame**
     (`selectionMoveValidity`, renderer.js). Everything the overlay asks is a
     pure function of (the items, the offset, copy-or-move, the world), and a
