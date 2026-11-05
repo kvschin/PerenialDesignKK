@@ -3235,6 +3235,7 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     grainShreds(ctx,T[3],0,0,1,3,4);
   }
 }
+const BLADE_INKS=['rgba(38,63,38,0.1325)','rgba(38,63,38,0.1575)','rgba(38,63,38,0.1825)','rgba(38,63,38,0.2075)'];
 /* `skipBase` is set by the organic path, where paintTerrainBlobs has already
    filled the whole region in one go: repainting the base per tile inside it
    only re-covers ground that is already covered, and it is a full-tile fill —
@@ -3277,15 +3278,25 @@ function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs,terrObj,skipBase)
   if (mat){
     drawMaterialGrain(ctx,sx,sy+TILE_H/2,mat,base,rs,x,y,amb);
   } else {
+    /* One stroke a tile. A stroke's cost is mostly per call, and this was two or
+       three of them on every lawn tile, each with its own freshly built colour
+       string: taking the blades out of a full bake is 137 -> 97ms in Firefox and
+       104 -> 91ms in Chrome. The blades share the first one's ink, read from the
+       same point in the seeded stream, so nothing later in the tile moves; four
+       inks at the old range's bin centres keep its mean. Measured on a software
+       canvas in Spring, Summer and Fall, about 0.1% of the bake's pixels changed,
+       by at most 5/255. */
     const blades=2+((x*17+y*11)&1);
+    let ink=0;
+    ctx.beginPath();
     for (let i=0;i<blades;i++){
       const ox=sx+(rs()-0.5)*30, oy=sy+TILE_H/2+(rs()-0.5)*12, len=3+rs()*4;
-      ctx.strokeStyle=`rgba(38,63,38,${0.12+rs()*0.10})`;
-      ctx.lineWidth=0.8;
-      ctx.beginPath(); ctx.moveTo(ox,oy);
-      ctx.quadraticCurveTo(ox+(rs()-0.5)*3,oy-len*0.7,ox+(rs()-0.5)*5,oy-len);
-      ctx.stroke();
+      const tone=rs(); if (!i) ink=(tone*BLADE_INKS.length)|0;
+      const bend=(rs()-0.5)*3, tip=(rs()-0.5)*5;
+      ctx.moveTo(ox,oy);
+      ctx.quadraticCurveTo(ox+bend,oy-len*0.7,ox+tip,oy-len);
     }
+    ctx.strokeStyle=BLADE_INKS[ink]; ctx.lineWidth=0.8; ctx.stroke();
   }
   ctx.restore();
 }

@@ -18646,6 +18646,86 @@ test('a band of the ground bake lays grain only for the tiles that can reach it'
   assertEqual(got, rect, 'paintGround passes its rectangle to the blob pass');
 });
 
+test('a tile buried under organic terrain paints a flat base and no grass detail', () => {
+  setup(21, 21);
+  game.edgeStyle = 'organic';
+  for (let y = 5; y <= 10; y++) for (let x = 5; x <= 10; x++) setTile('terrain', x + ',' + y, { k: 'bed', c: 'mulch', t: 1 });
+  for (let y = 6; y <= 8; y++) setTile('terrain', '11,' + y, { k: 'path', c: 'gravel', t: 1 });
+  const brute = (x, y) => {
+    if (x < 1 || y < 1 || x >= GW - 1 || y >= GH - 1) return 0;
+    const laid = (a, b) => { const t = terrainAt(a, b); return !!t && smoothableTerrain(t.k) && onPlot(a, b); };
+    if (!laid(x, y)) return 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++)
+      if (!laid(x + dx, y + dy) || elevationAt(x + dx, y + dy) !== elevationAt(x, y)) return 0;
+    return 1;
+  };
+  const agree = what => { const g = innerTerrainGrid();
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) assertEqual(g[y * GW + x], brute(x, y), `${what}: ${x},${y}`); };
+  agree('a block');
+  assertEqual(innerTerrainGrid()[7 * GW + 10], 1, 'a path beside a bed still covers it');
+  assertEqual(innerTerrainGrid()[5 * GW + 7], 0, 'an edge tile is not buried');
+  const g0 = innerTerrainGrid();
+  assert(innerTerrainGrid() === g0, 'cached until the terrain moves');
+  clearTile('terrain', '7,7');
+  assert(innerTerrainGrid() !== g0, 'a terrain edit rebuilds it');
+  agree('with a hole');
+  setElevationAt(8, 8, 1);
+  agree('with a raised tile');
+  assertEqual(innerTerrainGrid()[7 * GW + 8], 0, 'a neighbour at another height shows its base');
+  setElevationAt(8, 8, 0);
+  assert(setPlotShape([[0, 0], [9, 0], [9, 21], [0, 21]]), 'a shape that cuts the block');
+  agree('on an irregular lot');
+  setWorldSize(21, 21);
+  for (const L of GAME_LAYERS) game[L.k] = L.array ? [] : {};
+  for (let y = 5; y <= 10; y++) for (let x = 5; x <= 10; x++) setTile('terrain', x + ',' + y, { k: 'bed', c: 'mulch', t: 1 });
+
+  const W = 800, H = 600, grain = drawGroundTexture; let calls = 0;
+  drawGroundTexture = function () { calls++; };
+  try {
+    const paint = (x, y, organic, amb) => { calls = 0; const c = countingCtx(); paintGroundTile(c, x, y, W, H, amb || AMBIENCE.Summer, true, organic); return c; };
+    const buried = paint(7, 7, true);
+    assertEqual(calls, 0, 'buried: no grass detail');
+    assert(buried.n.fill >= 1, 'buried: it still lays a base, so a hairline between regions shows grass and not sky');
+    paint(5, 5, true); assertEqual(calls, 1, 'an edge tile can show, and keeps its detail');
+    paint(7, 7, false); assertEqual(calls, 1, 'formal edges have no blob over the tile, and keep it too');
+    paint(1, 1, true); assertEqual(calls, 1, 'bare lawn is untouched');
+    let snow = 0;
+    for (let y = 6; y <= 9; y++) for (let x = 6; x <= 9; x++) snow += paint(x, y, true, AMBIENCE.Winter).n.ellipse || 0;
+    assertEqual(snow, 0, 'a snow patch on a buried tile would be covered: it is not drawn');
+  } finally { drawGroundTexture = grain; }
+
+  /* Burying the grass is only safe because a region's base covers it. A translucent
+     material would let the missing bevel show through, so hold them all opaque. */
+  const opaque = (c, what) => { const m = /^rgba?\(([^)]+)\)$/.exec(c);
+    assert(!m || m[1].split(',').length < 4 || +m[1].split(',')[3] === 1, `${what} base is opaque (${c})`); };
+  for (const s of SEASONS){ const amb = AMBIENCE[s];
+    for (const m of BED_STYLES) opaque(bedFill({ c: m.id }, amb), 'bed ' + m.id);
+    for (const m of PATH_COLORS) opaque(pathFill({ c: m.id }, amb.snow), 'path ' + m.id);
+    for (const m of WATER_STYLES) opaque(waterFill({ c: m.id }, amb.snow), 'water ' + m.id);
+    for (const m of LAWN_STYLES) if (m.id !== 'mown') opaque(lawnFill({ c: m.id }, amb), 'lawn ' + m.id);
+  }
+});
+
+test('a grass tile strokes its blades once, without moving the seeded stream', () => {
+  setup(21, 21);
+  const amb = AMBIENCE.Summer;
+  for (const [x, y] of [[4, 4], [4, 5], [5, 4], [9, 12]]){
+    const blades = 2 + ((x * 17 + y * 11) & 1);
+    const inks = [], c = countingCtx();
+    let stream = 0; const rs0 = mulberry(tileSeed(x, y)), rs = () => { stream++; return rs0(); };
+    const strokes = new Proxy(c, { get: (t, k) => k === 'stroke' ? () => { inks.push(t.strokeStyle); t.stroke(); } : t[k],
+      set: (t, k, v) => { t[k] = v; return true; } });
+    drawGroundTexture(strokes, 100, 100, x, y, null, false, amb, '#4a7a3a', rs, null);
+    assertEqual(c.n.quadraticCurveTo, blades, 'every blade is still drawn');
+    assertEqual(stream, blades * 6, 'and takes the same six draws from the tile stream');
+    assert(BLADE_INKS.includes(inks[inks.length - 1]), `one blade ink (${inks[inks.length - 1]})`);
+    assertEqual(inks.filter(i => BLADE_INKS.includes(i)).length, 1, 'stroked once, whatever the blade count');
+  }
+  const alpha = s => +/,([\d.]+)\)$/.exec(s)[1];
+  const mean = BLADE_INKS.reduce((a, s) => a + alpha(s), 0) / BLADE_INKS.length;
+  assert(Math.abs(mean - 0.17) < 1e-9, `the inks keep the old range's mean, 0.12 to 0.22 (${mean})`);
+});
+
 test('a dragged selection ghosts from the sprite cache, on the source tile seed', () => {
   const src = drawSelectionOverlay.toString();
   assert(!/\bdrawPlant\(/.test(src), 'no ghost goes through the procedural painter');
