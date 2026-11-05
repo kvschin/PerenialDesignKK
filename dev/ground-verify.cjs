@@ -22,6 +22,7 @@ const REPO = path.resolve(__dirname, '..');
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
 const ENGNAME = opt('engine', 'chrome');
+const GARDEN = opt('garden');   // an exported garden file; the demo garden when absent
 const ENGINES = {
   chrome: { exe: ['C:/Program Files/Google/Chrome/Application/chrome.exe'],
     args: (prof, url) => ['--user-data-dir=' + prof, '--no-first-run', '--no-default-browser-check',
@@ -38,21 +39,21 @@ function inPage() {
   const w = () => groundCanvas.width, h = () => groundCanvas.height;
   const shot = () => groundCtx.getImageData(0, 0, w(), h()).data;
   const diff = (a, b) => {
-    let px = 0, sum = 0, max = 0, aBlank = 0, bBlank = 0;
+    let px = 0, sum = 0, max = 0, aBlank = 0, bBlank = 0, over = 0;
     let x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1;
-    const W0 = w();
+    const W0 = w(), bar = out.control ? Math.max(out.control.max, 8) : 255;
     for (let i = 0; i < a.length; i += 4) {
       let d = 0;
       for (let c = 0; c < 4; c++) { const e = Math.abs(a[i + c] - b[i + c]); if (e > d) d = e; }
       if (d) {
-        px++; sum += d; if (d > max) max = d;
+        px++; sum += d; if (d > max) max = d; if (d > bar) over++;
         if (a[i + 3] === 0 && b[i + 3] > 0) aBlank++;
         if (b[i + 3] === 0 && a[i + 3] > 0) bBlank++;
         const q = i >> 2, x = q % W0, y = (q / W0) | 0;
         if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
       }
     }
-    return { pct: +(100 * px / (a.length / 4)).toFixed(3), mean: px ? +(sum / px).toFixed(2) : 0, max,
+    return { pct: +(100 * px / (a.length / 4)).toFixed(3), mean: px ? +(sum / px).toFixed(2) : 0, max, over,
       bbox: px ? [x0, y0, x1, y1] : null, scrollBlank: aBlank, fullBlank: bBlank };
   };
   const fullBake = () => { groundKey = ''; render(T); };
@@ -63,6 +64,10 @@ function inPage() {
     crashed = true;
     await new Promise(r => setTimeout(r, 250));
     game.pausedAt = game.pausedAt || Date.now();
+    /* A garden opens fitted to the plot (0.9.29), where the arms' pans mostly stay
+       inside the bake's margin: nothing scrolls, and every arm "passes" by comparing
+       a bake with itself. At 100% they cross it. The summary refuses a run that did not. */
+    setUserZoom(1); render(T);
     dbg.on = true; devReset();
     const s = DPR * ZOOM;
     out.env = { canvas: [cnv.width, cnv.height], ground: [w(), h()], dpr: DPR, zoom: ZOOM, s,
@@ -126,13 +131,13 @@ function inPage() {
        fall back to a full bake, which the whole-canvas arm below checks. */
     const MDpx = Math.round(GROUND_MARGIN_CSS * DPR);
     const diffRect = (a, b, rx, ry, rw, rh) => {
-      let px = 0, sum = 0, max = 0; const W0 = w();
+      let px = 0, sum = 0, max = 0, over = 0; const W0 = w(), bar = Math.max(out.control.max, 8);
       for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) {
         const i = (y * W0 + x) * 4; let d = 0;
         for (let c = 0; c < 4; c++) { const e = Math.abs(a[i + c] - b[i + c]); if (e > d) d = e; }
-        if (d) { px++; sum += d; if (d > max) max = d; }
+        if (d) { px++; sum += d; if (d > max) max = d; if (d > bar) over++; }
       }
-      return { pct: +(100 * px / (rw * rh)).toFixed(3), mean: px ? +(sum / px).toFixed(2) : 0, max, bbox: null, scrollBlank: 0, fullBlank: 0 };
+      return { pct: +(100 * px / (rw * rh)).toFixed(3), mean: px ? +(sum / px).toFixed(2) : 0, max, over, bbox: null, scrollBlank: 0, fullBlank: 0 };
     };
     let TE = T;
     const paintSome = (mat, n) => {
@@ -196,6 +201,7 @@ function server(driverBody) {
       return;
     }
     if (req.url.startsWith('/__driver.js')) { res.setHeader('Content-Type', 'text/javascript'); res.setHeader('Cache-Control', 'no-store'); res.end(driverBody); return; }
+    if (GARDEN && req.url === '/__garden.json') { res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(fs.readFileSync(GARDEN)); return; }
     const bare = req.url.split('?')[0];
     const rel = bare === '/' ? 'index.html' : decodeURIComponent(bare).replace(/^\/+/, '');
     const abs = path.resolve(REPO, rel);
@@ -219,7 +225,7 @@ const driver = `
     try{ localStorage.setItem('hortus:welcomed','1'); }catch(e){}
     let guard=0;
     while ((typeof enterWorld!=='function' || typeof PSPRITE==='undefined') && guard++<400) await new Promise(r=>setTimeout(r,25));
-    const envb = await (await fetch('/demo-garden.json')).json();
+    const envb = await (await fetch('${GARDEN ? '/__garden.json' : '/demo-garden.json'}')).json();
     await enterWorld(await installWorldBlob(envb));
     await new Promise(r=>setTimeout(r,1200));
     const out = await (${String(inPage)})();
@@ -246,10 +252,19 @@ const driver = `
   for (const a of res.arms) {
     const label = a.dx !== undefined ? `${a.arm} ${a.dx},${a.dy}` : a.n ? `${a.arm} x${a.n}` : a.arm;
     console.log(pad(label, 30) + r(a.scrolled, 9) + r(a.pct, 9) + r(a.mean, 7) + r(a.max, 6)
-      + '  bbox ' + JSON.stringify(a.bbox) + '  blankInScroll ' + a.scrollBlank + '  blankInFull ' + a.fullBlank
+      + '  over ' + a.over + '  bbox ' + JSON.stringify(a.bbox) + '  blankInScroll ' + a.scrollBlank + '  blankInFull ' + a.fullBlank
       + (a.fullBakesInChain ? ' (' + a.fullBakesInChain + ' full inside)' : ''));
   }
   const bar = res.control.max;
-  const bad = res.arms.filter(a => a.max > Math.max(bar, 8));
-  console.log('\n' + (bad.length ? 'FAIL: ' + bad.length + ' arm(s) exceed the sub-pixel control' : 'PASS: every arm is at or under the sub-pixel control (' + bar + '/255)'));
+  /* Counted, not the max alone: one stray antialiased pixel at the plot's corner
+     reads 128 against a bar of 113 on formal edges, and has since before this was
+     last able to see it, while a band painted in the wrong place is thousands. */
+  const STRAY_PX = 8;
+  const bad = res.arms.filter(a => a.over > STRAY_PX);
+  for (const a of bad) console.log('  over the bar: ' + a.arm + (a.dx !== undefined ? ' ' + a.dx + ',' + a.dy : '') + ' ' + a.over + 'px');
+  const scrolled =res.arms.reduce((n, a) => n + (a.scrolled === true ? 1 : +a.scrolled || 0), 0);
+  console.log('\nscrolls exercised across the arms: ' + scrolled);
+  if (scrolled < 20) { console.log('FAIL: too few pans crossed the margin for this to test the scrolled bake'); process.exit(1); }
+  console.log('\n' + (bad.length ? 'FAIL: ' + bad.length + ' arm(s) exceed the sub-pixel control' : 'PASS: no arm has more than ' + STRAY_PX + ' pixels over the sub-pixel control (' + bar + '/255)'));
+  if (bad.length) process.exit(1);
 })().catch(e => { console.error(e); process.exit(1); });
