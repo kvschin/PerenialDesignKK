@@ -1,15 +1,9 @@
 'use strict';
 /* ---------- plant library: browse every species ---------- */
-const LIB_CATS=[
-  {id:'grasses',    label:'Grasses',          types:['grass']},
-  {id:'sedges',     label:'Sedges',           types:['sedge']},
-  {id:'sunper',     label:'Sun Perennials',   types:['forb'], sunFilter:'full'},
-  {id:'shadeper',   label:'Shade Perennials', types:['forb'], sunFilter:'part'},
-  {id:'bulbs',      label:'Bulbs',            types:['bulb']},
-  {id:'waterplants',label:'Water Plants',     types:['water']},
-  {id:'shrubs',     label:'Shrubs',           types:['shrub']},
-  {id:'trees',      label:'Trees',            types:['tree']},
-];
+/* The catalog's plant categories, in the catalog's order. This was a copy of that
+   table, and when Climbers joined the catalog the copy did not, so the library
+   could not show a single climber. */
+const LIB_CATS=TRAY_GROUPS.find(g=>g.id==='plants').cats.map(id=>TRAY_CATS.find(c=>c.id===id));
 const LIB_OPEN_KEY='pocketprairie:libraryOpen';
 let libCollapsed=loadLibraryCollapsed();
 function loadLibraryCollapsed(){

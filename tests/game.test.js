@@ -15608,9 +15608,60 @@ test('both tiers share one library search predicate', () => {
     'and neither re-implements the match against the haystack');
   /* They also have to search the same universe, or a species could surface in
      the phone results and be unreachable by browsing. */
-  const browsable = PLANT_KEYS.filter(k => PLANTS[k] && !PLANTS[k].hidden && libraryCatFor(k));
-  assertEqual(libraryAllKeys().length, browsable.length,
+  const browsable = new Set(LIB_CATS.flatMap(cat => libraryCatKeys(cat)));
+  assertEqual(libraryAllKeys().length, browsable.size,
     'the searchable set is exactly the browsable set');
+  assert(libraryAllKeys().every(k => browsable.has(k)), 'and holds nothing else');
+});
+
+/* The list to check against is the catalog, never the library's own categories:
+   this used to filter on libraryCatFor, so a species in no category dropped out of
+   both sides and nine climbers went missing without a failure. */
+test('the library shows every species in the catalog, in exactly one category', () => {
+  const shown = libraryAllKeys();
+  const missing = PLANT_KEYS.filter(k => !PLANTS[k].hidden && !shown.includes(k));
+  assertEqual(missing.join(', '), '', 'species the library cannot show');
+  PLANT_KEYS.filter(k => !PLANTS[k].hidden).forEach(k => {
+    const homes = LIB_CATS.filter(cat => libraryCatKeys(cat).includes(k));
+    assertEqual(homes.length, 1, `${k} is listed under one category`);
+    assertEqual(libraryCatFor(k), homes[0], `${k}: libraryCatFor names that category`);
+  });
+});
+
+test('the library browses the catalog plant categories, in the catalog order', () => {
+  const plantCats = TRAY_GROUPS.find(g => g.id === 'plants').cats;
+  assertEqual(LIB_CATS.map(cat => cat.id).join(), plantCats.join(), 'the same ids in the same order');
+  LIB_CATS.forEach(cat => assert(libraryCatKeys(cat).length > 0, `${cat.label} is not an empty category`));
+});
+
+test('the climbers can be browsed, listed and opened in the library', () => {
+  setup();
+  const vines = PLANT_KEYS.filter(k => PLANTS[k].type === 'vine');
+  assert(vines.length >= 9, 'the catalog has its climbers');
+  const cat = libraryCatById('climbers');
+  assertEqual(cat.label, 'Climbers', 'they have a category');
+  assertEqual(libraryCatKeys(cat).join(), vines.join(), 'holding every climber and nothing else');
+
+  const cards = document.getElementById('libraryCats');
+  cards.children.length = 0;
+  buildLibraryCats();
+  const card = cards.children.find(b => b.dataset.cat === 'climbers');
+  assert(card, 'the phone view has a card for them');
+  assertEqual(String(card.children[1].textContent), String(vines.length), 'counting them');
+
+  const list = document.getElementById('libraryList');
+  list.children.length = 0;
+  buildLibraryList('climbers');
+  const rows = list.children[0].children[1].children;
+  assertEqual(rows.map(b => b.dataset.k).join(), vines.join(), 'the list has a row for each');
+
+  const detail = document.getElementById('libraryDetail');
+  vines.forEach(k => {
+    detail.children.length = 0;
+    showLibraryDetail(k);
+    assertEqual(libSel, k, `${k} opens`);
+    assert(detail.children.length > 0, `${k} has a detail card`);
+  });
 });
 
 test('the category cards count what their category actually holds', () => {
@@ -15631,7 +15682,7 @@ test('the dock accordion is untouched by the phone views', () => {
   const list = document.getElementById('libraryList');
   list.children.length = 0;
   buildLibraryList(null);
-  assertEqual(list.children.length, LIB_CATS.length, 'all eight sections, as before');
+  assertEqual(list.children.length, LIB_CATS.length, 'a section for every category, as before');
   assertEqual(list.children[0].children[0].tagName, 'BUTTON',
     'and each is still headed by its collapse control');
   const solo = LIB_CATS[6].id;
