@@ -503,7 +503,7 @@
         "spread": 24,
         "space": 18,
         "zones": [
-          2,
+          1,
           6
         ],
         "nativeTo": [
@@ -526,7 +526,6 @@
         "https://gobotany.nativeplanttrust.org/species/acorus/calamus/"
       ],
       "estimates": {
-        "zones": "NC State lists 1a-6b. Floored at 2 because the catalog's zone picker is derived from its records and offers 2-11.",
         "space": "Planning value."
       }
     },

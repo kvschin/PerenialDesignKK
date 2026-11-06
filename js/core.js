@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.77';
+const APP_VERSION = '0.9.78';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -2293,8 +2293,13 @@ const PLANT_GUIDANCE_SOURCES=Object.freeze({
   waterForgetMeNotNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/myosotis-scorpioides/'},
   taroCalIPC:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/colocasia-esculenta-profile/'},
   callaCalIPC:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/inventory/'},
+  ostrichFernRange:{label:'Lady Bird Johnson Wildflower Center',url:'https://www.wildflower.org/plants/result.php?id_plant=MAST'},
+  ostrichFernForm:{label:'Native Plant Trust, Go Botany',url:'https://gobotany.nativeplanttrust.org/species/matteuccia/struthiopteris/'},
 });
 const PLANT_GUIDANCE=Object.freeze({
+  ostrichfern:{taxon:'Matteuccia struthiopteris',reviewed:'2026-11-06',origin:[
+    {area:'Northern North America',status:'native',source:'ostrichFernRange',text:'Native from Newfoundland to southern Alaska, south to northern Virginia, Missouri and South Dakota. That range is narrower than its North American origin label.'},
+    {area:'New England',status:'native',source:'ostrichFernForm',text:'Plants here are subspecies pensylvanica, also listed as a variety or as Matteuccia pensylvanica. A species name on a nursery label does not show where the stock came from.'}]},
   floweringrush:{taxon:'Butomus umbellatus',reviewed:'2026-11-06',invasive:[
     {area:'Minnesota',region:'north-america',severity:'avoid',source:'floweringRushMN',text:'A prohibited invasive species: unlawful to possess, import, purchase, transport or introduce except under permit. It spreads mainly on water-related equipment and through illegal release of water garden plants.'},
     {area:'Ontario',region:'north-america',severity:'avoid',source:'floweringRushON',text:'Regulated as a restricted invasive species. It is illegal to buy, sell or propagate it, and the province says never to keep it in a water garden.'}]},

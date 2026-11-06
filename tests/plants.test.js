@@ -168,7 +168,7 @@ test('water batch preserves reviewed data and says which values are estimates', 
     row.sources.forEach(u=>assert(/^https?:\/\//.test(u),row.suggestedKey+': source is a URL'));
     assert(row.estimates&&typeof row.estimates==='object',row.suggestedKey+': states its planning values');
     // a range the picker does not offer would widen the zone chips for everybody
-    assert(P.zones[0]>=2&&P.zones[1]<=11,row.suggestedKey+': stays inside the catalog zone range');
+    assert(P.zones[0]>=1&&P.zones[1]<=11,row.suggestedKey+': stays inside the catalog zone range');
   }
   assertEqual(doc.cultivars.length,14,'the water pass added 14 cultivars');
   for(const c of doc.cultivars){

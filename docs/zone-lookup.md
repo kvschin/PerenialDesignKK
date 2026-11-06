@@ -53,7 +53,7 @@ Review a new map edition before changing the fixed 2023 edition contract.
   whole zone for the existing plant-filter contract. For example, 90210 is
   listed as 10b and uses filter Zone 10; 78520 is 10a and also uses Zone 10.
   These are ZIP-list results, not an assessment of a particular property.
-- Catalog coverage remains derived from plants, currently zones 2–11. A listed
+- Catalog coverage remains derived from plants, currently zones 1–11. A listed
   result outside that range is displayed without clamping. Next stays disabled
   until another ZIP or a manual supported-zone choice resolves it. Failed or
   unavailable lookups also offer manual selection. A late response cannot

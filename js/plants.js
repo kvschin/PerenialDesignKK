@@ -2845,7 +2845,14 @@ const PLANTS = {
     look:{art2:true, fronds:8, spread:1.42, arch:0.38, reach:0.60, frondLen:0.80, frondVar:0.26, bow:0.28,
       pinnaN:9, pinnaLen:4.6, pinnaW:1.15, fertileStyle:'stick', fertileN:4, fertileLen:0.46, fertileSpread:5},
     type:'forb', h:55,
-    space:36, spread:48, zones:[3,7], _legacyNative:true, sun:'part', moist:'moist', phen:'cool',
+    space:36, spread:48, zones:[3,7], sun:'part', moist:'moist', phen:'cool',
+    /* One species across three continents, with the American plant ranked under
+       it as pensylvanica: how Go Botany treats it, and the Wildflower Center gives
+       USDA's status as native under this name. POWO and WFO split the American
+       plant off as its own species, so the synonyms keep both names findable and
+       the guidance note says what a label cannot. */
+    nativeTo:['north-america','europe','asia'], provenance:'species',
+    synonyms:['Matteuccia pensylvanica','Matteuccia struthiopteris var. pensylvanica','Matteuccia struthiopteris subsp. pensylvanica','Onoclea struthiopteris','Onoclea pensylvanica'],
     blurb:'Vase of plumes shoulder-high in a damp corner; stiff fertile fronds stand all winter. Fiddleheads in April.',
     sea:{Spring:{fol:'#7aa55a'}, Summer:{fol:'#5d8a4c'}, Fall:{fol:'#a8893f',seed:'#6e4a32'}, Winter:{seed:'#6e4a32'}}},
   ladyfern:{ name:'Lady Fern', latin:'Athyrium filix-femina', form:'fern',
@@ -4129,7 +4136,7 @@ const PLANTS = {
   americansweetflag:{ name:'American Sweet Flag', latin:'Acorus americanus', form:'emergent', type:'water', marginal:true, h:36, heightIn:36,
     group:'sweetflag', groupLabel:'Sweet Flag', chip:'American',
     roles:['rainGarden','aromatic'],
-    space:18, spread:24, zones:[2,6], nativeTo:['north-america','asia'], provenance:'species', sun:'full', moist:'moist', phen:'cool',
+    space:18, spread:24, zones:[1,6], nativeTo:['north-america','asia'], provenance:'species', sun:'full', moist:'moist', phen:'cool',
     look:{art2:true, dormantWhenBare:true, blades:13, bladeHW:1.35, leafLen:0.94, fan:0.42, baseW:7, bladeBow:0.06, spadices:3},
     blurb:'The native sweet flag of northern marshes: iris-like swords with a sweet, spicy smell when bruised, and a small green-gold finger jutting from the leaf in May. It needs sun and takes up to 9 in of water. Rare at the south of its range and protected in Pennsylvania, so buy nursery stock.',
     sea:{Spring:{fol:'#6f9a55',bloom:'#b3a84a'}, Summer:{fol:'#5b8a4c',bloom:'#a39a45'}, Fall:{fol:'#a39a55'}, Winter:{}}},
@@ -6667,7 +6674,7 @@ const EUROPE_NATIVE_KEYS=new Set(`
   eryngiumbourgatii yarrow purpleemperor meadowsage stachys echinops calamint scabiosa knautia
   greatburnet siberianiris sanguineumgeranium bigrootgeranium pasqueflower ladysmantle brunnera
   spikespeedwell peachbellflower goatsbeard
-  ladyfern ostrichfern crocus crocuschrysanthus daffodil muscari scillaperuviana
+  ladyfern crocus crocuschrysanthus daffodil muscari scillaperuviana
   snowdrop winteraconite anemoneblanda leucojum fritillaria colchicum englishbluebell
   liliummartagon cyclamenhederifolium alliumsphaerocephalon
   alliumAtropurpureum alliumcarinatum alliumcaeruleum astrantia lilac smokebush swissstonepine
@@ -6680,7 +6687,7 @@ const NORTH_AMERICA_ADDITIONS=new Set(`
   taylorjuniper arizonacypress vanderwolfpine weepingwhitepine dwarfalbertaspruce
   wellspirespruce bigbertaspruce whitefir freemanmaple
 `.trim().split(/\s+/));
-const NORTH_AMERICA_EXCLUSIONS=new Set('pasqueflower ostrichfern ladyfern yarrow'.split(' '));
+const NORTH_AMERICA_EXCLUSIONS=new Set('pasqueflower ladyfern yarrow'.split(' '));
 const ASIA_NATIVE_KEYS=new Set(`
   japanesepaintedfern autumnfern hollyfern malefern
   miscanthus fountaingrass orientalfountain hakone mountainsedge greatburnet

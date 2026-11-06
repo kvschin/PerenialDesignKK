@@ -6199,7 +6199,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     misleading single-low captions. An average annual winter minimum is not a
     record low or a complete site recommendation.
     **Offered zones remain derived from the catalog** (`zoneRange`/`clampZone`,
-    currently 2–11). The old 3–9 limit was removed in 0.8.66. The ZIP listing
+    currently 1–11). The old 3–9 limit was removed in 0.8.66. The ZIP listing
     also contains zones outside catalog coverage: setup displays these without
     clamping and disables Next until the gardener chooses a supported zone or
     another valid ZIP. Missing/unavailable results also require another choice.
@@ -6341,6 +6341,15 @@ clamped to 3–6 with `bractLen`/`bractW`, and omits flowering bracts at fruitin
 Counts and dimensions remain bounded and seeded; entries without these
 options retain their existing grammar. No species-key drawing branches.
 
+**Ostrich fern is native to North America, Europe and Asia on one record**
+(0.9.78). `NORTH_AMERICA_EXCLUSIONS` held it Europe-only, which holds only if the
+American plant is a separate species (*Onoclea pensylvanica* in POWO,
+*M. pensylvanica* in WFO), so a North American native garden could not get it. Go
+Botany ranks that plant under this species and the Wildflower Center gives USDA's
+status as native under this name, so the record follows them and carries the split
+as `synonyms`. Lady fern stays European by review (audit D02 gave its North American
+selection its own identity), yarrow is open as audit D07, and pasque flower has not
+been reviewed.
 Native status is relational, never inferred from hardiness: `nativeRelation`
 compares a resolved species/cultivar's `nativeTo` with the garden's
 `nativeRegion`, while `passesNativeFilter` also applies provenance. The first
@@ -6680,8 +6689,8 @@ horsetails, cattails, sweet flag), and `waterleaf` lays pads flat with `padSprea
 and `padFlat`. Sources and estimates are in `docs/plant-data/water-sources.json`,
 decisions in `docs/plant-data/water-implementation.md`, and `dev/water-review.html`
 shows them all at library size and at true garden scale. The zone picker is derived
-from the catalog, so a record must stay inside 2-11 or it widens the chips for
-everybody: NC State's 1a for American sweet flag and 12b for thalia are clamped.
+from the catalog, so a record must stay inside 1-11 or it widens the chips for
+everybody: NC State's 12b for thalia is clamped.
 
 **Sedge catalog:** keep one Sedge tab rather than adding habitat tabs. The tray
 sorts it into data-driven Sun & meadow, Shade & woodland, and Wet & rain garden

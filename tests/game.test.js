@@ -2682,6 +2682,28 @@ test('high-priority shrub flower and habit families paint distinct traces', () =
   assertEqual(trace('forsythia'),trace('forsythia'),'shrub morphology stays deterministic for cached cards and canvas');
 });
 
+/* Held Europe-only, which took a fern native across northern North America out
+   of every native garden there. The record states its range inline, so the
+   migration tables cannot quietly narrow it again. */
+test('ostrich fern is native on its three continents and says what a label cannot', () => {
+  setup();
+  const P=plantDef('ostrichfern');
+  assertEqual(P.nativeTo.join(','),'north-america,europe,asia','the whole wild range');
+  assertEqual(P.provenance,'species','a straight species');
+  for (const nativeRegion of ['north-america','europe'])
+    for (const nativeMode of ['regional','straight'])
+      assert(passesNativeFilter(P,{nativeRegion,nativeMode}),`${nativeRegion} ${nativeMode}: offered`);
+  assertEqual(nativeRelation(P,'north-america').kind,'native','reads as native, not as a garden plant from elsewhere');
+  assert(plantRefFitsCriteria({s:'ostrichfern'},{zone:5,nativeRegion:'north-america',nativeMode:'straight'}),
+    'a zone 5 North American straight-native garden is really offered it');
+  for (const name of ['Matteuccia pensylvanica','Onoclea pensylvanica','Onoclea struthiopteris'])
+    assert(P.synonyms.includes(name),`${name} finds it`);
+  const g=plantGuidance({s:'ostrichfern'});
+  assertEqual(g.origin.length,2,'the range and the identity note reach the card');
+  assertEqual(g.invasive.length,0,'and no caution was invented to go with them');
+  assert(g.origin.every(n=>n.status==='native' && PLANT_GUIDANCE_SOURCES[n.source] && n.reviewed),'each note is dated and cited');
+});
+
 test('three cultivars carry their own botanical identity, not their record\'s (D01 D02 D03)', () => {
   setup();
   const north={nativeRegion:'north-america',nativeMode:'regional'};
