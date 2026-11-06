@@ -487,6 +487,16 @@ See §13a.
   an async test that ran on declaration would suspend at its first `await`, let
   the next declaration reset the world underneath it, and resume against someone
   else's garden. Two tests failed exactly that way before the queue landed.
+  **A test that never settles fails the run** (`tests/runner.js`, 0.9.76). A
+  promise nothing can settle leaves the event loop empty, and Node then exits,
+  code 0, with the runner still suspended: no report, nothing printed, every
+  later test unrun. Sandbox timers never fire, so awaiting one was enough to do
+  it. `beforeExit` now ends that test's wait and the queue carries on. An empty
+  loop is the exact condition, so there is no timeout and a slow test cannot be
+  mistaken for a stuck one. It has to wake through `setImmediate`: resolving a
+  promise is not work the loop can see, so a second stuck test would otherwise
+  exit silently, and `tests/runner.test.js` holds that. Those tests run the real
+  runner in a child process, since what they check is how a process ends.
   **`tests/ui-cost.test.js` pins what a UI action COSTS** — which rebuilds and
   measurements a button triggers, since the sandbox cannot time anything — by
   wrapping the app's own functions and counting calls (`counting()`, which puts
@@ -908,9 +918,16 @@ logic is split across ordered modules. They map onto the section list below
   Shrubs and Trees sat below the fold of a box whose entire job is to fit. The
   detail pane then held a 1086px card whose four seasonal canvases wrapped 2x2
   (280px) and pushed the plant's own **name to y=723**. After: header 71px,
-  eight category cards all on screen at 320px width and up, seasons in one row
+  every category card on screen at 320px width and up (nine since 0.9.76, the
+  last ending at y=411 on a 320x568 phone), seasons in one row
   (`librarySeasonTile` derives the tile from the column, so `nowrap` cannot
   overflow), name at y=236.
+  **`LIB_CATS` is derived from the catalog's plant categories** (`TRAY_GROUPS`,
+  `TRAY_CATS`; 0.9.76), so the two cannot differ. It was a copy, and when Climbers
+  joined the catalog the copy did not, so the library could not show any of the
+  nine. No test noticed, because the one meant to catch it took its expected list
+  from `libraryCatFor`, which dropped a species in no category from both sides. The
+  list to check against is `PLANT_KEYS`.
   Three things this fixed that are easy to undo. **`#libraryScreen{padding:0}`
   wiped `.screen`'s `max(18px,env(safe-area-inset-top))`** and it was the ONLY
   full-screen surface that did — measured, worlds/plot/planting-list/plan/bloom
