@@ -1,0 +1,451 @@
+{
+  "reviewed": "2026-11-06",
+  "note": "Sources for the wet-ground perennials added in 0.9.79. `estimates` names every field that is a planning value rather than a published figure, and why. Missouri Botanical Garden pages failed a certificate check in the water pass and were not retried. NC State returned 404 for Lychnis flos-cuculi, Geum rivale, Cardamine pratensis, Rodgersia, Ligularia dentata, Primula japonica, P. florindae, Darmera, Gunnera manicata and Rheum palmatum, so those rest on the other sources named. Heritage Perennials (perennials.com) is a nursery catalog; where it is the only size source that is stated. Search-result excerpts, which are not a full read of a page, are marked `excerpt` in that plant's estimates.",
+  "popularity": {
+    "method": "Twenty published lists read in full, 12 of bog or moist-soil plants and 8 of pond plants; each count is how many name the plant or, for a family row, the genus. A candidate needed 2 lists to stay. The bog lists alone undercounted plants of British wildlife ponds, which is why the pond lists are included. They are mostly retail and gardening sites plus the RHS, Mississippi State and Iowa State; three are RHS pages and two are House Digest, so the counts are a rough guide to what gardeners are told to plant, not a survey. Fine Gardening's Heronswood gallery (Sarracenia only), an index page at the Wild Flower Society and a partly readable Crocus listing were read and not counted. Pond Informer was partly readable: its Hibiscus moscheutos entry came from a summary of the unreadable part.",
+    "lists": [
+      "https://www.rhs.org.uk/plants/for-places/bog-gardens",
+      "https://www.rhs.org.uk/advice/profile?PID=1146",
+      "https://www.gardenersworld.com/plants/10-plants-to-grow-in-bog-gardens/",
+      "https://www.gardeningetc.com/advice/bog-plants",
+      "https://lawnlove.com/blog/best-plants-for-a-bog-garden/",
+      "https://worldofwater.com/how-to-ponds/marsh-bog-plants/",
+      "https://daviddomoney.com/top-ten-plants-for-a-bog-garden",
+      "https://www.housedigest.com/2121616/water-loving-plants-bog-garden",
+      "https://www.aol.com/articles/22-perennials-thrive-damp-soggy-163000346.html",
+      "https://www.hortmag.com/plants/perennials-for-wet-sites",
+      "https://www.ipm.org/show/focusonflowers/2019-09-09/bog-plants",
+      "https://extension.msstate.edu/lawn-and-garden/landscape-architecture/landscape-design-and-management/landscape-and-garden-design/creating-bog-garden",
+      "https://www.rhs.org.uk/ponds/pond-plants",
+      "https://pondinformer.com/native-pond-edge-plants/",
+      "https://gardensillustrated.com/plants/best-pond-plants",
+      "https://worldofwater.com/how-to-ponds/pond-plants/marginal-pond-plants/",
+      "https://www.wildlifetrusts.org/actions/how-build-pond",
+      "https://yardandgarden.extension.iastate.edu/article/1999/8-13-1999/notcattails.html",
+      "https://www.lawnstarter.com/blog/landscaping/water-garden-plants-to-grow-and-avoid/",
+      "https://www.chewy.com/education/fish/pond-fish/pond-plants-for-outdoor-fish-pond"
+    ],
+    "counts": {
+      "ligularia": 8,
+      "rodgersia": 7,
+      "moisturePrimula": 7,
+      "meadowsweet": 5,
+      "roseMallow": 5,
+      "gardenGlobeflower": 5,
+      "pitcherPlant": 4,
+      "gunnera": 4,
+      "waterAvens": 4,
+      "cuckooFlower": 4,
+      "umbrellaPlant": 3,
+      "bowlesGoldenSedge": 3,
+      "marshSpurge": 3,
+      "slenderSweetFlag": 3,
+      "ornamentalRhubarb": 2,
+      "monkeyFlower": 2,
+      "raggedRobin": 2,
+      "marshFern": 2,
+      "cottonGrass": 1
+    }
+  },
+  "dropped": [
+    {
+      "plant": "Cotton grass",
+      "latin": "Eriophorum angustifolium",
+      "why": "The one candidate that failed the count: 1 of 20 lists, Gardens Illustrated. It is a plant of acid peat that NC State grows in standing water in pots and that spreads by rhizome and seed, so it is a specialist's plant rather than a common one."
+    }
+  ],
+  "leftOut": [
+    {
+      "plant": "Purple and yellow loosestrife, gooseneck loosestrife",
+      "why": "Listed on several bog lists, and spreading plants: purple loosestrife is already left out of the catalog as invasive and is on Hortmag's list of plants to avoid."
+    },
+    {
+      "plant": "Skunk cabbage",
+      "why": "On 2 lists. Its American cousin Lysichiton americanus is on the EU list of invasive species, and Symplocarpus is rarely sold. Left for a pass that checks the trade."
+    },
+    {
+      "plant": "Swamp rose, red-twig dogwood and other wet-ground shrubs",
+      "why": "The task was perennials. Swamp rose (Rosa palustris) is on 2 lists and the catalog has no such rose, so it is a gap for a shrub pass."
+    }
+  ],
+  "plants": [
+    {
+      "suggestedKey": "swamprosemallow",
+      "proposed": {"name": "Swamp Rose Mallow", "latin": "Hibiscus moscheutos", "type": "forb", "form": "shrub", "heightIn": 60, "spread": 42, "space": 36, "zones": [4, 9], "nativeTo": ["north-america"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "warm", "bloomMonths": [7, 8, 9]},
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/hibiscus-moscheutos/",
+        "https://www.wildflower.org/plants/result.php?id_plant=HIMO",
+        "https://hgic.clemson.edu/hardy-hibiscus-hibiscus-moscheutos-how-to-grow-and-care-for-hardy-hibiscus/"
+      ],
+      "estimates": {
+        "heightIn": "Planning value inside NC State's 2-6 ft and Clemson's 2-8 ft.",
+        "spread": "Planning value inside NC State's 2-5 ft.",
+        "space": "Planning value.",
+        "latin": "NC State and Wikipedia now file this as Muenchhusia moscheutos, a 2025 change. Nursery labels still say Hibiscus, so that stays the display name and Muenchhusia is a searchable synonym."
+      }
+    },
+    {
+      "suggestedKey": "scarletrosemallow",
+      "proposed": {"name": "Scarlet Rose Mallow", "latin": "Hibiscus coccineus", "type": "forb", "form": "shrub", "heightIn": 84, "spread": 30, "space": 30, "zones": [6, 9], "nativeTo": ["north-america"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "warm", "bloomMonths": [7, 8, 9]},
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/hibiscus-coccineus/",
+        "https://en.wikipedia.org/wiki/Hibiscus_coccineus"
+      ],
+      "estimates": {
+        "zones": "NC State lists 5b then 6b-9b; 6-9 drops the lone half-zone.",
+        "bloomMonths": "NC State says late summer; months are a planning window.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "purplepitcherplant",
+      "proposed": {"name": "Purple Pitcher Plant", "latin": "Sarracenia purpurea", "type": "forb", "form": "umbel", "heightIn": 16, "spread": 18, "space": 18, "zones": [4, 9], "nativeTo": ["north-america"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "cool", "bloomMonths": [5, 6]},
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/sarracenia-purpurea/",
+        "https://www.wildflower.org/plants/result.php?id_plant=SAPU4",
+        "https://www.lawnstarter.com/blog/landscaping/water-garden-plants-to-grow-and-avoid/"
+      ],
+      "estimates": {
+        "heightIn": "Planning value inside NC State's 9-18 in; the Wildflower Center's up to 30 in includes the flower stalk at its tallest.",
+        "spread": "Planning value inside NC State's 1-2 ft.",
+        "bloomMonths": "NC State says late spring to early summer; the Wildflower Center's May-August is wider.",
+        "space": "Planning value.",
+        "caution": "None recorded. Info Flora records it as partly naturalised in Swiss bogs and NC State in central Ireland, neither as invasive."
+      }
+    },
+    {
+      "suggestedKey": "monkeyflower",
+      "proposed": {"name": "Allegheny Monkey Flower", "latin": "Mimulus ringens", "type": "forb", "form": "shrub", "heightIn": 24, "spread": 12, "space": 12, "zones": [3, 9], "nativeTo": ["north-america"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "mid", "bloomMonths": [6, 7, 8, 9]},
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/mimulus-ringens/",
+        "https://www.prairiemoon.com/mimulus-ringens-monkey-flower"
+      ],
+      "estimates": {
+        "zones": "Prairie Moon's 3-9; NC State's stops at 8.",
+        "spread": "NC State's 9-12 in, at the top; it spreads slowly by rhizome after that.",
+        "form": "Drawn with the leafy-stem mound and a short raceme. The two-lipped flowers are about 2 px at garden scale, so they are drawn as paired dots."
+      }
+    },
+    {
+      "suggestedKey": "raggedrobin",
+      "proposed": {"name": "Ragged Robin", "latin": "Silene flos-cuculi", "type": "forb", "form": "cone", "heightIn": 24, "spread": 12, "space": 12, "zones": [3, 9], "nativeTo": ["europe", "asia"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "cool", "bloomMonths": [5, 6, 7, 8]},
+      "sources": [
+        "https://www.wildlifetrusts.org/wildlife-explorer/wildflowers/ragged-robin",
+        "https://gobotany.nativeplanttrust.org/species/lychnis/flos-cuculi/",
+        "https://en.wikipedia.org/wiki/Silene_flos-cuculi",
+        "https://www.perennials.com/plants/lychnis-floscuculi-jenny.html"
+      ],
+      "estimates": {
+        "zones": "Heritage Perennials' 3-9 for 'Jenny'; no source read gives a zone for the wild species.",
+        "heightIn": "Planning value inside Go Botany's 30-90 cm and the Wildlife Trusts' up to 75 cm.",
+        "spread": "Planning value.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "wateravens",
+      "proposed": {"name": "Water Avens", "latin": "Geum rivale", "type": "forb", "form": "drumstick", "heightIn": 18, "spread": 18, "space": 15, "zones": [3, 7], "nativeTo": ["north-america", "europe", "asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "cool", "bloomMonths": [5, 6, 7]},
+      "sources": [
+        "https://www.minnesotawildflowers.info/flower/purple-avens",
+        "https://gobotany.nativeplanttrust.org/species/geum/rivale/",
+        "https://www.wildlifetrusts.org/wildlife-explorer/wildflowers/water-avens",
+        "https://www.rhs.org.uk/plants/90048/geum-rivale-leonard-s-variety/details",
+        "https://www.chicagobotanic.org/plant-information/plant-finder/geum-rivale-leonards-variety-avens"
+      ],
+      "estimates": {
+        "zones": "excerpt: Chicago Botanic Garden and Rita's Garden Path give 3-7 for 'Leonard's Variety'. No source read gives a zone for the wild species.",
+        "heightIn": "Planning value inside 1-2 ft, 20-70 cm and up to 50 cm.",
+        "spread": "Planning value inside the RHS's 0.1-0.5 m.",
+        "bloomMonths": "Minnesota's June-July and the Wildlife Trusts' May-September; May to July is a planning window.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "cuckooflower",
+      "proposed": {"name": "Cuckoo Flower", "latin": "Cardamine pratensis", "type": "forb", "form": "umbel", "heightIn": 16, "spread": 12, "space": 10, "zones": [3, 7], "nativeTo": ["europe", "asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "cool", "bloomMonths": [4, 5, 6]},
+      "sources": [
+        "https://www.wildlifetrusts.org/wildlife-explorer/wildflowers/cuckooflower",
+        "https://gobotany.nativeplanttrust.org/species/cardamine/pratensis/",
+        "https://www.minnesotawildflowers.info/flower/cuckoo-flower",
+        "https://www.worldplants.ca/display.php?id=2258"
+      ],
+      "estimates": {
+        "zones": "excerpt: World Plants and Pond Informer give 3-7.",
+        "heightIn": "Planning value inside Go Botany's 20-50 cm.",
+        "spread": "Planning value.",
+        "space": "Planning value.",
+        "nativeTo": "Sources disagree. Go Botany and Wikipedia say not native to North America; Minnesota Wildflowers accepts a native var. palustris, threatened there, and calls the European var. pratensis naturalised and weedy in places. The plant sold for gardens is the European one, so this does not claim North America. The Flora of North America page could not be read."
+      }
+    },
+    {
+      "suggestedKey": "marshfern",
+      "proposed": {"name": "Marsh Fern", "latin": "Thelypteris palustris", "type": "forb", "form": "fern", "heightIn": 24, "spread": 36, "space": 18, "zones": [2, 9], "nativeTo": ["north-america", "europe", "asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "mid"},
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/thelypteris-palustris-subsp-pubescens/common-name/marsh-fern/",
+        "https://www.chicagobotanic.org/plant-information/plant-finder/thelypteris-palustris-marsh-fern",
+        "https://www.minnesotawildflowers.info/fern/northern-marsh-fern",
+        "https://en.wikipedia.org/wiki/Thelypteris_palustris"
+      ],
+      "estimates": {
+        "zones": "Chicago Botanic Garden's 2-9, from a page it marks as no longer updated. Nothing else read states a zone.",
+        "heightIn": "Planning value inside 1-3 ft and 6-30 in.",
+        "spread": "The top of NC State's 2-3 ft, for one clump; it runs further by rhizome.",
+        "space": "Planning value.",
+        "sun": "Filed as part because it takes both, and the catalog's sun field is a tolerance. Its blurb says it is the fern for sun."
+      }
+    },
+    {
+      "suggestedKey": "bigleafligularia",
+      "proposed": {"name": "Bigleaf Ligularia", "latin": "Ligularia dentata", "type": "forb", "form": "cone", "heightIn": 42, "spread": 36, "space": 30, "zones": [4, 8], "nativeTo": ["asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "mid", "bloomMonths": [7, 8, 9]},
+      "sources": [
+        "https://en.wikipedia.org/wiki/Ligularia_dentata",
+        "https://www.perennials.com/plants/ligularia-dentata-desdemona.html",
+        "https://fairfaxgardening.org/ligularia/"
+      ],
+      "estimates": {
+        "zones": "excerpt: Fairfax Master Gardeners give 4-8 for ligularias generally.",
+        "heightIn": "Heritage Perennials gives 35-47 in for 'Desdemona'; this is its middle for the species too.",
+        "spread": "Inside Heritage Perennials' 31-35 in and the 36-48 in others list.",
+        "bloomMonths": "Heritage Perennials says mid to late summer; months are a planning window.",
+        "space": "Planning value.",
+        "deerOk": "excerpt: from Fairfax Master Gardeners' article title and text on deer."
+      }
+    },
+    {
+      "suggestedKey": "rocketligularia",
+      "proposed": {"name": "Ligularia 'The Rocket'", "latin": "Ligularia 'The Rocket'", "type": "forb", "form": "spike", "heightIn": 60, "spread": 33, "space": 30, "zones": [4, 8], "nativeTo": [], "provenance": "hybrid", "sun": "part", "moist": "moist", "phen": "mid", "bloomMonths": [7, 8]},
+      "sources": [
+        "https://www.perennials.com/plants/ligularia-the-rocket.html",
+        "https://plants.ces.ncsu.edu/plants/ligularia-stenocephala/",
+        "https://www.rhs.org.uk/plants/for-places/bog-gardens"
+      ],
+      "estimates": {
+        "provenance": "The RHS and Heritage Perennials name it with no species; NC State profiles L. stenocephala, the name often attached to it. Treated as a garden plant with no wild range, the cautious reading.",
+        "zones": "NC State's 4-8 for L. stenocephala; Heritage Perennials goes to 9.",
+        "heightIn": "Inside Heritage Perennials' 47-70 in.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "featherrodgersia",
+      "proposed": {"name": "Featherleaf Rodgersia", "latin": "Rodgersia pinnata", "type": "forb", "form": "spike", "heightIn": 42, "spread": 36, "space": 30, "zones": [5, 8], "nativeTo": ["asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "mid", "bloomMonths": [6, 7]},
+      "sources": [
+        "https://www.perennials.com/plants/rodgersia-pinnata.html",
+        "https://en.wikipedia.org/wiki/Rodgersia_pinnata",
+        "https://apps.allencentennialgarden.wisc.edu/index.php?p=20191726"
+      ],
+      "estimates": {
+        "zones": "Heritage Perennials says 4-9 and Allen Centennial Garden (excerpt) 5-7; 5-8 sits between them.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "chestnutrodgersia",
+      "proposed": {"name": "Fingerleaf Rodgersia", "latin": "Rodgersia aesculifolia", "type": "forb", "form": "spike", "heightIn": 38, "spread": 36, "space": 30, "zones": [4, 8], "nativeTo": ["asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "mid", "bloomMonths": [6, 7, 8]},
+      "sources": [
+        "https://www.perennials.com/plants/rodgersia-aesculifolia.html",
+        "https://en.wikipedia.org/wiki/Rodgersia_aesculifolia",
+        "https://www.rhs.org.uk/plants/for-places/bog-gardens"
+      ],
+      "estimates": {
+        "zones": "Heritage Perennials says 3-9, which is wide for a genus others hold to 5-8; narrowed at both ends. A cautious reading rather than a published figure.",
+        "bloomMonths": "Heritage Perennials says mid to late summer; June is added from the genus.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "fingerleafrodgersia",
+      "proposed": {"name": "Bronzeleaf Rodgersia", "latin": "Rodgersia podophylla", "type": "forb", "form": "spike", "heightIn": 48, "spread": 48, "space": 36, "zones": [5, 8], "nativeTo": ["asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "mid", "bloomMonths": [6, 7, 8]},
+      "sources": [
+        "https://www.rhs.org.uk/plants/15925/rodgersia-podophylla/details",
+        "https://worldplants.ca/display.php?id=3997",
+        "https://en.wikipedia.org/wiki/Rodgersia_podophylla"
+      ],
+      "estimates": {
+        "heightIn": "Inside the RHS's 1-1.5 m and World Plants' 0.9-1.5 m.",
+        "spread": "World Plants' 0.9-1.2 m; the RHS allows up to 2.5 m for an old clump.",
+        "zones": "excerpt: World Plants' USDA 5-8.",
+        "bloomMonths": "excerpt: June to August.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "japaneseprimrose",
+      "proposed": {"name": "Japanese Primrose", "latin": "Primula japonica", "type": "forb", "form": "umbel", "heightIn": 24, "spread": 12, "space": 12, "zones": [5, 8], "nativeTo": ["asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "cool", "bloomMonths": [5, 6, 7]},
+      "sources": [
+        "https://www.perennials.com/plants/primula-japonica-millers-crimson.html",
+        "https://www.plantdelights.com/products/primula-japonica",
+        "https://www.rhs.org.uk/plants/13785/primula-japonica-pf/details",
+        "https://en.wikipedia.org/wiki/Primula_japonica"
+      ],
+      "estimates": {
+        "zones": "Heritage Perennials says 5-9; Plant Delights (excerpt) 4-8. 5-8 is what both cover.",
+        "heightIn": "The top of Heritage Perennials' 12-23 in, as its stems are the point of it.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "bulleysprimrose",
+      "proposed": {"name": "Bulley's Primrose", "latin": "Primula bulleyana", "type": "forb", "form": "umbel", "heightIn": 24, "spread": 12, "space": 12, "zones": [5, 8], "nativeTo": ["asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "cool", "bloomMonths": [5, 6, 7]},
+      "sources": [
+        "https://www.nargs.org/plant-of-the-month/primula-bulleyana",
+        "https://botanicgardens.uw.edu/about/blog/2016/06/01/june-2016-plant-profile-primula-bulleyana/",
+        "https://en.wikipedia.org/wiki/Primula_bulleyana"
+      ],
+      "estimates": {
+        "zones": "excerpt: NARGS and Jelitto give 5-8.",
+        "heightIn": "excerpt: UW Botanic Gardens' 20-24 in.",
+        "spread": "excerpt: UW Botanic Gardens' up to 12 in at the base.",
+        "bloomMonths": "excerpt: Beth Chatto's May-July.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "giantcowslip",
+      "proposed": {"name": "Giant Cowslip", "latin": "Primula florindae", "type": "forb", "form": "umbel", "heightIn": 30, "spread": 18, "space": 15, "zones": [3, 8], "nativeTo": ["asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "mid", "bloomMonths": [6, 7, 8]},
+      "sources": [
+        "https://www.perennials.com/plants/primula-florindae.html",
+        "https://en.wikipedia.org/wiki/Primula_florindae"
+      ],
+      "estimates": {
+        "zones": "Heritage Perennials says 3-9; the top is cut to 8 because it says the plant wants cool summers for sun and even moisture all season.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "drumstickprimrose",
+      "proposed": {"name": "Drumstick Primrose", "latin": "Primula denticulata", "type": "forb", "form": "globe", "heightIn": 10, "spread": 10, "space": 10, "zones": [3, 8], "nativeTo": ["asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "cool", "bloomMonths": [3, 4, 5]},
+      "sources": [
+        "https://www.perennials.com/plants/primula-denticulata.html",
+        "https://en.wikipedia.org/wiki/Primula_denticulata",
+        "https://www.rhs.org.uk/advice/profile?PID=1146"
+      ],
+      "estimates": {
+        "zones": "Heritage Perennials says 2-9; narrowed at both ends as a cautious reading.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "umbrellaplant",
+      "proposed": {"name": "Umbrella Plant", "latin": "Darmera peltata", "type": "forb", "form": "umbel", "heightIn": 48, "spread": 42, "space": 36, "zones": [5, 9], "nativeTo": ["north-america"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "cool", "bloomMonths": [4, 5]},
+      "sources": [
+        "https://www.wildflower.org/plants/result.php?id_plant=DAPE",
+        "https://www.perennials.com/plants/darmera-peltata.html",
+        "https://www.rhs.org.uk/plants/5347/wd/details",
+        "https://en.wikipedia.org/wiki/Darmera"
+      ],
+      "estimates": {
+        "zones": "Sources run from 3-9 to 5-7; 5-9 is Gardenia's (excerpt) and the middle of them.",
+        "heightIn": "Inside the Wildflower Center's 3-5 ft flower stalks and the RHS's 1-1.5 m.",
+        "spread": "Inside Heritage Perennials' 35-47 in.",
+        "space": "Planning value.",
+        "caution": "None recorded. Wikipedia says it is locally naturalised in Britain and Ireland, with no invasive claim. The GB non-native species site refused the request (403), so that page is unread."
+      }
+    },
+    {
+      "suggestedKey": "giantrhubarb",
+      "proposed": {"name": "Giant Rhubarb", "latin": "Gunnera manicata", "type": "forb", "form": "spike", "heightIn": 96, "spread": 144, "space": 96, "zones": [7, 9], "nativeTo": ["south-america"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "mid", "bloomMonths": [7, 8]},
+      "sources": [
+        "https://www.perennials.com/plants/gunnera-manicata.html",
+        "https://www.rhs.org.uk/plants/gunnera/gunnera-questions-answered",
+        "https://www.gardenersworld.com/how-to/grow-plants/how-to-grow-gunnera/",
+        "https://en.wikipedia.org/wiki/Gunnera_manicata"
+      ],
+      "estimates": {
+        "heightIn": "Gardeners' World's 2.5 m.",
+        "spread": "Heritage Perennials' 150-180 cm reads low for this plant; 144 in is near Gardeners' World's 4.5 m at the low end of what others give.",
+        "space": "Planning value.",
+        "taxon": "The RHS says plants in British gardens under this name are really the hybrid Gunnera x cryptica, so the hybrid is a searchable synonym. A garden plant sold as G. manicata may be either."
+      }
+    },
+    {
+      "suggestedKey": "meadowsweet",
+      "proposed": {"name": "Meadowsweet", "latin": "Filipendula ulmaria", "type": "forb", "form": "umbel", "heightIn": 48, "spread": 24, "space": 24, "zones": [3, 9], "nativeTo": ["europe", "asia"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "mid", "bloomMonths": [6, 7, 8]},
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/filipendula-ulmaria/",
+        "https://www.perennials.com/plants/filipendula-ulmaria.html",
+        "https://gobotany.nativeplanttrust.org/species/filipendula/ulmaria/",
+        "https://dnr.wisconsin.gov/sites/default/files/topic/Invasives/NR40plantlist.pdf"
+      ],
+      "estimates": {
+        "spread": "Inside NC State's 1-3 ft.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "ornamentalrhubarb",
+      "proposed": {"name": "Ornamental Rhubarb", "latin": "Rheum palmatum", "type": "forb", "form": "spike", "heightIn": 90, "spread": 60, "space": 60, "zones": [5, 9], "nativeTo": ["asia"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "cool", "bloomMonths": [6, 7]},
+      "sources": [
+        "https://www.perennials.com/plants/rheum-palmatum.html",
+        "https://en.wikipedia.org/wiki/Rheum_palmatum",
+        "https://www.rhs.org.uk/plants/for-places/bog-gardens"
+      ],
+      "estimates": {
+        "heightIn": "Inside Heritage Perennials' 70-117 in, in flower.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "bowlesgoldensedge",
+      "proposed": {"name": "Bowles' Golden Sedge", "latin": "Carex elata 'Aurea'", "type": "sedge", "form": "bunchgrass", "heightIn": 24, "spread": 18, "space": 15, "zones": [5, 9], "nativeTo": ["europe", "asia", "africa"], "provenance": "selection", "sun": "part", "moist": "moist", "phen": "cool"},
+      "sources": [
+        "https://www.perennials.com/plants/carex-elata-aurea.html",
+        "https://www.rhs.org.uk/plants/89736/carex-elata-aurea/details",
+        "https://en.wikipedia.org/wiki/Carex_elata"
+      ],
+      "estimates": {
+        "heightIn": "The top of Heritage Perennials' 18-23 in, inside the RHS's 0.5-1 m.",
+        "spread": "Search excerpts run 18-30 in; Heritage Perennials' 10-12 in reads low.",
+        "space": "Planning value.",
+        "bloomMonths": "None: its green flowers are not why it is grown, as with the other foliage plants."
+      }
+    },
+    {
+      "suggestedKey": "marshspurge",
+      "proposed": {"name": "Marsh Spurge", "latin": "Euphorbia palustris", "type": "forb", "form": "shrub", "heightIn": 36, "spread": 36, "space": 30, "zones": [5, 9], "nativeTo": ["europe", "asia"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "cool", "bloomMonths": [5, 6, 7]},
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/euphorbia-palustris/common-name/marsh-euphorbia-2/",
+        "https://www.chicagobotanic.org/plant-information/plant-finder/euphorbia-palustris-marsh-spurge",
+        "https://en.wikipedia.org/wiki/Euphorbia_palustris"
+      ],
+      "estimates": {
+        "zones": "NC State says 5-10 and Chicago Botanic Garden 4-7; 5-9 is what most of the range agrees on.",
+        "bloomMonths": "excerpt: May to July.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "slendersweetflag",
+      "proposed": {"name": "Slender Sweet Flag", "latin": "Acorus gramineus", "type": "forb", "form": "bunchgrass", "heightIn": 10, "spread": 12, "space": 10, "zones": [5, 9], "nativeTo": ["asia"], "provenance": "species", "sun": "part", "moist": "moist", "phen": "cool"},
+      "sources": [
+        "https://www.perennials.com/plants/acorus-gramineus-ogon.html",
+        "https://www.perennials.com/plants/acorus-gramineus-variegatus.html",
+        "https://en.wikipedia.org/wiki/Acorus_gramineus"
+      ],
+      "estimates": {
+        "type": "Neither a grass nor a sedge botanically, so it is a forb drawn with the grass form. It keeps apart from the water-plant sweet flags because it is planted in wet soil.",
+        "space": "Planning value.",
+        "caution": "None recorded. Chewy's pond list calls Japanese sweet flag invasive in North America and Europe without a source, and neither cached list has it. Not treated as evidence; worth a person's check."
+      }
+    }
+  ],
+  "cultivars": [
+    {"ref": "swamprosemallow|lordbaltimore", "latin": "Hibiscus 'Lord Baltimore'", "sources": ["https://www.perennials.com/plants/hibiscus-lord-baltimore.html", "https://www.hortmag.com/plants/perennials-for-wet-sites"], "estimates": {"provenance": "Heritage Perennials names no species; treated as a hybrid."}},
+    {"ref": "swamprosemallow|summerstorm", "latin": "Hibiscus 'Summer Storm'", "sources": ["https://www.perennials.com/plants/hibiscus-summerific-summer-storm.html"], "estimates": {"provenance": "Heritage Perennials names no species; treated as a hybrid."}},
+    {"ref": "swamprosemallow|lunawhite", "latin": "Hibiscus moscheutos", "sources": ["https://www.perennials.com/plants/hibiscus-moscheutos-luna-white.html", "https://hgic.clemson.edu/hardy-hibiscus-hibiscus-moscheutos-how-to-grow-and-care-for-hardy-hibiscus/"], "estimates": {}},
+    {"ref": "raggedrobin|jenny", "latin": "Silene flos-cuculi", "sources": ["https://www.perennials.com/plants/lychnis-floscuculi-jenny.html", "https://www.rhs.org.uk/plants/194188/lychnis-flos-cuculi-jenny/details"], "estimates": {}},
+    {"ref": "raggedrobin|albiflora", "latin": "Silene flos-cuculi", "sources": ["https://gardensillustrated.com/plants/best-pond-plants"], "estimates": {"size": "Taken to match the species."}},
+    {"ref": "wateravens|leonardsvariety", "latin": "Geum rivale 'Leonard's Variety'", "sources": ["https://www.rhs.org.uk/plants/90048/geum-rivale-leonard-s-variety/details"], "estimates": {}},
+    {"ref": "bigleafligularia|desdemona", "latin": "Ligularia dentata 'Desdemona'", "sources": ["https://www.perennials.com/plants/ligularia-dentata-desdemona.html"], "estimates": {"zones": "excerpt: Gardenia and Rita's Garden Path give 3-8."}},
+    {"ref": "bigleafligularia|brittmariecrawford", "latin": "Ligularia dentata 'Britt-Marie Crawford'", "sources": ["https://www.provenwinners.com/plants/ligularia/britt-marie-crawford-bigleaf-ligularia-ligularia-dentata"], "estimates": {}},
+    {"ref": "featherrodgersia|superba", "latin": "Rodgersia pinnata 'Superba'", "sources": ["https://www.perennials.com/plants/rodgersia-pinnata-superba.html"], "estimates": {}},
+    {"ref": "japaneseprimrose|millerscrimson", "latin": "Primula japonica 'Miller's Crimson'", "sources": ["https://www.perennials.com/plants/primula-japonica-millers-crimson.html", "https://www.rhs.org.uk/plants/for-places/bog-gardens"], "estimates": {}},
+    {"ref": "japaneseprimrose|postfordwhite", "latin": "Primula japonica 'Postford White'", "sources": ["https://sunfarm.com/picks/primulajaponicapostfordwhite-020155.phtml"], "estimates": {"size": "excerpt only: taken to match the species."}},
+    {"ref": "meadowsweet|aurea", "latin": "Filipendula ulmaria 'Aurea'", "sources": ["https://www.perennials.com/plants/filipendula-ulmaria-aurea.html"], "estimates": {}},
+    {"ref": "ornamentalrhubarb|atrosanguineum", "latin": "Rheum palmatum 'Atrosanguineum'", "sources": ["https://www.rhs.org.uk/plants/96006/rheum-palmatum-atrosanguineum/details"], "estimates": {}},
+    {"ref": "slendersweetflag|ogon", "latin": "Acorus gramineus 'Ogon'", "sources": ["https://www.perennials.com/plants/acorus-gramineus-ogon.html"], "estimates": {}},
+    {"ref": "slendersweetflag|variegatus", "latin": "Acorus gramineus 'Variegatus'", "sources": ["https://www.perennials.com/plants/acorus-gramineus-variegatus.html"], "estimates": {}},
+    {"ref": "globeflower|goldenqueen", "latin": "Trollius chinensis 'Golden Queen'", "sources": ["https://www.perennials.com/plants/trollius-chinensis-golden-queen.html", "https://www.gardeningetc.com/advice/bog-plants"], "estimates": {"zones": "Heritage Perennials says 2-9; narrowed as a cautious reading, the base species being 3-7."}},
+    {"ref": "globeflower|superbus", "latin": "Trollius x cultorum 'Superbus'", "sources": ["https://www.rhs.org.uk/plants/61452/trollius-x-cultorum-superbus/details", "https://plants.ces.ncsu.edu/plants/trollius-x-cultorum/"], "estimates": {}}
+  ]
+}

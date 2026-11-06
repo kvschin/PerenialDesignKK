@@ -17,6 +17,9 @@ The authoritative records are `PLANT_GUIDANCE` and `PLANT_GUIDANCE_SOURCES` in `
 | Water forget-me-not | Midwestern US | [NC State Extension](https://plants.ces.ncsu.edu/plants/myosotis-scorpioides/) |
 | Taro | California | [Cal-IPC](https://www.cal-ipc.org/plants/profile/colocasia-esculenta-profile/) |
 | Calla lily | California | [Cal-IPC](https://www.cal-ipc.org/plants/inventory/) |
+| Ragged robin | Connecticut, New England | [Connecticut Public Act 25-126](https://prdext2.cga.ct.gov/2025/act/pa/pdf/2025PA-00126-R00HB-05013-PA.pdf), [Go Botany](https://gobotany.nativeplanttrust.org/species/lychnis/flos-cuculi/) |
+| Meadowsweet | Wisconsin, Midwestern US | [Wisconsin NR 40 list](https://dnr.wisconsin.gov/sites/default/files/topic/Invasives/NR40plantlist.pdf), [NC State Extension](https://plants.ces.ncsu.edu/plants/filipendula-ulmaria/) |
+| Giant rhubarb | Great Britain | [RHS](https://www.rhs.org.uk/plants/gunnera/gunnera-questions-answered), [Gardeners' World](https://www.gardenersworld.com/how-to/grow-plants/how-to-grow-gunnera/) |
 | Fragrant waterlily | Washington | [King County](https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/fragrant-water-lily) |
 | Japanese spirea | North Carolina | [NC State Extension](https://plants.ces.ncsu.edu/plants/spiraea-japonica/common-name/japanese-spirea/) |
 | Common milkweed | European Union | [EPPO categorization](https://gd.eppo.int/taxon/ASCSY/categorization) |

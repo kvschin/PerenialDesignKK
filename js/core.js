@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.78';
+const APP_VERSION = '0.9.79';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -2295,8 +2295,23 @@ const PLANT_GUIDANCE_SOURCES=Object.freeze({
   callaCalIPC:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/inventory/'},
   ostrichFernRange:{label:'Lady Bird Johnson Wildflower Center',url:'https://www.wildflower.org/plants/result.php?id_plant=MAST'},
   ostrichFernForm:{label:'Native Plant Trust, Go Botany',url:'https://gobotany.nativeplanttrust.org/species/matteuccia/struthiopteris/'},
+  raggedRobinCT:{label:'Connecticut General Assembly',url:'https://prdext2.cga.ct.gov/2025/act/pa/pdf/2025PA-00126-R00HB-05013-PA.pdf'},
+  raggedRobinNewEngland:{label:'Native Plant Trust, Go Botany',url:'https://gobotany.nativeplanttrust.org/species/lychnis/flos-cuculi/'},
+  meadowsweetWI:{label:'Wisconsin DNR',url:'https://dnr.wisconsin.gov/sites/default/files/topic/Invasives/NR40plantlist.pdf'},
+  meadowsweetNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/filipendula-ulmaria/'},
+  gunneraRHS:{label:'Royal Horticultural Society',url:'https://www.rhs.org.uk/plants/gunnera/gunnera-questions-answered'},
+  gunneraGW:{label:'Gardeners\' World',url:'https://www.gardenersworld.com/how-to/grow-plants/how-to-grow-gunnera/'},
 });
 const PLANT_GUIDANCE=Object.freeze({
+  raggedrobin:{taxon:'Silene flos-cuculi',reviewed:'2026-11-06',invasive:[
+    {area:'Connecticut',region:'north-america',severity:'avoid',source:'raggedRobinCT',text:'Prohibited by state statute: no one may import, move, sell, buy, transplant, cultivate or distribute it. The state council rates it potentially invasive, and lists it under its older name, Lychnis flos-cuculi.'},
+    {area:'New England',region:'north-america',severity:'caution',source:'raggedRobinNewEngland',text:'Introduced from Europe. Go Botany says it is not a major invasive in New England, but it has increased in recent years and can form large patches of nothing else.'}]},
+  meadowsweet:{taxon:'Filipendula ulmaria',reviewed:'2026-11-06',invasive:[
+    {area:'Wisconsin',region:'north-america',severity:'avoid',source:'meadowsweetWI',text:'In the Restricted category of the state invasive species rule, NR 40, which limits transporting or introducing it without a permit.'},
+    {area:'Midwestern US',region:'north-america',severity:'caution',source:'meadowsweetNC',text:'NC State calls it weedy: it self-seeds freely and can spread out of control, and it reports noxious-weed status in some Midwestern states without naming them. Deadhead it before it sets seed.'}]},
+  giantrhubarb:{taxon:'Gunnera manicata',reviewed:'2026-11-06',invasive:[
+    {area:'Great Britain',region:'europe',severity:'avoid',source:'gunneraRHS',text:'The RHS says plants grown here as this species are really the hybrid Gunnera x cryptica, which must not be newly planted or cultivated, though existing plants may stay. The related G. tinctoria is banned under EU rules.'},
+    {area:'Great Britain',region:'europe',severity:'avoid',source:'gunneraGW',text:'Gardeners\' World reports that sales of G. tinctoria and G. manicata or G. x cryptica are banned here. Gunnera magellanica is still legal to buy and grow.'}]},
   ostrichfern:{taxon:'Matteuccia struthiopteris',reviewed:'2026-11-06',origin:[
     {area:'Northern North America',status:'native',source:'ostrichFernRange',text:'Native from Newfoundland to southern Alaska, south to northern Virginia, Missouri and South Dakota. That range is narrower than its North American origin label.'},
     {area:'New England',status:'native',source:'ostrichFernForm',text:'Plants here are subspecies pensylvanica, also listed as a variety or as Matteuccia pensylvanica. A species name on a nursery label does not show where the stock came from.'}]},

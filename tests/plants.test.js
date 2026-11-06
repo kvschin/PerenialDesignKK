@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,667,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,691,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),505,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),522,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -200,6 +200,66 @@ test('water plants that are not native do not claim a range', () => {
   assertEqual(PLANTS.taro.bloomMonths,undefined,'taro is grown for foliage and claims no flowering calendar');
   assert(!Object.values(PLANTS.scouringrush.sea).some(s=>s.bloom||s.seed),'a horsetail has spores, not flowers or seed');
   assertEqual(PLANTS.callalily.cv.crowborough.zones.join(','),'7,10','Crowborough is the hardier calla');
+});
+
+// plants.test.js loads only plants.js: resolve a cultivar over its species by hand
+const wetDef=(k,v)=>v?Object.assign({},PLANTS[k],PLANTS[k].cv[v]):PLANTS[k];
+test('wet-ground batch preserves reviewed data and says which values are estimates', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/wetground-sources.json')), rows=doc.plants;
+  assertEqual(rows.length,24,'the wet-ground pass added 24 base records');
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], R=row.proposed;
+    assert(P,row.suggestedKey+': missing species');
+    for(const f of ['name','latin','type','form','heightIn','spread','space','sun','moist','phen','provenance'])
+      assertEqual(P[f],R[f],row.suggestedKey+': reviewed '+f);
+    assertEqual(P.zones.join(','),R.zones.join(','),row.suggestedKey+': reviewed zones');
+    assertEqual(P.nativeTo.join(','),R.nativeTo.join(','),row.suggestedKey+': reviewed range');
+    assertEqual((P.bloomMonths||[]).join(','),(R.bloomMonths||[]).join(','),row.suggestedKey+': reviewed bloom months');
+    assert(row.sources.length>0,row.suggestedKey+': cites a source');
+    row.sources.forEach(u=>assert(/^https?:\/\//.test(u),row.suggestedKey+': source is a URL'));
+    assert(row.estimates&&typeof row.estimates==='object',row.suggestedKey+': states its planning values');
+    assert(P.zones[0]>=1&&P.zones[1]<=11,row.suggestedKey+': stays inside the catalog zone range');
+    assert(P.blurb&&P.blurb.length>40,row.suggestedKey+': says something');
+  }
+  assertEqual(doc.cultivars.length,17,'the wet-ground pass added 17 cultivars');
+  for(const c of doc.cultivars){
+    const [k,v]=c.ref.split('|');
+    assert(PLANTS[k].cv&&PLANTS[k].cv[v],c.ref+': cultivar exists');
+    assertEqual(wetDef(k,v).latin,c.latin,c.ref+': reviewed name');
+    assert(c.sources.length>0,c.ref+': cites a source');
+  }
+  // the counts are what decided the batch, so a plant under the bar has to be gone
+  const counts=doc.popularity.counts;
+  assertEqual(doc.popularity.lists.length,20,'twenty lists were counted');
+  assert(Math.max(...Object.values(counts))<=doc.popularity.lists.length,'no count is above the lists read');
+  assertEqual(Object.keys(counts).filter(k=>counts[k]<2).join(','),'cottonGrass','one candidate missed the bar');
+  for(const d of doc.dropped) assert(!PLANT_KEYS.some(k=>PLANTS[k].latin===d.latin),d.plant+': was dropped, and stays out');
+});
+
+test('wet-ground plants are planted in soil, and only claim the range their source gives', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/wetground-sources.json'));
+  for(const {suggestedKey:k} of doc.plants){
+    assert(PLANTS[k].type!=='water',k+': belongs beside the water, not in it');
+    assert(!PLANTS[k].marginal,k+': not filed as standing in water');
+    assertEqual(PLANTS[k].moist,'moist',k+': wants wet soil');
+  }
+  // hybrids and garden forms claim no wild range, and drop out of native palettes
+  for(const [k,v] of [['swamprosemallow','lordbaltimore'],['swamprosemallow','summerstorm'],['globeflower','superbus'],['rocketligularia',null]]){
+    const P=wetDef(k,v);
+    assertEqual(P.provenance,'hybrid',k+':'+v+': a garden hybrid');
+    assertEqual(P.nativeTo.length,0,k+':'+v+': has no wild range');
+  }
+  assertEqual(wetDef('swamprosemallow','lunawhite').provenance,'selection','Luna White is a selection of the wild species');
+  assert(wetDef('swamprosemallow','lunawhite').nativeTo.includes('north-america'),'so it keeps the range');
+  assertEqual(wetDef('globeflower','goldenqueen').nativeTo.join(','),'asia','Golden Queen is a Chinese globeflower, unlike its European parent record');
+  assertEqual(wetDef('globeflower').nativeTo.join(','),'europe','and the record keeps the European species');
+  assert(!PLANTS.cuckooflower.nativeTo.includes('north-america'),'cuckoo flower: the garden form is European; its American status is disputed');
+  assertEqual(PLANTS.giantrhubarb.nativeTo.join(','),'south-america','giant rhubarb is Brazilian');
+  assert(PLANTS.giantrhubarb.synonyms.includes('Gunnera x cryptica'),'and its usual impostor can be searched for');
+  assert(PLANTS.swamprosemallow.synonyms.includes('Muenchhusia moscheutos'),'the 2025 name can be searched for');
+  assert(PLANTS.raggedrobin.synonyms.includes('Lychnis flos-cuculi'),'the name on most labels can be searched for');
+  // foliage plants claim no flowering calendar
+  for(const k of ['marshfern','slendersweetflag','bowlesgoldensedge']) assertEqual(PLANTS[k].bloomMonths,undefined,k+': no flowering slot');
 });
 
 test('West Coast batches preserve reviewed taxa, woody identities, and regional caveats', () => {

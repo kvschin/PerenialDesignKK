@@ -911,6 +911,10 @@ const BROWSE_RESIST_KEYS=new Set([
   // pond plants NC State records as poisonous: calcium oxalate in the arums,
   // irritant rhizomes in the irises
   'taro','callalily','arrowarum','goldenclub','japaneseiris','rabbitiris','louisianairis',
+  // wet-ground plants a source names: Fairfax Master Gardeners for ligularia,
+  // Prairie Moon and NC State for monkey flower, NC State for spurge's poison sap.
+  // Not rose mallow: Clemson says plainly that deer eat it.
+  'bigleafligularia','rocketligularia','monkeyflower','marshspurge',
   // resistant minor bulbs (toxic alkaloids or onion scent)
   'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
   'muscari','scillaperuviana','puschkinia','ipheion','leucojum','anemoneblanda',

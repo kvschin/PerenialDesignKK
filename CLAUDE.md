@@ -703,6 +703,10 @@ does not alter placement, saves, schemes, collections, or quantities.
 
 The water plants (0.9.77) added five cautions read by hand, three of them on
 nothing `dev/invasive-check.js` can see: see `docs/plant-data/water-implementation.md`.
+The wet-ground plants (0.9.79) added three more, read from primary documents and again
+out of the checker's reach, since it holds neither Connecticut nor Wisconsin: ragged
+robin (Connecticut Public Act 25-126), meadowsweet (Wisconsin NR 40) and giant rhubarb
+(the RHS on *Gunnera x cryptica*).
 The initial review covers nine species with regional invasive cautions, seven
 with narrower native-range observations, and six with site qualifications.
 Coverage and remaining work are in `docs/plant-data/regional-guidance.md`.
@@ -6691,6 +6695,32 @@ decisions in `docs/plant-data/water-implementation.md`, and `dev/water-review.ht
 shows them all at library size and at true garden scale. The zone picker is derived
 from the catalog, so a record must stay inside 1-11 or it widens the chips for
 everybody: NC State's 12b for thalia is clamped.
+
+**Wet-ground perennials (0.9.79):** 24 records and 17 cultivars for the ground beside
+a pond, ordinary `forb`s plus one `sedge`. They carry no `marginal` flag, which means
+a plant standing in the water, and a test holds that. The batch was chosen by counting
+20 published lists, 2 needed to stay: that dropped cotton grass, and put Ligularia (8),
+Rodgersia (7) and bog Primula (7) on top, none of which the catalog had. Count pond
+lists as well as bog lists, or British wildlife-pond plants such as ragged robin score
+zero. One shared option does most of the drawing: **`leafStyle:'parasol'`**
+(`drawParasolLeaf`) in the basal foliage pass, a big leaf on a stalk seen from above,
+whose `lobes`/`lobeDepth`/`lobeCut` run from a round Darmera to a Rodgersia cut nearly
+into leaflets. **Near leaves must stand lower than far ones**: at one height they merged
+into a flat table on a stem, and Darmera and Gunnera read as small trees. Also
+`leafStyle:'pitcher'` (a rosette laid out on the ground plane), `flowerStyle:'mallow'`
+with `petalW`, `umbelStyle:'nodding'`, `whorlPetals` (arrowhead and water plantain keep their 3),
+`spikeStyle:'plume'`, and `bloomStemsOnly:'seed'`, which keeps stalks through the seed
+season where `true` does not. **Plain stem leaves stacked on parallel stems read as a fir
+tree**, which is why monkey flower and marsh spurge use the leafy-stem mound. A plant
+whose height belongs to a flower stem sets `lowRosette` or one of those leaf styles
+(`basalFoliageOnly`), or `drawPlant`'s closing highlight strokes hang in the air above
+it; older `bloomStemsOnly` plants still draw them, to stay identical. Hardy hibiscus moved
+to *Muenchhusia* in 2025; labels have not, so `latin` stays *Hibiscus* and the new name is
+a synonym. `Filipendula ulmaria` is in Wisconsin's NR 40 and `Lychnis flos-cuculi` in
+Connecticut's statute under that older name, which is what to search those lists for.
+Sources and estimates are in `docs/plant-data/wetground-sources.json`, decisions in
+`docs/plant-data/wetground-implementation.md`, and `dev/wetground-review.html` shows every
+choice at library size and true scale beside a 6 ft post.
 
 **Sedge catalog:** keep one Sedge tab rather than adding habitat tabs. The tray
 sorts it into data-driven Sun & meadow, Shade & woodland, and Wet & rain garden

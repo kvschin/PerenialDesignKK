@@ -57,6 +57,7 @@ function snowCrownFrac(P){
   // mat-forming shrub-form perennials: the mass is a runner carpet, not a mound
   if (P.form==='shrub' && (L.habit==='mossphlox' || L.habit==='matflower')) return 0.30;
   if (P.form==='bunchgrass' && L.mound) return 0.45;   // low dome sedges
+  if (L.leafStyle==='pitcher') return 0.62;            // H is the flower stalk, gone by winter
   return SNOW_CROWN[P.form] || 1;
 }
 function catchesSnow(P, S){
@@ -226,6 +227,84 @@ function drawOpenFlower(ctx,x,y,r,col,eye,petals){
     ctx.ellipse(px,py,r*0.62,r*0.38,a,0,7);
   }
   ctx.fill();drawFloret(ctx,x,y,r*0.21,eye||shade(col,-35));
+}
+
+// The foliage stays low or on its own stalks, so nothing fills the plant's height
+// but a flower stem. Opt-in through the options only the wet-ground plants use.
+function basalFoliageOnly(L){
+  return !!L && (L.leafStyle==='parasol'||L.leafStyle==='pitcher'||L.lowRosette===true);
+}
+/* A big leaf held out on its own stalk and seen from a little above, which no
+   swept blade can draw: Darmera, Ligularia, Rheum, Gunnera and Rodgersia are all
+   this one shape. `lobes` cuts the rim, `depth` says how far in (0 is round, 0.85
+   is nearly separate leaflets) and `cut` the shape of the cut: 1 leaves pointed
+   lobes with wide bays, 3 broad leaflets with narrow slits. The copy under it is
+   the leaf's edge, in `under` where the back of the leaf is a different colour. */
+function parasolPath(ctx,cx,cy,r,flat,tilt,rot,lobes,depth,cut){
+  const n=lobes>1?Math.min(72,lobes*8):20, c=Math.cos(tilt), s=Math.sin(tilt);
+  ctx.beginPath();
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2+rot, w=lobes>1?Math.pow(0.5-0.5*Math.cos(lobes*(a-rot)),cut):0;
+    const rr=r*(1-depth*w), lx=Math.cos(a)*rr, ly=Math.sin(a)*rr*flat;
+    const px=cx+lx*c-ly*s, py=cy+lx*s+ly*c;
+    if(i)ctx.lineTo(px,py); else ctx.moveTo(px,py);
+  }
+  ctx.closePath();
+}
+function drawParasolLeaf(ctx,cx,cy,r,flat,tilt,rot,col,under,L){
+  const lobes=Math.max(1,Math.round(L.lobes||1)), depth=L.lobeDepth||0, cut=L.lobeCut||2;
+  parasolPath(ctx,cx,cy+Math.max(1,r*0.09),r,flat,tilt,rot,lobes,depth,cut);
+  ctx.fillStyle=under;ctx.fill();
+  parasolPath(ctx,cx,cy,r,flat,tilt,rot,lobes,depth,cut);
+  litFill(ctx,cx,cy,r,col,16,-14);
+  if(r<4||L.leafRib===false)return;
+  // the veins run out to the lobe tips from where the stalk meets the leaf
+  const veins=lobes>1?lobes:7, c=Math.cos(tilt), s=Math.sin(tilt);
+  ctx.save();ctx.globalAlpha=0.4;ctx.strokeStyle=shade(col,-30);ctx.lineWidth=Math.max(0.45,r*0.022);
+  ctx.beginPath();
+  for(let v=0;v<veins;v++){
+    const a=v/veins*Math.PI*2+rot, lx=Math.cos(a)*r*0.86, ly=Math.sin(a)*r*0.86*flat;
+    ctx.moveTo(cx,cy);ctx.lineTo(cx+lx*c-ly*s,cy+lx*s+ly*c);
+  }
+  ctx.stroke();ctx.restore();
+}
+
+/* A rose mallow: five broad overlapping petals in a shallow funnel, a dark eye and
+   a pale column of stamens standing out of it. `petalW` narrows the petals until
+   they part, which is the scarlet rose mallow's star. */
+function drawMallowFlower(ctx,x,y,r,col,eye,petalW,rot){
+  const w=petalW||0.74;
+  for(let p=0;p<5;p++){
+    const a=rot+p/5*Math.PI*2, ca=Math.cos(a), sa=Math.sin(a);
+    const px=x+ca*r*0.54, py=y+sa*r*0.54*0.82;
+    ctx.beginPath();ctx.ellipse(px,py,r*0.52,r*0.52*w,Math.atan2(sa*0.82,ca),0,7);
+    ctx.fillStyle=shade(col,(p%2?-5:5)+sa*-7);ctx.fill();
+  }
+  ctx.fillStyle=eye||shade(col,-42);ctx.beginPath();ctx.ellipse(x,y,r*0.27,r*0.22,0,0,7);ctx.fill();
+  const tx=x+r*0.24, ty=y-r*0.3;
+  ctx.strokeStyle=shade(col,48);ctx.lineWidth=Math.max(0.7,r*0.08);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
+  ctx.fillStyle='#f0e2a0';ctx.beginPath();ctx.ellipse(tx,ty,r*0.1,r*0.13,0.6,0,7);ctx.fill();
+}
+
+/* One purple pitcher plant leaf. It is a hollow tube, not a blade: it lies out from
+   the crown, curves up, swells toward the mouth, and carries a flared hood behind
+   the mouth. Red veins in `S.edge` run up the tube and over the hood. */
+const PITCHER_PROF=new Float64Array(11);
+for(let i=0;i<=10;i++){const t=i/10;PITCHER_PROF[i]=t<0.72?0.22+0.78*Math.pow(t/0.72,0.8):1-0.28*(t-0.72)/0.28;}
+function drawPitcher(ctx,bx,by,qx,qy,tx,ty,w,col,vein,side){
+  ribbonPath(ctx,bx,by,qx,qy,tx,ty,PITCHER_PROF,w,0,0);
+  litFill(ctx,(bx+tx)/2,(by+ty)/2,w*2,col,18,-20);
+  ctx.save();ctx.globalAlpha=0.72;ctx.strokeStyle=vein;ctx.lineWidth=Math.max(0.4,w*0.15);ctx.beginPath();
+  for(const off of [-0.42,0.42]){
+    ctx.moveTo(bx,by);ctx.quadraticCurveTo(qx+off*w,qy+off*w*0.4,tx+off*w,ty);
+  }
+  ctx.stroke();ctx.restore();
+  // the hood stands behind the mouth, on the side away from the crown
+  ctx.fillStyle=vein;ctx.beginPath();
+  ctx.ellipse(tx+side*w*0.55,ty-w*0.5,w*1.08,w*0.95,side*0.4,0,7);ctx.fill();
+  ctx.fillStyle=shade(col,12);ctx.beginPath();
+  ctx.ellipse(tx+side*w*0.62,ty-w*0.55,w*0.68,w*0.56,side*0.4,0,7);ctx.fill();
+  ctx.fillStyle=shade(vein,-42);ctx.beginPath();ctx.ellipse(tx,ty,w*0.8,w*0.38,side*-0.2,0,7);ctx.fill();
 }
 
 function drawMilkweedPods(ctx,x,y,L,S,season,index,snowAnchors){
@@ -1011,7 +1090,7 @@ function drawDoubleBloom(ctx,cx,cy,rad,petals,col,a2){
    Anything batched through fcPush flushes before the scratch fills. When a
    stroke path is being built alongside, the flush strokes it first and opens
    a new one, because fcDraw begins its own path. */
-function drawStemTipHeads(ctx,L,col,m,H,sway,rnd,fol,blooming,a2,stemCol){
+function drawStemTipHeads(ctx,L,col,m,H,sway,rnd,fol,blooming,a2,stemCol,eye){
   if (!_stN || m<=0) return;
   const step=_stN/m, style=L.headStyle||'star';
   const pick=k=>Math.min(_stN-1,Math.floor((k+0.5)*step));
@@ -1035,6 +1114,7 @@ function drawStemTipHeads(ctx,L,col,m,H,sway,rnd,fol,blooming,a2,stemCol){
     for (let k=0;k<m;k++){
       const i=pick(k), cx=_stX[i]+Math.sin(_stA[i])*rad*0.2, cy=_stY[i]-rad*0.25;
       if (blooming && L.flowerStyle==='double') drawDoubleBloom(ctx,cx,cy,rad*(0.85+rnd()*0.25),L.flowerPetals,col,a2);
+      else if (blooming && L.flowerStyle==='mallow') drawMallowFlower(ctx,cx,cy,rad*(0.88+rnd()*0.2),col,eye,L.petalW,rnd()*1.25);
       else if (blooming) drawOpenFlower(ctx,cx,cy,rad,col,shade(col,-30),L.petals||5);
       else {                                   // follicles splayed in a star
         for (let p=0;p<4;p++){ const a=-Math.PI/2+(p-1.5)*0.7;
@@ -4777,6 +4857,45 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             {shape:L.leafShape,rib:true,flat:!art2On(L)});
         }
       }
+      else if (L.leafStyle==='parasol'){
+        // Big leaves held out on stalks, sited on a spiral over the crown and
+        // painted far to near. The far ones stand higher, as they do on a real
+        // clump, so the near ones do not hide them. The stalk's colour is the
+        // plant's own stem: rust on a Darmera, dark on a Ligularia.
+        const lr=H*(L.parasolR||0.2), flat=L.parasolFlat||0.46, pet=L.petioles||0.5, reach=H*(L.leafSpread||0.5);
+        const stalk=P.stem||shade(S.fol,-24), under=S.edge, leaves=[];
+        for(let i=0;i<fn;i++){
+          const a=i*2.39996+rnd()*0.5, rr=Math.sqrt((i+0.5)/fn);
+          leaves.push({x:Math.cos(a)*rr,z:Math.sin(a)*rr,k:0.82+rnd()*0.34,h:rnd(),rot:rnd()*6.283,tone:(rnd()-0.5)*20});
+        }
+        leaves.sort((p,q)=>p.z-q.z);
+        for(const o of leaves){
+          // A near leaf stands at half the height of a far one and tips toward the
+          // viewer, so the clump reads as a mound of separate leaves. At one height
+          // they merge into a single flat table on a stem, which looks like a tree.
+          const back=(1-o.z)/2, px=o.x*reach+sway, py=-H*pet*(0.44+0.46*back+o.h*0.1), lean=o.x*0.42;
+          ctx.strokeStyle=stalk;ctx.lineWidth=Math.max(0.8,L.stalkW||lr*0.055);ctx.beginPath();
+          ctx.moveTo(o.x*H*0.06,0);ctx.quadraticCurveTo(px*0.3,py*0.62,px,py);ctx.stroke();
+          const col=shade(S.fol,o.tone+(1-back)*14-6);
+          drawParasolLeaf(ctx,px,py,lr*o.k,flat*(1.18-0.36*back),lean,o.rot,col,under||shade(col,-34),L);
+        }
+      }
+      else if (L.leafStyle==='pitcher'){
+        // A rosette, so the leaves leave the crown in every direction, laid out on
+        // the ground: those at the back run away up the screen, those in front come
+        // toward the viewer, and each turns up at its mouth. Drawn as a fan, every
+        // mouth sat in one row along the rim of what read as a basket.
+        const reach=H*(L.pitcherLen||0.56), rise=H*(L.pitcherRise||0.42), w=L.pitcherW||3.2, vein=S.edge||shade(S.fol,-30), list=[];
+        for(let i=0;i<fn;i++){
+          const a=i*2.39996+rnd()*0.5, l=reach*(0.74+rnd()*0.34);
+          list.push({x:Math.cos(a)*l,y:Math.sin(a)*l*0.5,r:rise*(0.82+rnd()*0.3),tone:(rnd()-0.5)*14});
+        }
+        list.sort((p,q)=>p.y-q.y);
+        for(const b of list){
+          const side=b.x<0?-1:1, tx=b.x+sway*0.6, ty=b.y-b.r;
+          drawPitcher(ctx,side*0.6,b.y*0.1,b.x*0.86,b.y*0.86+1,tx,ty,w,shade(S.fol,b.tone),vein,side);
+        }
+      }
       else if (art2On(L) && L.leafShape && L.leafStyle==='willow'){
         // Willow-leaf sunflower is a column of drooping threads, not a basal
         // fan — the architecture IS the species, so ART2 keeps the classic
@@ -4865,7 +4984,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.lineCap = 'butt';
     }
     // flower stems
-    const sn = L.bloomStemsOnly&&!blooming ? 0 : stemFor(P.form==='spike'?(L.stems||7):(L.stems||6));
+    // bloomStemsOnly:'seed' keeps the bare stalks through the seed season too
+    const sn = L.bloomStemsOnly&&!blooming&&!(L.bloomStemsOnly==='seed'&&S.seed) ? 0 : stemFor(P.form==='spike'?(L.stems||7):(L.stems||6));
     // ART2: give the clump depth. Each stem takes a z — back stems root further
     // away, draw smaller and duller, and paint FIRST. The classic path draws
     // them flat in loop order, so a back flower can paint over a front one.
@@ -5340,12 +5460,30 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               const px=hx+Math.cos(a)*(L.headSpread||7)*(taper?1-taper+taper*(row+1)/rows:1),py=hy+row*H*gap+Math.sin(a)*3;
               ctx.strokeStyle=shade(S.fol||S.seed,-20);ctx.lineWidth=0.7;ctx.beginPath();
               ctx.moveTo(hx,hy+row*H*gap+4);ctx.lineTo(px,py);ctx.stroke();
-              if(headOn)drawOpenFlower(ctx,px,py,L.flowerR||3.8,col,S.eye,whorls?3:5);
+              if(headOn)drawOpenFlower(ctx,px,py,L.flowerR||3.8,col,S.eye,whorls?(L.whorlPetals||3):5);
               else if(S.seed){
                 drawFloret(ctx,px,py,whorls?1.8:1,col);
                 if(!whorls){ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,py-4);ctx.stroke();}
               }
             }
+          } else if(L.umbelStyle==='nodding'){
+            // Bells hanging in a ring from the top of the stalk: giant cowslip. One
+            // wide bell is a pitcher plant's flower. The capsules stand back up.
+            const n=Math.max(1,Math.min(14,Math.round(L.bells||8))),reach=L.headSpread||5,w=L.bellW||1.8,bh=L.bellH||3.6;
+            ctx.strokeStyle=P.stem||shade(S.fol||col,-20);ctx.lineWidth=0.7;ctx.beginPath();
+            for(let f=0;f<n;f++){
+              const a=f/n*Math.PI*2+i,px=hx+Math.cos(a)*reach,py=hy+1.4+Math.sin(a)*reach*0.32;
+              ctx.moveTo(hx,hy);ctx.quadraticCurveTo(hx+Math.cos(a)*reach*0.7,hy-1.6,px,py);
+            }
+            ctx.stroke();
+            for(let pass=0;pass<2;pass++)for(let f=0;f<n;f++){
+              const a=f/n*Math.PI*2+i,sa=Math.sin(a),px=hx+Math.cos(a)*reach,py=hy+1.4+sa*reach*0.32;
+              if((sa<0)!==(pass===0))continue;           // the far side of the ring first
+              if(headOn)drawBulbBell(ctx,px,py+bh*0.52,w,bh,col,L.rim||shade(col,18),Math.cos(a)*0.14);
+              else fcPush(px,py-1,w*0.62,1.35);
+            }
+            if(!headOn)fcDraw(ctx,col,16,-16);
+            if(headOn&&S.eye&&n===1)drawFloret(ctx,hx,hy+bh*0.46,w*0.34,S.eye,{squash:1});
           } else if(L.umbelStyle==='bracted'){
             if(S.bract&&S.fol&&L.bractN&&headOn){
               const n=Math.max(3,Math.min(6,Math.round(L.bractN)));
@@ -5426,6 +5564,24 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               fcPush(px,py,(L.floretR||1.6)*(1-t*0.7),0.9);
             }
             fcDraw(ctx,col,22,-14);
+          } else if(L.spikeStyle==='plume'){
+            // A branched cone, narrow at the top of the stalk and widening down
+            // it: Rodgersia and ornamental rhubarb. It holds in seed, rust-coloured.
+            const span=H*(L.racemeSpan||0.3),rows=Math.max(3,Math.min(12,Math.round(L.plumeRows||7)));
+            const reach=L.plumeW||8,per=Math.max(2,Math.min(7,Math.round(L.florets||4))),fr=(L.floretR||1.2)*(headOn?1:0.82);
+            // the side branches are the flower's own colour, thin, and of uneven
+            // length: dark and regular they read as the ribs of a fir tree
+            ctx.strokeStyle=shade(col,-18);ctx.lineWidth=0.5;ctx.beginPath();
+            for(let row=0;row<rows;row++)for(const side of [-1,1]){
+              const u=(row+0.2+rnd()*0.7)/rows,y0=hy+u*span,bl=reach*(0.26+0.74*u)*(0.62+rnd()*0.56),x1=hx+side*bl,y1=y0-bl*(0.3+rnd()*0.4);
+              ctx.moveTo(hx,y0);ctx.lineTo(x1,y1);
+              if(_fcN>FC_MAX-per){ctx.stroke();fcDraw(ctx,col,24,-14);ctx.beginPath();}
+              for(let f=0;f<per;f++){
+                const g=(f+0.6)/per;
+                fcPush(hx+(x1-hx)*g+(rnd()-0.5)*2.4,y0+(y1-y0)*g+(rnd()-0.5)*2.4,fr*(1-0.28*g),0.92);
+              }
+            }
+            ctx.stroke();fcDraw(ctx,col,24,-14);
           } else if(L.spikeStyle==='hooded'||L.spikeStyle==='lobelia'){
             const hood=L.spikeStyle==='hooded',n=Math.max(3,Math.min(10,L.florets||6)),span=H*(L.racemeSpan||(hood?0.16:0.34));
             for(let f=0;f<n;f++){
@@ -6491,7 +6647,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       if (mature && ((blooming&&S.bloom)||S.seed) && (L.flowerStems===undefined||L.flowerStems>0)){
         const col=(blooming?S.bloom:null)||S.seed, m0=stemFor(L.flowerStems||8);
-        drawStemTipHeads(ctx,L,col,S.bloom&&!S.seed?Math.max(1,Math.ceil(m0*blv)):m0,H,sway,rnd,fol,blooming&&!!S.bloom,a2,P.stem);
+        drawStemTipHeads(ctx,L,col,S.bloom&&!S.seed?Math.max(1,Math.ceil(m0*blv)):m0,H,sway,rnd,fol,blooming&&!!S.bloom,a2,P.stem,S.eye);
       }
     } else if (mature && ((blooming&&S.bloom)||S.seed)){
       const col=(blooming?S.bloom:null)||S.seed;
@@ -8682,10 +8838,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // like fringed sage, or a lamb's ear mat, they drew a stray highlight in
   // the empty air above it.
   // A habit tree lights each clump itself, and its crown has sky in it where
-  // these would land.
+  // these would land. So does a plant whose stems stand only when it flowers:
+  // the rest of the year H is air, and big leaves on stalks light themselves.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
       && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look))
-      && !shrubHabitOf(P)){
+      && !shrubHabitOf(P) && !basalFoliageOnly(P.look)){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
     ctx.save(); ctx.globalAlpha=isTreeDef(P)?0.16:0.13;
     ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';

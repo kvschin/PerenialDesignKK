@@ -16964,9 +16964,9 @@ test('a plant native to the region is not hidden by that region\'s own caution',
 
   // The hint must promise what the filter delivers, not what the table holds.
   const counts=invasiveFilterCounts('north-america');
-  assertEqual(counts.hidden+counts.keptNative,16,'sixteen plants carry a caution for North America');
+  assertEqual(counts.hidden+counts.keptNative,18,'eighteen plants carry a caution for North America');
   assertEqual(counts.keptNative,2,'two of them are on plants native to it');
-  assert(invasiveCriteriaText(na).includes('Hides the 14 introduced plants'),'and the copy states the fourteen it actually hides');
+  assert(invasiveCriteriaText(na).includes('Hides the 16 introduced plants'),'and the copy states the sixteen it actually hides');
   assert(/native to North America keep their place/.test(invasiveCriteriaText(na)),'and says why the other two are still listed');
   assertEqual(invasiveFilterCounts('europe').keptNative,0,'Europe has no native-and-flagged plant, so its copy says nothing about one');
   assert(!/keep their place/.test(invasiveCriteriaText({nativeRegion:'europe',invasive:'hide'})),'the clause appears only where it applies');
@@ -20730,4 +20730,200 @@ test('a small selection can still be dragged: inside the marquee a press means m
   assertEqual(all.length, 8, 'a large selection keeps its edge midpoints');
   const nw = all.find(p => p.id === 'nw');
   assert(selHandleGrab(all, nw.x, nw.y + 4, fine, true), 'and a press just inside its corner still takes the corner');
+});
+
+/* ---------- wet-ground perennials (0.9.79) ---------- */
+function wetOps(key,season,variant=null,growth=1,seed=101){
+  const ops=[]; let fill=null, stroke=null;
+  const ctx=new Proxy({}, {
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+      if(p==='measureText')return ()=>({width:0});
+      return (...a)=>{ ops.push({op:p,a,fill,stroke}); };
+    },
+    set(o,p,v){o[p]=v; if(p==='fillStyle')fill=v; if(p==='strokeStyle')stroke=v; return true;}
+  });
+  drawPlant(ctx,0,0,key,growth,season,seed,0,variant,1);
+  return ops;
+}
+const wetFilled=(ops,col)=>ops.filter(o=>o.op==='fill'&&o.fill===col).length;
+const wetStroked=(ops,col)=>ops.filter(o=>o.op==='stroke'&&o.stroke===col).length;
+
+test('wet-ground plants stay in the catalog\'s real categories and on dry-ground rules', () => {
+  setup();
+  // no marginal flag means no advice about water, wherever they are planted
+  for(const k of ['japaneseprimrose','bigleafligularia','swamprosemallow','bowlesgoldensedge']){
+    assert(!isMarginalDef(PLANTS[k]),k+': not a marginal');
+    assert(!marginalOutOfReach(plantDef(k),10,10),k+': never told to plan on a bog');
+  }
+  game.tool='japaneseprimrose';
+  assertEqual(applyToolAt(10,10),'plant','plants in ordinary ground');
+  assertEqual(plantCategoryFor('swamprosemallow'),'sunper','rose mallow files with the sun perennials');
+  assertEqual(plantCategoryFor('bigleafligularia'),'shadeper','ligularia files with the shade perennials');
+  assertEqual(plantCategoryFor('bowlesgoldensedge'),'sedges','Bowles\' golden sedge is a sedge');
+  assert(!PLANTS.slendersweetflag.group,'slender sweet flag keeps out of the water plants\' sweet flag family');
+  // deer only where a source says so: Clemson says plainly they eat hardy hibiscus
+  assert(!plantRoles('swamprosemallow').includes('deerOk'),'deer eat rose mallow');
+  assert(!plantRoles('scarletrosemallow').includes('deerOk'),'and scarlet rose mallow');
+  for(const k of ['bigleafligularia','rocketligularia','monkeyflower','marshspurge'])
+    assert(plantRoles(k).includes('deerOk'),k+': a source names it resistant');
+});
+
+test('three wet-ground plants carry a caution for the region it applies to, and only there', () => {
+  setup();
+  const na='north-america', eu='europe';
+  const hides=(k,c,v)=>invasiveFilterHides(plantRef(k,v||null),c);
+  assert(hides('raggedrobin',na),'Connecticut bans ragged robin, and it is not native here');
+  assert(!hides('raggedrobin',eu),'it is a native plant of Europe, and offered there');
+  assert(hides('raggedrobin',na,'jenny'),'a named selection does not escape its species');
+  assert(hides('raggedrobin',na,'albiflora'),'nor does the white one');
+  assert(hides('meadowsweet',na),'Wisconsin restricts meadowsweet');
+  assert(hides('meadowsweet',na,'aurea'),'and the golden form with it');
+  assert(!hides('meadowsweet',eu),'it is the plant of European riverbanks');
+  assert(hides('giantrhubarb',eu),'Britain bans the plant sold under this name');
+  assert(!hides('giantrhubarb',na),'and nothing read restricts it in North America');
+  // the record names the place and the rule, and every source link is real
+  for(const k of ['raggedrobin','meadowsweet','giantrhubarb']){
+    const g=plantGuidance(plantRef(k,null)); assert(g&&g.invasive&&g.invasive.length>=2,k+': guidance resolves');
+    for(const note of g.invasive) assert(PLANT_GUIDANCE_SOURCES[note.source],k+': '+note.source+' is a named source');
+    assertEqual(PLANT_GUIDANCE[k].taxon,PLANTS[k].latin,k+': the note is about this taxon');
+  }
+  assert(/statute/i.test(PLANT_GUIDANCE.raggedrobin.invasive[0].text),'the Connecticut note says it is law');
+  assert(/Restricted/.test(PLANT_GUIDANCE.meadowsweet.invasive[0].text),'the Wisconsin note names the category');
+  // read and judged not to be a caution: naturalised is not invasive
+  for(const k of ['purplepitcherplant','umbrellaplant','slendersweetflag'])
+    assert(!PLANT_GUIDANCE[k]&&!plantGuidance(plantRef(k,null)).invasive.length,k+': no record, and so no statement either way');
+  const swamp=plantDef('swamprosemallow');
+  assert(!hides('swamprosemallow',na),'a native plant with no record stays');
+  assertEqual(swamp.nativeTo.join(','),'north-america','and stays offered to a native garden');
+});
+
+test('a parasol leaf is cut by its lobes, on stalks, and stands apart from its neighbours', () => {
+  const path=(lobes,depth,cut)=>{
+    const pts=[];
+    const ctx={beginPath(){},closePath(){},moveTo(x,y){pts.push([x,y]);},lineTo(x,y){pts.push([x,y]);}};
+    parasolPath(ctx,0,0,10,1,0,0,lobes,depth,cut);
+    return pts.map(([x,y])=>Math.hypot(x,y));
+  };
+  const round=path(1,0,2);
+  assert(Math.max(...round)-Math.min(...round)<1e-9,'no lobes is a true circle');
+  const cut=path(5,0.8,2.6);
+  assert(Math.abs(Math.max(...cut)-10)<1e-9,'a lobe tip reaches the full radius');
+  assert(Math.min(...cut)<2.4,'a deep cut comes most of the way in, so a Rodgersia reads as leaflets');
+  const shallow=path(13,0.13,1);
+  assert(Math.min(...shallow)>8.6,'a Darmera is only scalloped');
+  // the leaves sit at different heights: at one height they merged into a table on
+  // a stem, and umbrella plant and giant rhubarb both looked like small trees
+  for(const k of ['umbrellaplant','giantrhubarb','featherrodgersia']){
+    const ops=wetOps(k,'Summer');
+    const stalks=ops.filter(o=>o.op==='quadraticCurveTo').map(o=>o.a[3]);
+    assert(stalks.length>=7,k+': a stalk for each leaf');
+    const spread=(Math.max(...stalks)-Math.min(...stalks))/plantVisualH(PLANTS[k]);
+    assert(spread>0.18,k+': leaf heights spread over '+spread.toFixed(2)+' of the plant');
+  }
+  // the back of the leaf is its own colour on the dark ligularias
+  assert(wetFilled(wetOps('bigleafligularia','Summer','desdemona'),'#55264a')>=5,'Desdemona shows its purple backs');
+  assert(wetFilled(wetOps('bigleafligularia','Summer'),'#55264a')===0,'the species does not');
+});
+
+test('umbrella plant flowers on bare stalks before it has a leaf', () => {
+  const spring=wetOps('umbrellaplant','Spring'), summer=wetOps('umbrellaplant','Summer');
+  assert(PLANTS.umbrellaplant.sea.Spring.bloom&&!PLANTS.umbrellaplant.sea.Spring.fol,'no spring leaves in the data');
+  assert(spring.some(o=>o.op==='fill'),'the flowers are drawn');
+  assert(!spring.some(o=>o.fill&&o.fill.includes&&o.fill.includes('4f7a48')),'with no leaf among them');
+  // bloomStemsOnly: the flower stalks are gone once it has finished
+  const stalks=ops=>ops.filter(o=>o.op==='stroke'&&o.stroke==='#7a4a44').length;
+  assert(stalks(spring)>=3,'its stalks stand in flower');
+  assertEqual(PLANTS.umbrellaplant.sea.Fall.fol,'#a84a30','and it turns red in fall');
+  assert(wetOps('umbrellaplant','Winter').length===0,'it is gone in winter, shadow included');
+});
+
+test('bloomStemsOnly:seed keeps stalks through the seed season and not before', () => {
+  const stalks=(k,s)=>wetOps(k,s).filter(o=>o.op==='quadraticCurveTo').length;
+  const leavesOnly=stalks('bigleafligularia','Spring'), inSeed=stalks('bigleafligularia','Fall');
+  assert(inSeed>leavesOnly,'a ligularia holds its stalks in seed ('+inSeed+' against '+leavesOnly+')');
+  assert(PLANTS.bigleafligularia.sea.Fall.seed,'because fall carries seed');
+  assert(!PLANTS.bigleafligularia.sea.Spring.seed,'and spring does not');
+  // plain true still means flowering only: taro has no seed stage to keep
+  assertEqual(PLANTS.taro.look.bloomStemsOnly,true,'the older option is untouched');
+});
+
+test('the wet-ground flower shapes draw what they are named for', () => {
+  // whorlPetals: arrowhead and water plantain keep their 3, a primrose has 5. Watch the
+  // calls: counting ellipses passes either way, since a primrose has more flowers.
+  const petals=(k,season)=>{
+    const real=drawOpenFlower, seen=new Set();
+    drawOpenFlower=(c,x,y,r,col,eye,p)=>{ seen.add(p); };
+    try{ wetOps(k,season); } finally { drawOpenFlower=real; }
+    return [...seen].join(',');
+  };
+  assertEqual(petals('japaneseprimrose','Spring'),'5','a primrose has five petals');
+  assertEqual(petals('arrowhead','Summer'),'3','arrowhead keeps its three');
+  assertEqual(petals('waterplantain','Summer'),'3','and water plantain');
+  assertEqual(PLANTS.arrowhead.look.whorlPetals,undefined,'neither opts into anything');
+  // tiers, not a hyacinth: the whorls are further apart than a flower is wide
+  const L=PLANTS.japaneseprimrose.look, gap=L.whorlGap*plantVisualH(PLANTS.japaneseprimrose);
+  assert(gap>L.flowerR*2.2,'a candelabra has gaps between its tiers ('+gap.toFixed(1)+' against '+(L.flowerR*2).toFixed(1)+')');
+  // the mallow's dark eye is authored, and the scarlet's petals part into a star
+  const eye=PLANTS.swamprosemallow.sea.Summer.eye;
+  assert(wetFilled(wetOps('swamprosemallow','Summer'),eye)>=4,'each flower has its dark eye');
+  assert(PLANTS.scarletrosemallow.look.petalW<0.6,'and the scarlet\'s petals are narrow enough to part');
+  assertEqual(PLANTS.swamprosemallow.look.petalW,undefined,'where the swamp mallow\'s overlap');
+  // a rosette, not a fan: pitchers come toward the viewer as well as go away
+  const real=drawPitcher, pitchers=[];
+  drawPitcher=(c,bx,by,qx,qy,tx,ty)=>{ pitchers.push({qx,qy,tx,ty}); };
+  try{ wetOps('purplepitcherplant','Summer'); } finally { drawPitcher=real; }
+  assertEqual(pitchers.length,PLANTS.purplepitcherplant.look.leaves,'a pitcher for each leaf');
+  assert(pitchers.some(p=>p.tx<-3)&&pitchers.some(p=>p.tx>3),'they leave the crown to both sides');
+  assert(pitchers.some(p=>p.qy>2),'some run toward the viewer on the ground');
+  assert(pitchers.some(p=>p.qy<-2),'and some run away behind the crown');
+  assert(pitchers.every((p,i)=>!i||p.qy>=pitchers[i-1].qy),'and they are painted far to near');
+  const pit=wetOps('purplepitcherplant','Summer').filter(o=>o.op==='ellipse');
+  assert(pit.length>=pitchers.length*3,'a hood, a lining and a mouth to each');
+  // plume: the seed head holds, in its own colour
+  assert(wetStroked(wetOps('featherrodgersia','Fall'),shade('#8a4a36',-18))>=1,'a plume stands over the leaves in seed, in its rust colour');
+  assertEqual(wetStroked(wetOps('featherrodgersia','Spring'),shade('#8a4a36',-18)),0,'and spring has no plume at all');
+  // nodding: the bells hang below the top of the stalk
+  const cow=wetOps('giantcowslip','Summer').filter(o=>o.op==='bezierCurveTo');
+  assert(cow.length>=8,'giant cowslip draws its ring of bells');
+});
+
+test('a low rosette draws no stray highlight in the air above it', () => {
+  // those strokes land up to 0.83 of H: true of a plant that fills its height, and
+  // floating in the air when the height belongs to a flower stem not there yet
+  assert(basalFoliageOnly(PLANTS.cuckooflower.look),'cuckoo flower opts in');
+  assert(basalFoliageOnly(PLANTS.umbrellaplant.look),'a parasol does by its leaf style');
+  assert(basalFoliageOnly(PLANTS.purplepitcherplant.look),'and a pitcher plant');
+  assert(!basalFoliageOnly(PLANTS.filipendula.look),'a leafy plant keeps them');
+  assert(!basalFoliageOnly(PLANTS.taro.look),'and so does the older bloomStemsOnly plant, which must not change');
+  assert(!basalFoliageOnly(undefined),'nor does it throw on no look');
+  const H=plantVisualH(PLANTS.cuckooflower);
+  const pts=wetOps('cuckooflower','Summer').filter(o=>o.op==='quadraticCurveTo').map(o=>o.a[3]);
+  assert(!pts.some(y=>y<-H*0.5),'nothing above the rosette in summer');
+  // and the snow on an evergreen rosette lies on it
+  assertEqual(snowCrownFrac(PLANTS.purplepitcherplant),0.62,'snow on the pitchers, not at the height of a flower that has gone');
+});
+
+test('every wet-ground choice stays inside its sprite box at full growth', () => {
+  const doc=['swamprosemallow','scarletrosemallow','purplepitcherplant','monkeyflower','raggedrobin','wateravens','cuckooflower','marshfern',
+    'bigleafligularia','rocketligularia','featherrodgersia','chestnutrodgersia','fingerleafrodgersia','japaneseprimrose','bulleysprimrose','giantcowslip',
+    'drumstickprimrose','umbrellaplant','giantrhubarb','meadowsweet','ornamentalrhubarb','bowlesgoldensedge','marshspurge','slendersweetflag'];
+  for(const k of doc){
+    const P=PLANTS[k];
+    for(const v of [null,...Object.keys(P.cv||{})]){
+      const D=plantDef(k,v), box=plantDrawBox(D,k,1), H=plantVisualH(D), L=D.look||{};
+      for(const season of ['Spring','Summer','Fall','Winter']){
+        const ops=wetOps(k,season,v);
+        for(const o of ops){
+          if((o.op==='moveTo'||o.op==='lineTo')&&typeof o.a[0]==='number'){
+            assert(Math.abs(o.a[0])<=box.halfW+1,k+':'+v+' '+season+' x '+o.a[0].toFixed(1)+' within '+box.halfW.toFixed(1));
+            assert(-o.a[1]<=box.top+1,k+':'+v+' '+season+' top');
+          }
+        }
+      }
+      if(L.leafStyle==='parasol') assert(L.sideScale>=(L.leafSpread+L.parasolR)*0.9,k+': sideScale holds the leaves it draws');
+      assert(L.dormantWhenBare||P.sea.Winter.fol||P.sea.Winter.seed,k+': winter draws nothing floating');
+    }
+  }
 });
