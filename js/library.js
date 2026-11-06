@@ -341,7 +341,9 @@ function showLibraryDetail(key){
     ['Hardiness', `USDA zones ${P.zones[0]}–${P.zones[1]}`],
     ['Bloom', libraryBloomText(P)],
     ['Light', P.sun==='full'?'Full sun':'Part shade'],
-    ['Moisture', P.moist[0].toUpperCase()+P.moist.slice(1)],
+    ['Moisture', P.type==='water'
+      ? (P.marginal?'Pond margin: shallow water or wet ground':'Open water: floats on a pond, river or lake')
+      : P.moist[0].toUpperCase()+P.moist.slice(1)],
     ['Broad origin', nativeOriginText(P)],
     ['Plant status', provenanceLabel(P)],
     ['Roles', roleSummary(key)],

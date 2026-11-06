@@ -701,6 +701,8 @@ append local native uncertainty and regional cautions with source URLs; the
 on-screen list names affected regions. This
 does not alter placement, saves, schemes, collections, or quantities.
 
+The water plants (0.9.77) added five cautions read by hand, three of them on
+nothing `dev/invasive-check.js` can see: see `docs/plant-data/water-implementation.md`.
 The initial review covers nine species with regional invasive cautions, seven
 with narrower native-range observations, and six with site qualifications.
 Coverage and remaining work are in `docs/plant-data/regional-guidance.md`.
@@ -5321,6 +5323,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     off-allowlist licences) and `--verify` re-checks every shipped record before
     a release — the only defence against a file being deleted from Commons after
     we shipped it offline.
+    **`--write` rewrites the whole table**, in catalog order, and re-resolves what is
+    already there: in 0.9.77 it would have changed 8 unrelated articles to whatever
+    they now redirect to. Add new rows by hand from its report when that is not wanted.
     **The "Learn more" Wikipedia reference is generated, not authored**
     (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 545
     species carry one. It is a table copied over `PLANTS` at load, exactly like
@@ -6660,6 +6665,23 @@ add a new branch in `drawPlant`. It automatically appears in the tool tray
 (built from `PLANT_KEYS`). Match real botany — Kevin grows these; accuracy
 matters more than prettiness, and that includes spacing/zone/native/resistance data.
 Winter must show *structure*, not bare ground; that's the whole point.
+
+**Water plants (0.9.77):** 34 records, 14 cultivars. `marginal:true`
+(`isMarginalDef`, core.js) marks the 27 that stand in shallow water OR on wet
+ground; the 7 without it float and stay on water tiles, so `type:'water'` alone no
+longer means "only on water". Planting a marginal more than two tiles from water
+is soft advice (`marginalOutOfReach`, `marginalDry` in `PLANT_PLACEMENT_POLICY`),
+not a refusal, since a bog or a rain garden is wet ground no water tile describes.
+Water can be painted under a marginal, and lawn cannot be laid over a floating
+plant. A marquee move carries its water tile along, so the rule only bites on a
+selection whose terrain stays behind. Water DEPTH is not modelled; depth guidance
+is in the blurbs. `form:'emergent'` (`drawEmergent`) draws the uprights (rushes,
+horsetails, cattails, sweet flag), and `waterleaf` lays pads flat with `padSpread`
+and `padFlat`. Sources and estimates are in `docs/plant-data/water-sources.json`,
+decisions in `docs/plant-data/water-implementation.md`, and `dev/water-review.html`
+shows them all at library size and at true garden scale. The zone picker is derived
+from the catalog, so a record must stay inside 2-11 or it widens the chips for
+everybody: NC State's 1a for American sweet flag and 12b for thalia are clamped.
 
 **Sedge catalog:** keep one Sedge tab rather than adding habitat tabs. The tray
 sorts it into data-driven Sun & meadow, Shade & woodland, and Wet & rain garden

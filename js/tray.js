@@ -2173,7 +2173,8 @@ function discoveryBloomLabel(P){
 function discoverySiteMeta(P){
   const meta=document.createElement('span'); meta.className='plant-site-meta';
   const sun=P.sun==='full'?'Full sun':P.sun==='part'?'Part shade':'Shade';
-  const moisture=P.moist==='dry'?'Low water':P.moist==='moist'?'Moist':'Average water';
+  const moisture=P.type==='water'?(P.marginal?'Pond margin':'Open water')
+    :P.moist==='dry'?'Low water':P.moist==='moist'?'Moist':'Average water';
   const size=typeof matureSizeText==='function'?matureSizeText(P):'';
   meta.textContent=[sun,moisture].filter(Boolean).join(' \u00b7 ');
   /* The size gets its own span so a card that lets this line WRAP (the variant

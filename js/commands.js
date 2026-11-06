@@ -11,6 +11,7 @@ const PLANT_PLACEMENT_POLICY={
   activeCanopySun:{mode:'soft',toast:'warn'},
   treeSpacing:{mode:'soft',toast:'warn'},
   shrubSpacing:{mode:'soft',toast:'warn'},
+  marginalDry:{mode:'soft',toast:'warn'},
 };
 function placementPolicy(rule){ return PLANT_PLACEMENT_POLICY[rule] || {mode:'hard'}; }
 /* True while a DRAG or a FILL is laying plants: placePlantAt then spaces the
@@ -78,16 +79,34 @@ function pulseCrowding(crowd,placedKey){
   if (crowd.shrub) pulseShrubFootprint(crowd.shrub.key);
   else if (placedKey) pulseShrubFootprint(placedKey);
 }
+/* Is this marginal being planted out of reach of water? A marginal in a pot is a
+   tub water garden and carries its own water, so it never asks. Three feet is
+   about as far as a pond edge keeps the ground wet without help; past that the
+   plant still goes in, because a bog or a rain garden is wet ground no water
+   tile can describe, and the toast says what the plant is going to need. */
+const MARGINAL_REACH_TILES=2;
+function marginalOutOfReach(def,x,y){
+  if (!isMarginalDef(def) || potAt(x,y)) return false;
+  for (let dy=-MARGINAL_REACH_TILES;dy<=MARGINAL_REACH_TILES;dy++)
+    for (let dx=-MARGINAL_REACH_TILES;dx<=MARGINAL_REACH_TILES;dx++)
+      if (tileTerrain(x+dx,y+dy)==='water') return false;
+  return true;
+}
+function marginalDryText(){
+  return `it wants ground that stays wet, and there is no water within ${fmtFeet(MARGINAL_REACH_TILES*TILE_IN/12)}, so plan on a bog or a rain garden here`;
+}
 function plantPlacedMessage(def,x,y,k,shadeWarn,water,crowd){
   const base=water ? `Planted ${def.name} in the water.`
     : isTreeDef(def) ? treePlacedMessage(def,x,y,k)
     : `Planted ${def.name}.${!shadeWarn && !crowd && (def.type==='forb'||def.type==='grass')?' Drifts of 3+ read better — try the Drift toggle.':''}`;
-  const advised=crowd ? appendPlacementWarning(base,shrubCrowdingText(def,crowd)) : base;
+  const dry=!water && marginalOutOfReach(def,x,y) ? appendPlacementWarning(base,marginalDryText()) : base;
+  const advised=crowd ? appendPlacementWarning(dry,shrubCrowdingText(def,crowd)) : dry;
   return shadeWarn ? appendPlacementWarning(advised,canopyShadeWarningText(shadeWarn)) : advised;
 }
 function plantPlacementToastKind(def,x,y,k,shadeWarn,crowd){
   if (shadeWarn) return shadeWarn.policy.toast;
   if (crowd) return placementPolicy('shrubSpacing').toast;
+  if (marginalOutOfReach(def,x,y)) return placementPolicy('marginalDry').toast;
   if (isTreeDef(def) && nearestTreeCrowder(x,y,def,k)) return placementPolicy('treeSpacing').toast;
   return null;
 }
@@ -96,7 +115,22 @@ function plantPlacementToastKind(def,x,y,k,shadeWarn,crowd){
    be a storm), counting each crowded plant once however many shrubs reach it,
    and pulsing the shrubs involved (a few, not a garden's worth). Returns '' when
    nothing crowds. */
+/* The sentence a gesture of marginals earns when some of them landed out of reach
+   of water: one line for the whole stroke, the way the crowding note works. */
+function gestureMarginalNote(tiles){
+  const def=plantDef(game.tool,game.toolVar||null);
+  if (!isMarginalDef(def) || !tiles || !tiles.length) return '';
+  let dry=0;
+  for (const [x,y] of tiles){ if (marginalOutOfReach(def,x,y)) dry++; }
+  if (!dry) return '';
+  return `${dry===1?'One sits':`${dry} sit`} more than ${fmtFeet(MARGINAL_REACH_TILES*TILE_IN/12)} from water, so plan on wet ground there.`;
+}
 function gestureCrowdingNote(tiles){
+  const marginal=gestureMarginalNote(tiles);
+  const crowd=gestureShrubNote(tiles);
+  return marginal&&crowd ? `${crowd} ${marginal}` : (crowd||marginal);
+}
+function gestureShrubNote(tiles){
   const ref={s:game.tool,v:game.toolVar||null}, def=plantDef(ref.s,ref.v);
   if (!crowdingPlantDef(def) || !tiles || !tiles.length) return '';
   let near=0; const crowders=new Map(), pulse=new Set(), crowded=new Set();
@@ -322,8 +356,9 @@ function actHere(opts){
   if (boulderAt(x,y)){ toast('A boulder is in the way.'); return; }
   const def=PLANTS[game.tool] ? plantDef(game.tool,game.toolVar) : null;
   if (!def) return;
-  if (def.type==='water'){
-    if (terr!=='water'){ toast('Water plants need a pond, river, or lake tile.'); return; }
+  // a marginal on dry ground falls through and plants like any perennial
+  if (def.type==='water' && (terr==='water' || !isMarginalDef(def))){
+    if (terr!=='water'){ toast(`${def.name} floats on open water, so it needs a pond, river, or lake tile.`); return; }
     if (hasPlant){ showPlantCard(existing,x,y); return; }
     if (hasBulb){ toast('Lift the bulb before planting in water.'); return; }
     const shadeBlock=canopyShadeHardBlock(def,x,y);
@@ -509,7 +544,12 @@ function placeTerrainAt(x,y){
      A shrub's SPREAD is open ground like any other since 0.9.61 — a path along
      a shrub border runs under its skirt, which is what pruning is for — and a
      shrub's own tile takes lawn exactly as a tree's trunk tile does. */
-  if (ex && !ex.removed && game.tool!=='lawn') return null;
+  const exDef=ex && !ex.removed && PLANTS[ex.s] ? plantDef(ex.s,ex.v) : null;
+  /* A marginal is the one planting a pond can be dug around, since it grows in
+     the water as readily as beside it. And a lily is the one planting a lawn can
+     NOT be laid over: it floats, so turfing its tile would strand it on grass. */
+  if (ex && !ex.removed && game.tool!=='lawn' && !(game.tool==='water' && isMarginalDef(exDef))) return null;
+  if (game.tool==='lawn' && exDef && exDef.type==='water' && !isMarginalDef(exDef)) return null;
   if (game.tool==='water' && fenceAt(x,y)) return null;
   if (game.tool==='water' && lightAt(x,y)) return null;
   if (game.tool==='water' && petAt(x,y)) return null;
@@ -617,7 +657,8 @@ function placePlantAt(x,y,opts){
   if (pot && isTreeDef(def)) return null;          // a tree needs open ground
   const np={s:game.tool,d:woodyPlantedDay(def,game.woodyAge),t:Date.now()};   // woody: age-at-placement (T10)
   if (game.toolVar) np.v=game.toolVar;
-  if (def.type==='water'){
+  // a marginal on dry ground falls through to the perennial rules below
+  if (def.type==='water' && (terr==='water' || !isMarginalDef(def))){
     const ex=game.plants[k], eb=game.bulbs[k];
     if (terr!=='water') return null;
     if ((ex && !ex.removed) || (eb && !eb.removed)) return null;
@@ -2214,7 +2255,7 @@ function selectionPlantDestValid(rec,x,y,ctx,isBulb){
     if (selectionObjectAt(x,y,ctx,f)) return false;
   if (pot && tree) return false;
   const terr=selectionTerrainKindAt(x,y,ctx);
-  if (P.type==='water' && !isBulb){
+  if (P.type==='water' && !isBulb && (terr==='water' || !isMarginalDef(P))){
     if (terr!=='water') return false;
   } else if ((pot ? selectionStayingWaterAt(x,y,ctx) : terr==='water') || (!pot && terr==='path')) return false;
   if (isBulb){
@@ -2413,7 +2454,7 @@ function replacementPreflight(ctx,target){
     const [x,y]=item.key.split(',').map(Number), np=Object.assign({},item.p,{s:target.s,t:Date.now()});
     if (target.v) np.v=target.v; else delete np.v;
     let ok=!siteStructureAt(x,y)&&!isDoor(x,y);
-    if (ok && to.type==='water') ok=tileTerrain(x,y)==='water';
+    if (ok && to.type==='water') ok=isMarginalDef(to) ? tileTerrain(x,y)!=='path' : tileTerrain(x,y)==='water';
     if (ok && to.type==='bulb'){
       const above=game.plants[item.key];
       ok=!(above&&!above.removed&&plantLayerOf(above)==='woody');

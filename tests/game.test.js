@@ -693,9 +693,147 @@ test('milkweed winter opens follicles and anchors snow to their rotated tips', (
 test('water blue flag keeps its placement type while sharing iris organs', () => {
   assertEqual(PLANTS.waterblueflag.type,'water','water placement is preserved');
   assertEqual(PLANTS.waterblueflag.form,'iris','blue flag uses the iris grammar');
-  setup();game.tool='waterblueflag';assertEqual(applyToolAt(15,15),null,'water iris refuses dry land');
-  setTile('terrain','15,15',{k:'water',c:'pond'});
+  setup();game.tool='waterblueflag';assertEqual(applyToolAt(15,15),'plant','a marginal iris also grows on the bank');
+  setup();game.tool='waterblueflag';setTile('terrain','15,15',{k:'water',c:'pond'});
   assertEqual(applyToolAt(15,15),'plant','water iris still plants on water');
+});
+
+test('a marginal plants in water or on ground, and a floating plant only on water', () => {
+  const put=(k,v,x,y)=>{ game.tool=k; game.toolVar=v||null; return applyToolAt(x,y); };
+  setup();
+  setTile('terrain','10,10',{k:'water',c:'pond'});
+  setTile('terrain','12,10',{k:'path',c:'gravel'});
+  setTile('terrain','14,10',{k:'bed',c:'soil'});
+  assertEqual(put('hardywaterlily',null,15,15),null,'a lily floats, so it refuses open ground');
+  assertEqual(put('hardywaterlily',null,14,10),null,'and a bed');
+  assertEqual(put('hardywaterlily',null,10,10),'plant','and takes open water');
+  clearTile('plants','10,10');
+  assertEqual(put('commoncattail',null,10,10),'plant','a cattail stands in the water');
+  assertEqual(put('commoncattail',null,14,10),'plant','and in a bed beside it');
+  assertEqual(put('commoncattail',null,15,15),'plant','and in the lawn');
+  assertEqual(put('commoncattail',null,12,10),null,'but nothing digs into gravel');
+  // a cultivar inherits the habit from its species
+  assert(isMarginalDef(plantDef('softrush','spiralis')),'corkscrew rush is a marginal too');
+  assert(!isMarginalDef(plantDef('hardywaterlily','jamesbrydon')),'and a named lily still floats');
+  assert(!isMarginalDef(PLANTS.foxglove),'a land plant is no marginal');
+  assert(!isMarginalDef(null),'the predicate is null-safe');
+  // a tub water garden: the one way a marginal stands on paving
+  setup();
+  setTile('terrain','12,10',{k:'path',c:'gravel'});
+  setTile('pots','12,10',{style:'terracotta',size:18,t:1});
+  assertEqual(put('dwarfcattail',null,12,10),'plant','a pot on paving takes a marginal');
+  assertEqual(potAt(12,10)&&!marginalOutOfReach(plantDef('dwarfcattail'),12,10),true,'and a tub carries its own water, so no warning');
+});
+
+test('a marginal out of reach of water is planted and advised, never refused', () => {
+  setup();
+  setTile('terrain','10,10',{k:'water',c:'pond'});
+  const def=plantDef('softrush');
+  assert(!marginalOutOfReach(def,10,10),'in the water');
+  assert(!marginalOutOfReach(def,12,10),'on the bank, two tiles off');
+  assert(marginalOutOfReach(def,13,10),'three tiles off is out of reach');
+  assert(!marginalOutOfReach(plantDef('foxglove'),13,10),'a land plant never asks');
+  assert(!marginalOutOfReach(plantDef('hardywaterlily'),13,10),'nor does a floating one, which cannot get here');
+  const near=plantPlacedMessage(def,12,10,'12,10',null,false,null);
+  assert(!/wet/.test(near),'nothing to say on the bank: '+near);
+  assertEqual(plantPlacementToastKind(def,12,10,'12,10',null,null),null,'and no amber');
+  const far=plantPlacedMessage(def,13,10,'13,10',null,false,null);
+  assert(/stays wet/.test(far)&&/bog or a rain garden/.test(far),'beyond it the toast says what the plant needs: '+far);
+  assertEqual(plantPlacementToastKind(def,13,10,'13,10',null,null),'warn','and in amber');
+  assertEqual(placementPolicy('marginalDry').mode,'soft','the rule is advice');
+  // a gesture says it once
+  game.tool='softrush'; game.toolVar=null;
+  assertEqual(gestureCrowdingNote([[12,10]]),'','a stroke along the bank has nothing to report');
+  assert(/One sits/.test(gestureCrowdingNote([[13,10]])),'one out of reach: '+gestureCrowdingNote([[13,10]]));
+  assert(/2 sit/.test(gestureCrowdingNote([[13,10],[14,10],[12,10]])),'two of three, counted: '+gestureCrowdingNote([[13,10],[14,10],[12,10]]));
+  game.tool='foxglove';
+  assertEqual(gestureMarginalNote([[13,10]]),'','a land plant has no such note');
+});
+
+test('a pond can be dug round a marginal, and turf cannot strand a lily', () => {
+  const paint=(tool,x,y)=>{ game.tool=tool; game.toolVar=null; return placeTerrainAt(x,y); };
+  setup();
+  game.waterStyle='pond'; game.lawnStyle='meadow';
+  game.tool='softrush'; applyToolAt(10,10);
+  assertEqual(paint('water',10,10),'water','water goes in under a marginal');
+  assert(game.plants['10,10']&&!game.plants['10,10'].removed,'and the plant stays');
+  game.tool='foxglove'; applyToolAt(12,10);
+  assertEqual(paint('water',12,10),null,'it does not go in under a land plant');
+  setTile('terrain','14,10',{k:'water',c:'pond'});
+  game.tool='hardywaterlily'; applyToolAt(14,10);
+  assertEqual(paint('lawn',14,10),null,'a lily stops turf being laid over its tile');
+  assertEqual(tileTerrain(14,10),'water','so it is still on water');
+  game.lawnStyle='meadow';
+  assertEqual(paint('lawn',10,10),'lawn','a marginal does not');
+  assert(game.plants['10,10']&&!game.plants['10,10'].removed,'and stands in the meadow');
+  assertEqual(paint('bed',10,10),null,'a bed still refuses a planted tile');
+});
+
+test('moving and replacing follow the same rule as planting', () => {
+  /* A marquee normally carries its water tile along, so the plant stays on water
+     wherever it goes. These lift the terrain out of the payload to ask the
+     question the rule answers: may this plant stand on what is already there? */
+  const ownPlantOnly=()=>{ game.sel={x0:10,y0:10,x1:10,y1:10}; game.selItems=selectionPayload(game.sel); game.selItems.forEach(c=>{ delete c.terr; }); };
+  setup();
+  for (let x=10;x<=11;x++) setTile('terrain',x+',10',{k:'water',c:'pond'});
+  game.tool='softrush'; applyToolAt(10,10);
+  ownPlantOnly();
+  assert(commitSelectionOffset(5,5,false),'a marginal moves out of the pond');
+  assert(game.plants['15,15']&&game.plants['15,15'].s==='softrush','to dry ground');
+  setup();
+  for (let x=10;x<=11;x++) setTile('terrain',x+',10',{k:'water',c:'pond'});
+  game.tool='hardywaterlily'; applyToolAt(10,10);
+  ownPlantOnly();
+  assert(!commitSelectionOffset(5,5,false),'a lily refuses dry ground');
+  assert(commitSelectionOffset(1,0,false),'and moves across water');
+  // replacing inside the water group: marginal for marginal, wherever it stands
+  setup();
+  game.filters=Object.assign({},game.filters,{invasive:'show'});
+  game.tool='softrush'; applyToolAt(15,15);
+  const ctx={source:{s:'softrush',v:null},scope:'garden'};
+  assertEqual(replacementPreflight(ctx,{s:'commoncattail',v:null}).valid.length,1,'a cattail may replace a rush on the bank');
+  const refused=replacementPreflight(ctx,{s:'hardywaterlily',v:null});
+  assertEqual(refused.valid.length,0,'a lily may not');
+  assertEqual(refused.blocked.length,1,'and the position is reported blocked');
+});
+
+test('the water drawing options are opt-in and draw what they say', () => {
+  const gradient=()=>({addColorStop(){}});
+  const calls=(k,v,season)=>{ const n={}, props={};
+    const c=new Proxy(props,{ get:(t,p)=>p==='createLinearGradient'||p==='createRadialGradient'?gradient:(p in t?t[p]:()=>{ n[p]=(n[p]||0)+1; }),
+      set:(t,p,val)=>{ t[p]=val; return true; } });
+    drawPlant(c,0,0,k,1,season||'Summer',7,0,v||null,1); return n; };
+  const inks=(k,v,season,prop)=>{ const seen=new Set(), props={};
+    const c=new Proxy(props,{ get:(t,p)=>p==='createLinearGradient'||p==='createRadialGradient'?gradient:(p in t?t[p]:()=>{}),
+      set:(t,p,val)=>{ if(p===prop) seen.add(val); t[p]=val; return true; } });
+    drawPlant(c,0,0,k,1,season||'Summer',7,0,v||null,1); return seen; };
+  assert(calls('softrush').stroke<12,'thirty rush stems batch into a few strokes, not one apiece');
+  const plainB=calls('softstembulrush').moveTo, zebra=calls('softstembulrush','zebrinus').moveTo;
+  assert(zebra>plainB,'zebra rush lays its bands: '+zebra+' vs '+plainB);
+  assert((calls('softrush','spiralis').lineTo||0)>(calls('softrush').lineTo||0)+50,'corkscrew rush walks a polyline up each stem');
+  assert(inks('scouringrush',null,'Summer','strokeStyle').has(PLANTS.scouringrush.look.jointCol),'horsetail strokes its joints');
+  assert(inks('scouringrush',null,'Summer','fillStyle').has(PLANTS.scouringrush.look.strobilus),'and fills its cone');
+  // a stripe on a sword leaf is the cultivar and nothing else
+  assert(inks('sweetflag','variegatus','Summer','fillStyle').has(PLANTS.sweetflag.cv.variegatus.look.stripe),'the variegated sweet flag draws its stripe');
+  assert(!inks('sweetflag',null,'Summer','fillStyle').has(PLANTS.sweetflag.cv.variegatus.look.stripe),'the species does not');
+  // winter: what dies back draws nothing at all, not a floating shadow
+  ['hardywaterlily','whitewaterlily','spatterdock','waterhawthorn','americansweetflag','watercanna','taro','callalily','goldenclub','arrowarum','waterforgetmenot'].forEach(k=>{
+    const n=calls(k,null,'Winter');
+    assertEqual(Object.keys(n).length,0,k+': gone in winter');
+  });
+  ['commoncattail','softrush','softstembulrush','scouringrush','dwarfhorsetail'].forEach(k=>
+    assert(calls(k,null,'Winter').stroke>0,k+': holds its structure through winter'));
+  // a lily's flower colour is the cultivar's, and its centre too
+  assert(inks('hardywaterlily','jamesbrydon','Summer','fillStyle').has(PLANTS.hardywaterlily.cv.jamesbrydon.sea.Summer.eye),'the centre comes from the data');
+  assert(inks('fragrantwaterlily',null,'Summer','fillStyle').has('#d7b85a'),'and a lily that names none keeps the old centre');
+});
+
+test('yellow flag draws as the iris it is', () => {
+  assertEqual(PLANTS.yellowflag.form,'iris','it shared the spike form until 0.9.77');
+  ['waterblueflag','yellowflag','japaneseiris','rabbitiris','louisianairis'].forEach(k=>
+    assertEqual(PLANTS[k].group,'wateriris',k+': one family card'));
+  ['fragrantwaterlily','whitewaterlily','hardywaterlily'].forEach(k=>assertEqual(PLANTS[k].group,'waterlily',k+': the lily family'));
+  ['waterlotus','sacredlotus'].forEach(k=>assertEqual(PLANTS[k].group,'lotus',k+': the lotus family'));
 });
 
 test('fine grass clouds batch their florets without losing the panicle silhouette', () => {
@@ -16804,9 +16942,9 @@ test('a plant native to the region is not hidden by that region\'s own caution',
 
   // The hint must promise what the filter delivers, not what the table holds.
   const counts=invasiveFilterCounts('north-america');
-  assertEqual(counts.hidden+counts.keptNative,11,'eleven cautions are recorded for North America');
+  assertEqual(counts.hidden+counts.keptNative,16,'sixteen plants carry a caution for North America');
   assertEqual(counts.keptNative,2,'two of them are on plants native to it');
-  assert(invasiveCriteriaText(na).includes('Hides the 9 introduced plants'),'and the copy states the nine it actually hides');
+  assert(invasiveCriteriaText(na).includes('Hides the 14 introduced plants'),'and the copy states the fourteen it actually hides');
   assert(/native to North America keep their place/.test(invasiveCriteriaText(na)),'and says why the other two are still listed');
   assertEqual(invasiveFilterCounts('europe').keptNative,0,'Europe has no native-and-flagged plant, so its copy says nothing about one');
   assert(!/keep their place/.test(invasiveCriteriaText({nativeRegion:'europe',invasive:'hide'})),'the clause appears only where it applies');

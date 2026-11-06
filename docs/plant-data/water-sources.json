@@ -1,0 +1,1177 @@
+{
+  "reviewed": "2026-11-06",
+  "note": "Sources for the water plants added in 0.9.77. `estimates` names every field that is a planning value rather than a published figure, and why. Missouri Botanical Garden pages failed a certificate check on direct fetch, so their values come from search-result excerpts and are marked `caveat`. NC State returned 404 for Nymphaea alba, Nuphar advena, Aponogeton, Typha minima, Equisetum hyemale, Iris fulva, Butomus and the hardy water lily group page.",
+  "popularity": {
+    "method": "Seven pond plant lists read in full; each count is how many name the plant. Aquascape (403) and Roots (partly readable) were not counted.",
+    "lists": [
+      "https://www.rhs.org.uk/ponds/pond-plants",
+      "https://yardandgarden.extension.iastate.edu/article/1999/8-13-1999/notcattails.html",
+      "https://www.lawnstarter.com/blog/landscaping/water-garden-plants-to-grow-and-avoid/",
+      "https://www.chewy.com/education/fish/pond-fish/pond-plants-for-outdoor-fish-pond",
+      "https://pondinformer.com/native-pond-edge-plants/",
+      "https://gardensillustrated.com/plants/best-pond-plants",
+      "https://worldofwater.com/how-to-ponds/pond-plants/marginal-pond-plants/"
+    ],
+    "counts": {
+      "marshMarigold": 6,
+      "pickerelweed": 5,
+      "waterIris": 5,
+      "cattail": 4,
+      "sweetFlag": 4,
+      "rushes": 4,
+      "horsetail": 4,
+      "bulrush": 3,
+      "waterPlantain": 3,
+      "waterLilies": 3,
+      "thalia": 2,
+      "goldenClub": 2,
+      "waterHawthorn": 2,
+      "sacredLotus": 2,
+      "waterForgetMeNot": 2,
+      "floweringRush": 2,
+      "canna": 1,
+      "calla": 1,
+      "taro": 0,
+      "arrowArum": 0,
+      "spatterdock": 0
+    }
+  },
+  "plants": [
+    {
+      "suggestedKey": "whitewaterlily",
+      "proposed": {
+        "name": "White Water Lily",
+        "latin": "Nymphaea alba",
+        "type": "water",
+        "form": "waterleaf",
+        "heightIn": 4,
+        "spread": 59,
+        "space": 48,
+        "zones": [
+          4,
+          10
+        ],
+        "nativeTo": [
+          "europe",
+          "asia",
+          "africa"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "warm",
+        "marginal": false,
+        "bloomMonths": [
+          6,
+          7,
+          8,
+          9
+        ]
+      },
+      "sources": [
+        "https://www.rhs.org.uk/plants/11623/nymphaea-alba-h/details",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderProfileResults.aspx?gen=Nymphaea"
+      ],
+      "estimates": {
+        "zones": "RHS rates it H5 and publishes no USDA zone; 4-10 is MBG's range for hardy water lilies.",
+        "bloomMonths": "RHS says summer; months are a planning window.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "hardywaterlily",
+      "proposed": {
+        "name": "Hardy Water Lily",
+        "latin": "Nymphaea hardy hybrids",
+        "type": "water",
+        "form": "waterleaf",
+        "heightIn": 4,
+        "spread": 59,
+        "space": 48,
+        "zones": [
+          4,
+          10
+        ],
+        "nativeTo": [],
+        "provenance": "hybrid",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "warm",
+        "marginal": false,
+        "bloomMonths": [
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderProfileResults.aspx?gen=Nymphaea",
+        "https://www.rhs.org.uk/ponds/pond-plants"
+      ],
+      "estimates": {
+        "zones": "MBG range for hardy cultivars; NC State's group page returned 404.",
+        "space": "Planning value.",
+        "flowerColour": "Base colour is the commonest pink of the group; the record stands for hybrids in general."
+      },
+      "nativity": "Garden hybrids carry no wild range."
+    },
+    {
+      "suggestedKey": "sacredlotus",
+      "proposed": {
+        "name": "Sacred Lotus",
+        "latin": "Nelumbo nucifera",
+        "type": "water",
+        "form": "waterleaf",
+        "heightIn": 54,
+        "spread": 48,
+        "space": 60,
+        "zones": [
+          4,
+          10
+        ],
+        "nativeTo": [
+          "asia",
+          "australasia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "warm",
+        "marginal": false,
+        "bloomMonths": [
+          6,
+          7
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/nelumbo-nucifera/",
+        "https://dnr.wisconsin.gov/topic/Invasives/fact/SacredLotus.html"
+      ],
+      "estimates": {
+        "heightIn": "Midpoint of 3-6 ft.",
+        "spread": "Upper end of 3-4 ft.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "spatterdock",
+      "proposed": {
+        "name": "Spatterdock",
+        "latin": "Nuphar advena",
+        "type": "water",
+        "form": "waterleaf",
+        "heightIn": 12,
+        "spread": 60,
+        "space": 48,
+        "zones": [
+          3,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": false,
+        "bloomMonths": [
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "synonyms": [
+          "Nuphar lutea subsp. advena",
+          "Yellow Pond Lily"
+        ]
+      },
+      "sources": [
+        "https://www.wildflower.org/plants/result.php?id_plant=nulua",
+        "https://gobotany.nativeplanttrust.org/species/nuphar/advena/"
+      ],
+      "estimates": {
+        "zones": "No published USDA range found; Wildflower Center says cold tolerant and native from Labrador to Florida. Planning value.",
+        "heightIn": "Planning value.",
+        "spread": "Planning value for a colony.",
+        "space": "Planning value.",
+        "bloomMonths": "Narrowed from the Mar-Oct range-wide Wildflower Center window."
+      }
+    },
+    {
+      "suggestedKey": "waterhawthorn",
+      "proposed": {
+        "name": "Water Hawthorn",
+        "latin": "Aponogeton distachyos",
+        "type": "water",
+        "form": "waterleaf",
+        "heightIn": 4,
+        "spread": 36,
+        "space": 30,
+        "zones": [
+          6,
+          10
+        ],
+        "nativeTo": [
+          "africa"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "marginal": false,
+        "bloomMonths": [
+          4,
+          5,
+          6,
+          9,
+          10
+        ],
+        "synonyms": [
+          "Cape Pondweed"
+        ]
+      },
+      "sources": [
+        "http://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=b893",
+        "https://www.rhs.org.uk/plants/1386/aponogeton-distachyos/details",
+        "https://pza.sanbi.org/aponogeton-distachyos",
+        "https://en.wikipedia.org/wiki/Aponogeton_distachyos"
+      ],
+      "estimates": {
+        "bloomMonths": "Sources disagree: MBG Jul-Sep in St. Louis, UK from mid-spring with a summer break, SANBI winter and spring. Two runs either side of summer.",
+        "space": "Planning value."
+      },
+      "caveat": "MBG page reached only through search excerpts (certificate error on direct fetch)."
+    },
+    {
+      "suggestedKey": "commoncattail",
+      "proposed": {
+        "name": "Common Cattail",
+        "latin": "Typha latifolia",
+        "type": "water",
+        "form": "emergent",
+        "heightIn": 84,
+        "spread": 60,
+        "space": 36,
+        "zones": [
+          3,
+          10
+        ],
+        "nativeTo": [
+          "north-america",
+          "south-america",
+          "europe",
+          "asia",
+          "africa"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": true,
+        "bloomMonths": [
+          6,
+          7,
+          8
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/typha-latifolia/",
+        "https://yardandgarden.extension.iastate.edu/article/1999/8-13-1999/notcattails.html"
+      ],
+      "estimates": {
+        "heightIn": "Within 5-10 ft.",
+        "spread": "Upper range of 4-6 ft.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "dwarfcattail",
+      "proposed": {
+        "name": "Dwarf Cattail",
+        "latin": "Typha minima",
+        "type": "water",
+        "form": "emergent",
+        "heightIn": 20,
+        "spread": 15,
+        "space": 12,
+        "zones": [
+          3,
+          10
+        ],
+        "nativeTo": [
+          "europe",
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": true,
+        "bloomMonths": [
+          6,
+          7,
+          8
+        ]
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=287389",
+        "https://www.chewy.com/education/fish/pond-fish/pond-plants-for-outdoor-fish-pond"
+      ],
+      "estimates": {
+        "bloomMonths": "Planning window.",
+        "space": "Planning value."
+      },
+      "caveat": "MBG page reached only through search excerpts (certificate error on direct fetch)."
+    },
+    {
+      "suggestedKey": "softrush",
+      "proposed": {
+        "name": "Soft Rush",
+        "latin": "Juncus effusus",
+        "type": "water",
+        "form": "emergent",
+        "heightIn": 36,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "north-america",
+          "south-america",
+          "europe",
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": true,
+        "bloomMonths": [
+          7,
+          8,
+          9
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/juncus-effusus/"
+      ],
+      "estimates": {
+        "spread": "NC State states no width. Planning value.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "softstembulrush",
+      "proposed": {
+        "name": "Soft-stem Bulrush",
+        "latin": "Schoenoplectus tabernaemontani",
+        "type": "water",
+        "form": "emergent",
+        "heightIn": 72,
+        "spread": 42,
+        "space": 30,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "north-america",
+          "south-america",
+          "europe",
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": true,
+        "bloomMonths": [
+          8,
+          9,
+          10
+        ],
+        "synonyms": [
+          "Scirpus validus",
+          "Scirpus tabernaemontani",
+          "Schoenoplectus lacustris subsp. tabernaemontani"
+        ]
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=279820",
+        "https://en.wikipedia.org/wiki/Schoenoplectus_tabernaemontani",
+        "https://www.minnesotawildflowers.info/grass-sedge-rush/soft-stem-bulrush",
+        "https://plants.ces.ncsu.edu/plants/schoenoplectus-tabernaemontani/"
+      ],
+      "estimates": {
+        "bloomMonths": "NC State says late summer into fall.",
+        "space": "Planning value."
+      },
+      "taxonomy": "NC State files this page under S. lacustris; MBG and Wikipedia keep S. tabernaemontani, whose range reaches North America. S. lacustris proper is Eurasian.",
+      "caveat": "MBG page reached only through search excerpts (certificate error on direct fetch)."
+    },
+    {
+      "suggestedKey": "scouringrush",
+      "proposed": {
+        "name": "Scouring Rush",
+        "latin": "Equisetum hyemale",
+        "type": "water",
+        "form": "emergent",
+        "heightIn": 48,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "north-america",
+          "europe",
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "cool",
+        "marginal": true,
+        "synonyms": [
+          "Horsetail",
+          "Equisetum praealtum"
+        ]
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/plantfinder/plantfinderdetails.aspx?kempercode=c670",
+        "https://en.wikipedia.org/wiki/Equisetum_hyemale",
+        "https://www.wildflower.org/plants/result.php?id_plant=EQHY"
+      ],
+      "estimates": {
+        "heightIn": "MBG gives both 2-4 ft and 3-5 ft.",
+        "spread": "Planning value for a contained clump.",
+        "space": "Planning value."
+      },
+      "taxonomy": "North American plants are now often separated as E. praealtum; the record keeps the name gardeners buy.",
+      "caveat": "MBG page reached only through search excerpts (certificate error on direct fetch)."
+    },
+    {
+      "suggestedKey": "dwarfhorsetail",
+      "proposed": {
+        "name": "Dwarf Horsetail",
+        "latin": "Equisetum scirpoides",
+        "type": "water",
+        "form": "emergent",
+        "heightIn": 8,
+        "spread": 24,
+        "space": 12,
+        "zones": [
+          4,
+          10
+        ],
+        "nativeTo": [
+          "north-america",
+          "europe",
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "marginal": true
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/equisetum-scirpoides/"
+      ],
+      "estimates": {
+        "heightIn": "Within 6-12 in.",
+        "spread": "Midrange of 1-4 ft.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "americansweetflag",
+      "proposed": {
+        "name": "American Sweet Flag",
+        "latin": "Acorus americanus",
+        "type": "water",
+        "form": "emergent",
+        "heightIn": 36,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          2,
+          6
+        ],
+        "nativeTo": [
+          "north-america",
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "cool",
+        "marginal": true,
+        "bloomMonths": [
+          5,
+          6
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/acorus-americanus/",
+        "https://mdc.mo.gov/discover-nature/field-guide/sweet-flag-calamus",
+        "https://gobotany.nativeplanttrust.org/species/acorus/calamus/"
+      ],
+      "estimates": {
+        "zones": "NC State lists 1a-6b. Floored at 2 because the catalog's zone picker is derived from its records and offers 2-11.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "sweetflag",
+      "proposed": {
+        "name": "Sweet Flag",
+        "latin": "Acorus calamus",
+        "type": "water",
+        "form": "emergent",
+        "heightIn": 30,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          4,
+          10
+        ],
+        "nativeTo": [
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "cool",
+        "marginal": true,
+        "bloomMonths": [
+          5,
+          6
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/acorus-calamus/",
+        "https://mdc.mo.gov/discover-nature/field-guide/sweet-flag-calamus"
+      ],
+      "estimates": {
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "japaneseiris",
+      "proposed": {
+        "name": "Japanese Iris",
+        "latin": "Iris ensata",
+        "type": "water",
+        "form": "iris",
+        "heightIn": 36,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": true,
+        "bloomMonths": [
+          6,
+          7
+        ],
+        "synonyms": [
+          "Iris kaempferi"
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/iris-ensata/"
+      ],
+      "estimates": {
+        "heightIn": "Within 2-4 ft.",
+        "bloomMonths": "NC State says mid-summer.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "rabbitiris",
+      "proposed": {
+        "name": "Rabbit-ear Iris",
+        "latin": "Iris laevigata",
+        "type": "water",
+        "form": "iris",
+        "heightIn": 30,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          5,
+          9
+        ],
+        "nativeTo": [
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "cool",
+        "marginal": true,
+        "bloomMonths": [
+          5,
+          6
+        ],
+        "synonyms": [
+          "Kakitsubata"
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/iris-laevigata/",
+        "https://www.rhs.org.uk/ponds/pond-plants"
+      ],
+      "estimates": {
+        "heightIn": "NC State gives no size. Planning value.",
+        "spread": "Planning value.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "louisianairis",
+      "proposed": {
+        "name": "Louisiana Iris",
+        "latin": "Iris Louisiana hybrids",
+        "type": "water",
+        "form": "iris",
+        "heightIn": 30,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [],
+        "provenance": "hybrid",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": true,
+        "bloomMonths": [
+          5,
+          6
+        ],
+        "synonyms": [
+          "Iris x louisiana"
+        ]
+      },
+      "sources": [
+        "https://www.perennials.com/plants/iris-black-gamecock-la.html",
+        "https://worldofwater.com/how-to-ponds/pond-plants/marginal-pond-plants/"
+      ],
+      "estimates": {
+        "zones": "Published for 'Black Gamecock'; the group varies.",
+        "space": "Planning value."
+      },
+      "nativity": "Garden hybrids carry no wild range, though the parents are North American."
+    },
+    {
+      "suggestedKey": "thalia",
+      "proposed": {
+        "name": "Powdery Thalia",
+        "latin": "Thalia dealbata",
+        "type": "water",
+        "form": "spike",
+        "heightIn": 60,
+        "spread": 48,
+        "space": 36,
+        "zones": [
+          6,
+          11
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "warm",
+        "marginal": true,
+        "bloomMonths": [
+          7,
+          8,
+          9
+        ],
+        "synonyms": [
+          "Hardy Water Canna",
+          "Alligator Flag"
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/thalia-dealbata/"
+      ],
+      "estimates": {
+        "zones": "NC State lists 6-12. Capped at 11 because the catalog's zone picker offers 2-11.",
+        "heightIn": "Upper end of 3-6 ft.",
+        "spread": "Within 3-6 ft.",
+        "bloomMonths": "NC State says summer.",
+        "space": "Planning value."
+      },
+      "taxonomy": "The NC State page also says \"southeast asia\" in prose; its origin field and every other source say the southern US and Mexico."
+    },
+    {
+      "suggestedKey": "watercanna",
+      "proposed": {
+        "name": "Water Canna",
+        "latin": "Canna glauca",
+        "type": "water",
+        "form": "spike",
+        "heightIn": 60,
+        "spread": 30,
+        "space": 24,
+        "zones": [
+          7,
+          11
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america",
+          "south-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "warm",
+        "marginal": true,
+        "bloomMonths": [
+          7,
+          8,
+          9,
+          10
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/canna-glauca/"
+      ],
+      "estimates": {
+        "bloomMonths": "NC State says most of summer into early fall.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "goldenclub",
+      "proposed": {
+        "name": "Golden Club",
+        "latin": "Orontium aquaticum",
+        "type": "water",
+        "form": "umbel",
+        "heightIn": 18,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          5,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "cool",
+        "marginal": true,
+        "bloomMonths": [
+          4,
+          5,
+          6
+        ],
+        "synonyms": [
+          "Never Wet",
+          "Bog Torches"
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/orontium-aquaticum/",
+        "https://www.rhs.org.uk/ponds/pond-plants"
+      ],
+      "estimates": {
+        "space": "Planning value.",
+        "spread": "Within 1-2.5 ft."
+      }
+    },
+    {
+      "suggestedKey": "waterplantain",
+      "proposed": {
+        "name": "Water Plantain",
+        "latin": "Alisma plantago-aquatica",
+        "type": "water",
+        "form": "umbel",
+        "heightIn": 30,
+        "spread": 18,
+        "space": 15,
+        "zones": [
+          5,
+          9
+        ],
+        "nativeTo": [
+          "europe",
+          "asia",
+          "africa"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": true,
+        "bloomMonths": [
+          6,
+          7,
+          8,
+          9
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/alisma-plantago-aquatica/",
+        "https://www.rhs.org.uk/ponds/pond-plants"
+      ],
+      "estimates": {
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "arrowarum",
+      "proposed": {
+        "name": "Arrow Arum",
+        "latin": "Peltandra virginica",
+        "type": "water",
+        "form": "umbel",
+        "heightIn": 30,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          5,
+          9
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": true,
+        "bloomMonths": [
+          4,
+          5,
+          6
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/peltandra-virginica/"
+      ],
+      "estimates": {
+        "space": "Planning value.",
+        "heightIn": "Within 18-36 in."
+      }
+    },
+    {
+      "suggestedKey": "waterforgetmenot",
+      "proposed": {
+        "name": "Water Forget-me-not",
+        "latin": "Myosotis scorpioides",
+        "type": "water",
+        "form": "shrub",
+        "heightIn": 10,
+        "spread": 12,
+        "space": 9,
+        "zones": [
+          5,
+          9
+        ],
+        "nativeTo": [
+          "europe",
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "marginal": true,
+        "bloomMonths": [
+          6,
+          7,
+          8,
+          9
+        ],
+        "synonyms": [
+          "Myosotis palustris"
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/myosotis-scorpioides/",
+        "https://www.rhs.org.uk/ponds/pond-plants"
+      ],
+      "estimates": {
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "floweringrush",
+      "proposed": {
+        "name": "Flowering Rush",
+        "latin": "Butomus umbellatus",
+        "type": "water",
+        "form": "umbel",
+        "heightIn": 42,
+        "spread": 18,
+        "space": 18,
+        "zones": [
+          3,
+          10
+        ],
+        "nativeTo": [
+          "europe",
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "warm",
+        "marginal": true,
+        "bloomMonths": [
+          6,
+          7,
+          8
+        ]
+      },
+      "sources": [
+        "https://www.rhs.org.uk/plants/2567/butomus-umbellatus/details",
+        "https://www.minnesotawildflowers.info/flower/flowering-rush",
+        "https://www.iucngisd.org/gisd/pdf.php?sc=610",
+        "https://www.dnr.state.mn.us/invasives/aquaticplants/floweringrush/index.html",
+        "https://www.ontario.ca/page/flowering-rush",
+        "https://gobotany.nativeplanttrust.org/species/butomus/umbellatus/"
+      ],
+      "estimates": {
+        "zones": "3-10 from the IUCN Global Invasive Species Database via search excerpt; nursery listings run 3-11, 5-11 and 6-10.",
+        "heightIn": "Between 2-4 ft and the RHS maximum of 1-1.5 m.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "taro",
+      "proposed": {
+        "name": "Taro",
+        "latin": "Colocasia esculenta",
+        "type": "water",
+        "form": "spike",
+        "heightIn": 54,
+        "spread": 54,
+        "space": 48,
+        "zones": [
+          8,
+          11
+        ],
+        "nativeTo": [
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "warm",
+        "marginal": true,
+        "synonyms": [
+          "Elephant Ear"
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/colocasia-esculenta/",
+        "https://www.cal-ipc.org/plants/profile/colocasia-esculenta-profile/"
+      ],
+      "estimates": {
+        "heightIn": "Midrange of 3-6 ft.",
+        "spread": "Midrange of 3-6 ft.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "callalily",
+      "proposed": {
+        "name": "Calla Lily",
+        "latin": "Zantedeschia aethiopica",
+        "type": "water",
+        "form": "umbel",
+        "heightIn": 30,
+        "spread": 18,
+        "space": 18,
+        "zones": [
+          8,
+          10
+        ],
+        "nativeTo": [
+          "africa"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "mid",
+        "marginal": true,
+        "bloomMonths": [
+          6,
+          7
+        ],
+        "synonyms": [
+          "Arum Lily"
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/zantedeschia-aethiopica/",
+        "https://www.cal-ipc.org/plants/inventory/"
+      ],
+      "estimates": {
+        "space": "Planning value."
+      },
+      "caveat": "Cal-IPC's species profile returned 404; the Limited rating comes from the cached inventory in dev/invasive-lists/calipc.json."
+    }
+  ],
+  "cultivars": [
+    {
+      "ref": "hardywaterlily|marliaceachromatella",
+      "name": "'Marliacea Chromatella'",
+      "latin": "Nymphaea 'Marliacea Chromatella'",
+      "provenance": "hybrid",
+      "sources": [
+        "https://www.rhs.org.uk/plants/91136/nymphaea-marliacea-chromatella-h/details",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=261590&isprofile=1&gen=Nymphaea"
+      ]
+    },
+    {
+      "ref": "hardywaterlily|jamesbrydon",
+      "name": "'James Brydon'",
+      "latin": "Nymphaea 'James Brydon'",
+      "provenance": "hybrid",
+      "sources": [
+        "https://www.rhs.org.uk/plants/97523/nymphaea-james-brydon-h/details"
+      ]
+    },
+    {
+      "ref": "hardywaterlily|escarboucle",
+      "name": "'Escarboucle'",
+      "latin": "Nymphaea 'Escarboucle'",
+      "provenance": "hybrid",
+      "sources": [
+        "https://www.rhs.org.uk/plants/97341/nymphaea-escarboucle-h/details"
+      ]
+    },
+    {
+      "ref": "hardywaterlily|attraction",
+      "name": "'Attraction'",
+      "latin": "Nymphaea 'Attraction'",
+      "provenance": "hybrid",
+      "sources": [
+        "https://www.rhs.org.uk/plants/98263/nymphaea-attraction-h/details"
+      ]
+    },
+    {
+      "ref": "hardywaterlily|gonnere",
+      "name": "'Gonnère'",
+      "latin": "Nymphaea 'Gonnère'",
+      "provenance": "hybrid",
+      "sources": [
+        "https://www.rhs.org.uk/plants/90608/nymphaea-gonnere-(h)/details"
+      ]
+    },
+    {
+      "ref": "hardywaterlily|pygmaeahelvola",
+      "name": "'Pygmaea Helvola'",
+      "latin": "Nymphaea 'Pygmaea Helvola'",
+      "provenance": "hybrid",
+      "sources": [
+        "https://www.rhs.org.uk/plants/details?plantid=1341",
+        "https://hort.ifas.ufl.edu/database/documents/pdf/shrub_fact_sheets/nymspph.pdf"
+      ]
+    },
+    {
+      "ref": "softrush|spiralis",
+      "name": "'Spiralis'",
+      "latin": "Juncus effusus f. spiralis",
+      "provenance": "selection",
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/juncus-effusus/",
+        "https://www.rhs.org.uk/ponds/pond-plants"
+      ]
+    },
+    {
+      "ref": "softstembulrush|zebrinus",
+      "name": "'Zebrinus'",
+      "latin": "Schoenoplectus lacustris subsp. tabernaemontani 'Zebrinus'",
+      "provenance": "selection",
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=253154",
+        "https://plants.ces.ncsu.edu/plants/schoenoplectus-tabernaemontani/"
+      ]
+    },
+    {
+      "ref": "sweetflag|variegatus",
+      "name": "'Variegatus'",
+      "latin": "Acorus calamus 'Variegatus'",
+      "provenance": "selection",
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/acorus-calamus/"
+      ]
+    },
+    {
+      "ref": "louisianairis|blackgamecock",
+      "name": "'Black Gamecock'",
+      "latin": "Iris 'Black Gamecock'",
+      "provenance": "hybrid",
+      "sources": [
+        "https://www.perennials.com/plants/iris-black-gamecock-la.html"
+      ]
+    },
+    {
+      "ref": "watercanna|endeavor",
+      "name": "'Endeavor'",
+      "latin": "Canna 'Endeavor'",
+      "provenance": "hybrid",
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/canna-glauca/"
+      ]
+    },
+    {
+      "ref": "watercanna|erebus",
+      "name": "'Erebus'",
+      "latin": "Canna 'Erebus'",
+      "provenance": "hybrid",
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/canna-glauca/"
+      ]
+    },
+    {
+      "ref": "taro|blackmagic",
+      "name": "'Black Magic'",
+      "latin": "Colocasia esculenta 'Black Magic'",
+      "provenance": "selection",
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/colocasia-esculenta/"
+      ]
+    },
+    {
+      "ref": "callalily|crowborough",
+      "name": "'Crowborough'",
+      "latin": "Zantedeschia aethiopica 'Crowborough'",
+      "provenance": "selection",
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/zantedeschia-aethiopica/",
+        "https://www.rhs.org.uk/ponds/pond-plants"
+      ]
+    }
+  ]
+}

@@ -3775,6 +3775,198 @@ function shrubFlowerB(ctx,cx,cy,r,col,shape,rnd,ang,accent,petalCount){
 
 /* ---------- procedural plant renderer ----------
    Draws a species at screen (x,y) given growth 0..1, season, and a stable seed. */
+/* ---------- emergent: the uprights of a pond margin ----------
+   A rush, a horsetail and a cattail are all built from straight verticals rising
+   from a tight base, and that is what none of the other forms draw: a grass is
+   blades arching off a crown, and a spike carries leaves. So one painter takes
+   strap blades (cattail, sweet flag) and/or leafless culms (rush, bulrush,
+   horsetail) and a head the data names.
+     `curl`      corkscrew rush: a sine laid across each culm, growing to the tip
+     `bands`     zebra rush: pale cross bands, in the season's `edge` colour
+     `joints`    horsetail: the dark sheath at each node
+     head:'tuft'   a rush's seed tuft, breaking from the SIDE of the culm near its
+                   top, since the stem running on above it is really a bract
+     head:'droop'  a bulrush's spikelets, nodding on short rays off the tip
+     head:'cone'   a horsetail's pointed strobilus, which is spores, not a seedhead
+     heads + cattail  stiff separate stems carrying the sausage and the spent spike
+     spadices    sweet flag's green-gold finger, jutting out of a leaf
+   Culms stroke in three tone batches and paint dark to light, so a clump of
+   thirty costs three strokes rather than thirty. Returns the snow anchors. */
+const EMERGENT_MAX=48;
+const _emB=new Float32Array(EMERGENT_MAX), _emC=new Float32Array(EMERGENT_MAX*2), _emT=new Float32Array(EMERGENT_MAX*2);
+function emergentPoint(i,t,out){
+  const u=1-t, b=_emB[i], cx=_emC[i*2], cy=_emC[i*2+1], tx=_emT[i*2], ty=_emT[i*2+1];
+  out[0]=2*u*t*cx+t*t*tx+u*u*b;
+  out[1]=2*u*t*cy+t*t*ty;
+}
+const _emP=[0,0];
+function drawEmergent(ctx,L,S,H,sway,rnd,stemFor,mature,blooming,blv,snow){
+  const anchors=[], col=S.fol||S.seed, a2=art2On(L);
+  const baseW=L.baseW===undefined?8:L.baseW, fan=L.fan===undefined?0.7:L.fan;
+  /* strap blades, outermost first so the fan reads as a dome */
+  const nb=L.blades?stemFor(L.blades):0;
+  if (nb && S.fol){
+    const lenB=H*(L.leafLen||0.86), hw=L.bladeHW||1.5, bow=(L.bladeBow===undefined?0.1:L.bladeBow)*(snow?2.6:1);
+    for (let k=0;k<nb;k++){
+      const i=fanIdx(k,nb), u=nb>1?i/(nb-1)-0.5:0;
+      const a=u*fan+(rnd()-0.5)*0.1, len=lenB*(0.76+rnd()*0.28)*(1-Math.abs(u)*0.22);
+      const bx=u*baseW+(rnd()-0.5)*1.2, tx=bx+Math.sin(a)*len+sway*len*0.04;
+      const ty=-len*(Math.cos(a)-Math.abs(u)*bow), cx=bx+(tx-bx)*0.38, cy=-len*0.6;
+      const z=1-Math.abs(u)*2, tone=shade(S.fol,(rnd()-0.5)*14-(1-z)*(L.bladeShade||12));
+      if (a2) drawBlade(ctx,bx,0,cx,cy,tx,ty,hw*(0.86+z*0.2),tone,z>0.3,S.folTip,L.stripe,L.stripeW);
+      else {
+        ctx.strokeStyle=tone; ctx.lineWidth=hw*1.2; ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(bx,0); ctx.quadraticCurveTo(cx,cy,tx,ty); ctx.stroke();
+        if (L.stripe) drawBladeStripe(ctx,bx,0,cx,cy,tx,ty,L.stripe,L.stripeW);
+      }
+      if (Math.abs(u)<0.3) anchors.push([tx,ty,2.2]);
+    }
+    if (mature && blooming && L.spadices){
+      // the finger breaks from the leaf partway up, angled out and upward
+      const n=Math.max(1,Math.ceil(L.spadices*blv));
+      ctx.strokeStyle=S.bloom; ctx.lineWidth=2.1; ctx.lineCap='round'; ctx.beginPath();
+      for (let q=0;q<n;q++){
+        const side=q%2?-1:1, px=side*(1+rnd()*baseW*0.4)+sway*0.5, py=-H*(0.36+rnd()*0.18);
+        ctx.moveTo(px,py); ctx.lineTo(px+side*H*0.05,py-H*0.085);
+      }
+      ctx.stroke();
+    }
+  }
+  /* leafless culms */
+  const ns=L.stems?Math.min(EMERGENT_MAX,stemFor(L.stems)):0;
+  if (ns && col){
+    const stemW=L.stemW||1, arch=L.arch||0, lenBase=L.lenBase||0.86, jit=L.lenJitter===undefined?0.2:L.lenJitter;
+    const curl=L.curl||0, turns=L.curlTurns||2.5, sag=L.outerShort||0.2;
+    for (let i=0;i<ns;i++){
+      const u=ns>1?i/(ns-1)-0.5:0, spin=(rnd()-0.5)*0.12;
+      const a=u*fan+spin, len=H*(lenBase+rnd()*jit)*(1-Math.abs(u)*sag);
+      const bx=u*baseW+(rnd()-0.5)*1.4, tx=bx+Math.sin(a)*len+sway*len*0.05;
+      const ty=-len*Math.cos(a)+Math.abs(Math.sin(a))*len*arch;
+      _emB[i]=bx; _emC[i*2]=bx+Math.sin(a)*len*0.34; _emC[i*2+1]=-len*0.68; _emT[i*2]=tx; _emT[i*2+1]=ty;
+    }
+    ctx.lineCap='round'; ctx.lineWidth=stemW;
+    for (let tone=0;tone<3;tone++){
+      ctx.strokeStyle=shade(col,tone===0?-18:tone===1?-3:13);
+      ctx.beginPath();
+      for (let i=tone;i<ns;i+=3){
+        const bx=_emB[i], tx=_emT[i*2], ty=_emT[i*2+1];
+        ctx.moveTo(bx,0);
+        if (curl){
+          const steps=Math.max(8,Math.round(turns*6));
+          const phase=i*1.7;
+          for (let s=1;s<=steps;s++){
+            const t=s/steps; emergentPoint(i,t,_emP);
+            ctx.lineTo(_emP[0]+Math.sin(t*turns*6.283+phase)*curl*(0.3+t*0.7),_emP[1]);
+          }
+        } else ctx.quadraticCurveTo(_emC[i*2],_emC[i*2+1],tx,ty);
+      }
+      ctx.stroke();
+    }
+    /* cross marks: one stroke for the whole clump */
+    const bands=L.bands&&S.edge?L.bands:0, joints=L.joints||0;
+    if (bands){
+      ctx.strokeStyle=S.edge; ctx.lineWidth=stemW*1.05; ctx.lineCap='butt'; ctx.beginPath();
+      for (let i=0;i<ns;i++) for (let b=1;b<=bands;b++){
+        emergentPoint(i,b/(bands+1)+((i*7+b*3)%5-2)*0.012,_emP);
+        ctx.moveTo(_emP[0]-stemW*0.55,_emP[1]); ctx.lineTo(_emP[0]+stemW*0.55,_emP[1]);
+      }
+      ctx.stroke();
+    }
+    if (joints){
+      ctx.strokeStyle=L.jointCol||shade(col,-46); ctx.lineWidth=Math.max(0.7,stemW*0.55); ctx.lineCap='butt'; ctx.beginPath();
+      for (let i=0;i<ns;i++) for (let b=1;b<=joints;b++){
+        emergentPoint(i,(b+((i*5)%3-1)*0.24)/(joints+0.6),_emP);
+        ctx.moveTo(_emP[0]-stemW*0.62,_emP[1]); ctx.lineTo(_emP[0]+stemW*0.62,_emP[1]);
+      }
+      ctx.stroke();
+    }
+    if (mature){
+      const head=L.head;
+      if (head==='cone' && L.strobilus){
+        // a closed path per cone would be a fill apiece; one path holds them all
+        ctx.fillStyle=L.strobilus; ctx.beginPath();
+        for (let i=0;i<ns;i+=2){
+          const tx=_emT[i*2], ty=_emT[i*2+1], w=stemW*0.72, l=Math.max(3,H*0.05);
+          ctx.moveTo(tx-w,ty+0.5); ctx.lineTo(tx,ty-l); ctx.lineTo(tx+w,ty+0.5); ctx.closePath();
+        }
+        ctx.fill();
+      } else if (head==='tuft' || head==='droop'){
+        const hc=(blooming?S.bloom:null)||S.seed;
+        if (hc){
+          const shown=blooming?Math.max(1,Math.ceil(ns*blv)):ns;
+          if (head==='tuft'){
+            const at=L.tuftAt||0.82, fr=L.tuftR||1.25;
+            for (let i=0;i<shown;i+=3){
+              emergentPoint(i,at,_emP);
+              const side=i%4?1:-1;
+              for (let f=0;f<4;f++) fcPush(_emP[0]+side*(1+f*0.55)+(f%2?-0.4:0.4),_emP[1]+f*1.15-1.6,fr*(1-f*0.1),0.9);
+            }
+            fcDraw(ctx,hc,18,-14);
+          } else {
+            const ray=L.rayLen||5;
+            ctx.strokeStyle=shade(hc,-12); ctx.lineWidth=0.6; ctx.lineCap='round'; ctx.beginPath();
+            for (let i=0;i<shown;i+=2){
+              const tx=_emT[i*2], ty=_emT[i*2+1];
+              for (let r=0;r<3;r++){
+                const sx=tx+(r-1)*ray*0.62, sy=ty+Math.abs(r-1)*1.4+0.8;
+                ctx.moveTo(tx,ty-0.4); ctx.quadraticCurveTo((tx+sx)*0.5,ty-1,sx,sy);
+                fcPush(sx,sy+0.7,L.tuftR||1.1,1.4);
+              }
+            }
+            ctx.stroke(); fcDraw(ctx,hc,18,-14);
+          }
+        }
+      }
+    }
+    // the middle of the clump: an outer tip hangs out on its own, and a cap there
+    // reads as snow floating beside the plant
+    for (let i=ns>>2;i<ns-(ns>>2);i+=3) anchors.push([_emT[i*2],_emT[i*2+1],2]);
+  }
+  /* the cattail: stiff stems standing clear of the leaves */
+  if (L.heads && mature && S.seed){
+    const n=Math.max(1,stemFor(L.heads)), headLen=H*(L.headLen||0.17), headW=L.headW||4.6;
+    const top=L.headTop||1, spike=H*(L.spikeLen===undefined?0.12:L.spikeLen), gap=L.headGap||0;
+    for (let i=0;i<n;i++){
+      const u=n>1?i/(n-1)-0.5:0;
+      const bx=u*baseW*0.7+(rnd()-0.5)*1.6, tx=bx+u*H*0.1+sway*H*0.05;
+      const yT=-H*top*(0.86+rnd()*0.14), yH=yT+spike, yB=yH+headLen;
+      ctx.strokeStyle=shade(S.fol||S.seed,-16); ctx.lineWidth=1.3; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(bx,0); ctx.quadraticCurveTo(bx+(tx-bx)*0.4,yB*0.55,tx,yB); ctx.stroke();
+      // the spent male spike, or gold with pollen while it is flowering
+      if (spike>0){
+        ctx.strokeStyle=blooming?S.bloom:shade(S.seed,-14); ctx.lineWidth=blooming?1.5:0.8;
+        ctx.beginPath(); ctx.moveTo(tx,yH-gap); ctx.lineTo(tx,yT); ctx.stroke();
+      }
+      // the sausage is a round-capped stroke: one call, and it cannot read as a
+      // lozenge the way a filled ellipse does at this size
+      ctx.lineWidth=headW; ctx.strokeStyle=shade(S.seed,-10);
+      ctx.beginPath(); ctx.moveTo(tx,yB); ctx.lineTo(tx,yH); ctx.stroke();
+      ctx.lineWidth=headW*0.5; ctx.strokeStyle=shade(S.seed,14);
+      ctx.beginPath(); ctx.moveTo(tx-headW*0.17,yB-0.5); ctx.lineTo(tx-headW*0.17,yH+0.5); ctx.stroke();
+      if (L.fluff && snow) for (let f=0;f<4;f++)
+        fcPush(tx+(rnd()-0.5)*headW*1.5,yH+rnd()*headLen,1.1,1);
+      anchors.push([tx,yT,2]);
+    }
+    if (L.fluff && snow) fcDraw(ctx,'#e7dfc8',10,-8);
+  }
+  ctx.lineCap='butt';
+  return anchors;
+}
+/* An arum's flower: a pale hood wrapped round a finger. Drawn as a hood leaning
+   to one side so it reads as a calla from any seed rather than a white blob. */
+function drawSpathe(ctx,x,y,r,col,spadix,side){
+  const tipX=x+side*r*0.55, tipY=y-r*1.6;
+  ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x-side*r*0.2,y+r*0.5);
+  ctx.bezierCurveTo(x-side*r*0.95,y-r*0.3,x-side*r*0.2,y-r*1.25,tipX,tipY);
+  ctx.bezierCurveTo(x+side*r*0.95,y-r*0.7,x+side*r*0.9,y+r*0.1,x-side*r*0.2,y+r*0.5);
+  ctx.fill();
+  ctx.fillStyle=shade(col,-22); ctx.beginPath(); ctx.ellipse(x+side*r*0.08,y-r*0.42,r*0.28,r*0.66,side*0.2,0,7); ctx.fill();
+  if (spadix){
+    ctx.strokeStyle=spadix; ctx.lineWidth=Math.max(1,r*0.26); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x+side*r*0.02,y-r*0.04); ctx.lineTo(x+side*r*0.14,y-r*0.86); ctx.stroke();
+    ctx.lineCap='butt';
+  }
+}
 function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail, leafStage){
   // Every plant starts with empty floret and thread batches. Each batch resets
   // only when it is FLUSHED, so a draw that threw between a push and its flush
@@ -4579,7 +4771,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.strokeStyle=shade(S.fol,-18);ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(u*3,0);
           ctx.quadraticCurveTo(px*0.35,py*0.6,px,py);ctx.stroke();
           const len=H*(L.leafLen||0.28)*(0.78+rnd()*0.25);
-          drawLeaf(ctx,px,py,px+u*len*0.65,py-len,L.leafHW||6,shade(S.fol,(rnd()-0.5)*18),
+          // a taro's leaf hangs from the top of its stalk, tip down and out
+          const droop=L.leafDroop||0;
+          drawLeaf(ctx,px,py,droop?px+(u||0.14)*len*1.5:px+u*len*0.65,droop?py+len*droop:py-len,L.leafHW||6,shade(S.fol,(rnd()-0.5)*18),
             {shape:L.leafShape,rib:true,flat:!art2On(L)});
         }
       }
@@ -5121,13 +5315,31 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const rad=L.head||6, dome=(L.dome===undefined?0.4:L.dome), dots=Math.round(rad*2);
           if(!headOn && S.seed && L.seedStyle==='milkweedPods'){
             drawMilkweedPods(ctx,hx,hy+H*0.10,L,S,season,i,snowAnchors);
+          } else if(L.umbelStyle==='spathe'){
+            // the arums: a hood and its finger in flower, a knot of berries after
+            if(headOn) drawSpathe(ctx,hx,hy,L.spatheR||5.5,col,S.eye,i%2?-1:1);
+            else {
+              for(let f=0;f<6;f++) fcPush(hx+(f%3-1)*1.7,hy-1-(f>>1)*1.5,1.45,1);
+              fcDraw(ctx,col,18,-14);
+            }
+          } else if(L.umbelStyle==='spadix'){
+            // golden club: no hood at all, just a white stalk ending in a gold club
+            if(headOn){
+              ctx.strokeStyle=col;ctx.lineWidth=2.1;ctx.lineCap='round';ctx.beginPath();
+              ctx.moveTo(hx,hy+H*0.18);ctx.lineTo(hx,hy+H*0.03);ctx.stroke();
+              ctx.strokeStyle=S.eye||'#e8bf2a';ctx.lineWidth=2.5;ctx.beginPath();
+              ctx.moveTo(hx,hy+H*0.03);ctx.lineTo(hx,hy-H*0.06);ctx.stroke();ctx.lineCap='butt';
+            } else {
+              fcPush(hx,hy+1,1.7,1.5);fcDraw(ctx,col,16,-12);
+            }
           } else if(L.umbelStyle==='whorls'||L.umbelStyle==='looseFlowers'){
-            const whorls=L.umbelStyle==='whorls',rows=whorls?3:1,flowers=whorls?3:2;
+            const whorls=L.umbelStyle==='whorls',rows=whorls?(L.whorlRows||3):1,flowers=whorls?(L.whorlN||3):2;
+            const gap=L.whorlGap||0.12,taper=L.whorlTaper||0;
             for(let row=0;row<rows;row++)for(let f=0;f<flowers;f++){
               const a=-Math.PI/2+f/flowers*Math.PI*2+row*0.4;
-              const px=hx+Math.cos(a)*(L.headSpread||7),py=hy+row*H*0.12+Math.sin(a)*3;
+              const px=hx+Math.cos(a)*(L.headSpread||7)*(taper?1-taper+taper*(row+1)/rows:1),py=hy+row*H*gap+Math.sin(a)*3;
               ctx.strokeStyle=shade(S.fol||S.seed,-20);ctx.lineWidth=0.7;ctx.beginPath();
-              ctx.moveTo(hx,hy+row*H*0.12+4);ctx.lineTo(px,py);ctx.stroke();
+              ctx.moveTo(hx,hy+row*H*gap+4);ctx.lineTo(px,py);ctx.stroke();
               if(headOn)drawOpenFlower(ctx,px,py,L.flowerR||3.8,col,S.eye,whorls?3:5);
               else if(S.seed){
                 drawFloret(ctx,px,py,whorls?1.8:1,col);
@@ -6520,13 +6732,17 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
   }
+  else if (P.form === 'emergent'){ // pond-margin uprights: rushes, horsetails, cattails, sweet flag
+    snowAnchors=drawEmergent(ctx,P.look||{},S,H,sway,rnd,stemFor,mature,blooming,blv,!!AMBIENCE[season].snow);
+  }
   else if (P.form === 'waterleaf'){ // lotus / water lily: pads ride flat on the water
     const L=P.look||{}, fol=S.fol||'#5f7f55';
     const pads=stemFor(L.pads||6), padW=L.padW||16, padH=L.padH||9;
+    const padReach=L.padSpread||(L.upright?13:18), padFlat=L.padFlat||0.35;
     if (S.fol){
       for (let i=0;i<pads;i++){
-        const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*(L.upright?13:18);
-        const px=Math.cos(a)*rr+sway*0.8, py=-4+Math.sin(a)*rr*0.35;
+        const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*padReach;
+        const px=Math.cos(a)*rr+sway*0.8, py=-4+Math.sin(a)*rr*padFlat;
         if (art2On(L)){
           // a lily pad is big enough to carry a real gradient, and it is a flat
           // disc on water — the light falls across it, which is most of what
@@ -6542,23 +6758,75 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.beginPath(); ctx.ellipse(px,py,padW*(0.65+rnd()*0.25),padH*(0.65+rnd()*0.25),rnd()*0.4,0,7); ctx.fill(); }
         ctx.fillStyle='rgba(25,40,25,0.16)';
         ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+padW*0.45,py-padH*0.12); ctx.lineTo(px+padW*0.12,py+padH*0.16); ctx.closePath(); ctx.fill();
+        // a mottled selection: blotches batched per pad, so a garden pays two fills
+        if (S.edge){
+          ctx.fillStyle=S.edge; ctx.beginPath();
+          ctx.ellipse(px-padW*0.28,py+padH*0.12,padW*0.13,padH*0.12,0,0,7);
+          ctx.moveTo(px+padW*0.34,py-padH*0.2);
+          ctx.ellipse(px+padW*0.2,py-padH*0.2,padW*0.14,padH*0.11,0,0,7);
+          ctx.fill();
+        }
+      }
+      /* A lotus holds most of its leaves well clear of the water on stalks, each
+         one a shallow saucer. Flat pads alone drew it as a lily with tall flowers. */
+      if (L.raisedPads){
+        const n=stemFor(L.raisedPads);
+        for (let i=0;i<n;i++){
+          const u=n>1?i/(n-1)-0.5:0, px=u*H*0.56+(rnd()-0.5)*5+sway, py=-H*(0.34+rnd()*0.34);
+          const pw=padW*(0.74+rnd()*0.26), ph=pw*0.36;
+          ctx.strokeStyle=shade(fol,-22); ctx.lineWidth=1.25;
+          ctx.beginPath(); ctx.moveTo(px*0.3,0); ctx.quadraticCurveTo(px*0.55,py*0.55,px,py); ctx.stroke();
+          ctx.beginPath(); ctx.ellipse(px,py,pw,ph,u*0.3,0,7);
+          if (art2On(L)) litFill(ctx,px,py,pw,fol); else { ctx.fillStyle=shade(fol,6); ctx.fill(); }
+          ctx.fillStyle=shade(fol,-18);
+          ctx.beginPath(); ctx.ellipse(px,py-ph*0.12,pw*0.62,ph*0.52,u*0.3,0,7); ctx.fill();
+        }
       }
     }
     if (blooming && mature && S.bloom){
-      const flowers=Math.max(1,Math.ceil((L.flower==='lotus'?2:3)*blv));
+      const flowers=Math.max(1,Math.ceil((L.flowers||(L.flower==='lotus'?2:3))*blv));
+      const fs=L.flowerScale||1, petals=L.petals||8;
       for (let f=0;f<flowers;f++){
-        const px=(rnd()-0.5)*22+sway, py=-(L.upright?H*0.50:10)-rnd()*8;
+        const px=(rnd()-0.5)*(L.upright?H*0.45:(L.padSpread?L.padSpread*1.2:22))+sway;
+        const py=L.flowerOnPads ? -6-4*fs+(rnd()-0.5)*padReach*padFlat*1.3
+          : -(L.upright?H*(L.raisedPads?0.74:0.5):10)-rnd()*8;
         if (L.upright){
           ctx.strokeStyle=shade(fol,-18); ctx.lineWidth=1.5;
           ctx.beginPath(); ctx.moveTo(px*0.25,0); ctx.lineTo(px,py+5); ctx.stroke();
         }
-        for (let p=0;p<8;p++){
-          const a=p/8*Math.PI*2, pet=L.flower==='lotus'?5.5:4.4;
+        if (L.flower==='cup'){
+          // spatterdock: a yellow ball that never opens flat
+          ctx.strokeStyle=shade(fol,-18); ctx.lineWidth=1.3;
+          ctx.beginPath(); ctx.moveTo(px*0.5,-4); ctx.lineTo(px,py+3); ctx.stroke();
+          const r=4.8*fs;
+          ctx.beginPath(); ctx.ellipse(px,py,r,r*0.86,0,0,7); litFill(ctx,px,py,r,S.bloom);
+          ctx.fillStyle=S.eye||shade(S.bloom,-48);
+          ctx.beginPath(); ctx.ellipse(px,py-r*0.46,r*0.46,r*0.2,0,0,7); ctx.fill();
+          continue;
+        }
+        if (L.flower==='fork'){
+          // water hawthorn: two white prongs side by side, flecked black
+          for (const side of [-1,1]) for (let q=0;q<5;q++)
+            fcPush(px+side*(1.6+q*0.5*fs),py+1-q*1.35*fs,1.45*fs*(1-q*0.08),0.95);
+          fcDraw(ctx,S.bloom,16,-10);
+          if (S.eye){ ctx.fillStyle=S.eye;
+            for (const side of [-1,1]) for (let q=0;q<5;q+=2){
+              ctx.beginPath(); ctx.arc(px+side*(1.6+q*0.5*fs),py+1-q*1.35*fs,0.45,0,7); ctx.fill(); } }
+          continue;
+        }
+        for (let p=0;p<petals;p++){
+          const a=p/petals*Math.PI*2, pet=(L.flower==='lotus'?5.5:4.4)*fs;
           ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*12);
           ctx.beginPath(); ctx.ellipse(px+Math.cos(a)*pet*0.55,py+Math.sin(a)*pet*0.28,pet*0.42,pet*0.72,a,0,7); ctx.fill();
         }
-        ctx.fillStyle=L.flower==='lotus'?'#caa45d':'#d7b85a';
-        ctx.beginPath(); ctx.arc(px,py,2.2,0,7); ctx.fill();
+        // a double: a second, paler ring set between the first, standing higher
+        if (L.doubleFlower) for (let p=0;p<petals;p++){
+          const a=(p+0.5)/petals*Math.PI*2, pet=3.2*fs;
+          ctx.fillStyle=shade(S.bloom,6+(rnd()-0.5)*8);
+          ctx.beginPath(); ctx.ellipse(px+Math.cos(a)*pet*0.42,py-1+Math.sin(a)*pet*0.2,pet*0.38,pet*0.62,a,0,7); ctx.fill();
+        }
+        ctx.fillStyle=S.eye||(L.flower==='lotus'?'#caa45d':'#d7b85a');
+        ctx.beginPath(); ctx.arc(px,py,2.2*fs,0,7); ctx.fill();
       }
     }
     if (S.seed && mature){

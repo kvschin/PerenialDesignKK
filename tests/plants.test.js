@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,642,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,667,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),491,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),505,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -150,6 +150,56 @@ test('catalog cleanup leaves only intentional base-taxon aliases', () => {
   assertEqual(duplicates.length,allowed.size,'only renderer/layer aliases duplicate a base Latin');
   for (const [latin,list] of duplicates)
     assertEqual(list.sort().join(','),allowed.get(latin),`${latin}: intentional architectural alias`);
+});
+
+test('water batch preserves reviewed data and says which values are estimates', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/water-sources.json')), rows=doc.plants;
+  assertEqual(rows.length,25,'the water pass added 25 base records');
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], R=row.proposed;
+    assert(P,row.suggestedKey+': missing species');
+    assertEqual(P.type,'water',row.suggestedKey+': filed as a water plant');
+    for(const f of ['name','latin','form','heightIn','spread','space','sun','moist','phen','provenance'])
+      assertEqual(P[f],R[f],row.suggestedKey+': reviewed '+f);
+    assertEqual(P.zones.join(','),R.zones.join(','),row.suggestedKey+': reviewed zones');
+    assertEqual(P.nativeTo.join(','),R.nativeTo.join(','),row.suggestedKey+': reviewed range');
+    assertEqual(!!P.marginal,R.marginal,row.suggestedKey+': reviewed water habit');
+    assert(row.sources.length>0,row.suggestedKey+': cites a source');
+    row.sources.forEach(u=>assert(/^https?:\/\//.test(u),row.suggestedKey+': source is a URL'));
+    assert(row.estimates&&typeof row.estimates==='object',row.suggestedKey+': states its planning values');
+    // a range the picker does not offer would widen the zone chips for everybody
+    assert(P.zones[0]>=2&&P.zones[1]<=11,row.suggestedKey+': stays inside the catalog zone range');
+  }
+  assertEqual(doc.cultivars.length,14,'the water pass added 14 cultivars');
+  for(const c of doc.cultivars){
+    const [k,v]=c.ref.split('|');
+    assert(PLANTS[k].cv&&PLANTS[k].cv[v],c.ref+': cultivar exists');
+    assertEqual(PLANTS[k].cv[v].latin,c.latin,c.ref+': reviewed name');
+    assert(c.sources.length>0,c.ref+': cites a source');
+  }
+});
+
+test('only the plants that float are confined to open water', () => {
+  const floating=PLANT_KEYS.filter(k=>PLANTS[k].type==='water'&&!PLANTS[k].marginal).sort();
+  assertEqual(floating.join(','),'fragrantwaterlily,hardywaterlily,sacredlotus,spatterdock,waterhawthorn,waterlotus,whitewaterlily',
+    'the lilies, lotuses, spatterdock and water hawthorn float; everything else is a marginal');
+  for(const k of PLANT_KEYS) if(PLANTS[k].marginal) assertEqual(PLANTS[k].type,'water',k+': marginal only means something on a water plant');
+});
+
+test('water plants that are not native do not claim a range', () => {
+  assertEqual(PLANTS.hardywaterlily.provenance,'hybrid','the hardy lilies are garden hybrids');
+  assertEqual(PLANTS.hardywaterlily.nativeTo.length,0,'so they have no wild range');
+  assertEqual(PLANTS.hardywaterlily.cv.jamesbrydon.nativeTo.length,0,'and neither does a named one');
+  assertEqual(PLANTS.hardywaterlily.cv.jamesbrydon.provenance,'hybrid','a hybrid base makes hybrid cultivars');
+  assertEqual(PLANTS.louisianairis.nativeTo.length,0,'Louisiana irises are garden hybrids despite the name');
+  assertEqual(PLANTS.watercanna.cv.endeavor.provenance,'hybrid','the Longwood cannas are hybrids of a wild species');
+  assertEqual(PLANTS.watercanna.cv.endeavor.nativeTo.length,0,'so they drop out of native palettes');
+  assert(PLANTS.americansweetflag.nativeTo.includes('north-america'),'the native sweet flag is American');
+  assert(!PLANTS.sweetflag.nativeTo.includes('north-america'),'and Acorus calamus is the introduced one');
+  assert(PLANTS.commoncattail.nativeTo.includes('north-america')&&PLANTS.commoncattail.nativeTo.includes('europe'),'common cattail is native on both');
+  assertEqual(PLANTS.taro.bloomMonths,undefined,'taro is grown for foliage and claims no flowering calendar');
+  assert(!Object.values(PLANTS.scouringrush.sea).some(s=>s.bloom||s.seed),'a horsetail has spores, not flowers or seed');
+  assertEqual(PLANTS.callalily.cv.crowborough.zones.join(','),'7,10','Crowborough is the hardier calla');
 });
 
 test('West Coast batches preserve reviewed taxa, woody identities, and regional caveats', () => {

@@ -12,6 +12,11 @@ The authoritative records are `PLANT_GUIDANCE` and `PLANT_GUIDANCE_SOURCES` in `
 | Miscanthus | Maryland | [University of Maryland Extension](https://www.extension.umd.edu/resource/ornamental-and-native-grasses-landscape) |
 | Chinese fountain grass | Maryland | [University of Maryland Extension](https://www.extension.umd.edu/resource/ornamental-and-native-grasses-landscape) |
 | Cherry laurel | King County, Washington | [King County](https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/cherry-laurel) |
+| Flowering rush | Minnesota, Ontario | [Minnesota DNR](https://www.dnr.state.mn.us/invasives/aquaticplants/floweringrush/index.html), [Government of Ontario](https://www.ontario.ca/page/flowering-rush) |
+| Sacred lotus | Wisconsin | [Wisconsin DNR](https://dnr.wisconsin.gov/topic/Invasives/fact/SacredLotus.html) |
+| Water forget-me-not | Midwestern US | [NC State Extension](https://plants.ces.ncsu.edu/plants/myosotis-scorpioides/) |
+| Taro | California | [Cal-IPC](https://www.cal-ipc.org/plants/profile/colocasia-esculenta-profile/) |
+| Calla lily | California | [Cal-IPC](https://www.cal-ipc.org/plants/inventory/) |
 | Fragrant waterlily | Washington | [King County](https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/fragrant-water-lily) |
 | Japanese spirea | North Carolina | [NC State Extension](https://plants.ces.ncsu.edu/plants/spiraea-japonica/common-name/japanese-spirea/) |
 | Common milkweed | European Union | [EPPO categorization](https://gd.eppo.int/taxon/ASCSY/categorization) |

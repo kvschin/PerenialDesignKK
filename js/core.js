@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.76';
+const APP_VERSION = '0.9.77';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -2287,8 +2287,25 @@ const PLANT_GUIDANCE_SOURCES=Object.freeze({
   periwinkleNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/vinca-minor/'},
   staghornSwiss:{label:'Info Flora, Swiss national data centre',url:'https://www.infoflora.ch/de/flora/rhus-typhina.html'},
   englishHolly:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/common-holly'},
+  floweringRushMN:{label:'Minnesota DNR',url:'https://www.dnr.state.mn.us/invasives/aquaticplants/floweringrush/index.html'},
+  floweringRushON:{label:'Government of Ontario',url:'https://www.ontario.ca/page/flowering-rush'},
+  sacredLotusWI:{label:'Wisconsin DNR',url:'https://dnr.wisconsin.gov/topic/Invasives/fact/SacredLotus.html'},
+  waterForgetMeNotNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/myosotis-scorpioides/'},
+  taroCalIPC:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/colocasia-esculenta-profile/'},
+  callaCalIPC:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/inventory/'},
 });
 const PLANT_GUIDANCE=Object.freeze({
+  floweringrush:{taxon:'Butomus umbellatus',reviewed:'2026-11-06',invasive:[
+    {area:'Minnesota',region:'north-america',severity:'avoid',source:'floweringRushMN',text:'A prohibited invasive species: unlawful to possess, import, purchase, transport or introduce except under permit. It spreads mainly on water-related equipment and through illegal release of water garden plants.'},
+    {area:'Ontario',region:'north-america',severity:'avoid',source:'floweringRushON',text:'Regulated as a restricted invasive species. It is illegal to buy, sell or propagate it, and the province says never to keep it in a water garden.'}]},
+  sacredlotus:{taxon:'Nelumbo nucifera',reviewed:'2026-11-06',invasive:[
+    {area:'Wisconsin',region:'north-america',severity:'avoid',source:'sacredLotusWI',text:'Classified as Prohibited. It forms large, dense colonies if released into natural areas from cultivation.'}]},
+  waterforgetmenot:{taxon:'Myosotis scorpioides',reviewed:'2026-11-06',invasive:[
+    {area:'Midwestern US',region:'north-america',severity:'caution',source:'waterForgetMeNotNC',text:'NC State reports it listed as a noxious weed in one or more Midwestern states, without naming them. It spreads by rhizomes into dense colonies and self-seeds. Check the local position, and keep it in a container near open water.'}]},
+  taro:{taxon:'Colocasia esculenta',reviewed:'2026-11-06',invasive:[
+    {area:'California',region:'north-america',severity:'avoid',source:'taroCalIPC',text:'Cal-IPC rates this species Moderate, with an Alert: limited distribution in California so far, but the potential to spread much further. It is found in the Central Valley and spreads by seed and corms, with seed carried on water.'}]},
+  callalily:{taxon:'Zantedeschia aethiopica',reviewed:'2026-11-06',invasive:[
+    {area:'California',region:'north-america',severity:'caution',source:'callaCalIPC',text:'Cal-IPC rates this species Limited and records it in the horticultural trade. Check the local position before planting it near open water.'}]},
   staghornsumac:{taxon:'Rhus typhina',reviewed:'2026-10-04',invasive:[
     {area:'Switzerland',region:'europe',severity:'avoid',source:'staghornSwiss',text:'Listed among Switzerland\'s invasive non-native species. Introduced from North America, it suckers into dense stands that crowd out other plants. Check current national rules before buying or planting it.'}]},
   englishholly:{taxon:'Ilex aquifolium',reviewed:'2026-10-05',invasive:[
@@ -2464,6 +2481,13 @@ function isWoodyDef(P){ return isShrubDef(P) || isTreeDef(P); }
    tiles is ceil(3*18*18 / 240*240) = ONE plant for three trees, and 204 of the
    catalog's 209 woody and climbing species do exactly that. */
 function isIndividualDef(P){ return isWoodyDef(P) || (P && P.type==='vine'); }
+/* A marginal stands in shallow water OR on the wet ground beside it, so it is
+   the one water plant that is not confined to a water tile. A lily, a lotus and
+   a spatterdock float on open water and stay there. Where a marginal is planted
+   away from water is advice rather than a refusal (marginalOutOfReach,
+   commands.js), because a bog or a rain garden is wet ground with no water tile
+   anywhere near it. */
+function isMarginalDef(P){ return !!P && P.type==='water' && !!P.marginal; }
 /* Woody spread is truth data (inches); h/cw are drawing hints. Keep the
    spread->tile radius conversion here so shade, shrub footprints, plan marks,
    and cards cannot drift into slightly different ideas of plant size. */

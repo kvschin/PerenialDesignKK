@@ -908,6 +908,9 @@ const BROWSE_RESIST_KEYS=new Set([
   // tough and leathery to be worth browsing
   'periwinkle','bugle','deadnettle','candytuft','thrift','rockrose','londonpride',
   'woodanemone','hepatica','comfrey','yellowcorydalis','marshmarigold','yellowflag',
+  // pond plants NC State records as poisonous: calcium oxalate in the arums,
+  // irritant rhizomes in the irises
+  'taro','callalily','arrowarum','goldenclub','japaneseiris','rabbitiris','louisianairis',
   // resistant minor bulbs (toxic alkaloids or onion scent)
   'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
   'muscari','scillaperuviana','puschkinia','ipheion','leucojum','anemoneblanda',
@@ -952,7 +955,7 @@ function staticPlantRoles(k){
   if (isTreeDef(P)) roles.add('structure'), roles.add('canopy');
   if (P.form==='fern') roles.add('fern'), roles.add('shade'), roles.add('woodland');
   if (P.form==='leafmound') roles.add('groundcover'), roles.add('shade'), roles.add('woodland');
-  if (['globe','spike','drumstick','rosette','agave','cycad','fanpalm','ocotillo','vertgrass','fountaingrass','cloudgrass','conifer'].includes(P.form))
+  if (['globe','spike','drumstick','rosette','agave','cycad','fanpalm','ocotillo','vertgrass','fountaingrass','cloudgrass','conifer','emergent'].includes(P.form))
     roles.add('architectural');
   if (['umbel','cone','pincushion','bractstack'].includes(P.form)) roles.add('flower');
   if (P.form==='hydrangea') roles.add('hydrangea'), roles.add('cottage'), roles.add('romantic'), roles.add('shade');
