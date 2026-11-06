@@ -56,7 +56,7 @@ and they are documented rather than faked:
 | `querySelectorAll` | `[]` | Count rendered nodes in the browser. "No invalid rows exist" would pass here without testing anything. |
 | `getImageData` | 4 zero bytes, whatever region you ask for | Measure pixels in the browser. |
 | `requestAnimationFrame` | never fires | Deliberate: `loop` re-arms itself, so a firing rAF would spin forever. |
-| `setTimeout` | truthy handle, never fires | Replace it in the test if you need the callback; several tests do. |
+| `setTimeout` | truthy handle, never fires | Replace it in the test if you need the callback; several tests do. Awaiting one unreplaced never finishes, and the runner fails that test as "never settled". |
 | `fetch` | rejects | There is no network. `openDemoGarden` is browser-verified. |
 | `getComputedStyle` | `''` for every property | Resolve real values in the browser; `uiInk()` would cache the empty string here. |
 
