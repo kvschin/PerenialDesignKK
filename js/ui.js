@@ -878,8 +878,22 @@ const ROLE_CACHE={};
 function hasSeasonProp(P,prop){
   return Object.values(P.sea||{}).some(s=>s && s[prop]);
 }
+/* A term must be a whole word, or that word plus an s. text.includes() let "aster"
+   match Eastern and Masterwort, "iris" match Irish, "stipa" match stipata and
+   "stachys" match planostachys: eastern hemlock was a cottage nectar plant, Irish yew
+   a pollinator plant, and a wet sedge a Mediterranean one. */
+function roleLetter(c){ return c>='a'&&c<='z'; }
+function roleTermIn(text,term){
+  for (let i=text.indexOf(term);i>=0;i=text.indexOf(term,i+1)){
+    if (i>0 && roleLetter(text[i-1])) continue;
+    let end=i+term.length;
+    if (text[end]==='s') end++;
+    if (end>=text.length || !roleLetter(text[end])) return true;
+  }
+  return false;
+}
 function roleMatches(text,terms){
-  return terms.some(t=>text.includes(t));
+  return terms.some(t=>roleTermIn(text,t));
 }
 /* ---------- deer & rabbit browse resistance ----------
    Curated from Rutgers / Missouri Botanical browse ratings for this palette.
@@ -985,9 +999,9 @@ function staticPlantRoles(k){
     roles.add('dry'), roles.add('gravel'), roles.add('mediterranean');
   if (roleMatches(text,['silver','blue fescue','yucca','eryngium','echinops','yarrow','stachys','rattlesnake','pussytoes','antennaria']))
     roles.add('silver');
-  if (roleMatches(text,['japanese maple','flowering cherry','hakone','hosta','fern','astilbe','heuchera','hydrangea','ginkgo','birch','yew','boxwood']))
+  if (roleMatches(text,['japanese maple','flowering cherry','hakonechloa','hosta','fern','astilbe','heuchera','hydrangea','ginkgo','birch','yew','boxwood']))
     roles.add('japanese');
-  if (roleMatches(text,['fountain grass','miscanthus','feather reed','calamagrostis','fescue','hakone','boxwood','yew','hydrangea','allium','ginkgo','maple','cherry','birch','rattlesnake','eryngium','echinops']))
+  if (roleMatches(text,['fountain grass','miscanthus','feather reed','calamagrostis','fescue','hakonechloa','boxwood','yew','hydrangea','allium','ginkgo','maple','cherry','birch','rattlesnake','eryngium','echinops']))
     roles.add('modern'), roles.add('block');
   if (roleMatches(text,['boxwood','yew','hydrangea','allium','japanese maple','flowering cherry','ginkgo','serviceberry']))
     roles.add('formal'), roles.add('structure');

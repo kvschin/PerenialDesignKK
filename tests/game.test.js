@@ -1039,6 +1039,27 @@ test('season-derived roles distinguish berries from persistent winter seedheads'
   assert(mahogany.includes('seedhead')&&mahogany.includes('winter'),'winter mountain-mahogany plumes remain searchable');
 });
 
+test('role terms match whole words, not letters inside another word', () => {
+  assert(roleMatches('new england aster',['aster']),'the word itself matches');
+  assert(roleMatches('wood asters',['aster']),'so does its plural');
+  assert(!roleMatches('eastern hemlock',['aster']),'"aster" is not in Eastern');
+  assert(!roleMatches('great masterwort',['aster']),'nor in Masterwort');
+  assert(!roleMatches('irish yew',['iris']),'"iris" is not in Irish');
+  assert(!roleMatches('carex stipata',['stipa']),'"stipa" is not in stipata');
+  assert(!roleMatches('carex planostachys',['stachys']),'"stachys" is not in planostachys');
+  assert(roleMatches('poppy mallow',['poppy mallow']),'a two-word term still matches');
+  const has=(k,r)=>staticPlantRoles(k).includes(r);
+  for (const r of ['dry','gravel','mediterranean']) assert(!has('awlfruitedsedge',r),`a wet sedge is not ${r}`);
+  for (const r of ['silver','cottage','romantic']) assert(!has('cedarsedge',r),`Cedar Sedge is not ${r}`);
+  for (const k of ['easternhemlock','whitepine','redcedar','cottonwood','irishyew'])
+    for (const r of ['cottage','nectar']) assert(!has(k,r),`${k} is not ${r}`);
+  // the plants those terms were written for keep their roles
+  assert(has('giantstipa','dry')&&has('giantstipa','mediterranean'),'Stipa gigantea is still a dry-garden grass');
+  assert(has('lambsear','silver')&&has('lambsear','cottage'),"Stachys is still lamb's ear");
+  assert(has('aster','cottage')&&has('blueflagiris','cottage'),'real asters and irises keep cottage');
+  assert(has('hakone','japanese')&&has('hakone','modern'),'Hakonechloa has no "hakone" word, so its term names the genus');
+});
+
 test('Texas and Arizona plants are reachable by category, discovery, and botanical synonyms', () => {
   setup();
   const library=new Set(libraryAllKeys()),refs=new Set(allPlantRefs().map(r=>plantRefId(r)));

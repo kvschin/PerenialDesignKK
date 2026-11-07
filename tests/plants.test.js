@@ -904,6 +904,30 @@ test('sedges carry visual archetypes and preserve signature seedheads', () => {
     'wet upright sedges need a hummock profile');
 });
 
+test('sedge records agree with the Mt. Cuba trial where a second source backs it', () => {
+  // green minus red: above zero still reads green, below it reads straw
+  const green=hex=>parseInt(hex.slice(3,5),16)-parseInt(hex.slice(1,3),16);
+  const semi=['oaksedge','whitebearsedge','bromoides','cherokeesedge','bristlysedge','ivorysedge','grayssedge',
+    'graysedge','pennsedge','plantainsedge','rosysedge','longbeakedsedge','foxsedge'];
+  for (const k of semi){
+    const s=PLANTS[k].sea;
+    assert(green(s.Winter.fol)>0,`${k}: semi-evergreen, so winter keeps some green`);
+    assert(green(s.Summer.fol)>green(s.Fall.fol),`${k}: fall is past summer`);
+    assert(green(s.Fall.fol)>=green(s.Winter.fol),`${k}: winter is no greener than fall`);
+  }
+  // deciduous, or the sources disagree: left as straw
+  for (const k of ['tussocksedge','sedge','palmsedge','awlfruitedsedge'])
+    assert(green(PLANTS[k].sea.Winter.fol)<0,`${k}: stays straw in winter`);
+  for (const k of ['grayssedge','foxsedge','broomsedgecarex'])
+    assertEqual(PLANTS[k].sun,'part',`${k}: takes part shade, so a canopy must not stunt it`);
+  // blade width in the order the plants really come: 19mm, up to 14mm, up to 9mm, 6mm, 3mm
+  const w=k=>PLANTS[k].look.leafW;
+  assert(w('plantainsedge')>w('bluewoodsedge')&&w('bluewoodsedge')>w('graysedge')
+    &&w('graysedge')>w('cherokeesedge')&&w('cherokeesedge')>w('pennsedge'),'leafW follows real blade width');
+  assert(!/fine-textured/i.test(PLANTS.bluewoodsedge.blurb),'Blue Wood Sedge has strappy leaves');
+  assert(!/broad-leaved/i.test(PLANTS.cherokeesedge.blurb),'Cherokee Sedge has medium leaves');
+});
+
 test('signature grass cultivars keep their real-world size hierarchy', () => {
   const effective = (k, v) => Object.assign({}, PLANTS[k], PLANTS[k].cv[v]);
   const rgb = c => ({r:parseInt(c.slice(1,3),16),g:parseInt(c.slice(3,5),16),b:parseInt(c.slice(5,7),16)});

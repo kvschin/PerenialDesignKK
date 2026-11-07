@@ -6722,10 +6722,24 @@ Sources and estimates are in `docs/plant-data/wetground-sources.json`, decisions
 `docs/plant-data/wetground-implementation.md`, and `dev/wetground-review.html` shows every
 choice at library size and true scale beside a 6 ft post.
 
-**Sedge catalog:** keep one Sedge tab rather than adding habitat tabs. The tray
-sorts it into data-driven Sun & meadow, Shade & woodland, and Wet & rain garden
-headings; `moist:'moist'` is the rain-garden classification (the schema has no
-`'wet'` value).
+**Sedge catalog:** keep one Sedge tab rather than adding habitat tabs. It is a flat
+list in the catalog's usual sort: the Sun & meadow, Shade & woodland and Wet & rain
+garden headings in `buildToolTray` (`cat.sedgeSections`) cannot run, because a plant
+tab returns through `renderDiscoveryTray` before reaching them, and the filters offer
+only flower colour and bloom season. So nothing yet lets a gardener browse sedges by
+site. `moist:'moist'` is the rain-garden classification (the schema has no `'wet'`
+value). `docs/plant-data/sedge-audit.md` is the 0.9.80 audit: what Mt. Cuba's trial
+spreadsheet settled, where it was overruled, and what is still open (missing species,
+the drawing, recommendations that do not discriminate).
+A semi-evergreen sedge keeps some green through fall and winter: its `Fall.fol` sits
+45% and its `Winter.fol` 40% of the way back to its own Summer colour, a rule of thumb
+rather than a measurement. A test holds the order, so winter is never greener than fall.
+**`roleMatches` matches whole words** (0.9.80). It was `text.includes(term)`, so "aster"
+matched Eastern and Masterwort, "iris" Irish, "stipa" stipata and "stachys" planostachys:
+eastern hemlock and white pine sat on the Cottage and Butterfly lists, and a wet sedge on
+the Mediterranean one. Fifteen species lost false roles and no plant left a list it
+belonged on. A term must be a word as it appears in the name, Latin or group, so a genus
+is written in full (`hakonechloa`, not `hakone`).
 Every sedge carries a sourced `heightIn` (2026-10-29: typical garden height
 in flower, `h` untouched), so the card and Library quote a real size; a cultivar
 shorter than its species ('Oehme') states its own.
