@@ -5358,8 +5358,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     gate (zone range, range-aware native mode, deer/rabbit-resistant plants, and
     squirrel-resistant bulbs). `game.discovery` is a reversible saved browsing
     lens over that gate: source (`recommended`, all eligible, Favorites, or one
-    named palette), category, common/Latin/cultivar search, flower-color family,
-    bloom season, and progressive result limit. `allPlantRefs()` expands every
+    named palette), category, common/Latin/cultivar search, light, moisture,
+    flower-color family, bloom season, and progressive result limit. `allPlantRefs()` expands every
     selectable species and cultivar to an exact `{s,v}` reference; card
     selection, Favorite status, named palettes, bloom metadata, and planting all
     preserve that exact reference. Discovery filters exact references first,
@@ -5437,6 +5437,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     it at 4.3 / 3.1 / 2.1 cards at 1440x900 / 1366x768 / 1280x620.
     Switching catalog modes selects
     Hand so browsing cannot paint; it preserves the last brush for restoration.
+    **Light and moisture filter every tab** (`DISCOVERY_LIGHT`, `DISCOVERY_MOISTURE`, `discovery.light`,
+    `discovery.moisture`, 0.9.86), in the same Plant filters as flower colour and bloom season, named as
+    the cards name them. They read the exact reference, so a cultivar answers for itself. A floating
+    lily is no answer to Moist, though its record says moist. A new discovery field has to reach
+    `discoveryMemoKey`, or two filters in one render share an answer.
     The docked grid shell is a 56px full-width header,
     canvas in the lower-left cell, and a flush dark-loam right-side library
     separated only by a 1px divider (370-430px desktop and 340-390px tablet).
@@ -5701,8 +5706,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     — was simply absent every time you reopened one, with no hint that arming
     Path was the way back to a garden-wide setting.) New garden entries start on
     Hand so accidental painting is harder. The single **Plant filters** modal
-    contains garden eligibility controls (native range/mode and browse) and flower discovery
-    (color/bloom season); it is opened from either the garden menu or the tray.
+    contains garden eligibility controls (native range/mode and browse), light and moisture,
+    and flower discovery (color/bloom season); it is opened from either the garden menu or the tray.
     The dedicated Plants Find field is debounced and searches common name,
     Latin name, cultivar name, roles, and category across every plant category;
     typing temporarily replaces the category facet with **All matching plants**
@@ -6725,7 +6730,7 @@ choice at library size and true scale beside a 6 ft post.
 **Sedge catalog:** keep one Sedge tab rather than adding habitat tabs. It lists its plants
 under five site headings (`SEDGE_SITES`, `sedgeSiteOf`, `discoverySiteSections`, ui.js;
 0.9.82): Meadow, Wet meadow, Dry shade, Woodland, Moist shade, because a sedge is chosen by
-site and the filters offer only flower colour and bloom season. They add no state: they
+site. They add no state: they
 follow the category, so a search, which clears the category, is one flat list again. Every
 section is drawn, with no Load more, since the card art paints as it scrolls into view. The
 names are habitats rather than "sun" because a meadow sedge may also take part shade, and its

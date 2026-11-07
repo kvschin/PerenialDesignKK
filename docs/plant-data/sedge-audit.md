@@ -211,7 +211,5 @@ Where the reading changed the plan:
   asks for wet ground; they show under All eligible and in an unstyled garden.
 - **Japanese Sedge 'Evergold' is not on the Japanese list**, which no sedge is. I found no
   source that names the use.
-- **Browsing by site exists only on the Sedge tab.** A sun and moisture filter across the
-  catalog would serve every plant type; `sun` and `moist` are already on every record.
 - **Bowles' Golden has no parent species.** Evergold now sits with the Japanese sedges.
 - **Water depth is not modelled.** A wading sedge goes on any water tile, as a marginal does.

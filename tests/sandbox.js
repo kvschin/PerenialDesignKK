@@ -148,6 +148,7 @@ const documentStub = {
      their own rects, which is the pattern to follow. */
   querySelectorAll(){ return []; },
   createElement(t){ return makeEl(t); }, createElementNS(){ return makeEl(); },
+  createTextNode(t){ const e=makeEl('#text'); e.textContent=String(t); return e; },
   body: makeEl(), documentElement: makeEl(), head: makeEl(),
   addEventListener(){}, removeEventListener(){}, hidden: false,
   fonts: { ready: Promise.resolve(), add(){}, load(){ return Promise.resolve(); } },

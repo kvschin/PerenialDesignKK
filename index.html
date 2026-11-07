@@ -642,6 +642,12 @@ if ('serviceWorker' in navigator)
 <div class="screen modal-screen hidden" id="discoveryFilterScreen" role="dialog" aria-modal="true" aria-labelledby="discoveryFilterTitle">
   <div class="panel discovery-filter-panel" tabindex="-1">
     <h2 id="discoveryFilterTitle">Plant filters</h2>
+    <div class="field"><label>Light</label><div id="discoveryLightChips" class="chip-row" role="group" aria-label="Light"></div></div>
+    <div class="field"><label>Moisture</label><div id="discoveryMoistureChips" class="chip-row" role="group" aria-label="Moisture"></div></div>
+    <div class="field"><label>Flower color</label><div id="discoveryColorChips" class="chip-row chip-grid" role="group" aria-label="Flower colors"></div></div>
+    <div class="field"><label>Blooms in</label><div id="discoverySeasonChips" class="chip-row" role="group" aria-label="Bloom seasons"></div></div>
+    <p class="palette-count" id="discoveryFilterCount" aria-live="polite"></p>
+    <button class="chip discovery-clear" id="btnDiscoveryClear" type="button">Clear these filters</button>
     <p class="sub">Garden criteria decide what can be placed in the plan. Local native status, soil, summer climate, and regional invasive risk need a separate check.</p>
     <div class="field discovery-criteria">
       <label>Garden criteria</label>
@@ -681,11 +687,7 @@ if ('serviceWorker' in navigator)
         <label class="check-row"><input type="checkbox" id="discoverySquirrel"> Squirrel resistant bulbs</label>
       </div>
     </div>
-    <div class="field"><label>Flower color</label><div id="discoveryColorChips" class="chip-row chip-grid" role="group" aria-label="Flower colors"></div></div>
-    <div class="field"><label>Blooms in</label><div id="discoverySeasonChips" class="chip-row" role="group" aria-label="Bloom seasons"></div></div>
-    <p class="palette-count" id="discoveryFilterCount" aria-live="polite"></p>
     <div class="row" style="margin-top:10px">
-      <button class="btn" id="btnDiscoveryClear" type="button">Clear flower filters</button>
       <button class="btn primary" id="btnDiscoveryApply" type="button">Apply filters</button>
     </div>
     <button class="back-link" id="btnDiscoveryClose" type="button">Back to plants</button>

@@ -2409,7 +2409,8 @@ function discoverySourceMenu(d){
 }
 function discoveryFilterSummary(d){
   const colors=d.colorFamilies.map(id=>(DISCOVERY_COLOR_FAMILIES.find(x=>x[0]===id)||[])[1]||id);
-  const labels=[...discoveryCriteriaLabels(),...colors,...d.bloomSeasons];
+  const named=(rows,ids)=>ids.map(id=>(rows.find(x=>x[0]===id)||[])[1]||id);
+  const labels=[...discoveryCriteriaLabels(),...named(DISCOVERY_LIGHT,d.light),...named(DISCOVERY_MOISTURE,d.moisture),...colors,...d.bloomSeasons];
   if (!labels.length) return null;
   const summary=document.createElement('button'); summary.type='button'; summary.className='discovery-filter-summary';
   const shown=labels.slice(0,2).join(' · '), extra=labels.length>2?` +${labels.length-2}`:'';
@@ -2651,7 +2652,7 @@ function renderDiscoveryTrayInner(tray){
     const reset=document.createElement('button'); reset.type='button'; reset.className='btn';
     reset.textContent=lensOnly?'Browse all eligible plants':'Clear filters';
     reset.onclick=()=>{ setDiscovery(lensOnly?{source:'all',collectionId:null}
-      :{source:'all',collectionId:null,category:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36},true); buildToolTray(); };
+      :{source:'all',collectionId:null,category:null,query:'',colorFamilies:[],bloomSeasons:[],light:[],moisture:[],limit:36},true); buildToolTray(); };
     empty.appendChild(reset); tray.appendChild(empty); return;
   }
   const openGroup=discoveryOpenSpecies&&groups.find(group=>group.id===discoveryOpenSpecies);
@@ -2702,7 +2703,7 @@ function openDiscoveryFilters(opener){
   discoveryCriteriaDraft=activeFilters();
   discoveryStyleDraft=gardenStyleId();
   renderDiscoveryFilterScreen();
-  const screen=openOverlay('discoveryFilterScreen','#discoveryNativeMode'); if (screen) screen._returnFocus=opener||screen._returnFocus;
+  const screen=openOverlay('discoveryFilterScreen','#discoveryLightChips button'); if (screen) screen._returnFocus=opener||screen._returnFocus;
 }
 /* The garden's style lives on game.design, not in the filters: it ranks the
    catalog and decides what `recommended` holds, but it is not an eligibility
@@ -2779,6 +2780,17 @@ function renderDiscoveryFilterScreen(){
   const d=discoveryFilterDraft||normalizeDiscovery(activeDiscovery()), colors=document.getElementById('discoveryColorChips'), seasons=document.getElementById('discoverySeasonChips');
   if (!colors||!seasons) return; colors.innerHTML=''; seasons.innerHTML='';
   renderDiscoveryCriteria();
+  const siteChips=(id,rows,field)=>{
+    const el=document.getElementById(id); if (!el) return; el.innerHTML='';
+    rows.forEach(([value,label])=>{
+      const on=d[field].includes(value), b=document.createElement('button');
+      b.type='button'; b.className='chip'+(on?' sel':''); b.textContent=label; b.setAttribute('aria-pressed',on?'true':'false');
+      b.onclick=()=>{ discoveryFilterDraft=normalizeDiscovery(Object.assign({},d,{[field]:on?d[field].filter(x=>x!==value):[...d[field],value]})); renderDiscoveryFilterScreen(); };
+      el.appendChild(b);
+    });
+  };
+  siteChips('discoveryLightChips',DISCOVERY_LIGHT,'light');
+  siteChips('discoveryMoistureChips',DISCOVERY_MOISTURE,'moisture');
   DISCOVERY_COLOR_FAMILIES.forEach(([id,label,color])=>{ const b=document.createElement('button'); b.type='button'; b.className='chip discovery-color-chip'+(d.colorFamilies.includes(id)?' sel':'');
     b.setAttribute('aria-pressed',d.colorFamilies.includes(id)?'true':'false'); const dot=document.createElement('i'); dot.className='chip-swatch'; dot.style.background=color;
     b.append(dot,document.createTextNode(label)); b.onclick=()=>{ const next=d.colorFamilies.includes(id)?d.colorFamilies.filter(x=>x!==id):[...d.colorFamilies,id]; discoveryFilterDraft=normalizeDiscovery(Object.assign({},d,{colorFamilies:next})); renderDiscoveryFilterScreen(); }; colors.appendChild(b); });
@@ -2802,7 +2814,7 @@ function applyGardenStyle(type){
   return true;
 }
 function applyDiscoveryFilters(){
-  const n=applyGardenCriteria(discoveryCriteriaDraft||activeFilters(),{refresh:false,announce:false});
+  applyGardenCriteria(discoveryCriteriaDraft||activeFilters(),{refresh:false,announce:false});
   if (discoveryStyleDraft) applyGardenStyle(discoveryStyleDraft);
   discoveryStyleDraft=null;
   // zone and style live in the garden's own save (game.design), not only in the
@@ -2811,9 +2823,9 @@ function applyDiscoveryFilters(){
   discoveryOpenSpecies=null;
   setDiscovery(Object.assign({},discoveryFilterDraft||{}, {limit:36}),true); discoveryFilterDraft=null; discoveryCriteriaDraft=null;
   closeOverlay('discoveryFilterScreen'); buildToolTray();
-  toast(`${n} eligible plant${n===1?'':'s'}; flower filters updated.`);
+  toast(`${discoveryResultCountText(discoveryRefs())} match these filters.`);
 }
-function clearDiscoveryFilters(){ discoveryFilterDraft=normalizeDiscovery(Object.assign({},activeDiscovery(),{colorFamilies:[],bloomSeasons:[]})); renderDiscoveryFilterScreen(); }
+function clearDiscoveryFilters(){ discoveryFilterDraft=normalizeDiscovery(Object.assign({},activeDiscovery(),{colorFamilies:[],bloomSeasons:[],light:[],moisture:[]})); renderDiscoveryFilterScreen(); }
 function openPaletteManager(ref){
   palettePendingRef=ref||null; paletteRenameId=null; renderPaletteManager();
   openOverlay('paletteScreen','#paletteName');

@@ -1460,6 +1460,57 @@ test('Coastal asks for plants recorded on the coast, and Cottage has no pond or 
     if (PLANTS[k]) assert(plantStyleRecommended(k,s,na),k+': still on '+s);
 });
 
+test('the catalog can be narrowed by light and moisture, across every plant type', () => {
+  setup();
+  const saved=[game.design,game.filters,game.discovery];
+  try {
+    game.design=null; game.filters=normalizeFilters({nativeRegion:'north-america',nativeMode:'any'});
+    const refs=o=>discoveryRefsFor(normalizeDiscovery(Object.assign({source:'all',category:null,query:''},o)));
+    const all=refs({}).length;
+    const sun=refs({light:['full']}), part=refs({light:['part']});
+    assert(sun.length>0&&part.length>0&&sun.length+part.length===all,'every plant has a light, and each answer is real');
+    assert(sun.every(r=>refDef(r).sun==='full')&&part.every(r=>refDef(r).sun==='part'),'and is what it says');
+    assertEqual(refs({light:['full','part']}).length,all,'asking for both is asking for neither');
+    const dry=refs({moisture:['dry']}), moist=refs({moisture:['moist']});
+    assert(dry.every(r=>refDef(r).moist==='dry'),'Low water means dry');
+    assert(moist.every(r=>refDef(r).moist==='moist'),'Moist means moist');
+    assert(!moist.some(r=>r.s==='fragrantwaterlily'),'and a floating lily is no answer to wet ground');
+    assert(moist.some(r=>r.s==='softrush')&&moist.some(r=>r.s==='lakesedge'),'a marginal and a wet sedge are');
+    assert(refs({light:['part'],moisture:['dry']}).every(r=>refDef(r).sun==='part'&&refDef(r).moist==='dry'),'both narrow together');
+    assert(refs({light:['part'],moisture:['dry'],category:'sedges'}).some(r=>r.s==='pennsedge'),'and with a tab: Pennsylvania Sedge for dry shade');
+    assertEqual(refs({query:'oak',light:['part']}).length,refs({query:'oak'}).filter(r=>refDef(r).sun==='part').length,'and with a search');
+    const types=new Set(sun.map(r=>PLANTS[r.s].type));
+    for (const t of ['grass','forb','shrub','tree','bulb']) assert(types.has(t),'it reaches '+t);
+    // a garden saved before these existed, and junk in one that claims to
+    const old=normalizeDiscovery({source:'all'});
+    assertEqual(old.light.length+old.moisture.length,0,'an older garden simply has no such filter');
+    const junk=normalizeDiscovery({light:['full','noon','full'],moisture:['bog']});
+    assertEqual(junk.light.join(),'full','unknown values drop, and repeats');
+    assertEqual(junk.moisture.length,0,'on either list');
+    // one render's shared answers must not confuse two different filters
+    openDiscoveryMemo();
+    try { assert(refs({light:['full']}).length!==refs({light:['part']}).length,'the memo tells them apart');
+      assert(refs({moisture:['dry']}).length!==refs({moisture:['moist']}).length,'both of them'); }
+    finally { closeDiscoveryMemo(); }
+    // what shows that it is on, and what clears it
+    game.discovery=normalizeDiscovery({source:'all',light:['part'],moisture:['dry','medium']});
+    assertEqual(discoveryFilterCount(),3,'the Filters button counts them');
+    assert(discoveryFilterSummary(game.discovery).textContent.includes('Part shade'),'the summary names them as the cards do');
+    assert(discoveryFilterSummary(game.discovery).title.includes('Low water'),'all of them');
+    const sigOn=trayStateSig(); game.discovery=normalizeDiscovery(Object.assign({},game.discovery,{light:[]}));
+    assert(trayStateSig()!==sigOn,'a change of filter rebuilds the catalog');
+    game.discovery=normalizeDiscovery({source:'all',light:['part'],moisture:['dry'],colorFamilies:['pink']});
+    clearDiscoveryFilters();
+    assertEqual(discoveryFilterDraft.light.length+discoveryFilterDraft.moisture.length+discoveryFilterDraft.colorFamilies.length,0,'Clear takes all of them');
+    discoveryFilterDraft=null;
+    // and it travels with the garden
+    game.discovery=normalizeDiscovery({source:'all',light:['part'],moisture:['moist']});
+    const blob=buildSaveBlob();
+    assertEqual(blob.discovery.light[0],'part','the lens saves');
+    assertEqual(blob.discovery.moisture[0],'moist','both parts');
+  } finally { [game.design,game.filters,game.discovery]=saved; }
+});
+
 test('role terms match whole words, not letters inside another word', () => {
   assert(roleMatches('new england aster',['aster']),'the word itself matches');
   assert(roleMatches('wood asters',['aster']),'so does its plural');
@@ -13538,6 +13589,8 @@ const DISCOVERY_STATES = [
   { source: 'all', colorFamilies: ['purple'] },
   { source: 'all', bloomSeasons: ['Summer'] },
   { source: 'all', colorFamilies: ['yellow'], bloomSeasons: ['Fall'] },
+  { source: 'all', light: ['part'] },
+  { source: 'all', moisture: ['dry'], query: 'sedge' },
   { source: 'recommended', query: 'sedge' },
 ];
 
@@ -13727,6 +13780,8 @@ test('cached discovery agrees with fresh predicates after criteria, source and c
       if (!P||seen.has(id)||!plantRefFits(ref)) return false;
       if (d.category){const cat=TRAY_CATS.find(c=>c.id===d.category);if(!cat.types.includes(P.type)||(cat.sunFilter&&P.sun!==cat.sunFilter))return false;}
       if (q&&!discoverySearchText(ref).includes(q)) return false;
+      if (d.light.length&&!d.light.includes(P.sun)) return false;
+      if (d.moisture.length&&(!d.moisture.includes(P.moist)||(P.type==='water'&&!P.marginal))) return false;
       if (d.colorFamilies.length||d.bloomSeasons.length){
         const seasons=d.bloomSeasons.length?d.bloomSeasons:DISCOVERY_SEASONS.map(x=>x[0]);
         if (!seasons.some(s=>bloomMonthsInSeason(P,s).length&&(!d.colorFamilies.length||flowerFamiliesFor(P,s).some(c=>d.colorFamilies.includes(c)))))return false;
@@ -13749,6 +13804,7 @@ test('cached discovery agrees with fresh predicates after criteria, source and c
         for (const source of ['all','recommended','palette']){
           verify({source,collectionId:palette.id});
           verify({source,collectionId:palette.id,query:'a',colorFamilies:['purple','white'],bloomSeasons:['Spring','Summer']});
+          verify({source,collectionId:palette.id,light:['part'],moisture:['dry','moist']});
         }
       }
     }

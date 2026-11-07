@@ -285,7 +285,7 @@ const game = {
   // `source` is recommended | all | favorites | palette; a palette id only
   // matters when source==='palette'.  The rest restores per-garden browsing
   // context without ever changing what is legal to plant in that garden.
-  discovery:{source:'recommended', collectionId:null, category:null, returnCategory:null, query:'', colorFamilies:[], bloomSeasons:[], limit:36, filterOpen:false},
+  discovery:{source:'recommended', collectionId:null, category:null, returnCategory:null, query:'', colorFamilies:[], bloomSeasons:[], light:[], moisture:[], limit:36, filterOpen:false},
   pausedAt:0,
   lastDay:-1, dirty:false,
   rev:0,              // edit revision — bumped by every model mutation (see setTile/clearTile); undo watches it

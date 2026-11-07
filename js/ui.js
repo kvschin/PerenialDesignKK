@@ -1192,7 +1192,7 @@ function activeFilters(){ return normalizeFilters(game.filters); }
 
 /* ---------- plant discovery ----------
    Garden criteria decide eligibility.  Discovery is a separate, reversible
-   lens over that eligible catalog: palette source, query, flower color, and
+   lens over that eligible catalog: palette source, query, light, moisture, flower color, and
    bloom timing.  Keeping the predicates here makes every tray entry point
    (categories, Find, Favorites, and saved palettes) agree. */
 const DISCOVERY_COLOR_FAMILIES=[
@@ -1200,12 +1200,17 @@ const DISCOVERY_COLOR_FAMILIES=[
   ['white','White','#eee9df'], ['yellow','Yellow','#e1bb42'], ['orange','Orange','#d98642'], ['red','Red','#c9554d']
 ];
 const DISCOVERY_SEASONS=[['Spring',[3,4,5]],['Summer',[6,7,8]],['Fall',[9,10,11]]];
-function defaultDiscovery(){ return {source:'recommended',collectionId:null,category:null,returnCategory:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36,filterOpen:false}; }
+// Named as the cards name them, so a chip and the line on a card read the same.
+const DISCOVERY_LIGHT=[['full','Full sun'],['part','Part shade']];
+const DISCOVERY_MOISTURE=[['dry','Low water'],['medium','Average water'],['moist','Moist']];
+function defaultDiscovery(){ return {source:'recommended',collectionId:null,category:null,returnCategory:null,query:'',colorFamilies:[],bloomSeasons:[],light:[],moisture:[],limit:36,filterOpen:false}; }
 function normalizeDiscovery(src){
   src=src||{};
   const source=['recommended','all','favorites','palette'].includes(src.source) ? src.source : 'recommended';
   const colors=(src.colorFamilies||[]).filter(c=>DISCOVERY_COLOR_FAMILIES.some(x=>x[0]===c));
   const seasons=(src.bloomSeasons||[]).filter(s=>DISCOVERY_SEASONS.some(x=>x[0]===s));
+  const light=(src.light||[]).filter(v=>DISCOVERY_LIGHT.some(x=>x[0]===v));
+  const moisture=(src.moisture||[]).filter(v=>DISCOVERY_MOISTURE.some(x=>x[0]===v));
   let category=TRAY_CATS.some(c=>c.id===src.category && c.types) ? src.category : null;
   let returnCategory=TRAY_CATS.some(c=>c.id===src.returnCategory && c.types) ? src.returnCategory : null;
   const query=String(src.query||'').slice(0,120);
@@ -1215,6 +1220,7 @@ function normalizeDiscovery(src){
   if (query.trim() && category && !returnCategory){ returnCategory=category; category=null; }
   return {source,collectionId:source==='palette' && src.collectionId ? String(src.collectionId) : null,category,returnCategory,
     query,colorFamilies:[...new Set(colors)],bloomSeasons:[...new Set(seasons)],
+    light:[...new Set(light)],moisture:[...new Set(moisture)],
     limit:Math.max(24,Math.min(240,Number(src.limit)||36)),filterOpen:!!src.filterOpen};
 }
 function activeDiscovery(){
@@ -1421,6 +1427,9 @@ function discoveryEntryMatches(entry,d){
     if (!cat || !cat.types.includes(P.type) || (cat.sunFilter&&P.sun!==cat.sunFilter)) return false; }
   const q=(d.query||'').trim().toLowerCase();
   if (q && !entry.hay.includes(q)) return false;
+  // a lily floats: asked for wet ground, it is not an answer, though its record says moist
+  if (d.light&&d.light.length && !d.light.includes(P.sun)) return false;
+  if (d.moisture&&d.moisture.length && (!d.moisture.includes(P.moist) || (P.type==='water'&&!P.marginal))) return false;
   const selectedSeasons=d.bloomSeasons.length ? d.bloomSeasons : DISCOVERY_SEASONS.map(x=>x[0]);
   const wantsColor=d.colorFamilies.length;
   if (!wantsColor && !d.bloomSeasons.length) return true;
@@ -1452,7 +1461,7 @@ function openDiscoveryMemo(){ if (!discoveryMemoDepth++) discoveryMemo=new Map()
 function closeDiscoveryMemo(){ if (discoveryMemoDepth>0 && !--discoveryMemoDepth) discoveryMemo=null; }
 function discoveryMemoKey(d){
   return [d.source, d.collectionId||'', d.category||'', (d.query||'').trim().toLowerCase(),
-    (d.colorFamilies||[]).join(','), (d.bloomSeasons||[]).join(',')].join('|');
+    (d.colorFamilies||[]).join(','), (d.bloomSeasons||[]).join(','), (d.light||[]).join(','), (d.moisture||[]).join(',')].join('|');
 }
 function discoveryRefsFor(discovery){
   const d=normalizeDiscovery(discovery);
@@ -1514,8 +1523,8 @@ function groupDiscoveryRefs(refs){
   });
   return groups;
 }
-/* Sedges are chosen by site: nobody picks one by flower colour, which is all the
-   filters offer. So the Sedges tab reads as five headed lists: open ground, then shade,
+/* Sedges are chosen by site, not by flower colour, so the Sedges tab reads as five
+   headed lists, which the Light and Moisture filters can then narrow: open ground, then shade,
    each from dry to wet. The names are habitats rather than "sun", since a meadow sedge
    may also take part shade and its card says so. sedgeSiteOf answers for any record, so
    no sedge can fall out of the list. */
@@ -1546,7 +1555,7 @@ function discoveryCriteriaLabels(f=activeFilters()){
   if (f.squirrel) out.push('Squirrel');
   return out;
 }
-function discoveryFilterCount(){ const d=activeDiscovery(); return d.colorFamilies.length+d.bloomSeasons.length+discoveryCriteriaLabels().length; }
+function discoveryFilterCount(){ const d=activeDiscovery(); return d.colorFamilies.length+d.bloomSeasons.length+d.light.length+d.moisture.length+discoveryCriteriaLabels().length; }
 function discoverySourceLabel(d=activeDiscovery()){
   if (d.source==='favorites') return 'Favorites';
   if (d.source==='palette' && typeof paletteById==='function'){ const p=paletteById(d.collectionId); return p?p.name:'Saved palette'; }

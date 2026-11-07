@@ -117,6 +117,43 @@ async function runSearchChecks(garden){
       oracle(); deletePlantPalette(palette.id);
       setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null,colorFamilies:[],bloomSeasons:[]}); buildToolTray(true);
     });
+    await check('the Plant filters offer light and moisture, and apply them to the catalog',async()=>{
+      setDiscovery({source:'all',collectionId:null,query:'',category:null,returnCategory:null,colorFamilies:[],bloomSeasons:[],light:[],moisture:[]});
+      buildToolTray(true); await sleep(30);
+      openDiscoveryFilters(document.querySelector('.discovery-filter-trigger')); await sleep(30);
+      const chip=(id,label)=>[...document.querySelectorAll('#'+id+' button')].find(b=>b.textContent===label);
+      const panel=document.querySelector('#discoveryFilterScreen .panel'), box=el=>el.getBoundingClientRect();
+      assert(panel.scrollTop===0&&document.activeElement===chip('discoveryLightChips','Full sun'),'it opens at the top, on the first chip');
+      assert(box(document.getElementById('discoveryFilterCount')).bottom<=box(panel).bottom,'with the live count on screen beside the chips');
+      assert(box(document.getElementById('discoveryLightChips')).top<box(document.querySelector('.discovery-criteria')).top,'above the garden criteria');
+      const dot=document.querySelector('#discoveryColorChips .chip-swatch').getBoundingClientRect();
+      assert(dot.width>=10&&dot.height>=10,'a flower colour swatch is a dot, on a mouse as well as a finger');
+      assert(document.querySelectorAll('#discoveryLightChips button').length===2,'two light chips');
+      assert(document.querySelectorAll('#discoveryMoistureChips button').length===3,'three moisture chips');
+      const before=document.getElementById('discoveryFilterCount').textContent;
+      chip('discoveryLightChips','Part shade').click(); await sleep(10);
+      assert(chip('discoveryLightChips','Part shade').getAttribute('aria-pressed')==='true','the chip reports it is on');
+      assert(document.getElementById('discoveryFilterCount').textContent!==before,'the live count moves');
+      chip('discoveryMoistureChips','Low water').click(); await sleep(10);
+      document.getElementById('btnDiscoveryApply').click(); await sleep(60);
+      assert(activeDiscovery().light[0]==='part'&&activeDiscovery().moisture[0]==='dry','applied to the catalog');
+      assert(/Part shade/.test(document.querySelector('.discovery-filter-summary').textContent),'the catalog says what is on');
+      assert(document.getElementById('toast').textContent.startsWith(discoveryResultCountText(discoveryRefs())),'the toast quotes the catalog it leaves, not the whole garden');
+      assert(/Filters · 2/.test(document.querySelector('.discovery-filter-trigger').textContent),'and how many');
+      const lines=[...document.querySelectorAll('#toolTray .plant-site-meta')].map(x=>x.textContent);
+      assert(lines.length&&lines.every(t=>/Part shade/.test(t)&&/Low water/.test(t)),'every card it leaves reads Part shade, Low water');
+      openDiscoveryFilters(document.querySelector('.discovery-filter-trigger')); await sleep(30);
+      document.getElementById('btnDiscoveryClear').click(); await sleep(10);
+      document.getElementById('btnDiscoveryApply').click(); await sleep(60);
+      assert(activeDiscovery().light.length===0&&activeDiscovery().moisture.length===0,'Clear takes them off');
+      // nothing left to show: the way out has to take these off as well
+      setDiscovery({source:'all',collectionId:null,category:null,query:'zzzznotathing',light:['part'],moisture:['dry']}); buildToolTray(true); await sleep(30);
+      const reset=[...document.querySelectorAll('#toolTray button')].find(b=>b.textContent==='Clear filters');
+      assert(reset,'an empty catalog offers to clear');
+      reset.click(); await sleep(60);
+      assert(activeDiscovery().light.length===0&&activeDiscovery().moisture.length===0,'and that clears these too');
+      setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null}); buildToolTray(true); await sleep(30);
+    });
     await check('Sedges list by site, and a search flattens the list in place',async()=>{
       setDiscovery({source:'all',collectionId:null,query:'',category:'sedges',returnCategory:null,colorFamilies:[],bloomSeasons:[]});
       buildToolTray(true); await sleep(30);
