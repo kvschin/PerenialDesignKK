@@ -1815,6 +1815,19 @@ function plantDrawBox(P,key,growth){
   const canopy=(woodyVisualCw(P)||80)*(0.3+0.7*growth);
   const grassW=plantVisualWidthScale(P,key);
   const L=P.look||{};
+  // A sedge's reach is known exactly and a matrix means hundreds of its sprites, so
+  // its box is tight: the generic one left ~40% of a low clump's sprite empty.
+  if (L.tuftIn||L.sedgeHabit==='palm'){
+    const shadowBelow=plantDrawBelow(P,growth,H), realTop=H*((P.heightIn||P.h)/P.h);
+    if (L.sedgeHabit==='palm')
+      return {halfW:H*((L.palmSpread||0.34)+(L.palmLeafLen||0.3)*1.12)+(L.baseW||9)/2+8, top:realTop+18, bot:Math.max(18,shadowBelow+6)};
+    const rx=sedgeGroundRx(P,growth), ry=rx*0.5, blade=H*(L.leafLen||0.86)*1.04;
+    return {
+      halfW:Math.max(rx*1.2+2, rx*1.12+blade*(L.spread||0.68)+(L.baseW||5)/2)+8,
+      top:ry*1.13+Math.max(blade*((L.dome||0.68)+0.155),realTop)+14,   // 14: the tallest head above its culm
+      bot:Math.max(ry*1.2+6,shadowBelow+4),
+    };
+  }
   const authoredHalf=H*Math.max(0,L.sideScale||0);
   const herbHalf=P.form==='sotol'
     ? Math.max(H*0.62,H*(L.leafLen||0.82)*1.1)

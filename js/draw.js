@@ -4047,6 +4047,139 @@ function drawSpathe(ctx,x,y,r,col,spadix,side){
     ctx.lineCap='butt';
   }
 }
+/* ---------- sedges ----------
+   A sedge used to be one fan of blades from a single point, so a low one was a
+   small star on bare ground: the matrix these plants are grown for read as dots.
+   A clump is many shoots from a wide crown, so `look.tufts` lays small fans on a
+   ground ellipse `look.tuftIn` real inches across, over a dark wash that hides the
+   soil between them. Heads sit where the plant carries them: `heightIn` is the
+   height in flower, and a fertile culm leans out with its own tuft instead of every
+   culm meeting in one torch over the middle. */
+const GROUND_PX_PER_IN=TILE_W/(TILE_IN*Math.SQRT2);  // a tile's diagonal is TILE_W across
+const SEDGE_TUFT_MAX=12;
+const _tuftX=new Float64Array(SEDGE_TUFT_MAX), _tuftY=new Float64Array(SEDGE_TUFT_MAX), _tuftR=new Float64Array(SEDGE_TUFT_MAX);
+// half-width of the ground the tuft centres stand on; a young clump has not filled it
+function sedgeGroundRx(P,growth){
+  const L=P.look||{};
+  return (L.tuftIn||0)/2*GROUND_PX_PER_IN*(0.35+0.65*growth);
+}
+function drawSedgeTufts(ctx,P,L,S,H,growth,sway,rnd,stemFor,a2,head,drawSeed,snow){
+  const T=Math.max(1,Math.min(SEDGE_TUFT_MAX,Math.round(L.tufts*(0.5+0.5*growth))));
+  const rx=sedgeGroundRx(P,growth), ry=rx*0.5, phase=rnd()*6.283;
+  for (let i=0;i<T;i++){
+    const r=T>1?Math.sqrt((i+0.5)/T):0, th=phase+i*2.39996;   // golden angle
+    let x=Math.cos(th)*r*rx*(0.88+rnd()*0.24), y=Math.sin(th)*r*ry*(0.88+rnd()*0.24), j=i-1;
+    for (;j>=0&&_tuftY[j]>y;j--){ _tuftX[j+1]=_tuftX[j]; _tuftY[j+1]=_tuftY[j]; _tuftR[j+1]=_tuftR[j]; }  // far to near
+    _tuftX[j+1]=x; _tuftY[j+1]=y; _tuftR[j+1]=r;
+  }
+  const fan=L.fan||2.15, spread=L.spread||0.68, lift=L.dome||0.68, edgeDrop=L.edgeDrop||0.42;
+  // Under the blades, a soft-edged wash and a coat of fine hairs: this is what hides
+  // the ground. A hard ellipse read as a lily pad, and blades alone leave it bare.
+  const wash=L.tuftWash===undefined?0.2:L.tuftWash;
+  if (S.fol && wash>0 && rx>0){
+    const ga=ctx.globalAlpha; ctx.globalAlpha=ga*wash; ctx.fillStyle=shade(S.fol,-24);
+    for (const f of [1.2,0.92,0.62]){
+      ctx.beginPath(); ctx.ellipse(0,-1,rx*f+2,ry*f+1,0,0,7); ctx.fill();
+    }
+    ctx.globalAlpha=ga;
+  }
+  const hairs=S.fol?Math.round((L.hairs||0)/T*(0.4+0.6*growth)):0;
+  if (hairs>0){
+    for (let t=0;t<T;t++){
+      const x0=_tuftX[t], y0=_tuftY[t], ts=1-(L.tuftFall===undefined?0.26:L.tuftFall)*_tuftR[t];
+      for (let h=0;h<hairs;h++){
+        const a=(rnd()-0.5)*fan*1.15, len=H*(L.leafLen||0.86)*ts*(0.62+rnd()*0.34);
+        thrPush(h%3, x0+(rnd()-0.5)*8, y0+(rnd()-0.5)*3,
+          x0+Math.sin(a)*len*spread, y0-len*(lift+0.12-edgeDrop*Math.abs(a)*0.5));
+      }
+    }
+    ctx.lineWidth=L.hairW||0.8; ctx.lineCap='round';
+    thrStroke(ctx,0,shade(S.fol,-26)); thrStroke(ctx,1,shade(S.fol,-12)); thrStroke(ctx,2,shade(S.fol,6));
+  }
+  const nb=Math.max(3,Math.round(stemFor(L.leaves||13)/T));
+  const realTop=H*((P.heightIn||P.h)/P.h), seedLo=L.seedLo===undefined?0.74:L.seedLo, seedFan=L.seedFan===undefined?0.5:L.seedFan;
+  const heads=head?(L.seedStems||0):0, anchors=snow?[]:null;
+  const headK=Math.max(0.55,Math.min(1,realTop/40));  // a head stays in proportion to a small plant
+  for (let t=0;t<T;t++){
+    const x0=_tuftX[t], y0=_tuftY[t], r=_tuftR[t];
+    // the middle of a clump stands tallest, and near tufts come forward into the light
+    const ts=1-(L.tuftFall===undefined?0.26:L.tuftFall)*r, depth=rx>0?(y0/(ry||1)+1)*0.5:0.6;
+    const n=Math.max(3,Math.round(nb*(1.2-0.4*r)));
+    let top=0;
+    for (let k=0;k<n;k++){
+      const i=a2?fanIdx(k,n):k, u=i/(n-1), side=u-0.5;
+      const a=side*fan+(rnd()-0.5)*(L.jitter||0.26);
+      const len=H*(L.leafLen||0.86)*ts*(0.78+rnd()*0.26);
+      const arc=Math.max(0,1-Math.abs(side)*2);
+      const bx=Math.sin(a)*len*spread+sway*len*0.025;
+      const by=-len*(lift-edgeDrop*Math.abs(side)*1.35+arc*0.12+(rnd()-0.5)*0.07);
+      const baseX=x0+(rnd()-0.5)*(L.baseW||5);
+      const jit=(rnd()-0.5)*(L.colorJitter||22);
+      if (-by>top) top=-by;
+      if (a2){
+        const z=arc*0.78+rnd()*0.22;
+        drawBlade(ctx, baseX,y0-(1-z)*H*0.02, baseX+bx*0.22,y0-len*0.46, x0+bx,y0+by,
+                  (L.leafW||1.2)*(L.bladeHW||0.85)*(0.84+z*0.16),
+                  shade(S.fol, jit-(1-z)*(L.bladeShade||17)-(1-depth)*10), z>0.42, S.folTip, L.stripe, L.stripeW);
+      } else {
+        ctx.strokeStyle=shade(S.fol, jit-(1-depth)*10);
+        ctx.lineWidth=L.leafW||1.2; ctx.beginPath(); ctx.moveTo(baseX,y0);
+        ctx.quadraticCurveTo(baseX+bx*0.22,y0-len*0.46,x0+bx,y0+by); ctx.stroke();
+        if (L.stripe) drawBladeStripe(ctx,baseX,y0,baseX+bx*0.22,y0-len*0.46,x0+bx,y0+by,L.stripe,L.stripeW);
+      }
+    }
+    if (anchors){ const w=top*spread*0.5; anchors.push([x0-w,y0-top*0.72,2.8],[x0+w,y0-top*0.72,2.8]); }
+    const hc=Math.floor((t+1)*heads/T)-Math.floor(t*heads/T);
+    for (let c=0;c<hc;c++){
+      const s=rnd()-0.5, cy=y0-realTop*(seedLo+rnd()*(1-seedLo));
+      const cx=x0+Math.sin(s*fan)*H*(L.leafLen||0.86)*spread*seedFan;
+      ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=0.75*Math.max(0.8,headK);
+      ctx.beginPath(); ctx.moveTo(x0,y0); ctx.quadraticCurveTo(x0+(cx-x0)*0.35,y0+(cy-y0)*0.55,cx,cy); ctx.stroke();
+      // a nodding head tips away from the clump's middle: `a` turns it, `brush` reads a quarter of it
+      const nod=L.seedNod?(s<0?-1:1)*L.seedNod*4:0;
+      drawSeed(L.seedStyle,cx,cy,s*fan+nod,head,headK);
+    }
+  }
+  return anchors;
+}
+/* Palm sedge is what its name says: arching stems, each carrying leaves round it
+   in a spiral, shortening toward the top. It was five parallel poles with paired
+   leaves at matching heights, which drew a garden trellis. */
+function drawPalmSedge(ctx,P,L,S,H,sway,rnd,stemFor,a2,head,drawSeed,snow){
+  const stems=stemFor(L.palmStems||7), nodes=Math.max(2,L.palmRanks||4), whorl=L.palmWhorl||3;
+  const realTop=H*((P.heightIn||P.h)/P.h), reach=H*(L.palmSpread||0.34), base=L.baseW||9;
+  const anchors=snow?[]:null;
+  for (let k=0;k<stems;k++){
+    const i=a2?fanIdx(k,stems):k;
+    const s=(stems>1?i/(stems-1)*2-1:0)+(rnd()-0.5)*0.26, abs=Math.min(1,Math.abs(s));
+    const z=1-abs, stemH=realTop*(L.palmStemLen||0.9)*(0.72+0.28*z)*(0.9+rnd()*0.12);
+    const bx=s*base*0.5, tx=bx+s*reach+sway*stemH*0.02, ty=-stemH*(1-abs*0.16);
+    const qx=bx+s*reach*0.22, qy=-stemH*0.66;
+    ctx.strokeStyle=shade(S.fol,-14-(1-z)*8); ctx.lineWidth=L.stemW||0.9;
+    ctx.beginPath(); ctx.moveTo(bx,0); ctx.quadraticCurveTo(qx,qy,tx,ty); ctx.stroke();
+    let phi=rnd()*6.283;
+    for (let n=0;n<nodes;n++){
+      const t=0.34+0.66*(n/(nodes-1)), mt=1-t;
+      const px=mt*mt*bx+2*mt*t*qx+t*t*tx, py=2*mt*t*qy+t*t*ty;
+      const len=H*(L.palmLeafLen||0.3)*(1-0.42*t);
+      for (let w=0;w<whorl;w++){
+        phi+=2.39996;                                   // spiral, seen a little from above
+        const dx=Math.cos(phi), dz=Math.sin(phi), l=len*(0.82+rnd()*0.3);
+        const ex=px+dx*l+sway*l*0.025, ey=py-l*0.10+dz*l*0.30+l*0.16;
+        const cx=px+dx*l*0.46, cy=py-l*0.32+dz*l*0.10;
+        const lc=shade(S.fol,(rnd()-0.5)*(L.colorJitter||16)+(t-0.5)*14+dz*7-(1-z)*9);
+        if (a2) drawBlade(ctx,px,py,cx,cy,ex,ey,(L.leafW||1.3)*(L.bladeHW||0.85)*(0.78+0.22*t),lc,dz>-0.2,S.folTip);
+        else {
+          ctx.strokeStyle=lc; ctx.lineWidth=L.leafW||1.3;
+          ctx.beginPath(); ctx.moveTo(px,py); ctx.quadraticCurveTo(cx,cy,ex,ey); ctx.stroke();
+        }
+      }
+      if (anchors && n===nodes-1) anchors.push([px,py-1,2.8]);
+    }
+    if (head && k%2===0) drawSeed(L.seedStyle,tx,ty-2,s,head);
+  }
+  return anchors;
+}
 function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail, leafStage){
   // Every plant starts with empty floret and thread batches. Each batch resets
   // only when it is FLUSHED, so a draw that threw between a push and its flush
@@ -4237,11 +4370,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const a2 = art2On(L);
     const bunchHead=(blooming?S.bloom:null)||S.seed;
     ctx.lineCap='round';
-    const drawSedgeSeed=(style,sx,sy,a,col)=>{
+    const drawSedgeSeed=(style,sx,sy,a,col,k=1)=>{
       col=col||S.seed;                     // fresh bloom tint if given, else dried seed
       ctx.fillStyle=col;
       if (a2 && !style){                   // the plain oval nutlet, lit
-        drawFloret(ctx,sx,sy,1.35,col,{squash:2.6,rot:a*0.4}); return;
+        drawFloret(ctx,sx,sy,1.35*k,col,{squash:2.6,rot:a*0.4}); return;
       }
       if (style==='openPanicle'){
         // Small open grass panicles above a low fescue mound. Six fixed
@@ -4271,13 +4404,18 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         if (a2) drawFloret(ctx,sx,sy,3.25,col);
         else { ctx.beginPath(); ctx.ellipse(sx,sy,3.25,3.25,0,0,7); ctx.fill(); }
       } else if (style==='brush'){
-        ctx.strokeStyle=shade(col,-10); ctx.lineWidth=0.7;
+        // a bristly cylinder, tilted with its culm: short awns either side of a
+        // narrow body. Fanned from its foot it drew a tulip.
+        const ca=Math.cos(a*0.25), sa=Math.sin(a*0.25), len=4.6*k, awn=2.5*k;
+        ctx.strokeStyle=shade(col,-10); ctx.lineWidth=0.6; ctx.beginPath();
         for (let p=0;p<5;p++){
-          const ox=(p-2)*1.25;
-          ctx.beginPath(); ctx.moveTo(sx+ox,sy+2.4); ctx.lineTo(sx+ox*1.5,sy-3.6); ctx.stroke();
+          const f=(p-2)/2*0.86, mx=sx+sa*f*len, my=sy-ca*f*len;
+          ctx.moveTo(mx,my); ctx.lineTo(mx+ca*awn+sa*awn*0.5, my+sa*awn-ca*awn*0.5);
+          ctx.moveTo(mx,my); ctx.lineTo(mx-ca*awn+sa*awn*0.5, my-sa*awn-ca*awn*0.5);
         }
-        if (a2) drawFloret(ctx,sx,sy,2.15,col,{squash:1.95,rot:a*0.25});
-        else { ctx.beginPath(); ctx.ellipse(sx,sy,2.15,4.2,a*0.25,0,7); ctx.fill(); }
+        ctx.stroke();
+        if (a2) drawFloret(ctx,sx,sy,1.65*k,col,{squash:2.7,rot:a*0.25});
+        else { ctx.beginPath(); ctx.ellipse(sx,sy,1.65*k,4.4*k,a*0.25,0,7); ctx.fill(); }
       } else if (style==='pendant'){
         const drop=5.4;
         ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=0.75;
@@ -4290,34 +4428,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     };
     if (L.sedgeHabit==='palm'){
-      // Palm sedge carries leaf ranks up short stems; a basal tuft cannot show
-      // the graphic, almost radial architecture that makes it useful in a plan.
-      const stems=stemFor(L.palmStems||5), ranks=L.palmRanks||3;
-      for (let i=0;i<stems;i++){
-        const side=stems>1?i/(stems-1)-0.5:0, baseX=side*H*(L.palmSpread||0.38);
-        const stemH=H*(L.palmStemLen||0.76)*(0.86+rnd()*0.14);
-        ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=L.stemW||1.05;
-        ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo(baseX,-stemH*0.5,baseX+side*2,-stemH); ctx.stroke();
-        for (let r=0;r<ranks;r++){
-          const y=-stemH*(0.3+r*0.22), leafLen=H*(L.palmLeafLen||0.29)*(0.88+rnd()*0.17);
-          for (const dir of [-1,1]){
-            const tipX=baseX+dir*leafLen*(0.78+rnd()*0.22)+sway*leafLen*0.025;
-            const tipY=y-leafLen*(0.22+rnd()*0.09);
-            const lc=shade(S.fol,(rnd()-0.5)*(L.colorJitter||18));
-            if (a2){
-              // upper ranks read as nearer: brighter, a shade wider
-              const zr=0.72+0.28*(r/Math.max(1,ranks-1));
-              drawBlade(ctx, baseX,y, baseX+dir*leafLen*0.34,y-leafLen*0.08, tipX,tipY,
-                        (L.leafW||1.75)*(L.bladeHW||0.85)*zr, shade(lc,(zr-0.86)*26), zr>0.85, S.folTip);
-              continue;
-            }
-            ctx.strokeStyle=lc; ctx.lineWidth=L.leafW||1.75;
-            ctx.beginPath(); ctx.moveTo(baseX,y);
-            ctx.quadraticCurveTo(baseX+dir*leafLen*0.34,y-leafLen*0.08,tipX,tipY); ctx.stroke();
-          }
-        }
-        if (bunchHead && mature && i%2===0) drawSedgeSeed(L.seedStyle,baseX+side*2,-stemH-2,side,bunchHead);
-      }
+      snowAnchors=drawPalmSedge(ctx,P,L,S,H,sway,rnd,stemFor,a2,mature?bunchHead:null,drawSedgeSeed,!!AMBIENCE[season].snow);
+    } else if (L.tuftIn){
+      const tuftHead=mature?((blooming?S.bloom:null)||S.seed):null;
+      snowAnchors=drawSedgeTufts(ctx,P,L,S,H,growth,sway,rnd,stemFor,a2,tuftHead,drawSedgeSeed,!!AMBIENCE[season].snow);
     } else if (L.mound){
       const fan=L.fan||2.15, spread=L.spread||0.68, lift=L.dome||0.68, edgeDrop=L.edgeDrop||0.42;
       const seedEvery=L.seedStems ? Math.max(2,Math.floor(n/L.seedStems)) : 0;

@@ -6747,11 +6747,33 @@ Forb `heightIn` backfill is in progress by batch (2026-11-02: 38 prairie forbs
 — milkweeds, blazing stars, sunflowers, ironweeds, coneflowers, prairie
 clovers — typical height in flower, `h` untouched; see the plant work log).
 
-**Sedge visuals:** retain `bunchgrass` as the shared renderer. Use `look` values
-(`mound`, `leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
-separate carpet, meadow, broad woodland, wet upright, and arching sedges. Palm
-Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`,
-`pendant`) communicate distinctive fruit without bespoke image assets.
+**Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
+Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
+separate carpet, meadow, broad woodland, wet upright, and arching sedges; shared
+`seedStyle` values (`mace`, `brush`, `pendant`) carry distinctive fruit.
+A sedge draws through `drawSedgeTufts` or `drawPalmSedge` (draw.js, 0.9.81), not the fan
+from one point that the fescues and slender sweet flag still use: at true scale that fan
+covered about 3-13% of a low sedge's tile, so a matrix of them read as dots on mulch.
+`look.tufts` small fans stand on a ground ellipse `look.tuftIn` real inches across, over a
+soft wash (`tuftWash`) and `look.hairs` hairs in one thread batch, which are what hide the
+soil. `tuftIn` is the crown and not the plant's width: ground and height are separate
+scales here, so a 30 in sedge drawn its full 24 in wide comes out squat, and tall sedges
+take a small `tuftIn`. **`tufts` is also a conifer look key**, so test `tuftIn` to ask
+"is this a sedge clump". Heads stand with their own tuft (`seedFan`) at the real height in
+flower (`heightIn/h` of the drawn height, `seedLo` the low end, `seedNod` to tip them):
+they used to meet in one torch over the middle, at up to 2.5x the plant's real height.
+Snow lands on `snowAnchors` the clump returns, so `snowCrownFrac` no longer decides for a
+sedge. Palm sedge (`sedgeHabit:'palm'`) is arching stems with `palmRanks` nodes of
+`palmWhorl` leaves in a spiral; it was five parallel poles and drew a trellis.
+**A sedge's sprite box is exact** (`plantDrawBox`, renderer.js), since a matrix is hundreds
+of unique sprites and the generic box left about 40% of a low clump empty; `sideScale`
+then only fits the previews. Measured on a 676-clump garden, sprites held level (desktop
+4.8-5.3ms a frame before, 4.7-5.0 after; phone 4.8 and 5.0) while the cache grew from 14.9 to
+17MB on desktop and 30 to 34MB on a phone, of a 48MB budget. The procedural path costs more
+(about 94 to 135ms on desktop), which is why sprites are the path that matters on a garden
+that size. One draw's median went 300 to 383us, palm sedge the worst at 650us.
+Every other plant is call-for-call identical. `dev/sedge-review.html` shows each choice as a
+drift, at true scale and in four seasons, and sweeps the sprite edges (`?check`).
 
 **European garden additions (0.8.58):** ten base records and four nested
 cultivars brought the catalog to 545 base records / 381 nested choices; the

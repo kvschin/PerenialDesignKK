@@ -1,8 +1,8 @@
 # Sedge audit
 
 Audited November 6, 2026, against the catalog at 0.9.79: 32 records in the Sedge
-category (31 *Carex* plus *Luzula nivea*). The data fixes shipped in 0.9.80. The
-drawing, browsing and new species below are still open.
+category (31 *Carex* plus *Luzula nivea*). The data fixes shipped in 0.9.80 and the
+drawing in 0.9.81. Browsing, recommendations and new species below are still open.
 
 ## Sources
 
@@ -40,6 +40,49 @@ Nothing changed on the trial's word alone: each change also has a second source.
 ones that matter are in `CLAUDE.md`. Style lists changed only by losing plants that
 never belonged: cottage 546 to 539, butterfly 544 to 539, Mediterranean and gravel lose
 2 each, prairie loses cottonwood.
+
+## Shipped in 0.9.81: the drawing
+
+What it fixed, measured or seen at true scale in the real renderer:
+
+1. **Low sedges did not form a carpet.** They read as separate dots on mulch, covering about
+   3-13% of their tile, and 28 of 32 drew under 70% of their stated spread. Now small fans on
+   a wide crown over a coat of hairs; `dev/sedge-review.html` shows them knitting. Tall sedges
+   stay narrower than their stated spread on purpose, since ground and height are different
+   scales in this projection and a true-width 30 in sedge comes out squat.
+2. **Palm sedge looked like a trellis:** five parallel poles with chevrons at matching heights.
+   Now arching stems with leaves in a spiral, shortening toward the top. 'Oehme' draws
+   shorter than the species, as it grows.
+3. **Seed heads were in the wrong place.** All met in one torch, and on low sedges they
+   floated above the plant: Pennsylvania's reached 2.5x its real height. They now stand with
+   their own tuft at the height in flower. `brush` drew a tulip and is now a bristly spike,
+   and Bristly Sedge's nod.
+4. **Snow looked like eggs:** mid-clump on tall sedges, in the air above palm sedge. It lands on
+   the foliage now.
+5. **Several sedges looked the same.** Mead's and Sun Sedge overlapped 80% in nearly one colour.
+   Habit now separates them (a weeping mop, upright tufts, broad straps held up or lying out),
+   and so do colours each with a source below.
+6. **Library and card previews were specks.** `libCanvas` caps scale at 1.15x, which left an
+   8 in sedge about 14 px wide. The cap is unchanged: the drawing is wider, so previews fill.
+
+Colours changed to separate look-alikes:
+
+| Record | Change | Source |
+| --- | --- | --- |
+| Mead's Sedge | blue-green to grey-green | [Illinois Wildflowers](https://illinoiswildflowers.info/grasses/plants/mead_sedge.htm), [Minnesota Wildflowers](https://www.minnesotawildflowers.info/grass-sedge-rush/meads-sedge) |
+| Sun Sedge | dark purplish brown spikes in spring | [Minnesota Wildflowers](https://www.minnesotawildflowers.info/grass-sedge-rush/sun-loving-sedge) |
+| Mountain Sedge | bright apple green, orange-bronze in autumn | [RHS](https://www.rhs.org.uk/plants/111578/carex-montana/details) |
+| White Bear Sedge | pale green | [Go Botany](https://gobotany.nativeplanttrust.org/species/carex/albursina/) |
+| Plantain-leaf Sedge | bright green; it was the darkest sedge | [Minnesota Wildflowers](https://www.minnesotawildflowers.info/grass-sedge-rush/plantain-leaved-sedge) |
+| Rosy Sedge | deep green | [New Moon](https://newmoonnursery.com/plant/Carex-rosea); a nursery's wording, so the weakest here |
+
+Other plants: call-for-call identical to 0.9.80 across 1,180 choices and 38,816 draws. On a
+676-clump garden with the GPU quiet, sprites held level (desktop 4.8-5.3ms a frame before and
+4.7-5.0 after, phone 4.8 and 5.0) while the cache grew from 14.9 to 17MB on desktop and 30 to
+34MB on a phone, of a 48MB budget. The procedural path costs more, about 94 to 135ms on desktop.
+`dev/ff-accel-check.cjs` stayed accelerated in Firefox at about 165fps panning, though one run
+of four, with another program holding the GPU, named a single frame while every later phase
+read a probe of 0ms.
 
 ## Checked and left alone
 
@@ -81,19 +124,6 @@ never belonged: cottage 546 to 539, butterfly 544 to 539, Mediterranean and grav
 - **Care needed:** *C. pendula* is on Cal-IPC's Watch list and regulated along some King
   County rivers, so it needs a caution. *C. divulsa* is often sold as *C. tumulicola*;
   [Calflora](https://calflora.org/app/taxon?crn=11215) has it as non-native, and I would leave it out.
-
-### The drawing
-
-1. **Low sedges do not form a carpet.** They read as separate dots on mulch and cover only
-   about 3-13% of their tile. 28 of 32 draw under 70% of their stated spread.
-2. **Palm sedge looks like a trellis:** five parallel poles with chevrons at matching heights.
-3. **Seed heads are in the wrong place.** All bunch into one torch, and on low sedges they
-   float high above the plant: Pennsylvania's reach 2.5x its real height. The trial's
-   flower heights show they usually sit about level with the foliage.
-4. **Snow looks like eggs:** mid-clump on tall sedges, in the air above palm sedge.
-5. **Several sedges look the same:** Mead's and Sun Sedge overlap 80% in nearly one colour.
-6. **Library and card previews are specks.** `libCanvas` caps scale at 1.15x, so an 8 in
-   sedge is about 14 px wide.
 
 ### The model
 

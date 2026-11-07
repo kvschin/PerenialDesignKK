@@ -502,6 +502,121 @@ test('a bluestar carries its stars in clusters over the dome, not on stalks up t
   }} finally {ART2.on=before;}
 });
 
+/* What a sedge clump draws, through a plain context in the classic renderer, whose
+   strokes expose each blade and culm as one quadraticCurveTo. */
+function sedgeDraw(key,opts={}){
+  const P=plantDef(key,opts.v||null), L=P.look, S=P.sea[opts.season||'Summer'];
+  const g=opts.growth===undefined?1:opts.growth, H=plantVisualH(P)*(0.25+0.75*g);
+  const curves=[], heads=[];
+  const ctx=new Proxy({globalAlpha:1},{
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='quadraticCurveTo')return (...a)=>{curves.push(a);};
+      return (...a)=>{ for(const v of a)if(typeof v==='number')assert(Number.isFinite(v),`${key}: finite ${String(p)}`); };
+    },
+    set(o,p,v){o[p]=v;return true;}
+  });
+  const seed=(style,x,y)=>{heads.push([x,y]);};
+  const stem=n=>Math.max(3,Math.round(n*(0.4+0.6*g)));
+  const rnd=mulberry(opts.seed||7), head=opts.head||null, snow=!!opts.snow;
+  const anchors=L.sedgeHabit==='palm'
+    ? drawPalmSedge(ctx,P,L,S,H,0,rnd,stem,false,head,seed,snow)
+    : drawSedgeTufts(ctx,P,L,S,H,g,0,rnd,stem,false,head,seed,snow);
+  return {P,L,H,curves,heads,anchors,realTop:H*(P.heightIn/P.h),ry:sedgeGroundRx(P,g)*0.5};
+}
+const SEDGE_KEYS=()=>PLANT_KEYS.filter(k=>PLANTS[k].type==='sedge');
+
+test('every sedge is drawn as a clump, and the other mound grasses keep their own path', () => {
+  for (const k of SEDGE_KEYS()){
+    const L=PLANTS[k].look;
+    assert(L.tufts>=1||L.sedgeHabit==='palm',`${k}: drawn as a clump`);
+  }
+  for (const k of ['bluefescue','roemersfescue','slendersweetflag']) assert(!PLANTS[k].look.tufts,`${k}: not a sedge clump`);
+});
+
+test('a low sedge reaches the tiles beside it, and a young clump has not yet', () => {
+  let low=0;
+  for (const k of SEDGE_KEYS()){
+    const P=PLANTS[k], L=P.look;
+    if (!L.tufts) continue;
+    assert(sedgeGroundRx(P,0.2)<sedgeGroundRx(P,1)*0.6,`${k}: a young clump stands on less ground`);
+    if (P.heightIn>16||P.space>15) continue;
+    low++;
+    const reach=sedgeGroundRx(P,1)+plantVisualH(P)*L.leafLen*L.spread*0.6;
+    assert(reach>=TILE_W/2*0.6,`${k}: reaches ${reach.toFixed(1)}, so a drift would be dots`);
+  }
+  assert(low>=10,'the low sedges are all checked');
+});
+
+test('the sprite box holds all of a sedge clump, at any age', () => {
+  for (const k of SEDGE_KEYS()) for (const v of [null,...Object.keys(PLANTS[k].cv||{})]) for (const g of [1,0.5]){
+    const P=plantDef(k,v), L=P.look, box=plantDrawBox(P,k,g), H=plantVisualH(P)*(0.25+0.75*g);
+    if (L.sedgeHabit==='palm'){
+      assert(box.halfW>=H*(L.palmSpread+L.palmLeafLen*1.12)+L.baseW/2,`${k}: palm width`);
+      continue;
+    }
+    const rx=sedgeGroundRx(P,g), blade=H*L.leafLen*1.04*L.spread;
+    assert(box.halfW>=rx*1.2+2&&box.halfW>=rx*1.12+blade+(L.baseW||5)/2,`${k}: width`);
+    assert(box.bot>=rx*0.5*1.2+1,`${k}: the front of the clump`);
+    assert(box.top>=H*(P.heightIn/P.h)+rx*0.5*1.12,`${k}: a head on the back tuft`);
+    assert(box.top>=H*L.leafLen*1.04*(L.dome+0.155)+rx*0.5*1.12,`${k}: the tallest blade on the back tuft`);
+    assert(box.bot>=3+plantShadowR(P,g)*0.36+1.8,`${k}: the cast shadow`);
+  }
+});
+
+test('a sedge head stands with its own tuft, at the height the plant flowers', () => {
+  for (const k of SEDGE_KEYS()){
+    const L=PLANTS[k].look;
+    if (L.sedgeHabit==='palm'||!L.seedStems) continue;
+    const spreads=[];
+    for (const seed of [7,101,4410,29,811]){
+      const r=sedgeDraw(k,{head:'#c2b48a',seed});
+      assertEqual(r.heads.length,L.seedStems,`${k}: one head per fertile culm`);
+      for (const [,y] of r.heads) assert(-y<=r.realTop+r.ry*1.13,`${k}: no head above the real height`);
+      const xs=r.heads.map(h=>h[0]); spreads.push(Math.max(...xs)-Math.min(...xs));
+    }
+    spreads.sort((a,b)=>a-b);
+    if (L.seedStems>=3) assert(spreads[2]>=10,`${k}: heads ${spreads[2].toFixed(1)} apart is one torch`);
+  }
+  assertEqual(sedgeDraw('pennsedge').heads.length,0,'no head without a head colour, as out of season');
+});
+
+test('palm sedge carries spiralled leaves on arching stems, not ranks on poles', () => {
+  const r=sedgeDraw('palmsedge'), L=r.L, per=1+L.palmRanks*L.palmWhorl;
+  assertEqual(r.curves.length,L.palmStems*per,'a stem, then its nodes of leaves');
+  const tips=[];
+  for (let i=0;i<L.palmStems;i++) tips.push(r.curves[i*per]);
+  const xs=tips.map(t=>t[2]), ys=tips.map(t=>t[3]);
+  assert(Math.max(...xs)-Math.min(...xs)>=r.H*L.palmSpread,'the stems lean apart from a shared crown');
+  const heights=[...ys].sort((a,b)=>a-b);
+  for (let i=1;i<heights.length;i++) assert(heights[i]-heights[i-1]>0.2,'no two stems top out together');
+  const node=r.curves.slice(1,1+L.palmWhorl).map(c=>c[3]);
+  assert(Math.max(...node)-Math.min(...node)>1,'the leaves at one node do not lie in a flat pair');
+  assert(plantDef('palmsedge','oehme').h<PLANTS.palmsedge.h,"'Oehme' draws shorter, as it grows");
+});
+
+test('snow lands on a sedge, not beside it or in the air above it', () => {
+  for (const k of SEDGE_KEYS()){
+    assertEqual(sedgeDraw(k).anchors,null,`${k}: no snow, no anchors`);
+    const r=sedgeDraw(k,{snow:true,season:'Winter'}), box=plantDrawBox(r.P,k,1);
+    assert(r.anchors&&r.anchors.length>=2,`${k}: snow has somewhere to land`);
+    for (const [x,y] of r.anchors){
+      assert(Math.abs(x)<=box.halfW,`${k}: snow on the clump`);
+      assert(y<=r.ry*1.13&&-y<=r.realTop+r.ry*1.13,`${k}: snow no higher than the plant, nor in front of it`);
+    }
+  }
+});
+
+test('a sedge draws the same clump every time, in both renderers', () => {
+  for (const k of SEDGE_KEYS()) assertEqual(JSON.stringify(sedgeDraw(k).curves),JSON.stringify(sedgeDraw(k).curves),`${k}: seeded`);
+  const before=ART2.on, ctx=new Proxy({globalAlpha:1},{get:(o,p)=>p in o?o[p]:(()=>{}),set:(o,p,v)=>{o[p]=v;return true;}});
+  try { for (const art of [true,false]){ ART2.on=art;
+    for (const k of SEDGE_KEYS()) for (const v of [null,...Object.keys(PLANTS[k].cv||{})])
+      for (const season of ['Spring','Summer','Fall','Winter']) for (const g of [0.12,0.6,1])
+        drawPlant(ctx,0,0,k,g,season,tileSeed(3,7),0,v,1);
+  } } finally { ART2.on=before; }
+});
+
 test('a stem-built mound reserves the width it draws', () => {
   // sideScale is what the sprite box and both preview canvases read to fit a
   // plant wider than 0.62H; the edge checks in dev review pages measured each

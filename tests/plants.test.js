@@ -904,6 +904,19 @@ test('sedges carry visual archetypes and preserve signature seedheads', () => {
     'wet upright sedges need a hummock profile');
 });
 
+test('sedges that draw alike carry the colours their sources describe', () => {
+  const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
+  const lum=hex=>{const [r,g,b]=rgb(hex);return 0.3*r+0.59*g+0.11*b;};
+  const sum=k=>PLANTS[k].sea.Summer.fol;
+  const [mr,,mb]=rgb(sum('meadssedge'));
+  assert(mb>mr,"Mead's Sedge is blue-grey, not yellow-green");
+  assert(lum(sum('whitebearsedge'))>lum(sum('plantainsedge'))+15,'White Bear is pale, Plantain-leaf bright');
+  assert(lum(sum('rosysedge'))<lum(sum('pennsedge'))-15,'Rosy is deep green');
+  const [fr,fg]=rgb(PLANTS.mountainsedge.sea.Fall.fol);
+  assert(fr>fg+30,'Mountain Sedge turns orange-bronze');
+  assert(lum(PLANTS.sunsedge.sea.Spring.seed)<lum(PLANTS.sunsedge.sea.Spring.fol)-40,'Sun Sedge has dark spring spikes');
+});
+
 test('sedge records agree with the Mt. Cuba trial where a second source backs it', () => {
   // green minus red: above zero still reads green, below it reads straw
   const green=hex=>parseInt(hex.slice(3,5),16)-parseInt(hex.slice(1,3),16);
