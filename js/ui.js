@@ -876,6 +876,14 @@ const STYLE_RECOMMEND_MIN={
 };
 const ROLE_CACHE={};
 const SEDGE_GROUNDCOVER_IN=18;
+/* A grass, a sedge, a rush or a catkin tree has an authored "bloom" colour and nothing
+   for a butterfly to visit. A plant that is an exception says so in its own roles. */
+function windPollinated(P){
+  return P.type==='grass' || P.type==='sedge' || P.form==='emergent' || !!(P.look&&P.look.bloomStyle==='catkin');
+}
+// a cycad, a palm, an agave, an ocotillo: not a meadow plant and not a cottage one
+const FRONDS_AND_SPINES=new Set(['agave','cycad','fanpalm','ocotillo']);
+function frondOrSpine(P){ return FRONDS_AND_SPINES.has(P.form) || !!(P.look&&P.look.twigCanopy); }
 /* A sedge recorded on prairie or meadow belongs to open ground even where it also takes
    part shade. Fox Sedge is sun:'part' so that a canopy does not stunt it, not because
    anyone plants it as a woodland sedge. */
@@ -963,10 +971,9 @@ function staticPlantRoles(k){
   if (P.sun==='part' && !sedgeOpenGround(P)) roles.add('shade'), roles.add('woodland');
   if (P.moist==='dry') roles.add('dry');
   if (P.moist==='moist') roles.add('wet');
-  // A sedge's "bloom" is the colour of its spikelets, and the wind pollinates it.
   if (hasSeasonProp(P,'bloom')){
     roles.add('flower'); roles.add('seasonal');
-    if (P.type!=='sedge') roles.add('pollinator');
+    if (!windPollinated(P)) roles.add('pollinator');
   }
   if (hasSeasonProp(P,'seed')){
     const crop=roles.has('fruit')||roles.has('nut')||(P.look&&P.look.fruitStyle);
@@ -1006,7 +1013,7 @@ function staticPlantRoles(k){
   }
   if (roleMatches(text,['hydrangea','phlox','yarrow','stachys','scabiosa','sedum','sanguisorba','salvia','catmint','aster','monarda','iris','filipendula','lobelia','poppy mallow','poppymallow','gaura']))
     roles.add('cottage'), roles.add('romantic');
-  if (roleMatches(text,['monarda','bee balm','asclepias','milkweed','butterfly weed','zizia','golden alexander','aster','goldenrod','liatris','mountain mint','agastache','coneflower','echinacea','rudbeckia','coreopsis','helenium','helianthus','sunflower','silphium','prairie dock','burnet','sanguisorba','scabiosa','phlox','penstemon','columbine','heuchera','lobelia','hypericum','st. johnswort','callirhoe','poppy mallow','gaura','oenothera','shooting star','primula','pasque','pulsatilla','filipendula','geum','prairie smoke','tradescantia','spiderwort','sisyrinchium','blue-eyed grass','iris','salvia','calamint','catmint','allium']))
+  if (roleMatches(text,['monarda','bee balm','asclepias','milkweed','butterfly weed','zizia','golden alexander','aster','goldenrod','liatris','mountain mint','agastache','coneflower','echinacea','rudbeckia','coreopsis','helenium','helianthus','sunflower','silphium','prairie dock','burnet','sanguisorba','scabiosa','phlox','penstemon','columbine','heuchera','lobelia','hypericum','st. johnswort','callirhoe','poppy mallow','gaura','oenothera','shooting star','primula','pasque','pulsatilla','filipendula','geum','prairie smoke','tradescantia','spiderwort','sisyrinchium','blue-eyed grass','iris','salvia','calamint','catmint','allium','yarrow','achillea','sedum','hylotelephium','stonecrop','echinops','globe thistle','knautia','scabious','verbena']))
     roles.add('pollinator'), roles.add('nectar');
   if (roleMatches(text,['asclepias','milkweed','butterfly weed'])) roles.add('host');
   if (roleMatches(text,['antennaria','pussytoes','zizia','golden alexander'])) roles.add('host');
@@ -1046,11 +1053,15 @@ function plantRoles(k,criteria,v){
   const relation=nativeRelation(P,normalizeFilters(source).nativeRegion);
   if (relation.regional){
     roles.add('native'); roles.add('naturalistic');
-    if (['grass','forb','bulb','water'].includes(P.type)) roles.add('prairie');
+    /* A native grass, forb or bulb of open ground reads as a prairie plant unless its
+       record says otherwise. Being native is not enough: this added the role to ponds
+       and woods, so Prairie recommended water lilies, ferns and eastern hemlock. A
+       sedge, a shrub, or a plant of part shade carries it only where its own record
+       does, which a source has to back. */
+    if (['grass','forb','bulb'].includes(P.type) && P.sun==='full' && !frondOrSpine(P)) roles.add('prairie');
   }
-  /* A sedge is a prairie plant only where its own record says it grows on one, and
-     only in the region it is native to: the style asks for the garden's own natives. */
-  else if (P.type==='sedge') roles.delete('prairie');
+  // the style asks for the garden's own natives, so the role means nothing elsewhere
+  else roles.delete('prairie');
   return [...roles].sort();
 }
 function roleLabel(role){ return ROLE_LABELS[role] || cap(role); }
@@ -1067,15 +1078,21 @@ function activeDesignType(){
   return (d && STYLE_ROLE_WEIGHTS[d]) ? d : null;
 }
 function designTypeName(type){ return DESIGN_STYLE_LABELS[type] || cap(type||'design'); }
+/* A sum cannot say no. Prairie's bar is cleared by a native tree with a seedhead, Coastal's
+   by being any grass at all, Cottage's by having a flower. So these say no first:
+   Prairie and Coastal are places, and need a plant recorded as growing there; a sedge is
+   chosen by site, so every style needs the role it is named for (no sedge is a butterfly
+   plant, so that style has none); and a cottage border has no water plants but its irises,
+   and no palms or spines. */
+function styleCouldAsk(P,type,roles){
+  if (type==='prairie'||type==='coastal'||P.type==='sedge') return roles.includes(type);
+  if (type==='cottage') return !frondOrSpine(P) && (P.type!=='water'||roles.includes('cottage'));
+  return true;
+}
 function plantStyleScore(k,type=activeDesignType(),v=null,criteria=null){
   const weights=STYLE_ROLE_WEIGHTS[type]; if (!weights) return 0;
-  const roles=plantRoles(k,criteria,v);
-  /* A sedge has to carry the role the style is named for (no sedge is a butterfly
-     plant, so that style has none). A sum cannot say no here: every sedge is
-     `matrix`, a native adds `native` and `naturalistic`, and those alone clear
-     Prairie's bar, which is how 30 of 32 sedges came to be recommended for a prairie,
-     Lake Sedge included. */
-  if (PLANTS[k] && PLANTS[k].type==='sedge' && !roles.includes(type)) return 0;
+  const roles=plantRoles(k,criteria,v), P=PLANTS[k];
+  if (P && !styleCouldAsk(P,type,roles)) return 0;
   return roles.reduce((n,r)=>n+(weights[r]||0),0);
 }
 /* Does this style actually ask for this plant?  The one predicate behind the

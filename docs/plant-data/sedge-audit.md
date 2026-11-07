@@ -207,10 +207,6 @@ Where the reading changed the plan:
 
 ### The model
 
-- **Other plant types carry the same defect.** In a North American garden, measured at
-  0.9.82: Butterfly and Cottage each recommend 33 of 40 grasses, which the wind pollinates, and
-  31 of 34 water plants, because an authored `bloom` adds `pollinator`. Prairie recommends
-  27 of 34 water plants and Coastal 40 of 40 grasses.
 - **Lake, Awl-fruited, Bristly and Prairie Sedge are recommended for no style.** No style
   asks for wet ground; they show under All eligible and in an unstyled garden.
 - **Japanese Sedge 'Evergold' is not on the Japanese list**, which no sedge is. I found no

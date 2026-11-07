@@ -1395,6 +1395,71 @@ test('the Sedges tab draws a heading over each site, and other tabs stay one lis
   assert(!String(buildToolTrayInner).includes('sedgeSections'),'the old unreachable copy of the split stays gone');
 });
 
+/* Every style's list is a claim about the plant. These were the ones a sum could not stop:
+   Pollinator and Cottage recommended grasses because a plume has a bloom colour, Prairie
+   recommended water lilies and eastern hemlock because they are native, and Coastal
+   recommended every grass in the catalog. */
+test('a wind-pollinated plant is not a pollinator plant, whatever its bloom colour says', () => {
+  const na={nativeRegion:'north-america',nativeMode:'any'};
+  for (const k of PLANT_KEYS){
+    const P=PLANTS[k], roles=staticPlantRoles(k);
+    if (P.type==='grass') assert(!roles.includes('pollinator'),k+': the wind pollinates a grass');
+    if (P.form==='emergent') assert(!roles.includes('pollinator'),k+': and a rush or cattail');
+    if (P.look&&P.look.bloomStyle==='catkin') assert(!roles.includes('pollinator'),k+': and a catkin');
+    if (P.type==='grass') assert(!plantStyleRecommended(k,'butterfly',na),k+': so it is off the Pollinator list');
+    if (P.type==='grass') assert(!plantStyleRecommended(k,'cottage',na),k+': and off the Cottage one');
+  }
+  for (const k of ['monarda','echinacea','commonmilkweed','apple','pickerelweed'])
+    assert(staticPlantRoles(k).includes('pollinator')&&plantStyleRecommended(k,'butterfly',na),k+': still a pollinator plant');
+  assert(staticPlantRoles('whitetopsedge').includes('pollinator'),'and a record may say otherwise for itself');
+  // the butterfly nectar plants the term list had missed
+  for (const k of ['yarrow','sedum'])
+    assert(staticPlantRoles(k).includes('nectar'),k+': a nectar plant');
+  assert(plantStyleScore('monarda','butterfly',null,na)>plantStyleScore('foxglove','butterfly',null,na),'a nectar plant ranks above a plain flower');
+});
+
+test('Prairie recommends plants of open ground native to the garden, not ponds and woods', () => {
+  const na={nativeRegion:'north-america',nativeMode:'any'}, eu={nativeRegion:'europe',nativeMode:'any'};
+  const rec=r=>PLANT_KEYS.filter(k=>plantStyleRecommended(k,'prairie',r));
+  const list=rec(na);
+  for (const k of list){
+    const P=PLANTS[k];
+    assert(!['water','tree','vine'].includes(P.type),k+': a pond, a tree or a vine is not a prairie plant');
+    assert(P.form!=='fern'&&!['agave','cycad','fanpalm','ocotillo'].includes(P.form),k+': nor a fern or an agave');
+    assert(P.sun==='full'||(P.roles||[]).includes('prairie'),k+': part shade needs its own record to say so');
+    assert(plantRoles(k,na).includes('native'),k+': the style asks for natives');
+  }
+  for (const k of ['bluestem','bigbluestem','echinacea','leadplant','newjersey','shootingstar','meadssedge'])
+    assert(list.includes(k),k+': a real prairie plant stays');
+  for (const k of ['easternhemlock','fragrantwaterlily','christmasfern','foamflower','miscanthus'])
+    assert(!list.includes(k),k+': not on the prairie');
+  assertEqual(plantStyleScore('easternhemlock','prairie',null,na),0,'the score says no, or the catalog ranks it first anyway');
+  const euro=rec(eu);
+  assert(euro.length>=30,'a European garden still has a meadow list');
+  assert(euro.every(k=>plantRoles(k,eu).includes('native')),'of its own natives');
+  assert(!euro.includes('bluestem'),'not the American prairie');
+  assert(!plantRoles('leadplant',eu).includes('prairie'),'a prairie plant is one only at home');
+});
+
+test('Coastal asks for plants recorded on the coast, and Cottage has no pond or palm', () => {
+  const na={nativeRegion:'north-america',nativeMode:'any'};
+  const coast=PLANT_KEYS.filter(k=>plantStyleRecommended(k,'coastal',na));
+  assert(coast.every(k=>staticPlantRoles(k).includes('coastal')),'nothing gets there on being a grass');
+  for (const k of ['bluestem','karl','fountaingrass','tuftedhair','miscanthus','alkalisacaton','pinkmuhly'])
+    assert(coast.includes(k),k+': a source names it for salt');
+  for (const k of ['hakone','bluegrama','northernseaoats','bigbluestem'])
+    if (PLANTS[k]) assert(!coast.includes(k),k+': no source does');
+  assert(plantStyleRecommended('bluestem','prairie',na),'and a coastal plant keeps its other lists');
+  const cottage=PLANT_KEYS.filter(k=>plantStyleRecommended(k,'cottage',na));
+  for (const k of cottage) if (PLANTS[k].type==='water') assert(staticPlantRoles(k).includes('cottage'),k+': only the irises from a pond');
+  assert(cottage.includes('waterblueflag'),'and the irises stay');
+  for (const k of ['ocotillo','sawpalmetto','bluepaloverde']) assert(!cottage.includes(k),k+': not a cottage plant');
+  for (const k of ['echinacea','apple','peony','hyacinth']) assert(cottage.includes(k),k+': a flowering plant still is');
+  // the other styles are left as they were
+  for (const [k,s] of [['boxwoodsquare','formal'],['lavender','mediterranean'],['hakone','japanese']])
+    if (PLANTS[k]) assert(plantStyleRecommended(k,s,na),k+': still on '+s);
+});
+
 test('role terms match whole words, not letters inside another word', () => {
   assert(roleMatches('new england aster',['aster']),'the word itself matches');
   assert(roleMatches('wood asters',['aster']),'so does its plural');

@@ -6753,6 +6753,14 @@ warning away from water, since most wet sedges are grown in a rain garden. **`sp
 `clump` or `colony`, from the Mt. Cuba sheet where the plant is in the trial and from a source read
 otherwise, and absent where no source was read; it shows on the Library card, and a colony earns a
 "Spreads" tag on its catalog card. Only sedges carry it so far.
+**The same rule reaches the other plant types** (`styleCouldAsk`, ui.js; 0.9.85), because a sum cannot
+say no. Prairie and Coastal are places, so they need a plant recorded there: `prairie` is added to a
+native grass, forb or bulb of full sun and otherwise has to be authored with a source, and `coastal`
+is authored or matched by name. Cottage takes no water plant but its irises, and no palm or spine.
+`windPollinated` keeps grasses, sedges, rushes and catkin trees off `pollinator`, since a bloom colour
+was all it took. The Pollinator list stays broad on purpose: its own label says bees, so any
+insect-pollinated flower qualifies and nectar and native plants rank first. Raising its bar was tried
+and dropped apples and lilacs. Measured in `docs/plant-data/style-recommendations.md`.
 **The 0.9.83 batch** took the tab from 32 to 58 records and 1 to 7 cultivars, closing most of
 the audit's gaps: zone 10 had no sedge and has five, Europe had 2 straight species and has 7.
 Zone 11 still has none, because no source read reaches it. Sources and estimates are in
