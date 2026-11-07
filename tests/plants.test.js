@@ -112,7 +112,7 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,717,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,726,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),528,
     'canonical nested-choice count');
@@ -909,8 +909,8 @@ test('sedges carry visual archetypes and preserve signature seedheads', () => {
    limy meadows and fens, and none of them on a prairie. */
 test('a sedge is filed as a prairie or coastal plant only where a source says so', () => {
   const authored=role=>Object.keys(PLANTS).filter(k=>PLANTS[k].type==='sedge'&&(PLANTS[k].roles||[]).includes(role)).sort().join();
-  assertEqual(authored('prairie'),'bluesedge,broomsedgecarex,clusteredfieldsedge,foxsedge,haydensedge,meadssedge,mountainsedge,sedge,sunsedge,tussocksedge,whitetopsedge','reviewed prairie and meadow sedges');
-  assertEqual(authored('coastal'),'bluesedge,californiameadowsedge,clusteredfieldsedge,orangesedge,sloughsedge,whitetopsedge','reviewed coastal sedges');
+  assertEqual(authored('prairie'),'bicknellsedge,bluesedge,broomsedgecarex,clusteredfieldsedge,foxsedge,haydensedge,meadssedge,mountainsedge,sedge,sunsedge,tussocksedge,whitetopsedge','reviewed prairie and meadow sedges');
+  assertEqual(authored('coastal'),'bluesedge,californiameadowsedge,clusteredfieldsedge,orangesedge,seabeachsedge,sloughsedge,whitetopsedge','reviewed coastal sedges');
   assert(!/prairie swale/i.test(PLANTS.prairiesedge.blurb),'Prairie Sedge is a fen plant, whatever its name says');
   assertEqual(PLANTS.sloughsedge.sun,'part','two nurseries give Slough Sedge sun to shade, so a canopy does not stunt it');
   assert(!/woodland sedge/i.test(PLANTS.mountainsedge.blurb),'Mountain Sedge grows in dry meadows as well as open woods');
@@ -946,7 +946,7 @@ test('only the sedges a source puts in water may stand in it', () => {
 
 test('sedge batch preserves reviewed data and says which values are estimates', () => {
   const doc=JSON.parse(readRepoFile('docs/plant-data/sedge-sources.json')), rows=doc.plants;
-  assertEqual(rows.length,26,'the sedge pass added 26 base records');
+  assertEqual(rows.length,35,'the sedge passes added 35 base records');
   for(const row of rows){
     const P=PLANTS[row.suggestedKey], R=row.proposed;
     assert(P,row.suggestedKey+': missing species');

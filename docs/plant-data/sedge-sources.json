@@ -1,6 +1,6 @@
 {
   "reviewed": "2026-11-07",
-  "note": "Sources for the sedges added in 0.9.83, and for the habit and water fields added in 0.9.84. `estimates` names every field that is a planning value or a judgement rather than a published figure, and why. Sizes conflict widely between floras, nurseries and Mt. Cuba's trial (grown in Delaware, usually larger), so the reasoning is recorded per plant. Many pages were read through search summaries or a fetch; NC State, Calscape and Plant Delights pages were often unavailable.",
+  "note": "Sources for the sedges added in 0.9.83 and 0.9.87, and for the habit and water fields added in 0.9.84. `estimates` names every field that is a planning value or a judgement rather than a published figure, and why. Sizes conflict widely between floras, nurseries and Mt. Cuba's trial (grown in Delaware, usually larger), so the reasoning is recorded per plant. Many pages were read through search summaries or a fetch; NC State, Calscape and Plant Delights pages were often unavailable.",
   "plants": [
     {
       "suggestedKey": "woodssedge",
@@ -936,6 +936,340 @@
         "spread": "Inside RHS's 0.5-1 m.",
         "space": "Planning value."
       }
+    },
+    {
+      "suggestedKey": "bicknellsedge",
+      "proposed": {
+        "name": "Bicknell's Sedge",
+        "latin": "Carex bicknellii",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 24,
+        "spread": 18,
+        "space": 15,
+        "zones": [
+          3,
+          7
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "roles": [
+          "prairie"
+        ]
+      },
+      "sources": [
+        "https://www.minnesotawildflowers.info/grass-sedge-rush/bicknells-sedge",
+        "https://www.prairiemoon.com/carex-bicknellii-copper-shouldered-oval-sedge",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.izelplants.com/pub/media/pdf/Carex_chart_Mt_Cuba_Center_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "Minnesota gives 1-4 ft, Prairie Moon 3 ft, and the trial measured 18 in of flowers; 24 in is between them.",
+        "spread": "Trial measured 23 in; 18 in is a planning value.",
+        "space": "Prairie Moon's 12-18 in.",
+        "sun": "The trial and Minnesota say sun; Prairie Moon adds part shade.",
+        "moist": "The trial flags dry and Minnesota says moist to dry; Prairie Moon runs medium-wet to medium-dry.",
+        "sea": "Semi-evergreen to deciduous in the trial; the colours are authored."
+      }
+    },
+    {
+      "suggestedKey": "cattailsedge",
+      "proposed": {
+        "name": "Cattail Sedge",
+        "latin": "Carex typhina",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 24,
+        "spread": 30,
+        "space": 24,
+        "zones": [
+          4,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.minnesotawildflowers.info/grass-sedge-rush/cattail-sedge",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.izelplants.com/pub/media/pdf/Carex_chart_Mt_Cuba_Center_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "Minnesota gives 1-3 ft; the trial measured 30 in of foliage and 18 in of flowers.",
+        "spread": "Trial measured 48 in; 30 in is a planning value.",
+        "space": "Planning value.",
+        "sea": "Deciduous in the trial; the colours are authored."
+      }
+    },
+    {
+      "suggestedKey": "porcupinesedge",
+      "proposed": {
+        "name": "Porcupine Sedge",
+        "latin": "Carex hystericina",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 24,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          3,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.minnesotawildflowers.info/grass-sedge-rush/porcupine-sedge",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.izelplants.com/pub/media/pdf/Carex_chart_Mt_Cuba_Center_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "Minnesota gives 10-40 in and the trial measured 17 in of flowers; 24 in is between them.",
+        "spread": "Trial measured 40 in; 24 in is a planning value.",
+        "space": "Planning value.",
+        "sea": "Semi-evergreen in the trial; the colours are authored."
+      }
+    },
+    {
+      "suggestedKey": "reflexedsedge",
+      "proposed": {
+        "name": "Reflexed Sedge",
+        "latin": "Carex retroflexa",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 12,
+        "spread": 15,
+        "space": 12,
+        "zones": [
+          4,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "dry",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://ritasgardenpath.com/plants/293871-reflexed-sedge-carex-retroflexa",
+        "https://gobotany.nativeplanttrust.org/species/carex/retroflexa/",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.izelplants.com/pub/media/pdf/Carex_chart_Mt_Cuba_Center_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "zones": "The trial chart gives 4-8 and Rita's Garden Path 5-9.",
+        "heightIn": "Rita's Garden Path gives 6-12 in, the trial measured 15 in of flowers, and Go Botany's wild range is 4-30 in.",
+        "spread": "Rita's Garden Path gives 9-15 in; the trial measured 42 in.",
+        "space": "Planning value.",
+        "sun": "Rita's Garden Path gives full sun to part shade and the trial flags shade, so a canopy should not stunt it.",
+        "sea": "Semi-evergreen in the trial; the colours are authored."
+      }
+    },
+    {
+      "suggestedKey": "seabeachsedge",
+      "proposed": {
+        "name": "Seabeach Sedge",
+        "latin": "Carex silicea",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 18,
+        "spread": 18,
+        "space": 15,
+        "zones": [
+          5,
+          7
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "roles": [
+          "coastal"
+        ]
+      },
+      "sources": [
+        "https://gobotany.nativeplanttrust.org/species/carex/silicea/",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.izelplants.com/pub/media/pdf/Carex_chart_Mt_Cuba_Center_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "zones": "The trial chart's 5-7, the only figure read; a coastal plant may run milder than that.",
+        "heightIn": "The trial measured 19 in of flowers; Go Botany's wild range is 6-33 in.",
+        "spread": "The trial measured 19 in.",
+        "space": "Planning value.",
+        "moist": "The trial grew it in dry, average and wet soil; dunes make it dry.",
+        "sea": "Semi-evergreen to deciduous in the trial; the colours are authored."
+      }
+    },
+    {
+      "suggestedKey": "barrattsedge",
+      "proposed": {
+        "name": "Barratt's Sedge",
+        "latin": "Carex barrattii",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 24,
+        "spread": 30,
+        "space": 18,
+        "zones": [
+          4,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://gobotany.nativeplanttrust.org/species/carex/barrattii/",
+        "https://en.wikipedia.org/wiki/Carex_barrattii",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.izelplants.com/pub/media/pdf/Carex_chart_Mt_Cuba_Center_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "The trial measured 23 in of flowers and 29 in of foliage; the floras give 8-35 in.",
+        "spread": "Trial measured 64 in as a colony; 30 in is a planning value.",
+        "space": "Planning value.",
+        "sun": "Wikipedia says it does not tolerate shade; the trial rated it 4.0 in shade and 3.9 in sun, so it follows the trial.",
+        "spreadHabit": "Go Botany gives no long rhizomes; Wikipedia and the trial say it spreads.",
+        "sea": "Blue-green from Wikipedia, deciduous from the trial; the colours are authored."
+      }
+    },
+    {
+      "suggestedKey": "looseflowersedge",
+      "proposed": {
+        "name": "Broad Loose-flowered Sedge",
+        "latin": "Carex laxiflora",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 12,
+        "spread": 18,
+        "space": 12,
+        "zones": [
+          3,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://gobotany.nativeplanttrust.org/species/carex/laxiflora/",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.izelplants.com/pub/media/pdf/Carex_chart_Mt_Cuba_Center_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "The trial measured 11 in of flowers; Go Botany's wild range is 15-18 in.",
+        "spread": "Trial measured 21 in; 18 in is a planning value.",
+        "space": "Planning value.",
+        "sea": "Semi-evergreen in the trial; the colours are authored."
+      }
+    },
+    {
+      "suggestedKey": "roughsedge",
+      "proposed": {
+        "name": "Eastern Rough Sedge",
+        "latin": "Carex scabrata",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 22,
+        "spread": 30,
+        "space": 24,
+        "zones": [
+          3,
+          7
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://gobotany.nativeplanttrust.org/species/carex/scabrata/",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.izelplants.com/pub/media/pdf/Carex_chart_Mt_Cuba_Center_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "The trial measured 22 in of flowers; Go Botany's wild range is 12-35 in.",
+        "spread": "Trial measured 56 in as a colony; 30 in is a planning value.",
+        "space": "Planning value.",
+        "sea": "Deciduous in the trial; the colours are authored."
+      }
+    },
+    {
+      "suggestedKey": "tuftedsedge",
+      "proposed": {
+        "name": "Tufted Sedge",
+        "latin": "Carex elata",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 36,
+        "spread": 30,
+        "space": 24,
+        "zones": [
+          5,
+          9
+        ],
+        "nativeTo": [
+          "europe",
+          "asia",
+          "africa"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.rhs.org.uk/plants/3078/carex-elata/details",
+        "https://plants.ces.ncsu.edu/plants/carex-elata",
+        "https://en.wikipedia.org/wiki/Carex_elata"
+      ],
+      "estimates": {
+        "zones": "NC State's 5-9, the only USDA figure read; the same as Bowles' Golden.",
+        "heightIn": "NC State gives 1-3 ft, RHS 0.5-1 m and Wikipedia 1.2 m.",
+        "spread": "Inside RHS's 0.5-1 m.",
+        "space": "Planning value.",
+        "sun": "NC State and RHS both give full sun or part shade, so a canopy should not stunt it.",
+        "sea": "NC State and Wikipedia call it evergreen and RHS deciduous, so it is semi-evergreen; the colours are authored."
+      }
     }
   ],
   "cultivars": [
@@ -1019,12 +1353,20 @@
         "awlfruitedsedge",
         "tussocksedge",
         "texassedge",
-        "foxsedge"
+        "foxsedge",
+        "bicknellsedge",
+        "cattailsedge",
+        "porcupinesedge",
+        "reflexedsedge",
+        "seabeachsedge",
+        "looseflowersedge"
       ],
       "colony": [
         "pennsedge",
         "woodssedge",
-        "emorysedge"
+        "emorysedge",
+        "barrattsedge",
+        "roughsedge"
       ],
       "source": "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
     },
@@ -1118,6 +1460,10 @@
         "value": "colony",
         "source": "https://www.rhs.org.uk/plants/10579/wd/details",
         "note": "Slowly, by stolons."
+      },
+      "tuftedsedge": {
+        "value": "clump",
+        "source": "https://www.rhs.org.uk/plants/3078/carex-elata/details"
       }
     }
   },
@@ -1131,7 +1477,9 @@
       "sallowsedge": "https://plants.ces.ncsu.edu/plants/carex-lurida/",
       "fringedsedge": "https://newmoonnursery.com/plant/Carex-crinita",
       "awlfruitedsedge": "https://www.wildflower.org/plants/result.php?id_plant=CAST5",
-      "whitetopsedge": "https://plants.ces.ncsu.edu/plants/rhynchospora-colorata/"
+      "whitetopsedge": "https://plants.ces.ncsu.edu/plants/rhynchospora-colorata/",
+      "tuftedsedge": "https://plants.ces.ncsu.edu/plants/carex-elata",
+      "bowlesgoldensedge": "https://plants.ces.ncsu.edu/plants/carex-elata"
     }
   }
 }

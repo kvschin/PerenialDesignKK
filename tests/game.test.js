@@ -1511,6 +1511,29 @@ test('the catalog can be narrowed by light and moisture, across every plant type
   } finally { [game.design,game.filters,game.discovery]=saved; }
 });
 
+test('the last sedges land where their sources put them', () => {
+  const na={nativeRegion:'north-america',nativeMode:'any'}, eu={nativeRegion:'europe',nativeMode:'any'};
+  const site={bicknellsedge:'meadow',seabeachsedge:'meadow',porcupinesedge:'wetmeadow',reflexedsedge:'dryshade',looseflowersedge:'woodland',
+    cattailsedge:'moistshade',roughsedge:'moistshade',barrattsedge:'moistshade',tuftedsedge:'moistshade'};
+  for (const [k,s] of Object.entries(site)) assertEqual(sedgeSiteOf(PLANTS[k]),s,k+': filed by its own site');
+  assert(plantStyleRecommended('bicknellsedge','prairie',na),"Bicknell's Sedge is a prairie plant");
+  assert(!plantStyleRecommended('bicknellsedge','coastal',na),'and not a coastal one');
+  assert(plantStyleRecommended('seabeachsedge','coastal',na),'Seabeach Sedge is a coastal plant');
+  assert(!plantStyleRecommended('seabeachsedge','prairie',na),'and not a prairie one');
+  assert(plantStyleRecommended('reflexedsedge','shade',na)&&plantStyleRecommended('looseflowersedge','shade',na),'the woodland ones are on the Shade list');
+  assert(!plantStyleRecommended('tuftedsedge','prairie',eu),'a fen sedge is not a meadow plant, even at home');
+  // the species and its golden selection are one card, and neither key moved
+  for (const k of ['tuftedsedge','bowlesgoldensedge']) assertEqual(plantFamilyId(k),'group:tuftedsedge',k+": Bowles' Golden sits with its wild parent");
+  assertEqual(PLANTS.tuftedsedge.provenance,'species','the parent is a straight species');
+  assertEqual(PLANTS.bowlesgoldensedge.provenance,'selection','and Bowles\' Golden still is not');
+  assert(!(PLANTS.bowlesgoldensedge.synonyms||[]).includes('Tufted Sedge'),'the common name belongs to the species now');
+    for (const k of ['tuftedsedge','bowlesgoldensedge']) assert(plantedOnWater(PLANTS[k],'water'),k+': NC State says it takes standing water');
+  for (const k of ['cattailsedge','porcupinesedge','roughsedge','barrattsedge']) assert(!plantedOnWater(PLANTS[k],'water'),k+': wet ground, but no source read puts it in water');
+  // the heads are the reason to plant these, and they are not each other
+  assertEqual(PLANTS.cattailsedge.look.seedStyle,'brush','cattail heads are cylinders, not the burrs of a mace');
+  assert(PLANTS.cattailsedge.sea.Summer.seed!==PLANTS.porcupinesedge.sea.Summer.seed,'and they are not Porcupine Sedge\'s colour');
+});
+
 test('role terms match whole words, not letters inside another word', () => {
   assert(roleMatches('new england aster',['aster']),'the word itself matches');
   assert(roleMatches('wood asters',['aster']),'so does its plural');

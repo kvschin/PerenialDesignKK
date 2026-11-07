@@ -6766,6 +6766,10 @@ is authored or matched by name. Cottage takes no water plant but its irises, and
 was all it took. The Pollinator list stays broad on purpose: its own label says bees, so any
 insect-pollinated flower qualifies and nectar and native plants rank first. Raising its bar was tried
 and dropped apples and lilacs. Measured in `docs/plant-data/style-recommendations.md`.
+**The 0.9.87 batch** added nine from Mt. Cuba's trial sheet, each for a use the tab lacked, taking it to 67
+records: `group:'tuftedsedge'` puts *Carex elata* and Bowles' Golden on one card, and the audit says what
+was left out and why. Zones for trial plants come from Izel's copy of the Mt. Cuba chart, a PDF whose text only
+comes out by inflating its streams; every other trial figure is in the spreadsheet.
 **The 0.9.83 batch** took the tab from 32 to 58 records and 1 to 7 cultivars, closing most of
 the audit's gaps: zone 10 had no sedge and has five, Europe had 2 straight species and has 7.
 Zone 11 still has none, because no source read reaches it. Sources and estimates are in

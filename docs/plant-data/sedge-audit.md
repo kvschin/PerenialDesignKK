@@ -167,6 +167,34 @@ Where the reading changed the plan:
   grow in pastures and scrub rather than a meadow as such. Mountain, Broom and Plains Oval are there
   as well; the heading means open ground.
 
+## Shipped in 0.9.87: the last from the trial
+
+Counting nursery lists built the 0.9.83 batch, and it could not see a plant those lists rarely name. These
+nine came from the trial sheet instead, each for a use the tab lacked, which takes it to 67 records.
+
+| Record | Why it is here |
+| --- | --- |
+| Bicknell's Sedge | Dry sun on a prairie. Sun Sedge was the only sedge here marked for dry, full sun. Trial 3.6 |
+| Seabeach Sedge | Beaches and dunes of the northern Atlantic coast, which nothing on the Coastal list came from. Trial 3.8 |
+| Porcupine Sedge | Bottlebrush heads in wet sun, rated excellent for fruit. Trial 3.5 |
+| Cattail Sedge | Upright cattail heads in wet part shade. Trial 4.0 |
+| Eastern Rough Sedge | A broad-leaved colony to cover wet shade. Trial 4.0 |
+| Barratt's Sedge | A blue-green colony for wet acid sand. Trial 4.0, and rare in the wild |
+| Broad Loose-flowered Sedge | A low, broad-leaved clump for woods. Trial 4.0, excellent flowers |
+| Reflexed Sedge | A fine clump for dry shade. Trial 3.7 |
+| Tufted Sedge | The wild parent of Bowles' Golden, and another straight European species |
+
+Bowles' Golden joined its parent on one card, and both may stand in water, from NC State's page for the
+species. Its saved key is unchanged.
+
+What was weighed and left out, of the 34 trial taxa missing: *C. squarrosa* is close to Cattail Sedge, and
+*C. muehlenbergii* rated 2.8. The other 24 overlap what is here or rated lower; several would still be
+reasonable to add.
+
+**Nursery stock was not confirmed for most of these.** Prairie Moon has Bicknell's Sedge and Rita's Garden
+Path writes up Reflexed Sedge, but the New Moon and Prairie Moon pages tried for the others did not exist at
+the addresses tried, which proves little. Seabeach and Barratt's are the likeliest to be hard to buy.
+
 ## Shipped in 0.9.84: the model
 
 - **Evergreens are no longer cut back in spring.** In Today view every herbaceous plant dropped
@@ -202,8 +230,6 @@ Where the reading changed the plan:
 ### Missing species
 
 - **Zone 11 has no sedge.** No source read reaches it. A South Florida flora might.
-- **Well rated in the trial and still not here:** *C. bicknellii*, a prairie sedge, and others. The
-  list above came from counting nursery lists, so it is not every good sedge.
 
 ### The model
 
@@ -211,5 +237,4 @@ Where the reading changed the plan:
   asks for wet ground; they show under All eligible and in an unstyled garden.
 - **Japanese Sedge 'Evergold' is not on the Japanese list**, which no sedge is. I found no
   source that names the use.
-- **Bowles' Golden has no parent species.** Evergold now sits with the Japanese sedges.
 - **Water depth is not modelled.** A wading sedge goes on any water tile, as a marginal does.
