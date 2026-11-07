@@ -1,6 +1,6 @@
 {
   "reviewed": "2026-11-07",
-  "note": "Sources for the sedges added in 0.9.83. `estimates` names every field that is a planning value or a judgement rather than a published figure, and why. Sizes conflict widely between floras, nurseries and Mt. Cuba's trial (grown in Delaware, usually larger), so the reasoning is recorded per plant. Many pages were read through search summaries or a fetch; NC State, Calscape and Plant Delights pages were often unavailable.",
+  "note": "Sources for the sedges added in 0.9.83, and for the habit and water fields added in 0.9.84. `estimates` names every field that is a planning value or a judgement rather than a published figure, and why. Sizes conflict widely between floras, nurseries and Mt. Cuba's trial (grown in Delaware, usually larger), so the reasoning is recorded per plant. Many pages were read through search summaries or a fetch; NC State, Calscape and Plant Delights pages were often unavailable.",
   "plants": [
     {
       "suggestedKey": "woodssedge",
@@ -986,5 +986,152 @@
         "https://www.naturadb.de/pflanzen/carex-montana/"
       ]
     }
-  ]
+  ],
+  "spreadHabit": {
+    "note": "clump or colony, only where a source read says so. The Mt. Cuba sheet's Growth Habit column settles every sedge in the trial, even where a nursery disagrees (New Moon says Eastern Woodland Sedge is rhizomatous). A sedge with no source read has no value, and shows nothing.",
+    "fromTrial": {
+      "clump": [
+        "oaksedge",
+        "whitebearsedge",
+        "creeksedge",
+        "appalachiansedge",
+        "woodlandsedge",
+        "sedge",
+        "bromoides",
+        "cherokeesedge",
+        "bristlysedge",
+        "fringedsedge",
+        "ivorysedge",
+        "bluewoodsedge",
+        "grayssedge",
+        "graysedge",
+        "haydensedge",
+        "jamessedge",
+        "spreadingsedge",
+        "leavenworthsedge",
+        "sallowsedge",
+        "palmsedge",
+        "plantainsedge",
+        "starsedge",
+        "rosysedge",
+        "broomsedgecarex",
+        "longbeakedsedge",
+        "awlfruitedsedge",
+        "tussocksedge",
+        "texassedge",
+        "foxsedge"
+      ],
+      "colony": [
+        "pennsedge",
+        "woodssedge",
+        "emorysedge"
+      ],
+      "source": "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
+    },
+    "fromOthers": {
+      "lakesedge": {
+        "value": "colony",
+        "source": "https://www.minnesotawildflowers.info/grass-sedge-rush/lake-sedge"
+      },
+      "clusteredfieldsedge": {
+        "value": "colony",
+        "source": "https://www.minnesotawildflowers.info/grass-sedge-rush/clustered-field-sedge"
+      },
+      "meadssedge": {
+        "value": "colony",
+        "source": "https://www.minnesotawildflowers.info/grass-sedge-rush/meads-sedge"
+      },
+      "sunsedge": {
+        "value": "colony",
+        "source": "https://www.minnesotawildflowers.info/grass-sedge-rush/sun-loving-sedge",
+        "note": "Loose clumps in loose colonies from long rhizomes."
+      },
+      "prairiesedge": {
+        "value": "clump",
+        "source": "https://www.minnesotawildflowers.info/grass-sedge-rush/prairie-sedge",
+        "note": "Dense clumps that may form colonies."
+      },
+      "mountainsedge": {
+        "value": "clump",
+        "source": "https://www.rhs.org.uk/plants/111578/carex-montana/details"
+      },
+      "woodsedge": {
+        "value": "clump",
+        "source": "https://www.rhs.org.uk/plants/63832/carex-sylvatica/details"
+      },
+      "remotesedge": {
+        "value": "clump",
+        "source": "https://www.rhs.org.uk/plants/74341/wd/details"
+      },
+      "weepingsedge": {
+        "value": "clump",
+        "source": "https://www.nwcb.wa.gov/pdfs/Carex-pendula-information_King-County.pdf",
+        "note": "Large clumps that spread by seed."
+      },
+      "hairsedge": {
+        "value": "clump",
+        "source": "https://plants.ces.ncsu.edu/plants/carex-comans/"
+      },
+      "leatherleafsedge": {
+        "value": "clump",
+        "source": "https://plants.ces.ncsu.edu/plants/carex-buchananii/"
+      },
+      "evergoldsedge": {
+        "value": "clump",
+        "source": "https://plants.ces.ncsu.edu/plants/carex-oshimensis/"
+      },
+      "everestsedge": {
+        "value": "clump",
+        "source": "https://plants.ces.ncsu.edu/plants/carex-oshimensis/"
+      },
+      "everillosedge": {
+        "value": "clump",
+        "source": "https://plants.ces.ncsu.edu/plants/carex-oshimensis/"
+      },
+      "sloughsedge": {
+        "value": "colony",
+        "source": "https://courses.washington.edu/esrm412/protocols/2003/CAOB3.pdf"
+      },
+      "californiameadowsedge": {
+        "value": "colony",
+        "source": "https://www.calfloranursery.com/plants/carex-pansa"
+      },
+      "bluesedge": {
+        "value": "colony",
+        "source": "https://en.wikipedia.org/wiki/Carex_flacca",
+        "note": "Slowly: expanding clumps by rooting shoots."
+      },
+      "icedancesedge": {
+        "value": "colony",
+        "source": "https://www.plantdelights.com/products/carex-morrowii-ice-dance-japanese-sedge",
+        "note": "Slowly."
+      },
+      "broadleafsedge": {
+        "value": "colony",
+        "source": "https://plants.ces.ncsu.edu/plants/carex-siderosticta/"
+      },
+      "whitetopsedge": {
+        "value": "colony",
+        "source": "https://plants.ces.ncsu.edu/plants/rhynchospora-colorata/"
+      },
+      "greaterwoodrush": {
+        "value": "colony",
+        "source": "https://www.rhs.org.uk/plants/10579/wd/details",
+        "note": "Slowly, by stolons."
+      }
+    }
+  },
+  "wades": {
+    "note": "Sedges a source says grow in shallow or standing water. They may be planted on a water tile, and the rest of the rules are a land plant's. Depth is not modelled.",
+    "plants": {
+      "tussocksedge": "https://www.illinoiswildflowers.info/grasses/plants/tussock_sedge.html",
+      "lakesedge": "https://www.illinoiswildflowers.info/grasses/plants/lake_sedge.html",
+      "bristlysedge": "https://www.illinoiswildflowers.info/grasses/plants/bb_sedge.htm",
+      "sloughsedge": "https://courses.washington.edu/esrm412/protocols/2003/CAOB3.pdf",
+      "sallowsedge": "https://plants.ces.ncsu.edu/plants/carex-lurida/",
+      "fringedsedge": "https://newmoonnursery.com/plant/Carex-crinita",
+      "awlfruitedsedge": "https://www.wildflower.org/plants/result.php?id_plant=CAST5",
+      "whitetopsedge": "https://plants.ces.ncsu.edu/plants/rhynchospora-colorata/"
+    }
+  }
 }

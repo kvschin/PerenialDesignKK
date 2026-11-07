@@ -357,7 +357,7 @@ function actHere(opts){
   const def=PLANTS[game.tool] ? plantDef(game.tool,game.toolVar) : null;
   if (!def) return;
   // a marginal on dry ground falls through and plants like any perennial
-  if (def.type==='water' && (terr==='water' || !isMarginalDef(def))){
+  if (plantedOnWater(def,terr)){
     if (terr!=='water'){ toast(`${def.name} floats on open water, so it needs a pond, river, or lake tile.`); return; }
     if (hasPlant){ showPlantCard(existing,x,y); return; }
     if (hasBulb){ toast('Lift the bulb before planting in water.'); return; }
@@ -548,7 +548,7 @@ function placeTerrainAt(x,y){
   /* A marginal is the one planting a pond can be dug around, since it grows in
      the water as readily as beside it. And a lily is the one planting a lawn can
      NOT be laid over: it floats, so turfing its tile would strand it on grass. */
-  if (ex && !ex.removed && game.tool!=='lawn' && !(game.tool==='water' && isMarginalDef(exDef))) return null;
+  if (ex && !ex.removed && game.tool!=='lawn' && !(game.tool==='water' && standsInWaterDef(exDef))) return null;
   if (game.tool==='lawn' && exDef && exDef.type==='water' && !isMarginalDef(exDef)) return null;
   if (game.tool==='water' && fenceAt(x,y)) return null;
   if (game.tool==='water' && lightAt(x,y)) return null;
@@ -658,7 +658,7 @@ function placePlantAt(x,y,opts){
   const np={s:game.tool,d:woodyPlantedDay(def,game.woodyAge),t:Date.now()};   // woody: age-at-placement (T10)
   if (game.toolVar) np.v=game.toolVar;
   // a marginal on dry ground falls through to the perennial rules below
-  if (def.type==='water' && (terr==='water' || !isMarginalDef(def))){
+  if (plantedOnWater(def,terr)){
     const ex=game.plants[k], eb=game.bulbs[k];
     if (terr!=='water') return null;
     if ((ex && !ex.removed) || (eb && !eb.removed)) return null;
@@ -2255,7 +2255,7 @@ function selectionPlantDestValid(rec,x,y,ctx,isBulb){
     if (selectionObjectAt(x,y,ctx,f)) return false;
   if (pot && tree) return false;
   const terr=selectionTerrainKindAt(x,y,ctx);
-  if (P.type==='water' && !isBulb && (terr==='water' || !isMarginalDef(P))){
+  if (!isBulb && plantedOnWater(P,terr)){
     if (terr!=='water') return false;
   } else if ((pot ? selectionStayingWaterAt(x,y,ctx) : terr==='water') || (!pot && terr==='path')) return false;
   if (isBulb){
@@ -2461,7 +2461,7 @@ function replacementPreflight(ctx,target){
     }
     if (ok && isShrubDef(to)) ok=canPlaceShrubAt(x,y,np,{ignoreKeys:ignoredShrubs}).ok;
     if (ok && !isShrubDef(to) && to.type!=='bulb' && to.type!=='water'){
-      const terr=tileTerrain(x,y); ok=terr!=='path'&&terr!=='water';
+      const terr=tileTerrain(x,y); ok=terr!=='path'&&(terr!=='water'||!!to.wades);
     }
     candidates.push(Object.assign({},item,{next:np,x,y,ok}));
   }

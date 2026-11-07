@@ -6746,6 +6746,13 @@ and off the Shade list although `sun:'part'`: they take shade, so a canopy does 
 them, but nobody plants them as woodland sedges. "Prairie Sedge" is a fen plant and carries no
 `prairie` role. A new sedge needs its own review, not a role by analogy.
 The same word-and-type roles still run on the other plant types, measured in the audit.
+**A sedge may stand in water** where a source says so (`wades:true`, `standsInWaterDef`,
+`plantedOnWater`, core.js; 0.9.84), which is what the blurbs of Tussock and Lake Sedge had been
+promising while the tile refused them. It is otherwise a land plant: unlike a marginal it earns no
+warning away from water, since most wet sedges are grown in a rain garden. **`spreadHabit`** is
+`clump` or `colony`, from the Mt. Cuba sheet where the plant is in the trial and from a source read
+otherwise, and absent where no source was read; it shows on the Library card, and a colony earns a
+"Spreads" tag on its catalog card. Only sedges carry it so far.
 **The 0.9.83 batch** took the tab from 32 to 58 records and 1 to 7 cultivars, closing most of
 the audit's gaps: zone 10 had no sedge and has five, Europe had 2 straight species and has 7.
 Zone 11 still has none, because no source read reaches it. Sources and estimates are in

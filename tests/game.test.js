@@ -891,6 +891,87 @@ test('a marginal plants in water or on ground, and a floating plant only on wate
   assertEqual(potAt(12,10)&&!marginalOutOfReach(plantDef('dwarfcattail'),12,10),true,'and a tub carries its own water, so no warning');
 });
 
+test('a sedge a source puts in water may be planted in it, and earns no warning away from it', () => {
+  const put=(k,x,y)=>{ game.tool=k; game.toolVar=null; return applyToolAt(x,y); };
+  setup();
+  setTile('terrain','10,10',{k:'water',c:'pond'}); setTile('terrain','11,10',{k:'water',c:'pond'}); setTile('terrain','12,10',{k:'path',c:'gravel'});
+  assertEqual(put('lakesedge',10,10),'plant','Lake Sedge stands in the pond');
+  assertEqual(put('pennsedge',11,10),null,'Pennsylvania Sedge does not');
+  // the action a tap and the E key run, which has a water branch of its own
+  setTile('terrain','9,10',{k:'water',c:'pond'});
+  game.tool='tussocksedge'; game.toolVar=null; game.actX=9; game.actY=10; actHere();
+  assert(game.plants['9,10']&&game.plants['9,10'].s==='tussocksedge','acting on a water tile plants a wading sedge');
+  assertEqual(put('tussocksedge',12,10),null,'and nothing digs into gravel');
+  assertEqual(put('tussocksedge',15,15),'plant','and on dry ground it plants like any perennial');
+  assert(!marginalOutOfReach(plantDef('tussocksedge'),15,15),'with no warning about a pond: a rain garden is its usual home');
+  assert(!/stays wet/.test(plantPlacedMessage(plantDef('tussocksedge'),15,15,'15,15',null,false,null)),'and nothing in the toast');
+  assert(standsInWaterDef(plantDef('tussocksedge'))&&standsInWaterDef(plantDef('softrush')),'a wading sedge and a marginal both stand in water');
+  assert(!isMarginalDef(plantDef('tussocksedge')),'though a sedge is no marginal');
+  assert(!standsInWaterDef(plantDef('pennsedge'))&&!standsInWaterDef(null),'and the predicate is null-safe');
+  // a pond can be dug round one, and only one
+  const paint=(x,y)=>{ game.tool='water'; game.waterStyle='pond'; return placeTerrainAt(x,y); };
+  game.tool='tussocksedge'; applyToolAt(18,18); game.tool='pennsedge'; applyToolAt(19,18);
+  assertEqual(paint(18,18),'water','water goes in under a wading sedge');
+  assertEqual(paint(19,18),null,'and not under a dry-shade one');
+  // selections and replacements follow the same rule
+  setup();
+  setTile('terrain','10,10',{k:'water',c:'pond'});
+  setTile('plants','15,15',{s:'pennsedge',d:0,t:1}); setTile('plants','16,16',{s:'lakesedge',d:0,t:1});
+  game.sel={x0:15,y0:15,x1:15,y1:15}; game.selItems=selectionPayload(game.sel);
+  assert(!commitSelectionOffset(-5,-5,false),'a dry-shade sedge may not be moved into the pond');
+  game.sel={x0:16,y0:16,x1:16,y1:16}; game.selItems=selectionPayload(game.sel);
+  assert(commitSelectionOffset(-6,-6,false),'a wading one may');
+  assertEqual(game.plants['10,10'].s,'lakesedge','and it lands there');
+  // a replacement on a water tile asks the same question
+  const pre=(from,to)=>replacementPreflight({source:{s:from,v:null},scope:'garden',key:'10,10'},{s:to,v:null});
+  assert(String(replacementPreflight).includes('to.wades'),'a replacement asks the same question');
+});
+
+test('a card says when a sedge spreads and when it may stand in water, and the Library says more', () => {
+  setup();
+  const saved=[game.design,game.filters];
+  try {
+    game.design=null; game.filters=normalizeFilters({nativeRegion:'north-america',nativeMode:'any'});
+    const d=normalizeDiscovery({source:'all',category:'sedges'});
+    const texts=(el,out=[])=>{ if(el.textContent&&!el.children.length) out.push(el.textContent); (el.children||[]).forEach(c=>texts(c,out)); return out; };
+    const card=k=>texts(discoveryResultCard({s:k,v:null},d));
+    assert(card('woodssedge').includes('Spreads'),"Wood's Sedge says it spreads");
+    assert(!card('rosysedge').includes('Spreads'),'Rosy Sedge, which clumps, says nothing');
+    assert(!card('texassedge').includes('Spreads')&&!card('sunsedge').includes('Forms a clump'),'and a clump is the quiet default');
+    const fam=k=>{ const group=groupDiscoveryRefs([{s:k,v:null},...Object.keys(PLANTS[k].cv||{}).map(v=>({s:k,v}))])[0]; return texts(discoveryFamilyCard(group,d)); };
+    assert(fam('pennsedge').includes('Spreads'),'a family that all spreads says so on its card');
+    assert(!fam('palmsedge').includes('Spreads'),'and one that clumps does not');
+    const mixed=groupDiscoveryRefs(['evergoldsedge','icedancesedge'].map(s=>({s,v:null})))[0];
+    assert(!texts(discoveryFamilyCard(mixed,d)).includes('Spreads'),'a card mixing the two does not claim it');
+    const site=k=>discoverySiteMeta(PLANTS[k]).textContent;
+    assert(/Pond margin/.test(site('lakesedge')),'a wading sedge reads as a pond margin');
+    assert(!/Pond margin/.test(site('prairiesedge')),'a wet-meadow one does not');
+    const lib=String(showLibraryDetail);
+    assert(lib.includes('Spreads into a colony')&&lib.includes('P.wades'),'the Library card says both in full');
+    resetDiscoveryArt();
+  } finally { game.design=saved[0]; game.filters=saved[1]; }
+});
+
+test('a plant that keeps its leaves through winter is not cut back in spring', () => {
+  setup();
+  const ydOf=d=>{ game.dayOffset=(game.dayOffset||0)+(d-(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)); };
+  ydOf(0);
+  for (const k of ['evergoldsedge','sloughsedge','christmasfern','lentenrose','bluemoorgrass','orangesedge','leatherleafsedge','pennsedge'])
+    assertEqual(seasonEnvelope(k),1,k+': stands at full size on the first day of spring');
+  for (const k of ['bluestem','lakesedge','haydensedge','foxglove','coneflower'])
+    if (PLANTS[k]) assert(seasonEnvelope(k)<0.2,k+': cut back as ever');
+  assert(holdsWinterLeaves('evergoldsedge')&&!holdsWinterLeaves('bluestem'),'the predicate says which');
+  assert(!holdsWinterLeaves('no-such-plant'),'and is safe on a retired key');
+  ydOf(YEAR_DAYS-1);
+  assertEqual(seasonEnvelope('bluestem'),1,'in winter everything herbaceous still stands as dead structure');
+  // and in Today view that is what a plant draws at
+  ydOf(1);
+  game.previewMode='today';
+  const p={s:'evergoldsedge',d:absDay()-200};
+  assert(plantGrowth(p)>0.9,'an established evergreen is full size in early spring');
+  assert(plantGrowth({s:'bluestem',d:absDay()-200})<0.2,'beside a cut-back grass');
+});
+
 test('a marginal out of reach of water is planted and advised, never refused', () => {
   setup();
   setTile('terrain','10,10',{k:'water',c:'pond'});

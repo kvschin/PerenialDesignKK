@@ -167,6 +167,16 @@ Where the reading changed the plan:
   grow in pastures and scrub rather than a meadow as such. Mountain, Broom and Plains Oval are there
   as well; the heading means open ground.
 
+## Shipped in 0.9.84: the model
+
+- **Evergreens are no longer cut back in spring.** In Today view every herbaceous plant dropped
+  to 12% on the first day of Spring, Evergold and Christmas fern included. A plant with an evergreen
+  role, or a Winter colour that is still green, now stands at full size all year.
+- **Eight sedges may stand in water**: Tussock, Lake, Bristly, Slough, Sallow, Fringed, Awl-fruited
+  and White-topped, each with a source in `sedge-sources.json`. Depth is not modelled.
+- **Clump or colony** is recorded for 53 of 58 sedges, from the trial first. The rest have no source
+  read, so they show nothing rather than a guess. A colony earns a "Spreads" tag on its card.
+
 ## Checked and left alone
 
 - **Palm sedge in winter.** The trial says semi-evergreen, but
@@ -207,12 +217,5 @@ Where the reading changed the plan:
   source that names the use.
 - **Browsing by site exists only on the Sedge tab.** A sun and moisture filter across the
   catalog would serve every plant type; `sun` and `moist` are already on every record.
-- **Clumping versus spreading is not modelled.** It is a core sedge decision and the trial
-  records it. A spreader could also draw as a mat, which helps the carpet problem.
-- **Evergreens get cut back.** In Today view `seasonEnvelope` drops every herbaceous plant
-  to 12% on the first day of spring, Evergold, Slough Sedge and Christmas fern included.
-- **Water-margin sedges cannot stand in water.** `isMarginalDef` requires `type:'water'`,
-  so Tussock and Lake Sedge are refused on water tiles though their blurbs mention
-  standing water or pond margins.
-- **Evergold and Bowles' Golden have no parent species.** A shared `group` would let
-  related cultivars sit together without changing saved gardens.
+- **Bowles' Golden has no parent species.** Evergold now sits with the Japanese sedges.
+- **Water depth is not modelled.** A wading sedge goes on any water tile, as a marginal does.

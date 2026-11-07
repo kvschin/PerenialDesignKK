@@ -2173,7 +2173,7 @@ function discoveryBloomLabel(P){
 function discoverySiteMeta(P){
   const meta=document.createElement('span'); meta.className='plant-site-meta';
   const sun=P.sun==='full'?'Full sun':P.sun==='part'?'Part shade':'Shade';
-  const moisture=P.type==='water'?(P.marginal?'Pond margin':'Open water')
+  const moisture=P.wades?'Pond margin':P.type==='water'?(P.marginal?'Pond margin':'Open water')
     :P.moist==='dry'?'Low water':P.moist==='moist'?'Moist':'Average water';
   const size=typeof matureSizeText==='function'?matureSizeText(P):'';
   meta.textContent=[sun,moisture].filter(Boolean).join(' \u00b7 ');
@@ -2275,6 +2275,7 @@ function discoveryResultCard(ref,d,opts={}){
   if (family){ const dot=document.createElement('i'); dot.className='plant-result-dot'; dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); meta.appendChild(dot); }
   const bloom=document.createElement('span'); bloom.textContent=discoveryBloomLabel(P); meta.appendChild(bloom);
   const kind=document.createElement('small'); kind.textContent=provenanceLabel(P); meta.appendChild(kind);
+  if (P.spreadHabit==='colony'){ const runs=document.createElement('small'); runs.textContent='Spreads'; meta.appendChild(runs); }
   const relation=nativeRelation(P,activeFilters().nativeRegion);
   if (activeFilters().nativeMode==='any' && relation.regional){
     const nativeTag=document.createElement('small'); nativeTag.textContent=nativeRegionLabel(activeFilters().nativeRegion)+' origin'; meta.appendChild(nativeTag);
@@ -2324,7 +2325,12 @@ function discoveryFamilyCard(group,d){
   const groupBloom=discoveryGroupBloomText(group);
   const bloom=document.createElement('span'); bloom.textContent=groupBloom?`Blooms ${groupBloom}`:'Grown for foliage';
   varieties.className='plant-variety-tag';
-  meta.append(bloom,varieties); copy.append(name,latin,meta);
+  meta.append(bloom,varieties);
+  // on a mixed card the tag would be true of only some of its choices
+  if (group.refs.every(ref=>{ const D=refDef(ref); return D&&D.spreadHabit==='colony'; })){
+    const runs=document.createElement('small'); runs.textContent='Spreads'; meta.appendChild(runs);
+  }
+  copy.append(name,latin,meta);
   /* Scoped to the garden's own region, like the exact row's button: unscoped,
      a family card warned a European garden about North Carolina. */
   const groupCautions=group.refs.flatMap(ref=>invasiveCautionsFor(ref,activeFilters().nativeRegion));

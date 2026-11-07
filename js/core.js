@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.83';
+const APP_VERSION = '0.9.84';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -2514,6 +2514,14 @@ function isIndividualDef(P){ return isWoodyDef(P) || (P && P.type==='vine'); }
    commands.js), because a bog or a rain garden is wet ground with no water tile
    anywhere near it. */
 function isMarginalDef(P){ return !!P && P.type==='water' && !!P.marginal; }
+/* A wading plant is a land plant by every other rule, and is also at home in shallow
+   water: Lake Sedge in a pond margin. Unlike a marginal it earns no warning away from
+   water, since most wet sedges are grown in a rain garden with no pond in sight. */
+function standsInWaterDef(P){ return isMarginalDef(P) || (!!P && !!P.wades); }
+// whether this planting, on this terrain, goes by the rules for a water tile
+function plantedOnWater(def,terr){
+  return (def.type==='water' && (terr==='water' || !isMarginalDef(def))) || (!!def.wades && terr==='water');
+}
 /* Woody spread is truth data (inches); h/cw are drawing hints. Keep the
    spread->tile radius conversion here so shade, shrub footprints, plan marks,
    and cards cannot drift into slightly different ideas of plant size. */

@@ -575,7 +575,23 @@ function plantEstab(p){ // perennials: 10 growing days; woody: grow years
   const horizon=P.grow ? P.grow*(YEAR_DAYS-DAYS_PER_SEASON) : 10;
   return Math.max(0, Math.min(1, growingDays(p.d, absDay())/horizon));
 }
+/* A plant that keeps its leaves through winter has nothing to cut back in spring, so it
+   stands at full size all year instead of dropping to 12% on the first day of Spring.
+   It is read off the record: an authored evergreen role, or a Winter foliage colour that
+   is still green, which the semi-evergreen sedges and ferns are. One colour test per
+   species, then a Map lookup, since this runs for every plant drawn in Today view. */
+const HOLDS_LEAVES=new Map();
+function holdsWinterLeaves(key){
+  let v=HOLDS_LEAVES.get(key);
+  if (v===undefined){
+    const P=PLANTS[key], W=P&&P.sea&&P.sea.Winter&&P.sea.Winter.fol, c=W?hexHsl(W):null;
+    v=!!P && ((P.roles||[]).includes('evergreen') || !!(c && c.h>=60 && c.h<=170 && c.s>=0.12));
+    HOLDS_LEAVES.set(key,v);
+  }
+  return v;
+}
 function seasonEnvelope(key){
+  if (holdsWinterLeaves(key)) return 1;
   const ydf=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
   if (ydf>=YEAR_DAYS-DAYS_PER_SEASON) return 1;      // winter: structure stands
   const g=PHEN[(PLANTS[key]&&PLANTS[key].phen)||'mid'];

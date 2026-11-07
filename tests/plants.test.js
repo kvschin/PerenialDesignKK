@@ -916,6 +916,34 @@ test('a sedge is filed as a prairie or coastal plant only where a source says so
   assert(!/woodland sedge/i.test(PLANTS.mountainsedge.blurb),'Mountain Sedge grows in dry meadows as well as open woods');
 });
 
+test('a sedge says whether it clumps or spreads only where a source does', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/sedge-sources.json')).spreadHabit;
+  const want={};
+  doc.fromTrial.clump.forEach(k=>want[k]='clump'); doc.fromTrial.colony.forEach(k=>want[k]='colony');
+  for (const [k,row] of Object.entries(doc.fromOthers)){
+    assert(!want[k],k+': the trial settles it, so no second source is listed');
+    want[k]=row.value; assert(/^https?:/.test(row.source),k+': cites a source');
+  }
+  for (const k of PLANT_KEYS){
+    assertEqual(PLANTS[k].spreadHabit,want[k],k+': habit as its source has it');
+    if (PLANTS[k].spreadHabit) assertEqual(PLANTS[k].type,'sedge',k+': only the sedges are reviewed for this');
+  }
+  assertEqual(PLANTS.pennsedge.spreadHabit,'colony','Mt. Cuba: Pennsylvania spreads');
+  assertEqual(PLANTS.woodlandsedge.spreadHabit,'clump','and Eastern Woodland clumps, whatever New Moon says');
+  assertEqual(PLANTS.rosysedge.spreadHabit,'clump','and Rosy clumps');
+});
+
+test('only the sedges a source puts in water may stand in it', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/sedge-sources.json')).wades;
+  const wading=PLANT_KEYS.filter(k=>PLANTS[k].wades).sort().join();
+  assertEqual(wading,Object.keys(doc.plants).sort().join(),'the wading sedges are the ones with a source');
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].wades)){
+    assertEqual(PLANTS[k].type,'sedge',k+': a water plant already has its own rule');
+    assertEqual(PLANTS[k].moist,'moist',k+': and it wants wet ground anyway');
+  }
+  assert(!PLANTS.prairiesedge.wades&&!PLANTS.haydensedge.wades,'a wet meadow is not a pond');
+});
+
 test('sedge batch preserves reviewed data and says which values are estimates', () => {
   const doc=JSON.parse(readRepoFile('docs/plant-data/sedge-sources.json')), rows=doc.plants;
   assertEqual(rows.length,26,'the sedge pass added 26 base records');
