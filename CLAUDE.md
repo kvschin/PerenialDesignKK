@@ -6746,6 +6746,18 @@ and off the Shade list although `sun:'part'`: they take shade, so a canopy does 
 them, but nobody plants them as woodland sedges. "Prairie Sedge" is a fen plant and carries no
 `prairie` role. A new sedge needs its own review, not a role by analogy.
 The same word-and-type roles still run on the other plant types, measured in the audit.
+**The 0.9.83 batch** took the tab from 32 to 58 records and 1 to 7 cultivars, closing most of
+the audit's gaps: zone 10 had no sedge and has five, Europe had 2 straight species and has 7.
+Zone 11 still has none, because no source read reaches it. Sources and estimates are in
+`docs/plant-data/sedge-sources.json`, and sedge sizes conflict badly between floras, nurseries
+and the trial, so read a row's `estimates` before "correcting" one. Three things it added: `group:
+'japanesesedge'` collects 'Evergold', 'Everest', 'Everillo' and 'Ice Dance' on one card without
+touching a saved key; `seedStyle:'star'` is White-topped Sedge's white bracts, and it is the one
+sedge with a flower calendar and a `pollinator` role, since its bracts draw insects; and
+`drawBladeStripe`'s cap went from 1.2 to 4.4 px so a blade can be green with a white edge
+(`stripeW` is a width in px, not a share of the blade: a margin-variegated plant wants a pale
+`fol`, a stripe most of the blade wide, and `tuftWash:0`). 'Seersucker' is a common name for
+plantain sedge, not a cultivar, so it is a synonym there.
 A semi-evergreen sedge keeps some green through fall and winter: its `Fall.fol` sits
 45% and its `Winter.fol` 40% of the way back to its own Summer colour, a rule of thumb
 rather than a measurement. A test holds the order, so winter is never greener than fall.

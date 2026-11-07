@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,691,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,717,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),522,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),528,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -909,11 +909,67 @@ test('sedges carry visual archetypes and preserve signature seedheads', () => {
    limy meadows and fens, and none of them on a prairie. */
 test('a sedge is filed as a prairie or coastal plant only where a source says so', () => {
   const authored=role=>Object.keys(PLANTS).filter(k=>PLANTS[k].type==='sedge'&&(PLANTS[k].roles||[]).includes(role)).sort().join();
-  assertEqual(authored('prairie'),'broomsedgecarex,clusteredfieldsedge,foxsedge,meadssedge,mountainsedge,sedge,sunsedge,tussocksedge','reviewed prairie and meadow sedges');
-  assertEqual(authored('coastal'),'clusteredfieldsedge,sloughsedge','reviewed coastal sedges');
+  assertEqual(authored('prairie'),'bluesedge,broomsedgecarex,clusteredfieldsedge,foxsedge,haydensedge,meadssedge,mountainsedge,sedge,sunsedge,tussocksedge,whitetopsedge','reviewed prairie and meadow sedges');
+  assertEqual(authored('coastal'),'bluesedge,californiameadowsedge,clusteredfieldsedge,orangesedge,sloughsedge,whitetopsedge','reviewed coastal sedges');
   assert(!/prairie swale/i.test(PLANTS.prairiesedge.blurb),'Prairie Sedge is a fen plant, whatever its name says');
   assertEqual(PLANTS.sloughsedge.sun,'part','two nurseries give Slough Sedge sun to shade, so a canopy does not stunt it');
   assert(!/woodland sedge/i.test(PLANTS.mountainsedge.blurb),'Mountain Sedge grows in dry meadows as well as open woods');
+});
+
+test('sedge batch preserves reviewed data and says which values are estimates', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/sedge-sources.json')), rows=doc.plants;
+  assertEqual(rows.length,26,'the sedge pass added 26 base records');
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], R=row.proposed;
+    assert(P,row.suggestedKey+': missing species');
+    for(const f of ['name','latin','type','form','heightIn','spread','space','sun','moist','phen','provenance'])
+      assertEqual(P[f],R[f],row.suggestedKey+': reviewed '+f);
+    assertEqual(P.zones.join(','),R.zones.join(','),row.suggestedKey+': reviewed zones');
+    assertEqual(P.nativeTo.join(','),R.nativeTo.join(','),row.suggestedKey+': reviewed range');
+    assertEqual((P.roles||[]).filter(r=>r!=='evergreen').join(','),R.roles.join(','),row.suggestedKey+': reviewed roles');
+    assert(row.sources.length>0,row.suggestedKey+': cites a source');
+    row.sources.forEach(u=>assert(/^https?:\/\//.test(u),row.suggestedKey+': source is a URL'));
+    assert(row.estimates&&Object.keys(row.estimates).length,row.suggestedKey+': states its planning values');
+    assert(P.zones[0]>=1&&P.zones[1]<=11,row.suggestedKey+': stays inside the catalog zone range');
+  }
+  assertEqual(doc.cultivars.length,6,'the sedge pass added 6 cultivars');
+  for(const c of doc.cultivars){
+    const [k,v]=c.ref.split('|');
+    assert(PLANTS[k].cv&&PLANTS[k].cv[v],c.ref+': cultivar exists');
+    assertEqual(PLANTS[k].cv[v].latin,c.latin,c.ref+': reviewed name');
+    assert(c.sources.length>0,c.ref+': cites a source');
+  }
+});
+
+test('the new sedges keep their identity, and warn where a source does', () => {
+  const sedges=PLANT_KEYS.filter(k=>PLANTS[k].type==='sedge');
+  // the gaps the audit found
+  const at=z=>sedges.filter(k=>PLANTS[k].zones[0]<=z&&PLANTS[k].zones[1]>=z).length;
+  assert(at(10)>=4,'zone 10 has sedges, where it had none');
+  assertEqual(at(11),0,'and no source read reaches zone 11, so nothing claims to');
+  assert(sedges.filter(k=>PLANTS[k].nativeTo.includes('europe')&&PLANTS[k].provenance==='species').length>=6,'a European garden has real native sedges');
+  // cultivars are not their species
+  assert(!PLANTS.plantainsedge.cv,"'Seersucker' is a common name for plantain sedge, not a cultivar");
+  assert(PLANTS.plantainsedge.synonyms.includes('Seersucker Sedge'),'and it finds the plant');
+  for(const k of ['everestsedge','everillosedge','icedancesedge','evergoldsedge']){
+    assertEqual(PLANTS[k].group,'japanesesedge',k+': sits with the Japanese sedges');
+    assertEqual(PLANTS[k].provenance||'selection','selection',k+': a selection');
+    assert(!PLANTS[k].nativeTo.includes('north-america')&&!PLANTS[k].nativeTo.includes('europe'),k+': garden use is not wild origin');
+  }
+  assert(PLANTS.icedancesedge.latin.startsWith('Carex morrowii'),"'Ice Dance' is a different species, and says so");
+  assertEqual(PLANTS.pennsedge.cv.strawhat.provenance,'selection',"'Straw Hat' is a selection of the species");
+  for(const [k,v] of [['pennsedge','strawhat'],['palmsedge','littlemidge'],['mountainsedge','raureif'],['spreadingsedge','hobb'],['hairsedge','frostedcurls'],['broadleafsedge','variegata']])
+    assert(PLANTS[k].cv[v].note,k+'|'+v+': says what makes it different');
+  // what a gardener has to be told
+  assert(/aggressive/i.test(PLANTS.emorysedge.blurb),"Emory's Sedge warns that it runs");
+  assert(/not to plant/i.test(PLANTS.weepingsedge.blurb),'Pendulous Sedge repeats the regional advice');
+  assert(/divulsa/.test(PLANTS.berkeleysedge.blurb),'Berkeley Sedge warns about what is sold under its name');
+  assert(/weedy/.test(PLANTS.woodlandsedge.blurb),'Eastern Woodland Sedge says it can be weedy');
+  assert(!/heightIn/.test(JSON.stringify(PLANTS.hairsedge.cv.frostedcurls)),"'Frosted Curls' changes colour, not size");
+  assertEqual(PLANTS.whitetopsedge.bloomMonths.join(','),'5,6,7,8','White-topped Sedge is the one new sedge with a flower calendar');
+  assertEqual(PLANTS.whitetopsedge.look.seedStyle,'star','and its display is its bracts');
+  assert(PLANTS.whitetopsedge.externalLinks.wikipedia.endsWith('Rhynchospora_colorata'),'every new record has its own article');
+  assert(PLANTS.everillosedge.externalLinks.wikipedia.endsWith('Carex_oshimensis'),'and a selection links to its species');
 });
 
 test('sedges that draw alike carry the colours their sources describe', () => {

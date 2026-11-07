@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.82';
+const APP_VERSION = '0.9.83';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -2270,6 +2270,8 @@ function provenanceLabel(P){
    bundled as text/links and are never fetched automatically.
    Match the resolved taxon too: a nested choice may be a DIFFERENT species. */
 const PLANT_GUIDANCE_SOURCES=Object.freeze({
+  pendulousSedgeCA:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/risk/carex-pendula-risk/'},
+  pendulousSedgeWA:{label:'King County, Washington',url:'https://www.nwcb.wa.gov/pdfs/Carex-pendula-information_King-County.pdf'},
   marylandGrasses:{label:'University of Maryland Extension',url:'https://www.extension.umd.edu/resource/ornamental-and-native-grasses-landscape'},
   mexicanFeather:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/stipa-tenuissima-profile/'},
   cherryLaurel:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/cherry-laurel'},
@@ -2303,6 +2305,10 @@ const PLANT_GUIDANCE_SOURCES=Object.freeze({
   gunneraGW:{label:'Gardeners\' World',url:'https://www.gardenersworld.com/how-to/grow-plants/how-to-grow-gunnera/'},
 });
 const PLANT_GUIDANCE=Object.freeze({
+  weepingsedge:{taxon:'Carex pendula',reviewed:'2026-11-07',invasive:[
+    {area:'Pacific Northwest',region:'north-america',severity:'avoid',source:'pendulousSedgeWA',text:'A county weed assessment quotes the Field Guide to the Sedges of the Pacific Northwest: it should not be planted in the region, because it seeds abundantly, invades shaded stream banks and is nearly impossible to remove. The assessor recommends Class C Select.'},
+    {area:'California',region:'north-america',severity:'caution',source:'pendulousSedgeCA',text:'On the Cal-IPC Watch list. Its 2016 risk evaluation scored it high risk, after several thousand plants were removed along a Marin County stream, two miles downstream of a garden planting.'},
+  ]},
   raggedrobin:{taxon:'Silene flos-cuculi',reviewed:'2026-11-06',invasive:[
     {area:'Connecticut',region:'north-america',severity:'avoid',source:'raggedRobinCT',text:'Prohibited by state statute: no one may import, move, sell, buy, transplant, cultivate or distribute it. The state council rates it potentially invasive, and lists it under its older name, Lychnis flos-cuculi.'},
     {area:'New England',region:'north-america',severity:'caution',source:'raggedRobinNewEngland',text:'Introduced from Europe. Go Botany says it is not a major invasive in New England, but it has increased in recent years and can form large patches of nothing else.'}]},

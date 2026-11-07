@@ -1,0 +1,990 @@
+{
+  "reviewed": "2026-11-07",
+  "note": "Sources for the sedges added in 0.9.83. `estimates` names every field that is a planning value or a judgement rather than a published figure, and why. Sizes conflict widely between floras, nurseries and Mt. Cuba's trial (grown in Delaware, usually larger), so the reasoning is recorded per plant. Many pages were read through search summaries or a fetch; NC State, Calscape and Plant Delights pages were often unavailable.",
+  "plants": [
+    {
+      "suggestedKey": "woodssedge",
+      "proposed": {
+        "name": "Wood's Sedge",
+        "latin": "Carex woodii",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 12,
+        "spread": 18,
+        "space": 12,
+        "zones": [
+          4,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://newmoonnursery.com/plant/Carex-woodii",
+        "https://www.prairiemoon.com/carex-woodii-woods-sedge",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.luriegarden.org/plants/carex-woodii-woods-sedge/"
+      ],
+      "estimates": {
+        "heightIn": "New Moon gives 6-12 in and Prairie Moon 12; the trial measured 14 in of foliage, in Delaware.",
+        "spread": "New Moon's 6-12 in is a young plant; it colonizes, and the trial measured 46 in. 18 in is a planning value.",
+        "space": "Planning value.",
+        "sea": "Spring blue from Prairie Moon, semi-evergreen from the trial; the colours are authored."
+      }
+    },
+    {
+      "suggestedKey": "haydensedge",
+      "proposed": {
+        "name": "Hayden's Sedge",
+        "latin": "Carex haydenii",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 36,
+        "spread": 36,
+        "space": 24,
+        "zones": [
+          3,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": [
+          "prairie"
+        ]
+      },
+      "sources": [
+        "https://www.minnesotawildflowers.info/grass-sedge-rush/haydens-sedge",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://ritasgardenpath.com/plants/279776-haydens-sedge-carex-haydenii",
+        "https://www.plantdelights.com/products/carex-haydenii"
+      ],
+      "estimates": {
+        "zones": "Rita's Garden Path gives 3-8 and Plant Delights 4-8 at least.",
+        "heightIn": "The trial's flower height and Plant Delights' figure; Rita's Garden Path gives far less.",
+        "spread": "Trial measured 61 in; 36 in is a planning value.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "jamessedge",
+      "proposed": {
+        "name": "James' Sedge",
+        "latin": "Carex jamesii",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 12,
+        "spread": 18,
+        "space": 12,
+        "zones": [
+          4,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.prairiemoon.com/carex-jamesii-james-sedge",
+        "https://www.minnesotawildflowers.info/grass-sedge-rush/james-sedge",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
+      ],
+      "estimates": {
+        "spread": "Trial measured 24 in; 18 in is a planning value.",
+        "space": "Prairie Moon's 8-12 in, at the upper end.",
+        "sun": "The trial flags sun; every flora and nursery read gives part shade to shade, so it is sun:part."
+      }
+    },
+    {
+      "suggestedKey": "fringedsedge",
+      "proposed": {
+        "name": "Fringed Sedge",
+        "latin": "Carex crinita",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 36,
+        "spread": 36,
+        "space": 24,
+        "zones": [
+          3,
+          9
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://newmoonnursery.com/plant/Carex-crinita",
+        "https://www.minnesotawildflowers.info/grass-sedge-rush/fringed-sedge",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://ritasgardenpath.com/plants/279732-fringed-sedge-carex-crinita"
+      ],
+      "estimates": {
+        "zones": "New Moon gives 3-9, Rita's Garden Path 3-8 and Chicago Botanic Garden 5-7.",
+        "heightIn": "Trial flower height; Minnesota gives 16-50 in and New Moon 1.5-4 ft.",
+        "spread": "Trial measured 61 in; 36 in is a planning value.",
+        "space": "Planning value.",
+        "sea": "The trial records it as deciduous in Delaware where New Moon calls it evergreen; it follows the trial."
+      }
+    },
+    {
+      "suggestedKey": "leavenworthsedge",
+      "proposed": {
+        "name": "Leavenworth's Sedge",
+        "latin": "Carex leavenworthii",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 12,
+        "spread": 12,
+        "space": 10,
+        "zones": [
+          6,
+          9
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "dry",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://newmoonnursery.com/plant/Carex-leavenworthii",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.npsot.org/posts/native-plant/carex-leavenworthii/"
+      ],
+      "estimates": {
+        "heightIn": "Upper end of New Moon; the trial measured more.",
+        "space": "The 10 in centers one source gives for a woodland lawn.",
+        "moist": "The trial flags dry and average soil; New Moon wants moisture until established, then drought tolerant."
+      }
+    },
+    {
+      "suggestedKey": "creeksedge",
+      "proposed": {
+        "name": "Creek Sedge",
+        "latin": "Carex amphibola",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 15,
+        "spread": 15,
+        "space": 12,
+        "zones": [
+          3,
+          9
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://newmoonnursery.com/plant/Carex-amphibola",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
+      ],
+      "estimates": {
+        "heightIn": "Middle of New Moon's 12-18 in.",
+        "spread": "Middle of New Moon's 12-18 in; the trial measured 32 in.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "starsedge",
+      "proposed": {
+        "name": "Eastern Star Sedge",
+        "latin": "Carex radiata",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 15,
+        "spread": 18,
+        "space": 12,
+        "zones": [
+          4,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://newmoonnursery.com/plant/Carex-radiata",
+        "https://www.minnesotawildflowers.info/grass-sedge-rush/eastern-star-sedge",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
+      ],
+      "estimates": {
+        "heightIn": "The trial measured 12 in of flower, New Moon gives 1-2 ft and Minnesota 8-30 in.",
+        "spread": "New Moon's 1-2 ft, at the low end.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "woodlandsedge",
+      "proposed": {
+        "name": "Eastern Woodland Sedge",
+        "latin": "Carex blanda",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 12,
+        "spread": 18,
+        "space": 12,
+        "zones": [
+          3,
+          9
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.newmoonnursery.com/plant/Carex-blanda",
+        "https://gobotany.nativeplanttrust.org/species/carex/blanda/",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
+      ],
+      "estimates": {
+        "heightIn": "Trial measured 12 in of foliage; New Moon gives 2 ft and Go Botany 6-21 in.",
+        "spread": "Planning value; the trial measured 24 in.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "sallowsedge",
+      "proposed": {
+        "name": "Sallow Sedge",
+        "latin": "Carex lurida",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 24,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          3,
+          8
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america",
+          "south-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/carex-lurida/",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
+      ],
+      "estimates": {
+        "heightIn": "Middle of NC State's 1-3 ft; the trial measured 21 in.",
+        "spread": "Middle of NC State's 1-3 ft.",
+        "space": "Planning value.",
+        "sun": "NC State says full sun, tolerates part shade, and the trial flags both, so a canopy should not stunt it."
+      }
+    },
+    {
+      "suggestedKey": "spreadingsedge",
+      "proposed": {
+        "name": "Spreading Sedge",
+        "latin": "Carex laxiculmis",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 12,
+        "spread": 15,
+        "space": 12,
+        "zones": [
+          4,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://newmoonnursery.com/plant/Carex-laxiculmis",
+        "https://plants.ces.ncsu.edu/plants/carex-laxiculmis/",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
+      ],
+      "estimates": {
+        "zones": "New Moon says 4-7 in the literature, with populations south to zone 9.",
+        "heightIn": "New Moon's about 1 ft.",
+        "spread": "Middle of New Moon's 12-18 in.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "emorysedge",
+      "proposed": {
+        "name": "Emory's Sedge",
+        "latin": "Carex emoryi",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 36,
+        "spread": 36,
+        "space": 24,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.minnesotawildflowers.info/grass-sedge-rush/emorys-sedge",
+        "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:299625-1",
+        "https://www.npsot.org/posts/native-plant/carex-emoryi/",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://www.wildflower.org/magazine/native-plants/versatile-sedges"
+      ],
+      "estimates": {
+        "zones": "Only one nursery gives zones (5-7). 4-9 is read off its native range, Minnesota to Texas, not a published figure.",
+        "heightIn": "Minnesota's 12-40 in and the trial's 40 in of foliage.",
+        "spread": "It spreads without limit; the trial records it as indeterminate. 36 in is a planning value.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "everestsedge",
+      "proposed": {
+        "name": "Japanese Sedge 'Everest'",
+        "latin": "Carex oshimensis 'Everest'",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 16,
+        "spread": 18,
+        "space": 12,
+        "zones": [
+          5,
+          9
+        ],
+        "nativeTo": [
+          "asia"
+        ],
+        "provenance": "selection",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/carex-oshimensis/",
+        "https://plantaddicts.com/evercolor-everest-carex"
+      ],
+      "estimates": {
+        "heightIn": "Upper-middle of the 12-18 in nurseries give.",
+        "spread": "Planning value inside that range.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "everillosedge",
+      "proposed": {
+        "name": "Japanese Sedge 'Everillo'",
+        "latin": "Carex oshimensis 'Everillo'",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 14,
+        "spread": 18,
+        "space": 12,
+        "zones": [
+          5,
+          9
+        ],
+        "nativeTo": [
+          "asia"
+        ],
+        "provenance": "selection",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/carex-oshimensis/",
+        "https://www.rhs.org.uk/plants/302850/carex-oshimensis-everillo-pbr-evercolor-series/details",
+        "https://patents.google.com/patent/USPP21002",
+        "https://ecgrowers.com/blog/carex-o-evercolor-series-evergreen-and-ever-so-versatile/"
+      ],
+      "estimates": {
+        "zones": "Most nurseries give 5-9; the patent says at least 6-9.",
+        "heightIn": "Inside the 12-18 in nurseries give.",
+        "spread": "Planning value inside that range.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "icedancesedge",
+      "proposed": {
+        "name": "Japanese Sedge 'Ice Dance'",
+        "latin": "Carex morrowii 'Ice Dance'",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 12,
+        "spread": 24,
+        "space": 15,
+        "zones": [
+          5,
+          9
+        ],
+        "nativeTo": [
+          "asia"
+        ],
+        "provenance": "selection",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.rhs.org.uk/plants/135663/carex-morrowii-ice-dance/details",
+        "https://www.plantdelights.com/products/carex-morrowii-ice-dance-japanese-sedge",
+        "https://www.monrovia.com/ice-dance-japanese-sedge.html"
+      ],
+      "estimates": {
+        "heightIn": "Plant Delights' 12 in; others run 9-16.",
+        "spread": "Upper end of the 1-2 ft given.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "orangesedge",
+      "proposed": {
+        "name": "Orange Sedge",
+        "latin": "Carex testacea",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 20,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "australasia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": [
+          "coastal"
+        ]
+      },
+      "sources": [
+        "https://www.rhs.org.uk/plants/83677/wd/details",
+        "https://www.nzpcn.org.nz/flora/species/carex-testacea/",
+        "https://rainyside.com/plant_gallery/grasses/Carex_testacea.html"
+      ],
+      "estimates": {
+        "zones": "RHS rates it H5. Sources run 8-9, 6-9 and 6-10, so 7-10 is a judgement.",
+        "heightIn": "RHS's 40-60 cm.",
+        "spread": "Within RHS's range.",
+        "space": "Planning value.",
+        "sun": "RHS gives sun or part shade; it colours in good light, so it is filed for sun.",
+        "roles": "NZPCN names sand dunes and coastal forest and RHS lists coastal planting, though it rates exposure as sheltered."
+      }
+    },
+    {
+      "suggestedKey": "bluesedge",
+      "proposed": {
+        "name": "Blue Sedge",
+        "latin": "Carex flacca",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 10,
+        "spread": 15,
+        "space": 12,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "europe",
+          "africa"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": [
+          "prairie",
+          "coastal"
+        ]
+      },
+      "sources": [
+        "https://en.wikipedia.org/wiki/Carex_flacca",
+        "https://www.perennials.com/plants/carex-flacca.html",
+        "https://www.gardenia.net/plant/carex-flacca-blue-sedge"
+      ],
+      "estimates": {
+        "heightIn": "Inside the 6-12 in given.",
+        "spread": "Inside the 12-18 in given.",
+        "space": "Planning value.",
+        "roles": "Grassland and salt-marsh edge rest on Wikipedia alone."
+      }
+    },
+    {
+      "suggestedKey": "hairsedge",
+      "proposed": {
+        "name": "New Zealand Hair Sedge",
+        "latin": "Carex comans",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 18,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "australasia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/carex-comans/"
+      ],
+      "estimates": {
+        "heightIn": "Middle of NC State's 1-2 ft.",
+        "spread": "Upper end of NC State's 1-2 ft.",
+        "space": "Planning value.",
+        "sun": "NC State gives full sun to part shade; filed for sun."
+      }
+    },
+    {
+      "suggestedKey": "leatherleafsedge",
+      "proposed": {
+        "name": "Leatherleaf Sedge",
+        "latin": "Carex buchananii",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 24,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          6,
+          9
+        ],
+        "nativeTo": [
+          "australasia"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/carex-buchananii/"
+      ],
+      "estimates": {
+        "space": "Planning value.",
+        "heightIn": "NC State's description, to 2 ft tall and wide."
+      }
+    },
+    {
+      "suggestedKey": "broadleafsedge",
+      "proposed": {
+        "name": "Broadleaf Sedge",
+        "latin": "Carex siderosticta",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 10,
+        "spread": 18,
+        "space": 12,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/carex-siderosticta/",
+        "https://www.rhs.org.uk/plants/92987/carex-siderosticta-variegata-v/details",
+        "https://www.plantdelights.com/products/carex-siderosticta-variegata"
+      ],
+      "estimates": {
+        "zones": "NC State's 4-9; RHS rates the variegated form H4, which is much less hardy.",
+        "heightIn": "Inside NC State's 6-12 in.",
+        "spread": "It colonizes; Plant Delights reports about 3 ft at five years. 18 in is a planning value.",
+        "space": "Planning value.",
+        "sea": "RHS says semi-evergreen and US nurseries deciduous; it follows the nurseries."
+      }
+    },
+    {
+      "suggestedKey": "remotesedge",
+      "proposed": {
+        "name": "Remote Sedge",
+        "latin": "Carex remota",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 20,
+        "spread": 15,
+        "space": 12,
+        "zones": [
+          6,
+          8
+        ],
+        "nativeTo": [
+          "europe",
+          "asia",
+          "africa"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.rhs.org.uk/plants/74341/wd/details",
+        "https://en.wikipedia.org/wiki/Carex_remota",
+        "https://ukwildflowers.com/Web_pages/carex_remota_remote_sedge.htm"
+      ],
+      "estimates": {
+        "zones": "RHS rates it H5 and I found no USDA zone; 6-8 is a judgement from that rating and its European range.",
+        "heightIn": "Top of RHS's 0.1-0.5 m.",
+        "spread": "Inside RHS's range.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "woodsedge",
+      "proposed": {
+        "name": "Wood Sedge",
+        "latin": "Carex sylvatica",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 24,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          4,
+          8
+        ],
+        "nativeTo": [
+          "europe",
+          "asia"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://en.wikipedia.org/wiki/Carex_sylvatica",
+        "https://www.rhs.org.uk/plants/63832/carex-sylvatica/details",
+        "https://www.chicagobotanic.org/plant-information/plant-finder/carex-sylvatica-wood-sedge"
+      ],
+      "estimates": {
+        "heightIn": "Wikipedia gives 60 cm as typical; RHS gives 0.5-1 m.",
+        "spread": "Low end of RHS's 0.5-1 m.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "greaterwoodrush",
+      "proposed": {
+        "name": "Greater Woodrush",
+        "latin": "Luzula sylvatica",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 30,
+        "spread": 36,
+        "space": 24,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "europe"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.rhs.org.uk/plants/10579/wd/details",
+        "https://plantlust.com/plants/13394/luzula-sylvatica/",
+        "https://futureforests.ie/products/luzula-sylvatica",
+        "https://plantdatabase.kpu.ca/Plant/lusy"
+      ],
+      "estimates": {
+        "heightIn": "RHS's flowers to 80 cm.",
+        "spread": "Future Forests' 1 m; RHS gives more and World Plants far less.",
+        "space": "Planning value."
+      }
+    },
+    {
+      "suggestedKey": "californiameadowsedge",
+      "proposed": {
+        "name": "California Meadow Sedge",
+        "latin": "Carex pansa",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 8,
+        "spread": 24,
+        "space": 12,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "medium",
+        "phen": "cool",
+        "roles": [
+          "coastal"
+        ]
+      },
+      "sources": [
+        "https://en.wikipedia.org/wiki/Carex_pansa",
+        "https://www.calfloranursery.com/plants/carex-pansa",
+        "https://www.laspilitas.com/nature-of-california/plants/153--carex-pansa"
+      ],
+      "estimates": {
+        "zones": "One nursery gives 7-10 and another 8-10.",
+        "heightIn": "Nurseries give 6 in or under, Wikipedia up to 40 cm, and one list 3-5 ft, which I discounted.",
+        "space": "Planning value.",
+        "sun": "Nurseries give sun to part shade; a dune plant, so it is filed for sun.",
+        "roles": "Coastal dunes are its habitat. No source read tests salt."
+      }
+    },
+    {
+      "suggestedKey": "berkeleysedge",
+      "proposed": {
+        "name": "Berkeley Sedge",
+        "latin": "Carex tumulicola",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 18,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          8,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "dry",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.gardenia.net/plant/carex-tumulicola",
+        "https://plantlust.com/plants/14764/carex-tumulicola/",
+        "https://www.slideshare.net/slideshow/gardening-sheets-pollinators-2017/75749226"
+      ],
+      "estimates": {
+        "zones": "Plantlust gives 8-10. Other listings use Sunset zones.",
+        "heightIn": "Inside the 1-2 ft given.",
+        "spread": "Upper end of the 1-2 ft given.",
+        "space": "Planning value.",
+        "moist": "Sources call it drought tolerant."
+      }
+    },
+    {
+      "suggestedKey": "whitetopsedge",
+      "proposed": {
+        "name": "White-topped Sedge",
+        "latin": "Rhynchospora colorata",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 18,
+        "spread": 30,
+        "space": 18,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america",
+          "south-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "warm",
+        "roles": [
+          "coastal",
+          "prairie",
+          "pollinator"
+        ]
+      },
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/rhynchospora-colorata/",
+        "https://www.wildflower.org/plants/result.php?id_plant=RHCO7",
+        "https://www.fnps.org/plant/rhynchospora-colorata",
+        "https://flawildflowers.org/flower-friday-rhynchospora-colorata",
+        "https://en.wikipedia.org/wiki/Rhynchospora_colorata"
+      ],
+      "estimates": {
+        "zones": "NC State gives 7-10a and the Florida sources 8-10. None reaches 11, so it does not claim to.",
+        "bloomMonths": "The Wildflower Center gives June-August and FNPS says spring; May-August is a planning window.",
+        "heightIn": "Inside the 1-2 ft given.",
+        "spread": "Inside NC State's 2-3 ft; FNPS says it spreads many feet.",
+        "space": "Planning value.",
+        "sea": "NC State calls it evergreen and FNPS fall-winter dormant; it follows FNPS.",
+        "sun": "NC State gives full sun to part shade; filed for sun.",
+        "roles": "NC State names wet coastal areas and dunes; FNPS and the Florida Wildflower Foundation name wet prairies; all say the bracts draw insects."
+      }
+    },
+    {
+      "suggestedKey": "weepingsedge",
+      "proposed": {
+        "name": "Pendulous Sedge",
+        "latin": "Carex pendula",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 48,
+        "spread": 36,
+        "space": 30,
+        "zones": [
+          6,
+          9
+        ],
+        "nativeTo": [
+          "europe",
+          "asia",
+          "africa"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "cool",
+        "roles": []
+      },
+      "sources": [
+        "https://www.rhs.org.uk/plants/3094/wd/details",
+        "https://www.nwcb.wa.gov/pdfs/Carex-pendula-information_King-County.pdf",
+        "https://www.cal-ipc.org/plants/risk/carex-pendula-risk/"
+      ],
+      "estimates": {
+        "zones": "RHS rates it H6 and one listing says 5a; 6-9 is a judgement.",
+        "heightIn": "Inside RHS's 1-1.5 m.",
+        "spread": "Inside RHS's 0.5-1 m.",
+        "space": "Planning value."
+      }
+    }
+  ],
+  "cultivars": [
+    {
+      "ref": "spreadingsedge|hobb",
+      "latin": "Carex laxiculmis 'Hobb'",
+      "sources": [
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+        "https://plants.ces.ncsu.edu/plants/carex-laxiculmis/"
+      ]
+    },
+    {
+      "ref": "hairsedge|frostedcurls",
+      "latin": "Carex comans 'Frosted Curls'",
+      "sources": [
+        "https://plants.ces.ncsu.edu/plants/carex-comans/"
+      ]
+    },
+    {
+      "ref": "broadleafsedge|variegata",
+      "latin": "Carex siderosticta 'Variegata'",
+      "sources": [
+        "https://www.rhs.org.uk/plants/92987/carex-siderosticta-variegata-v/details",
+        "https://plants.ces.ncsu.edu/plants/carex-siderosticta/"
+      ]
+    },
+    {
+      "ref": "palmsedge|littlemidge",
+      "latin": "Carex muskingumensis 'Little Midge'",
+      "sources": [
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
+      ]
+    },
+    {
+      "ref": "pennsedge|strawhat",
+      "latin": "Carex pensylvanica 'Straw Hat'",
+      "sources": [
+        "https://patents.google.com/patent/USPP29432",
+        "https://www.briggsnursery.com/plant/carex-pensylvanica-straw-hat-pp29432/",
+        "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx"
+      ]
+    },
+    {
+      "ref": "mountainsedge|raureif",
+      "latin": "Carex montana 'Raureif'",
+      "sources": [
+        "https://www.knollgardens.co.uk/product/carex-raureif/",
+        "https://www.naturadb.de/pflanzen/carex-montana/"
+      ]
+    }
+  ]
+}

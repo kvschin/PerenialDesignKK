@@ -1344,7 +1344,8 @@ function drawBlade(ctx, bx,by, cx,cy, tx,ty, hw, col, lit, tipCol, stripe, strip
 // A tapered central band shares the blade's exact curve and stays inside its
 // outline. Opt-in variegation adds one fill and consumes no random numbers.
 function drawBladeStripe(ctx,bx,by,cx,cy,tx,ty,col,width){
-  ribbonPath(ctx,bx,by,cx,cy,tx,ty,BLADE_PROF,Math.max(0.1,Math.min(0.6,(width||0.65)*0.5)),0,0);
+  // Wide enough for a green blade with a white edge, which is a stripe nearly as wide as the blade.
+  ribbonPath(ctx,bx,by,cx,cy,tx,ty,BLADE_PROF,Math.max(0.1,Math.min(2.2,(width||0.65)*0.5)),0,0);
   ctx.fillStyle=col; ctx.fill();
 }
 
@@ -4416,6 +4417,21 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.stroke();
         if (a2) drawFloret(ctx,sx,sy,1.65*k,col,{squash:2.7,rot:a*0.25});
         else { ctx.beginPath(); ctx.ellipse(sx,sy,1.65*k,4.4*k,a*0.25,0,7); ctx.fill(); }
+      } else if (style==='star'){
+        // White-topped sedge: long bracts spreading and drooping from a tight head, white
+        // to a green tip. The head is not a seed but the plant's flower display.
+        const n=6, len=8.5*k, tip=shade(S.fol,-6);
+        ctx.lineCap='round'; ctx.lineWidth=1.25*Math.max(0.8,k);
+        for (let pass=0;pass<2;pass++){
+          ctx.strokeStyle=pass?col:tip; ctx.beginPath();
+          for (let i=0;i<n;i++){
+            const th=i/n*6.283+a*0.3, dx=Math.cos(th), dy=Math.sin(th)*0.5;
+            const end=pass?0.62:1, droop=len*0.34*end*end;
+            ctx.moveTo(sx,sy); ctx.lineTo(sx+dx*len*end, sy+dy*len*end+droop);
+          }
+          ctx.stroke();
+        }
+        ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(sx,sy,1.7*k,1.3*k,0,0,7); ctx.fill();
       } else if (style==='pendant'){
         const drop=5.4;
         ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=0.75;

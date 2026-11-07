@@ -534,6 +534,57 @@ test('every sedge is drawn as a clump, and the other mound grasses keep their ow
   for (const k of ['bluefescue','roemersfescue','slendersweetflag']) assert(!PLANTS[k].look.tufts,`${k}: not a sedge clump`);
 });
 
+test('white-topped sedge draws its star of bracts, and no other head changed for it', () => {
+  const P=PLANTS.whitetopsedge, seen=[];
+  const ctx=new Proxy({},{get:(o,p)=>{
+    if(p==='lineTo') return (x,y)=>seen.push([x,y]);
+    if(p==='createLinearGradient'||p==='createRadialGradient') return ()=>({addColorStop(){}});
+    if(p==='measureText') return ()=>({width:0});
+    if(p in o) return o[p];
+    return ()=>{};
+  },set:(o,p,v)=>{o[p]=v;return true;}});
+  const trace=(key,season,art)=>{ const before=ART2.on; seen.length=0;
+    try { ART2.on=art; drawPlant(ctx,0,0,key,1,season,7,0,null,1); } finally { ART2.on=before; }
+    return seen.length; };
+  for (const art of [false,true]){
+    const bloom=trace('whitetopsedge','Summer',art);
+    assert(bloom>=(P.look.seedStems*6)*2-6,'six bracts on every head, each drawn twice for its green tip');
+    assert(trace('whitetopsedge','Winter',art)<bloom,'and winter has no bracts, since FNPS has it dormant');
+  }
+});
+
+test('a variegated sedge can be green with a white edge, not just striped down the middle', () => {
+  const xs=[];
+  const ctx=new Proxy({},{get:(o,p)=>{
+    if(['moveTo','lineTo'].includes(p)) return (x)=>xs.push(x);
+    if(p==='quadraticCurveTo') return (a,b,x)=>xs.push(a,x);
+    if(p==='bezierCurveTo') return (a,b,c,d,x)=>xs.push(a,c,x);
+    if(p in o) return o[p];
+    return ()=>{};
+  },set:(o,p,v)=>{o[p]=v;return true;}});
+  const width=w=>{ xs.length=0; drawBladeStripe(ctx,0,0,0,-20,0,-40,'#000',w); return Math.max(...xs)-Math.min(...xs); };
+  assert(width(4.2)>width(1.2)*2,'a broad leaf takes a wide stripe, and the old cap of 1.2 px could not');
+  assertEqual(width(0.65),width(0.65),'and the thin centre stripes are what they were');
+  for (const [k,v] of [['everestsedge',null],['icedancesedge',null],['broadleafsedge','variegata'],['mountainsedge','raureif']]){
+    const P=plantDef(k,v), hw=(P.look.leafW||1.2)*(P.look.bladeHW||0.85);
+    assert(P.look.stripeW*0.5<hw,k+': the stripe leaves a rim of the pale leaf showing');
+    assert(P.look.stripeW*0.5>hw*0.6,k+': and is most of the blade, or it reads as a white plant');
+    assertEqual(P.look.tuftWash,0,k+': no pale wash under it');
+  }
+});
+
+test('Pendulous Sedge is hidden where it invades, and kept where it is native', () => {
+  const ref={s:'weepingsedge',v:null};
+  assert(invasiveFilterHides(ref,'north-america'),'a North American garden does not get it by default');
+  assert(!invasiveFilterHides(ref,'europe'),'a European garden does: it is native there');
+  const notes=invasiveCautionsFor(ref,'north-america');
+  assertEqual(notes.map(n=>n.area).join('|'),'Pacific Northwest|California','both reviewed notes');
+  assertEqual(notes.map(n=>n.severity).join('|'),'avoid|caution','each at the weight its own source gives');
+  assertEqual(invasiveCautionsFor(ref,'europe').length,0,'and neither is about Europe');
+  for (const k of ['emorysedge','hairsedge','leatherleafsedge','woodlandsedge'])
+    assert(!invasiveFilterHides({s:k,v:null},'north-america'),k+': a warning in the blurb, not a listing, so it stays');
+});
+
 test('a low sedge reaches the tiles beside it, and a young clump has not yet', () => {
   let low=0;
   for (const k of SEDGE_KEYS()){
@@ -1171,7 +1222,8 @@ test('a style recommends a sedge only for the site it grows on', () => {
     assert(!rec('prairie',na).split(',').includes(k),`${k} is not on a prairie`);
   assert(!rec('prairie',eu).split(',').includes('meadssedge'),"Mead's Sedge is not a European meadow sedge");
   for (const k of rec('coastal',na).split(',')) assert(PLANTS[k].roles.includes('coastal'),`${k}: Coastal needs a recorded coastal plant`);
-  assert(rec('coastal',na).split(',').length<=4,'Coastal no longer recommends sedges in general');
+  assertEqual(rec('coastal',na),SEDGE_KEYS().filter(k=>(PLANTS[k].roles||[]).includes('coastal')).sort().join(),'Coastal asks only for sedges recorded on the coast');
+  assert(rec('coastal',na).split(',').length<SEDGE_KEYS().length/4,'which is not sedges in general');
   for (const style of ['cottage','butterfly','japanese','mediterranean','modern','gravel','formal'])
     assertEqual(rec(style,na),'',`${style} asks for no sedge`);
   assertEqual(plantStyleScore('lakesedge','prairie',null,na),0,'the score says no as well, or the catalog ranks it first anyway');
@@ -1181,7 +1233,7 @@ test('a style recommends a sedge only for the site it grows on', () => {
 test('a sedge carries no role its record cannot back, and stays the plan sheet\'s matrix', () => {
   for (const k of SEDGE_KEYS()){
     const roles=staticPlantRoles(k), P=PLANTS[k];
-    assert(!roles.includes('pollinator'),`${k}: the wind pollinates a sedge`);
+    assertEqual(roles.includes('pollinator'),k==='whitetopsedge',`${k}: the wind pollinates a sedge, except this one, whose bracts draw insects`);
     assert(!roles.includes('wind'),`${k}: no source says it stands exposed wind`);
     assertEqual(roles.includes('woodland'),P.sun==='part'&&!sedgeOpenGround(P),`${k}: woodland follows the site it grows on`);
     assertEqual(roles.includes('groundcover'),P.heightIn<=SEDGE_GROUNDCOVER_IN,`${k}: groundcover follows its height`);
@@ -1228,6 +1280,10 @@ test('the Sedges tab is laid out by site, and loses no plant doing it', () => {
     const styled=type=>{ game.design={type};
       const lens=normalizeDiscovery({source:'recommended',category:'sedges'});
       return discoverySiteSections(groupDiscoveryRefs(discoveryRefsFor(lens)),lens).map(s=>s.label).join('|'); };
+    const japanese=groups.find(g=>g.id==='group:japanesesedge');
+    assertEqual(japanese.refs.length,4,'the Japanese sedges are one card with four choices');
+    assert(japanese.crossSpecies,"'Ice Dance' is a different species, so the card says grouped");
+    assertEqual(sites.filter(s=>s.groups.includes(japanese)).length,1,'filed once');
     assertEqual(styled('shade'),'Dry shade|Woodland|Moist shade','a shade garden is offered no open site');
     assertEqual(styled('prairie'),'Meadow|Wet meadow','a prairie garden is offered no shady one');
   } finally { [game.design,game.filters,game.discovery]=saved; }
@@ -17204,9 +17260,9 @@ test('a plant native to the region is not hidden by that region\'s own caution',
 
   // The hint must promise what the filter delivers, not what the table holds.
   const counts=invasiveFilterCounts('north-america');
-  assertEqual(counts.hidden+counts.keptNative,18,'eighteen plants carry a caution for North America');
+  assertEqual(counts.hidden+counts.keptNative,19,'nineteen plants carry a caution for North America');
   assertEqual(counts.keptNative,2,'two of them are on plants native to it');
-  assert(invasiveCriteriaText(na).includes('Hides the 16 introduced plants'),'and the copy states the sixteen it actually hides');
+  assert(invasiveCriteriaText(na).includes('Hides the 17 introduced plants'),'and the copy states the seventeen it actually hides');
   assert(/native to North America keep their place/.test(invasiveCriteriaText(na)),'and says why the other two are still listed');
   assertEqual(invasiveFilterCounts('europe').keptNative,0,'Europe has no native-and-flagged plant, so its copy says nothing about one');
   assert(!/keep their place/.test(invasiveCriteriaText({nativeRegion:'europe',invasive:'hide'})),'the clause appears only where it applies');

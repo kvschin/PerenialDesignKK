@@ -2,8 +2,8 @@
 
 Audited November 6, 2026, against the catalog at 0.9.79: 32 records in the Sedge
 category (31 *Carex* plus *Luzula nivea*). The data fixes shipped in 0.9.80, the drawing
-in 0.9.81, and recommendations and browsing by site in 0.9.82. New species and the rest
-of the model below are still open.
+in 0.9.81, recommendations and browsing by site in 0.9.82, and the missing species in
+0.9.83. The rest of the model below is still open.
 
 ## Sources
 
@@ -138,6 +138,35 @@ Flora calls it one of the more shade-tolerant sedges, under redwoods.
 Also: `groundcover` now means 18 in or under, and `woodland` and `shade` follow the site rather
 than the word sedge.
 
+## Shipped in 0.9.83: the missing species
+
+26 records and 6 cultivars, taking the tab from 32 records to 58 and from 1 cultivar to 7.
+Every figure and its source is in `sedge-sources.json`, with `estimates` naming each value that
+is a judgement. Sizes conflict badly: Fringed Sedge alone runs 1-4 ft across three sources.
+
+| Gap the audit found | Before | After |
+| --- | --- | --- |
+| Sedges for zone 10 | 0 | 5 |
+| Sedges for zone 11 | 0 | 0 |
+| Sedges for zone 9 | 9 | 27 |
+| Straight species native to Europe | 2 | 7 |
+| Cultivars | 1 | 7 |
+
+Where the reading changed the plan:
+
+- **Zone 11 stays empty.** White-topped Sedge looked like the answer, but NC State stops at 10a and
+  the Florida Native Plant Society at 10b, so it does not claim 11.
+- **'Seersucker' is not a cultivar.** It is a common name for plantain sedge, so it became a synonym.
+- **Berkeley Sedge carries a warning instead of a synonym.** The European *C. divulsa* is sold under
+  its name, and is still left out as a record of its own.
+- **Pendulous Sedge is hidden in North America by default, and kept in Europe where it is native.**
+  Cal-IPC has it on the Watch list after a 2016 high-risk evaluation, and King County's assessment
+  quotes the Pacific Northwest sedge guide saying not to plant it there.
+- **Emory's Sedge warns rather than hides.** It is native, and running is its nature.
+- **New Zealand sedges are filed under Meadow** because their sources give full sun first, though they
+  grow in pastures and scrub rather than a meadow as such. Mountain, Broom and Plains Oval are there
+  as well; the heading means open ground.
+
 ## Checked and left alone
 
 - **Palm sedge in winter.** The trial says semi-evergreen, but
@@ -162,22 +191,9 @@ than the word sedge.
 
 ### Missing species
 
-- **Zones 10-11 have no sedge at all**, and zone 9 has 9. Europe has 2 straight species
-  against 28 for North America. Only 1 of 32 records has a cultivar.
-- **Native, proven:** *C. woodii* (the trial's top performer and best to mow), *haydenii*,
-  *jamesii*, *crinita*, *leavenworthii*, *amphibola*, *radiata*.
-- **Native, widely sold:** *C. blanda*, *lurida*, *laxiculmis* 'Hobb' (Bunny Blue).
-- **Native, with a warning:** *C. emoryi*; the Wildflower Center calls it very aggressive.
-- **Garden staples:** *C. oshimensis* 'Everest' and 'Everillo', *morrowii* 'Ice Dance',
-  *testacea*, *flacca*, *comans* 'Frosted Curls', *buchananii*, *siderosticta* 'Variegata'.
-- **Cultivars of existing records:** palm sedge 'Little Midge', Pennsylvania 'Straw Hat',
-  plantain 'Seersucker', mountain 'Raureif'.
-- **European natives:** *C. remota*, *sylvatica*, *Luzula sylvatica*.
-- **West and warm zones:** *C. pansa*, *tumulicola*, *Rhynchospora colorata*. Zones for the
-  two *Carex* still need checking.
-- **Care needed:** *C. pendula* is on Cal-IPC's Watch list and regulated along some King
-  County rivers, so it needs a caution. *C. divulsa* is often sold as *C. tumulicola*;
-  [Calflora](https://calflora.org/app/taxon?crn=11215) has it as non-native, and I would leave it out.
+- **Zone 11 has no sedge.** No source read reaches it. A South Florida flora might.
+- **Well rated in the trial and still not here:** *C. bicknellii*, a prairie sedge, and others. The
+  list above came from counting nursery lists, so it is not every good sedge.
 
 ### The model
 
