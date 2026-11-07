@@ -9,7 +9,7 @@ The authoritative records are `PLANT_GUIDANCE` and `PLANT_GUIDANCE_SOURCES` in `
 | Catalog entry | Regional invasive caution | Source |
 | --- | --- | --- |
 | Mexican feather grass | California | [Cal-IPC](https://www.cal-ipc.org/plants/profile/stipa-tenuissima-profile/) |
-| Miscanthus | Maryland | [University of Maryland Extension](https://www.extension.umd.edu/resource/ornamental-and-native-grasses-landscape) |
+| Miscanthus | Maryland; Illinois, Alabama, Connecticut and Georgia | [University of Maryland Extension](https://www.extension.umd.edu/resource/ornamental-and-native-grasses-landscape); [Chicago Botanic Garden](https://www.chicagobotanic.org/plant-evaluation/hardy-ornamental-grasses) |
 | Chinese fountain grass | Maryland | [University of Maryland Extension](https://www.extension.umd.edu/resource/ornamental-and-native-grasses-landscape) |
 | Cherry laurel | King County, Washington | [King County](https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/cherry-laurel) |
 | Flowering rush | Minnesota, Ontario | [Minnesota DNR](https://www.dnr.state.mn.us/invasives/aquaticplants/floweringrush/index.html), [Government of Ontario](https://www.ontario.ca/page/flowering-rush) |

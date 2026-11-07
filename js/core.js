@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.87';
+const APP_VERSION = '0.9.88';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -2273,6 +2273,7 @@ const PLANT_GUIDANCE_SOURCES=Object.freeze({
   pendulousSedgeCA:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/risk/carex-pendula-risk/'},
   pendulousSedgeWA:{label:'King County, Washington',url:'https://www.nwcb.wa.gov/pdfs/Carex-pendula-information_King-County.pdf'},
   marylandGrasses:{label:'University of Maryland Extension',url:'https://www.extension.umd.edu/resource/ornamental-and-native-grasses-landscape'},
+  chicagoGrasses:{label:'Chicago Botanic Garden',url:'https://www.chicagobotanic.org/plant-evaluation/hardy-ornamental-grasses'},
   mexicanFeather:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/stipa-tenuissima-profile/'},
   cherryLaurel:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/cherry-laurel'},
   waterlily:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/fragrant-water-lily'},
@@ -2342,8 +2343,9 @@ const PLANT_GUIDANCE=Object.freeze({
     {area:'North Carolina',region:'north-america',severity:'avoid',source:'periwinkleNC',text:'Classified as an invasive species by the NC Invasive Plant Council. It spreads out of gardens into adjacent woodland and holds the ground against native plants. Consider a local groundcover instead.'}]},
   mexicanfeather:{taxon:'Nassella tenuissima',reviewed:'2026-09-06',invasive:[
     {area:'California',region:'north-america',severity:'avoid',source:'mexicanFeather',text:'Cal-IPC rates this species Limited. It escapes from landscaping and spreads by seed. Avoid new planting in this region.'}]},
-  miscanthus:{taxon:'Miscanthus sinensis',reviewed:'2026-09-06',invasive:[
-    {area:'Maryland',region:'north-america',severity:'avoid',source:'marylandGrasses',text:'Extension recommends avoiding this invasive grass, including commonly sold cultivars. Check current local guidance before buying.'}]},
+  miscanthus:{taxon:'Miscanthus sinensis',reviewed:'2026-11-07',invasive:[
+    {area:'Maryland',region:'north-america',severity:'avoid',source:'marylandGrasses',text:'Extension recommends avoiding this invasive grass, including commonly sold cultivars. Check current local guidance before buying.'},
+    {area:'Illinois, Alabama, Connecticut and Georgia',region:'north-america',severity:'avoid',source:'chicagoGrasses',text:'Chicago Botanic Garden found viable seed on most of the 34 taxa it grew, and declined to rate any of them. It reports the species naturalized in 25 states and on the invasive lists of these four. A cultivar name does not establish low risk.'}]},
   fountaingrass:{taxon:'Cenchrus alopecuroides',reviewed:'2026-09-06',invasive:[
     {area:'Maryland',region:'north-america',severity:'avoid',source:'marylandGrasses',text:'Extension recommends avoiding Chinese fountain grass, including commonly sold cultivars. Also listed as Pennisetum alopecuroides or Cenchrus purpurascens.'}]},
   cherrylaurel:{taxon:'Prunus laurocerasus',reviewed:'2026-09-06',invasive:[

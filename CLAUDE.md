@@ -6798,6 +6798,21 @@ Forb `heightIn` backfill is in progress by batch (2026-11-02: 38 prairie forbs
 — milkweeds, blazing stars, sunflowers, ironweeds, coneflowers, prairie
 clovers — typical height in flower, `h` untouched; see the plant work log).
 
+**Grass catalog (0.9.88):** `docs/plant-data/grass-audit.md` is the audit: what Chicago Botanic
+Garden's trial of 109 grasses and Hoffman's catalog say, which species are missing, and what the
+drawings get wrong. `dev/grass-review.html` shows every grass as a drift and at true scale. Its first
+step has shipped; a crown for every grass, the rebuilt forms and the missing species are still open.
+**A grass form records where snow lands** (`grassSnowOn`, draw.js): on its heads and arches, using no
+random numbers, so the plant is the same with or without it. The box-wide scatter hung ovals in the
+air beside thin culms. **`foliageHeight` should come from a source**: Hoffman gives height with and
+without bloom, and 'Karl Foerster' is 2 ft of leaf under 6 ft of culm. A culm takes part of its colour
+from its head (`culmCol`), or against a lawn it vanishes and the plumes hang over nothing; `culmW`
+widens it. **Chicago's widths include the flower spray**, 100 in for 'Dallas Blues' against NVK's
+28-39 in, so never widen a `spread` on that trial alone. And **`plantVisualWidthScale` reads a
+cultivar's `spread`**, so editing one changes how wide that cultivar draws.
+Every grass has a `heightIn` and bloom months, and a test holds both; the calendar test also wants a
+`bloom` colour for those months, and a cloudgrass paints `seed` over `bloom` where it has both.
+
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
 separate carpet, meadow, broad woodland, wet upright, and arching sedges; shared

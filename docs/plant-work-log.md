@@ -99,3 +99,41 @@ later runs do not redo or touch the same records.
 - Still to do in (b): ~145 forbs. Next: ferns (avoid the five that PR #12
   touches), woodland forbs, then the cultivar families; plus the deferred
   grass and bulb families.
+
+## 2026-11-07 — grass audit, step 1 (0.9.88)
+
+- Direct to master. The audit is `docs/plant-data/grass-audit.md`; this is the per-plant record.
+- `heightIn` (flowering height) added to the 12 grasses without one and to the 43 cultivars under them
+  that redraw their own `h`. `h` untouched. In inches, with what each rests on: H Hoffman, C Chicago
+  Botanic Garden, N NVK, U UGA B987-4.
+  - bluestem 42 (N 39-49, H 36). standingovation 48 (H, C), theblues 42 (H 36, C 50), chameleon 24 (H),
+    hahatonka 42 (H 39-48), carousel 30 (H; C 32), jazz 36 (C), prairiemunchkin 22 (C).
+  - bigbluestem 72 (N 59-79, H 84, U 48-96). blackhawks 60 (H 48-60, C 62), redoctober 66 (H 60-72, C 70),
+    dancingwind 75 (C).
+  - switchgrass 60 (N 47-79, U 36-72). northwind 66 (H; C 75), heavymetal 56 (N 47-59, H 60, C 58),
+    shenandoah 48 (H; C 52), prairiesky 54 (C), dallasblues 66 (N 59-69, H 72; C 86), cloudnine 84 (H 96, C 75),
+    purpletears 48 (H).
+  - indiangrass 72 (H; N 47-87). indiansteel 60 (H), stlouis 76 (C).
+  - pinkmuhly 42 (H 48, U 36). whitecloud 54 (H 48-60), lenca 36 (Garden Oracle gives 'Regal Mist' 36-48; the low
+    end, as the note says compact), fastforward 36 (Santa Rosa Gardens; others 24-36, to 48 in flower).
+  - tuftedhair 30 (UC Sonoma: a foot or more above foot-tall tussocks; H 18). goldtau 24 (H),
+    bronzeschleier 42 (trade listings about 40; RHS 20-39).
+  - koreanfeatherreed 48 (H; N 35-49).
+  - miscanthus 72 (N 59-98). adagio 60 (H), gracillimus 84 (H), morninglight 72 (H; K-State 84),
+    strictus 90 (N 69-98, H 96), zebrinus 84 (N 59-89, H 96), malepartus 72 (N 49-79).
+  - fountaingrass 42 (N 35-47, H 48). hameln 24, littlebunny 12, redhead 48, cassian 36, burgundybunny 18 (all H).
+  - orientalfountain 36. karleyrose 36 (H; N 35-39; C 49).
+  - bluefescue 12 (N 8-14). elijahblue 15 (H), boulderblue 12 (N 10-14), beyondblue 18 (H).
+  - hakone 18 (N 16-20). aureola 14 (N 12-18), allgold 14 (N 12-16), benikaze 18 (N 16-20),
+    nicholas 14: **no source read**, taken from 'Aureola'.
+- Bloom months added: sideoats [7,8,9] (Wildflower Center June-November, Hoffman early summer), mexicanfeather
+  [6,7,8,9] (Rita's Garden Path, White Flower Farm, NC State), miscanthus [8,9,10] (Chicago's bloom dates, Hoffman),
+  bluefescue [5,6] (Hoffman), hakone [7,8,9] (NVK, Chicago), giantstipa [6,7,8,9] (RHS: summer and autumn),
+  arizonacottontop [7,8,9,10] (University of Arizona: July-November; Texas A&M runs longer). Each has a `bloom`
+  colour, because the calendar test wants one. Those colours are judgement, not sourced.
+- Blue Fescue's `seed` in Spring and Summer became `bloom`, and `seedStems` 0 became 5, so it shows stalks in its
+  window instead of never.
+- Decision: Chicago's widths were not used alone. They include the flower spray, and NVK agrees with the catalog on
+  'Dallas Blues', 'Heavy Metal' and the species of purple moor grass, so those stayed. 'Red Head' and 'Karley Rose'
+  moved to 42 in on NVK (35-47), and 'Moorhexe' to 28 in on NVK and RHS.
+- Next: step 2 of the audit, a crown for every grass.

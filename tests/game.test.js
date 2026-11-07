@@ -646,6 +646,74 @@ test('palm sedge carries spiralled leaves on arching stems, not ranks on poles',
   assert(plantDef('palmsedge','oehme').h<PLANTS.palmsedge.h,"'Oehme' draws shorter, as it grows");
 });
 
+/* Everything a draw puts on the canvas, split into the plant and the snow on it. The cap colour is
+   the painter's own, read back from the context at the moment the ellipse is laid. */
+function grassWinterDraw(k,v,seed){
+  const pts=[], caps=[], stream=[];
+  const ctx=new Proxy({},{
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+      return (...a)=>{
+        if(p==='ellipse'&&String(o.fillStyle).startsWith('rgba(240,244,250')){ caps.push([a[0],a[1]]); return; }
+        if(p==='moveTo'||p==='lineTo'||p==='ellipse'||p==='arc'){ pts.push([a[0],a[1]]); stream.push(String(p),a[0],a[1]); }
+        if(p==='quadraticCurveTo'){ pts.push([a[2],a[3]]); stream.push('q',a[2],a[3]); }
+      };
+    },set(o,p,v){o[p]=v;return true;}
+  });
+  drawPlant(ctx,0,0,k,1,'Winter',seed,0,v||null,1);
+  return {pts,caps,stream};
+}
+test('snow lands on a grass, on its heads and arches, not in the air beside its stems', () => {
+  const near=(c,pts,r)=>pts.some(p=>Math.hypot(p[0]-c[0],p[1]-c[1])<=r);
+  const was=ART2.on;
+  try { for (const mode of [true,false]){
+    ART2.on=mode;
+    for (const k of PLANT_KEYS.filter(k=>PLANTS[k].type==='grass')) for (const seed of [7,101,4410]){
+      const r=grassWinterDraw(k,null,seed), P=plantDef(k,null), box=plantDrawBox(P,k,1);
+      assert(r.caps.length>=2,k+': a grass carries snow in Winter');
+      for (const c of r.caps){
+        assert(near(c,r.pts,16),`${k}: snow at ${c.map(Math.round)} touches something this draw laid down`);
+        assert(Math.abs(c[0])<=box.halfW&&-c[1]<=box.top,k+': and inside the sprite it is baked into');
+      }
+    }
+  } } finally { ART2.on=was; }
+});
+test('snow does not disturb what a grass draws', () => {
+  // The caps read their own random stream, so the plant beneath them cannot shift. Snow only
+  // takes the closing highlight strokes away, which are the last thing a draw makes.
+  const was=AMBIENCE.Winter.snow;
+  try { for (const k of ['karl','switchgrass','bluestem','bigbluestem','mexicanfeather','moorhexe','sideoats','fountaingrass','hakone','bluefescue']){
+    AMBIENCE.Winter.snow=true; const a=grassWinterDraw(k,null,7).stream;
+    AMBIENCE.Winter.snow=false; const b=grassWinterDraw(k,null,7).stream;
+    assertEqual(JSON.stringify(a),JSON.stringify(b.slice(0,a.length)),k+': the same plant with or without snow');
+  } } finally { AMBIENCE.Winter.snow=was; }
+});
+test('a grass whose wisps run wide has a sprite that holds them', () => {
+  // The wisps of a feather grass run past their stem tips; measured, Mexican Feather Grass cut
+  // its sides off in 9 of 9 sprites before it declared the reach.
+  for (const k of ['mexicanfeather','purpleneedlegrass']){
+    const P=PLANTS[k], L=P.look, H=plantVisualH(P);
+    const reach=H*(L.plumeLen*1.07*(L.plumeSpread)+0.25+0.2)+2.5;
+    assert(plantDrawBox(P,k,1).halfW>=reach,`${k}: box ${plantDrawBox(P,k,1).halfW} holds a reach of ${reach}`);
+  }
+});
+test('Japanese Forest Grass shows flower stalks only while it flowers', () => {
+  const count=(bloom)=>{ let n=0; const ctx=new Proxy({},{
+      get(o,p){ if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        return (...a)=>{ if(p==='quadraticCurveTo')n++; }; },
+      set(o,p,v){o[p]=v;return true;} });
+    drawPlant(ctx,0,0,'hakone',1,'Summer',7,0,null,bloom); return n; };
+  assertEqual(count(1)-count(0),3,'three stalks at full bloom and none outside it');
+});
+test('Miscanthus names the wider evidence, in North America', () => {
+  const g=plantGuidance({s:'miscanthus'}), srcs=g.invasive.map(n=>n.source);
+  assert(srcs.includes('marylandGrasses')&&srcs.includes('chicagoGrasses'),'both sources stand');
+  assert(g.invasive.every(n=>n.region==='north-america'),'and neither reaches a European garden');
+  assert(PLANT_GUIDANCE_SOURCES.chicagoGrasses.url.startsWith('https://www.chicagobotanic.org/'),'its source links out');
+});
+
 test('snow lands on a sedge, not beside it or in the air above it', () => {
   for (const k of SEDGE_KEYS()){
     assertEqual(sedgeDraw(k).anchors,null,`${k}: no snow, no anchors`);
@@ -5069,7 +5137,7 @@ test('plant cards lead with woody mature size and keep herbaceous inches', () =>
     game.plants = { '6,6': bluestem };
     game.previewMode = 'today';
     showPlantCard(bluestem, 6, 6);
-    assert(card.innerHTML.includes('<b>Mature size:</b> 46&Prime; H &times; 24&Prime; W'),
+    assert(card.innerHTML.includes('<b>Mature size:</b> 42&Prime; H &times; 24&Prime; W'),
       'little bluestem card keeps inch units');
     assert(!card.innerHTML.includes('crown covers'), 'little bluestem card does not get woody crown copy');
     assert(!card.innerHTML.includes('yrs to size'), 'little bluestem card does not get woody years copy');
@@ -5524,7 +5592,7 @@ test('library mature size includes height for woody and herbaceous plants', () =
       'library white oak mature size uses the real heightIn in feet');
     detail.children = [];
     showLibraryDetail('bluestem');
-    assertEqual(fact('Mature size'), '46" H x 24" W',
+    assertEqual(fact('Mature size'), '42" H x 24" W',
       'library little bluestem mature size includes height and stays in inches');
   } finally {
     document.getElementById = oldGet;
@@ -9345,8 +9413,8 @@ test('plant card mature size uses real tree heights (heightIn)', () => {
   const txt = matureSizeText(oak, false);
   assert(txt.startsWith(plantMeasure(oak.heightIn, false)), 'tree card height comes from heightIn');
   assert(txt.includes('90 ft'), `white oak reads 90 ft H (got "${txt}")`);
-  const grass = PLANTS.bluestem;
-  assert(matureSizeText(grass, false).startsWith(plantMeasure(grass.h, false)), 'herbaceous card keeps the px-h fallback');
+  const forb = PLANTS.echinacea;
+  assert(!forb.heightIn && matureSizeText(forb, false).startsWith(plantMeasure(forb.h, false)), 'a herbaceous plant not yet backfilled keeps the px-h fallback');
   // a weeping cultivar's own heightIn overrides the species number
   const cq = plantDef('japanesemaple', 'crimsonqueen');
   assert(matureSizeText(cq, false).startsWith('9 ft'), `Crimson Queen reads 9 ft (got "${matureSizeText(cq, false)}")`);

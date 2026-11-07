@@ -38,7 +38,7 @@
         "sun": "full",
         "moist": "medium",
         "phen": "warm",
-        "bloomMonths": [4, 5],
+        "bloomMonths": [6, 7, 8, 9],
         "nativeTo": ["north-america"],
         "provenance": "species",
         "roles": ["matrix", "movement", "structure", "wet"],
@@ -63,8 +63,8 @@
         },
         "blurb": "A robust warm-season grass with blue-green leaves and a broad airy panicle. Use it where desert water collects or soils run alkaline or saline; established plants tolerate drought, but this is not a generic dry-slope grass. Rhizomes can widen a stand beyond the modeled two-foot crown.",
         "sea": {
-          "Spring": {"fol": "#76928a", "bloom": "#c9b98f"},
-          "Summer": {"fol": "#6f8c7f", "seed": "#b9a77d"},
+          "Spring": {"fol": "#76928a"},
+          "Summer": {"fol": "#6f8c7f", "bloom": "#c9b98f", "seed": "#b9a77d"},
           "Fall": {"fol": "#9b8b66", "seed": "#b8a374"},
           "Winter": {"fol": "#aa9878", "seed": "#c0ad85"}
         }

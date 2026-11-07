@@ -490,13 +490,42 @@ test('woody species declare years-to-size (grow)', () => {
 // species' number for it.
 test('backfilled grasses carry a real height, and resized cultivars do not inherit it', () => {
   const want = { sideoats:30, bluegrama:16, karl:60, overdam:48, sesleria:20, bluemoorgrass:12,
-    lovegrass:20, mexicanfeather:22, northernseaoats:36, giantstipa:72, molinia:72, moorhexe:20,
-    purplemoorgrass:30, blueoatgrass:42, quakinggrass:30, sandlovegrass:36, arizonacottontop:30, dropseed:30 };
+    lovegrass:20, mexicanfeather:22, northernseaoats:42, giantstipa:72, molinia:72, moorhexe:36,
+    purplemoorgrass:36, blueoatgrass:42, quakinggrass:30, sandlovegrass:36, arizonacottontop:30, dropseed:30 };
   for (const [k, v] of Object.entries(want)) assertEqual(PLANTS[k].heightIn, v, `${k} heightIn`);
   assertEqual(PLANTS.dropseed.cv.tara.heightIn, 24, "'Tara' states its own height");
   for (const k of Object.keys(want))
     for (const [c, C] of Object.entries(PLANTS[k].cv || {}))
       if (Object.hasOwn(C, 'h')) assert(typeof C.heightIn === 'number', `${k}.${c}: resized cultivar needs heightIn`);
+});
+
+// Every grass now states how tall it stands in flower and when it flowers (0.9.88). The figures
+// and where they conflict are in docs/plant-work-log.md and docs/plant-data/grass-audit.md.
+test('every grass and every resized cultivar states its height, and every grass its bloom months', () => {
+  for (const k of keys.filter(k => PLANTS[k].type === 'grass')) {
+    const P = PLANTS[k];
+    assert(P.heightIn > 0, `${k}: real height in flower`);
+    assert(P.h / P.heightIn > 0.5 && P.h / P.heightIn < 1.6, `${k}: drawn height ${P.h} has drifted from real height ${P.heightIn}`);
+    assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: bloom months`);
+    for (const [c, C] of Object.entries(P.cv || {}))
+      if (Object.hasOwn(C, 'h')) assert(C.heightIn > 0, `${k}.${c}: a cultivar that redraws itself says how tall it is`);
+  }
+});
+test('the grass corrections hold', () => {
+  // Alkali Sacaton runs zones 4-10; April-May is the Southwest alone.
+  assert(!PLANTS.alkalisacaton.bloomMonths.includes(4) && PLANTS.alkalisacaton.bloomMonths.includes(7), 'Alkali Sacaton flowers in summer');
+  assert(!PLANTS.alkalisacaton.sea.Spring.bloom, 'and draws no spring flower');
+  // One species, three records, one spring.
+  const moor = keys.filter(k => PLANTS[k].group === 'molinia');
+  assert(moor.length === 3 && new Set(moor.map(k => PLANTS[k].phen)).size === 1, 'purple moor grass wakes on one schedule');
+  // A winter slot left empty draws in shade()'s fallback mud.
+  assert(PLANTS.hakone.sea.Winter.fol, 'Japanese Forest Grass has a Winter colour');
+  for (const v of [PLANTS.hakone, ...Object.values(PLANTS.hakone.cv)])
+    assert(!(v.sea.Summer || {}).seed, 'Japanese Forest Grass flowers in its window, not from the first day of Summer');
+  assert(PLANTS.hakone.phen === 'warm' && PLANTS.giantstipa.phen === 'cool' && PLANTS.mexicanfeather.phen === 'cool', 'growth cycles follow the sources');
+  // Foliage stops well short of the flowers on these.
+  for (const k of ['karl', 'overdam', 'indiangrass'])
+    assert(PLANTS[k].look.foliageHeight <= 0.5, k + ': the leaves stay low under tall culms');
 });
 
 test('trees declare a real mature height (heightIn)', () => {
