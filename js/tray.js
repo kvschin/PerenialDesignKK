@@ -2672,6 +2672,19 @@ function renderDiscoveryTrayInner(tray){
     return;
   }
   discoveryOpenSpecies=null;
+  const sites=discoverySiteSections(groups,d);
+  if (sites){
+    // Every section is drawn: the card art is painted as it scrolls into view, and
+    // a Load more button would land in the middle of one site.
+    sites.forEach(site=>{
+      const head=document.createElement('h3'); head.className='discovery-site-head';
+      head.textContent=`${site.label} \u00b7 ${site.groups.length}`;
+      const list=document.createElement('div'); list.className='plant-result-grid';
+      site.groups.forEach(group=>list.appendChild(discoveryFamilyCard(group,d)));
+      tray.append(head,list);
+    });
+    return;
+  }
   const grid=document.createElement('div'); grid.className='plant-result-grid';
   groups.slice(0,d.limit).forEach(group=>grid.appendChild(discoveryFamilyCard(group,d))); tray.appendChild(grid);
   if (groups.length>d.limit){ const more=document.createElement('button'); more.type='button'; more.className='discovery-load-more';
@@ -3451,16 +3464,7 @@ function buildToolTrayInner(){
     const grouped={};
     const designType=activeDesignType();
     let sections;
-    if (cat.sedgeSections){
-      const wet=keys.filter(k=>PLANTS[k].moist==='moist');
-      sections=[
-        ['Sun & meadow',keys.filter(k=>PLANTS[k].sun==='full' && PLANTS[k].moist!=='moist'),
-          'Sunny, average-to-dry meadow sedges'],
-        ['Shade & woodland',keys.filter(k=>PLANTS[k].sun!=='full' && PLANTS[k].moist!=='moist'),
-          'Part-shade sedges for woodland and path edges'],
-        ['Wet & rain garden',wet,'Sedges for swales, pond margins, and reliably moist ground'],
-      ];
-    } else if (designType){
+    if (designType){
       const best=keys.filter(k=>plantStyleRecommended(k,designType));
       const other=keys.filter(k=>!plantStyleRecommended(k,designType));
       sections=[

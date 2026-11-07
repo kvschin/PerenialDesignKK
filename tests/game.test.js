@@ -1154,6 +1154,110 @@ test('season-derived roles distinguish berries from persistent winter seedheads'
   assert(mahogany.includes('seedhead')&&mahogany.includes('winter'),'winter mountain-mahogany plumes remain searchable');
 });
 
+/* The audit found Shade recommending 32 of 32 sedges, Coastal 31 and Prairie 30, Lake
+   Sedge included, because every role came from the word "sedge" and a sum cannot say
+   no: `matrix` plus a native's two roles clear Prairie's bar on their own. */
+test('a style recommends a sedge only for the site it grows on', () => {
+  const na={nativeRegion:'north-america',nativeMode:'any'}, eu={nativeRegion:'europe',nativeMode:'any'};
+  const rec=(style,f)=>SEDGE_KEYS().filter(k=>plantStyleRecommended(k,style,f)).sort().join();
+  const authored=(role,region)=>SEDGE_KEYS().filter(k=>(PLANTS[k].roles||[]).includes(role)&&(PLANTS[k].nativeTo||[]).includes(region)).sort().join();
+  assertEqual(rec('shade',na),SEDGE_KEYS().filter(k=>PLANTS[k].sun==='part'&&!(PLANTS[k].roles||[]).includes('prairie')).sort().join(),'Shade asks for the sedges that take shade and are not meadow plants');
+  assert(!rec('shade',na).split(',').includes('lakesedge'),'Lake Sedge is not a shade plant');
+  assert(!rec('shade',na).split(',').includes('foxsedge'),'nor is a prairie sedge that merely tolerates some');
+  assertEqual(rec('prairie',na),authored('prairie','north-america'),'Prairie asks for prairie sedges native to the garden');
+  assertEqual(rec('prairie',eu),authored('prairie','europe'),'a European meadow asks for European meadow sedges');
+  assert(rec('prairie',na).split(',').includes('meadssedge'),"Mead's Sedge is a prairie sedge");
+  for (const k of ['lakesedge','plantainsedge','pennsedge','prairiesedge'])
+    assert(!rec('prairie',na).split(',').includes(k),`${k} is not on a prairie`);
+  assert(!rec('prairie',eu).split(',').includes('meadssedge'),"Mead's Sedge is not a European meadow sedge");
+  for (const k of rec('coastal',na).split(',')) assert(PLANTS[k].roles.includes('coastal'),`${k}: Coastal needs a recorded coastal plant`);
+  assert(rec('coastal',na).split(',').length<=4,'Coastal no longer recommends sedges in general');
+  for (const style of ['cottage','butterfly','japanese','mediterranean','modern','gravel','formal'])
+    assertEqual(rec(style,na),'',`${style} asks for no sedge`);
+  assertEqual(plantStyleScore('lakesedge','prairie',null,na),0,'the score says no as well, or the catalog ranks it first anyway');
+  assert(plantStyleScore('meadssedge','prairie',null,na)>0,'and yes where it should');
+});
+
+test('a sedge carries no role its record cannot back, and stays the plan sheet\'s matrix', () => {
+  for (const k of SEDGE_KEYS()){
+    const roles=staticPlantRoles(k), P=PLANTS[k];
+    assert(!roles.includes('pollinator'),`${k}: the wind pollinates a sedge`);
+    assert(!roles.includes('wind'),`${k}: no source says it stands exposed wind`);
+    assertEqual(roles.includes('woodland'),P.sun==='part'&&!sedgeOpenGround(P),`${k}: woodland follows the site it grows on`);
+    assertEqual(roles.includes('groundcover'),P.heightIn<=SEDGE_GROUNDCOVER_IN,`${k}: groundcover follows its height`);
+    assertEqual(planLayerOf(k),'matrix',`${k}: still drawn as the quiet layer of a plan`);
+    assert(roles.includes('deerOk')&&roles.includes('rabbitOk'),`${k}: browse resistance is untouched`);
+    assert(P.heightIn>0,`${k}: a sourced height, which groundcover reads`);
+  }
+  // the rule is about sedges: a grass keeps what it had
+  assert(staticPlantRoles('bluestem').includes('wind'),'a grass is still wind tolerant');
+  assert(plantRoles('bluestem',{nativeRegion:'north-america',nativeMode:'any'}).includes('prairie'),'a native grass is still a prairie plant');
+  assert(plantStyleScore('bluestem','prairie',null,{nativeRegion:'north-america',nativeMode:'any'})>0,'and scores');
+  assert(!staticPlantRoles('monarda').includes('butterfly')&&plantStyleRecommended('monarda','butterfly',{nativeRegion:'north-america',nativeMode:'any'}),
+    'and the rule stops at sedges: no plant carries a butterfly role, and Butterfly still recommends bee balm');
+});
+
+test('the Sedges tab is laid out by site, and loses no plant doing it', () => {
+  setup(21,21);
+  const saved=[game.design,game.filters,game.discovery];
+  try {
+    game.design=null; game.filters=normalizeFilters({nativeRegion:'north-america',nativeMode:'any'});
+    const d=normalizeDiscovery({source:'all',category:'sedges'}), groups=groupDiscoveryRefs(discoveryRefsFor(d));
+    const sites=discoverySiteSections(groups,d);
+    assertEqual(sites.map(s=>s.label).join('|'),'Meadow|Wet meadow|Dry shade|Woodland|Moist shade','open ground, then shade, each from dry to wet');
+    const listed=sites.flatMap(s=>s.groups.map(g=>g.id));
+    assertEqual(listed.length,groups.length,'every family is listed once');
+    assertEqual(new Set(listed).size,groups.length,'and only once');
+    const siteOf=k=>sites.find(s=>s.groups.some(g=>g.s===k)).label;
+    assertEqual(siteOf('meadssedge'),'Meadow'); assertEqual(siteOf('sunsedge'),'Meadow');
+    assertEqual(siteOf('pennsedge'),'Dry shade'); assertEqual(siteOf('appalachiansedge'),'Dry shade');
+    assertEqual(siteOf('plantainsedge'),'Woodland');
+    assertEqual(siteOf('palmsedge'),'Moist shade');
+    assertEqual(siteOf('lakesedge'),'Wet meadow'); assertEqual(siteOf('tussocksedge'),'Wet meadow');
+    assertEqual(siteOf('foxsedge'),'Wet meadow',"a prairie sedge that takes part shade is still open ground, not moist shade");
+    assertEqual(siteOf('sedge'),'Meadow',"and so is Plains Oval, on average soil");
+    // the catalog's order holds inside a site
+    for (const s of sites){ const at=s.groups.map(g=>groups.indexOf(g)); assertEqual(at.join(),[...at].sort((a,b)=>a-b).join(),`${s.label}: catalog order`); }
+    // only the Sedges tab, and never a search or the All view
+    assertEqual(discoverySiteSections(groups,normalizeDiscovery({source:'all',category:'grasses'})),null,'grasses are a flat list');
+    assertEqual(discoverySiteSections(groups,normalizeDiscovery({source:'all',category:null})),null,'so is All');
+    assertEqual(discoverySiteSections(groups,normalizeDiscovery({source:'all',category:'sedges',query:'carex'})),null,'and a search');
+    // a record with odd data still lands somewhere, rather than falling out of the list
+    assert(SEDGE_SITES.some(([id])=>id===sedgeSiteOf({})),'a record with no site data is still filed');
+    // a style's list agrees with the headings over it, and an empty site draws none
+    const styled=type=>{ game.design={type};
+      const lens=normalizeDiscovery({source:'recommended',category:'sedges'});
+      return discoverySiteSections(groupDiscoveryRefs(discoveryRefsFor(lens)),lens).map(s=>s.label).join('|'); };
+    assertEqual(styled('shade'),'Dry shade|Woodland|Moist shade','a shade garden is offered no open site');
+    assertEqual(styled('prairie'),'Meadow|Wet meadow','a prairie garden is offered no shady one');
+  } finally { [game.design,game.filters,game.discovery]=saved; }
+});
+
+test('the Sedges tab draws a heading over each site, and other tabs stay one list', () => {
+  setup(21,21);
+  const saved=[game.design,game.filters,game.discovery];
+  const part=(tray,cls)=>tray.children.filter(c=>c.className===cls);
+  try {
+    game.design=null; game.filters=normalizeFilters({nativeRegion:'north-america',nativeMode:'any'});
+    game.discovery=normalizeDiscovery({source:'all',category:'sedges'});
+    const groups=groupDiscoveryRefs(discoveryRefs()), want=discoverySiteSections(groups,game.discovery);
+    const tray=document.createElement('div');
+    renderDiscoveryTray(tray);
+    assertEqual(part(tray,'discovery-site-head').map(h=>h.textContent).join('|'),want.map(s=>`${s.label} \u00b7 ${s.groups.length}`).join('|'),'a heading per site, with its count');
+    const lists=part(tray,'plant-result-grid');
+    assertEqual(lists.length,want.length,'a list per site');
+    assertEqual(lists.map(l=>l.children.length).join(),want.map(s=>s.groups.length).join(),'every family drawn under its own heading');
+    assertEqual(part(tray,'discovery-load-more').length,0,'no Load more in the middle of a site');
+    game.discovery=normalizeDiscovery({source:'all',category:'grasses'});
+    const flat=document.createElement('div');
+    renderDiscoveryTray(flat);
+    assertEqual(part(flat,'discovery-site-head').length,0,'grasses draw no site headings');
+    assertEqual(part(flat,'plant-result-grid').length,1,'one list');
+    resetDiscoveryArt();
+  } finally { [game.design,game.filters,game.discovery]=saved; }
+  assert(!String(buildToolTrayInner).includes('sedgeSections'),'the old unreachable copy of the split stays gone');
+});
+
 test('role terms match whole words, not letters inside another word', () => {
   assert(roleMatches('new england aster',['aster']),'the word itself matches');
   assert(roleMatches('wood asters',['aster']),'so does its plural');

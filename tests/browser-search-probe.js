@@ -117,6 +117,20 @@ async function runSearchChecks(garden){
       oracle(); deletePlantPalette(palette.id);
       setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null,colorFamilies:[],bloomSeasons:[]}); buildToolTray(true);
     });
+    await check('Sedges list by site, and a search flattens the list in place',async()=>{
+      setDiscovery({source:'all',collectionId:null,query:'',category:'sedges',returnCategory:null,colorFamilies:[],bloomSeasons:[]});
+      buildToolTray(true); await sleep(30);
+      const heads=()=>document.querySelectorAll('#toolTray .discovery-site-head').length;
+      assert(heads()===SEDGE_SITES.length,'every site has its heading');
+      const find=type('carex'); await sleep(220);
+      assert(heads()===0&&input()===find,'a search draws one list and keeps the input');
+      type('',find); await sleep(220);
+      assert(heads()===SEDGE_SITES.length&&activeDiscovery().category==='sedges','clearing returns to the sites');
+      oracle();
+      setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null});
+      buildToolTray(true); await sleep(30);
+      assert(heads()===0,'other tabs draw one list');
+    });
     await check('starting a query exits cultivar drill-in and resets paging',async()=>{
       setDiscovery({category:null,query:'',limit:72}); buildToolTray(true);
       const family=document.querySelector('.plant-family-main'); assert(family,'a family is available'); family.click();

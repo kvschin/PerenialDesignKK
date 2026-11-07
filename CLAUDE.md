@@ -6722,15 +6722,30 @@ Sources and estimates are in `docs/plant-data/wetground-sources.json`, decisions
 `docs/plant-data/wetground-implementation.md`, and `dev/wetground-review.html` shows every
 choice at library size and true scale beside a 6 ft post.
 
-**Sedge catalog:** keep one Sedge tab rather than adding habitat tabs. It is a flat
-list in the catalog's usual sort: the Sun & meadow, Shade & woodland and Wet & rain
-garden headings in `buildToolTray` (`cat.sedgeSections`) cannot run, because a plant
-tab returns through `renderDiscoveryTray` before reaching them, and the filters offer
-only flower colour and bloom season. So nothing yet lets a gardener browse sedges by
-site. `moist:'moist'` is the rain-garden classification (the schema has no `'wet'`
-value). `docs/plant-data/sedge-audit.md` is the 0.9.80 audit: what Mt. Cuba's trial
-spreadsheet settled, where it was overruled, and what is still open (missing species,
-the drawing, recommendations that do not discriminate).
+**Sedge catalog:** keep one Sedge tab rather than adding habitat tabs. It lists its plants
+under five site headings (`SEDGE_SITES`, `sedgeSiteOf`, `discoverySiteSections`, ui.js;
+0.9.82): Meadow, Wet meadow, Dry shade, Woodland, Moist shade, because a sedge is chosen by
+site and the filters offer only flower colour and bloom season. They add no state: they
+follow the category, so a search, which clears the category, is one flat list again. Every
+section is drawn, with no Load more, since the card art paints as it scrolls into view. The
+names are habitats rather than "sun" because a meadow sedge may also take part shade, and its
+card says so. `moist:'moist'` is the rain-garden classification (the schema has no `'wet'`
+value). `docs/plant-data/sedge-audit.md` is the audit: what Mt. Cuba's trial spreadsheet
+settled, where it was overruled, the sources for every role below, and what is still open.
+**A style recommends a sedge by its site** (0.9.82). Every role used to come from the word:
+the type added `woodland` and `groundcover`, the name "sedge" or "carex" added `coastal` and
+`wind`, an authored spikelet `bloom` added `pollinator`, and being native added `prairie`.
+So Shade recommended 32 of 32 sedges, Coastal 31 and Prairie 30, Lake Sedge included. Now
+`plantStyleScore` returns 0 for a sedge that does not carry the role the style is named for,
+which is what a sum could not do: `matrix` plus a native's `native` and `naturalistic` clear
+Prairie's bar on their own. Keep `matrix` on every sedge anyway, or it leaves the plan sheet's
+quiet layer (`planLayerOf`). `prairie` and `coastal` are authored in a sedge's `roles` where a
+source names that habitat, and `prairie` counts only in the region the sedge is native to.
+**`sedgeOpenGround`** is why Fox Sedge, Broom Sedge and Plains Oval are filed under meadows
+and off the Shade list although `sun:'part'`: they take shade, so a canopy does not stunt
+them, but nobody plants them as woodland sedges. "Prairie Sedge" is a fen plant and carries no
+`prairie` role. A new sedge needs its own review, not a role by analogy.
+The same word-and-type roles still run on the other plant types, measured in the audit.
 A semi-evergreen sedge keeps some green through fall and winter: its `Fall.fol` sits
 45% and its `Winter.fol` 40% of the way back to its own Summer colour, a rule of thumb
 rather than a measurement. A test holds the order, so winter is never greener than fall.

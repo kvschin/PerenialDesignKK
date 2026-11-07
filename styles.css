@@ -1205,6 +1205,8 @@ canvas.layer-eye{display:block}
 #toolTray.landscape-results .tray-sep{grid-column:1/-1;justify-content:flex-start;max-width:none;margin:5px 0 0;padding:5px 2px 2px;border-left:0;border-bottom:1px solid var(--color-divider);text-align:left}
 .landscape-search-summary,.landscape-search-empty{grid-column:1/-1}.landscape-search-summary{padding:1px 2px 3px;color:var(--text-muted);font-size:11px}.landscape-search-empty{white-space:normal;text-align:center;padding:28px 10px}
 .discovery-summary{font-size:11px;color:var(--text-muted);margin:0 0 8px;padding:0 2px}
+.discovery-site-head{margin:16px 0 8px;padding:0 2px 4px;border-bottom:1px solid var(--color-divider);color:var(--text-secondary);font:600 12px/1.25 var(--font-body)}
+.discovery-summary+.discovery-site-head,.discovery-challenge+.discovery-site-head{margin-top:4px}
 /* Says the catalog is deliberately narrowed, and offers the way out. Bronze
    because it is a live constraint on what you can plant, not a status line. */
 .daily-panel{max-width:600px;max-height:100%;overflow-y:auto;overscroll-behavior:contain;text-align:left}

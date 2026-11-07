@@ -875,6 +875,13 @@ const STYLE_RECOMMEND_MIN={
   coastal:10,
 };
 const ROLE_CACHE={};
+const SEDGE_GROUNDCOVER_IN=18;
+/* A sedge recorded on prairie or meadow belongs to open ground even where it also takes
+   part shade. Fox Sedge is sun:'part' so that a canopy does not stunt it, not because
+   anyone plants it as a woodland sedge. */
+function sedgeOpenGround(P){
+  return P.type==='sedge' && (P.sun==='full' || (P.roles||[]).includes('prairie'));
+}
 function hasSeasonProp(P,prop){
   return Object.values(P.sea||{}).some(s=>s && s[prop]);
 }
@@ -953,17 +960,27 @@ function staticPlantRoles(k){
   const text=`${P.name} ${P.latin} ${P.group||''} ${P.form||''}`.toLowerCase();
   const group=P.group||'';
   roles.add(P.type);
-  if (P.sun==='part') roles.add('shade'), roles.add('woodland');
+  if (P.sun==='part' && !sedgeOpenGround(P)) roles.add('shade'), roles.add('woodland');
   if (P.moist==='dry') roles.add('dry');
   if (P.moist==='moist') roles.add('wet');
-  if (hasSeasonProp(P,'bloom')) roles.add('flower'), roles.add('pollinator'), roles.add('seasonal');
+  // A sedge's "bloom" is the colour of its spikelets, and the wind pollinates it.
+  if (hasSeasonProp(P,'bloom')){
+    roles.add('flower'); roles.add('seasonal');
+    if (P.type!=='sedge') roles.add('pollinator');
+  }
   if (hasSeasonProp(P,'seed')){
     const crop=roles.has('fruit')||roles.has('nut')||(P.look&&P.look.fruitStyle);
     if (!crop) roles.add('seedhead');
     if (P.sea&&P.sea.Winter&&P.sea.Winter.seed) roles.add('winter');
   }
   if (P.type==='grass') roles.add('matrix'), roles.add('movement'), roles.add('wind');
-  if (P.type==='sedge') roles.add('matrix'), roles.add('groundcover'), roles.add('woodland');
+  /* Every sedge stays `matrix`, which is what draws it as the quiet layer on the
+     plan sheet. `woodland` comes from sun:'part' above, never from being a sedge,
+     and a 42 in Lake Sedge covers no ground. */
+  if (P.type==='sedge'){
+    roles.add('matrix');
+    if (P.heightIn<=SEDGE_GROUNDCOVER_IN) roles.add('groundcover');
+  }
   if (P.type==='bulb'){
     roles.add('bulbLayer'); roles.add('seasonal');
     if ((P.bloomMonths||[]).some(m=>m<=4)) roles.add('early');
@@ -1005,7 +1022,7 @@ function staticPlantRoles(k){
     roles.add('modern'), roles.add('block');
   if (roleMatches(text,['boxwood','yew','hydrangea','allium','japanese maple','flowering cherry','ginkgo','serviceberry']))
     roles.add('formal'), roles.add('structure');
-  if (roleMatches(text,['muhly','fescue','stipa','sedge','carex','panicum','switchgrass','dropseed','sideoats','yucca','bald cypress','birch']))
+  if (roleMatches(text,['muhly','fescue','stipa','panicum','switchgrass','dropseed','sideoats','yucca','bald cypress','birch']))
     roles.add('coastal'), roles.add('wind');
   // late-season bloom — drives the "Late-Season Glow" prompt
   if (P.sea && P.sea.Fall && P.sea.Fall.bloom) roles.add('late');
@@ -1029,8 +1046,11 @@ function plantRoles(k,criteria,v){
   const relation=nativeRelation(P,normalizeFilters(source).nativeRegion);
   if (relation.regional){
     roles.add('native'); roles.add('naturalistic');
-    if (['grass','sedge','forb','bulb','water'].includes(P.type)) roles.add('prairie');
+    if (['grass','forb','bulb','water'].includes(P.type)) roles.add('prairie');
   }
+  /* A sedge is a prairie plant only where its own record says it grows on one, and
+     only in the region it is native to: the style asks for the garden's own natives. */
+  else if (P.type==='sedge') roles.delete('prairie');
   return [...roles].sort();
 }
 function roleLabel(role){ return ROLE_LABELS[role] || cap(role); }
@@ -1049,7 +1069,14 @@ function activeDesignType(){
 function designTypeName(type){ return DESIGN_STYLE_LABELS[type] || cap(type||'design'); }
 function plantStyleScore(k,type=activeDesignType(),v=null,criteria=null){
   const weights=STYLE_ROLE_WEIGHTS[type]; if (!weights) return 0;
-  return plantRoles(k,criteria,v).reduce((n,r)=>n+(weights[r]||0),0);
+  const roles=plantRoles(k,criteria,v);
+  /* A sedge has to carry the role the style is named for (no sedge is a butterfly
+     plant, so that style has none). A sum cannot say no here: every sedge is
+     `matrix`, a native adds `native` and `naturalistic`, and those alone clear
+     Prairie's bar, which is how 30 of 32 sedges came to be recommended for a prairie,
+     Lake Sedge included. */
+  if (PLANTS[k] && PLANTS[k].type==='sedge' && !roles.includes(type)) return 0;
+  return roles.reduce((n,r)=>n+(weights[r]||0),0);
 }
 /* Does this style actually ask for this plant?  The one predicate behind the
    `recommended` browsing source and the questionnaire's starting-palette tally,
@@ -1469,6 +1496,28 @@ function groupDiscoveryRefs(refs){
     group.crossSpecies=new Set(group.refs.map(ref=>ref.s)).size>1;
   });
   return groups;
+}
+/* Sedges are chosen by site: nobody picks one by flower colour, which is all the
+   filters offer. So the Sedges tab reads as five headed lists: open ground, then shade,
+   each from dry to wet. The names are habitats rather than "sun", since a meadow sedge
+   may also take part shade and its card says so. sedgeSiteOf answers for any record, so
+   no sedge can fall out of the list. */
+const SEDGE_SITES=[['meadow','Meadow'],['wetmeadow','Wet meadow'],
+  ['dryshade','Dry shade'],['woodland','Woodland'],['moistshade','Moist shade']];
+function sedgeSiteOf(P){
+  const open=sedgeOpenGround(P);
+  if (P.moist==='moist') return open?'wetmeadow':'moistshade';
+  if (open) return 'meadow';
+  return P.moist==='dry'?'dryshade':'woodland';
+}
+/* null means an ordinary flat list. Choosing the category is what asks for sites, so
+   searching, which clears the category, stays flat. */
+function discoverySiteSections(groups,d){
+  const cat=d.category && TRAY_CATS.find(c=>c.id===d.category);
+  if (!cat || !cat.sedgeSections) return null;
+  const site=g=>sedgeSiteOf(refDef(g.representativeRef)||PLANTS[g.s]);
+  return SEDGE_SITES.map(([id,label])=>({id,label,groups:groups.filter(g=>site(g)===id)}))
+    .filter(section=>section.groups.length);
 }
 function discoveryCriteriaLabels(f=activeFilters()){
   const out=[];

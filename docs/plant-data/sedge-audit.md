@@ -1,8 +1,9 @@
 # Sedge audit
 
 Audited November 6, 2026, against the catalog at 0.9.79: 32 records in the Sedge
-category (31 *Carex* plus *Luzula nivea*). The data fixes shipped in 0.9.80 and the
-drawing in 0.9.81. Browsing, recommendations and new species below are still open.
+category (31 *Carex* plus *Luzula nivea*). The data fixes shipped in 0.9.80, the drawing
+in 0.9.81, and recommendations and browsing by site in 0.9.82. New species and the rest
+of the model below are still open.
 
 ## Sources
 
@@ -84,6 +85,59 @@ Other plants: call-for-call identical to 0.9.80 across 1,180 choices and 38,816 
 of four, with another program holding the GPU, named a single frame while every later phase
 read a probe of 0ms.
 
+## Shipped in 0.9.82: recommendations and browsing
+
+Style lists, sedges only, in a North American garden, across all 32 records:
+
+| Style | Before | After |
+| --- | --- | --- |
+| Shade | 32 | 20: `sun:'part'`, not recorded on prairie |
+| Prairie | 30 | 7 |
+| Coastal | 31 | 2 |
+| Cottage, Butterfly | 4 each | 0; those four had an authored spikelet `bloom` |
+
+No plant of any other type changed role or recommendation, compared record by record
+against 0.9.81. A European garden's Prairie list is Mountain Sedge alone, since the style
+asks for the garden's own natives.
+
+The Sedge tab now reads as five headed lists, which were dead code before: Meadow (6), Wet
+meadow (6), Dry shade (5), Woodland (7), Moist shade (8).
+
+**Where a source names prairie or meadow** (`roles:['prairie']`):
+
+| Record | Evidence |
+| --- | --- |
+| Plains Oval | [Illinois Wildflowers](https://illinoiswildflowers.info/grasses/plants/ploval_sedge.html): black soil, sand and river-bottom prairies. [Wikipedia](https://en.wikipedia.org/wiki/Carex_brevior): dry to dry-mesic prairies. |
+| Mead's | [Illinois Wildflowers](https://illinoiswildflowers.info/grasses/plants/mead_sedge.htm), [Minnesota Wildflowers](https://www.minnesotawildflowers.info/grass-sedge-rush/meads-sedge) |
+| Sun Sedge | [Minnesota Wildflowers](https://www.minnesotawildflowers.info/grass-sedge-rush/sun-loving-sedge) |
+| Clustered Field | [Minnesota Wildflowers](https://www.minnesotawildflowers.info/grass-sedge-rush/clustered-field-sedge): prairie swales |
+| Fox | [Illinois Wildflowers](https://www.illinoiswildflowers.info/grasses/plants/brfx_sedge.htm): river-bottom prairies, prairie swales |
+| Tussock | [Illinois Wildflowers](https://www.illinoiswildflowers.info/grasses/plants/tussock_sedge.html): prairie swales, sedge meadows |
+| Broom | [Illinois Wildflowers](https://www.illinoiswildflowers.info/grasses/plants/pb_sedge.htm): wet prairies. [Prairie Moon](https://www.prairiemoon.com/carex-scoparia-lance-fruited-oval-sedge) names wet pastures and marshes instead, so this is the weakest. |
+| Mountain (Europe) | [Pladias](https://pladias.cz/en/factsheet/default/2027): dry grasslands and meadows, and beech forest. [Notranjski Park](https://notranjski-park.si/en/discover/encyclopedia/plant-world/pencil-sharpeners/mountain-chess): dry meadows. Blurb no longer "woodland". |
+
+**Prairie Sedge is left off.** [Go Botany](https://gobotany.nativeplanttrust.org/species/carex/prairea/) and
+[Maine](https://www.maine.gov/dacf/mnap/features/carxpra.htm) have it in high-pH fens, and
+[Minnesota Wildflowers](https://www.minnesotawildflowers.info/grass-sedge-rush/prairie-sedge) in
+wet limy meadows and fens; none names a prairie. Its blurb said prairie swales and now says otherwise.
+
+**Where a source names the coast** (`roles:['coastal']`):
+
+| Record | Evidence |
+| --- | --- |
+| Clustered Field | [California Flora](https://www.calfloranursery.com/plants/carex-praegracilis/): tolerates salt spray. [Wikipedia](https://en.wikipedia.org/wiki/Carex_praegracilis): spreading along salted roads. |
+| Slough | [Log House](https://loghouseplants.com/plants/shop/carex-obnupta-slough-sedge/): coastal wetlands and estuaries, slightly salt tolerant. [California Flora](https://www.calfloranursery.com/plants/carex-obnupta/): moist coastal sites. |
+
+Pennsylvania Sedge stays off: the one claim found is a nursery answer about runoff, with a
+caveat. This list is what could be read, not a survey, so another salt-tolerant sedge may be
+missing. No sedge carries `wind` now, as no source was read for it.
+
+**Slough Sedge moved to `sun:'part'`.** Log House gives full sun to part shade, and California
+Flora calls it one of the more shade-tolerant sedges, under redwoods.
+
+Also: `groundcover` now means 18 in or under, and `woodland` and `shade` follow the site rather
+than the word sedge.
+
 ## Checked and left alone
 
 - **Palm sedge in winter.** The trial says semi-evergreen, but
@@ -127,10 +181,16 @@ read a probe of 0ms.
 
 ### The model
 
-- **Recommendations do not discriminate.** Every sedge gets `woodland` and `groundcover`
-  by type, and the word "sedge" adds `coastal` and `wind`. Shade recommends 32 of 32,
-  Coastal 31 and Prairie 30, Lake Sedge included.
-- **No browsing by site** (see the Sedge catalog note in `CLAUDE.md`).
+- **Other plant types carry the same defect.** In a North American garden, measured at
+  0.9.82: Butterfly and Cottage each recommend 33 of 40 grasses, which the wind pollinates, and
+  31 of 34 water plants, because an authored `bloom` adds `pollinator`. Prairie recommends
+  27 of 34 water plants and Coastal 40 of 40 grasses.
+- **Lake, Awl-fruited, Bristly and Prairie Sedge are recommended for no style.** No style
+  asks for wet ground; they show under All eligible and in an unstyled garden.
+- **Japanese Sedge 'Evergold' is not on the Japanese list**, which no sedge is. I found no
+  source that names the use.
+- **Browsing by site exists only on the Sedge tab.** A sun and moisture filter across the
+  catalog would serve every plant type; `sun` and `moist` are already on every record.
 - **Clumping versus spreading is not modelled.** It is a core sedge decision and the trial
   records it. A spreader could also draw as a mat, which helps the carpet problem.
 - **Evergreens get cut back.** In Today view `seasonEnvelope` drops every herbaceous plant

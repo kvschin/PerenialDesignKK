@@ -904,6 +904,18 @@ test('sedges carry visual archetypes and preserve signature seedheads', () => {
     'wet upright sedges need a hummock profile');
 });
 
+/* Read, not inferred; the sources are in docs/plant-data/sedge-audit.md. Prairie
+   Sedge is the trap: Go Botany and Maine have it in high-pH fens, Minnesota in wet
+   limy meadows and fens, and none of them on a prairie. */
+test('a sedge is filed as a prairie or coastal plant only where a source says so', () => {
+  const authored=role=>Object.keys(PLANTS).filter(k=>PLANTS[k].type==='sedge'&&(PLANTS[k].roles||[]).includes(role)).sort().join();
+  assertEqual(authored('prairie'),'broomsedgecarex,clusteredfieldsedge,foxsedge,meadssedge,mountainsedge,sedge,sunsedge,tussocksedge','reviewed prairie and meadow sedges');
+  assertEqual(authored('coastal'),'clusteredfieldsedge,sloughsedge','reviewed coastal sedges');
+  assert(!/prairie swale/i.test(PLANTS.prairiesedge.blurb),'Prairie Sedge is a fen plant, whatever its name says');
+  assertEqual(PLANTS.sloughsedge.sun,'part','two nurseries give Slough Sedge sun to shade, so a canopy does not stunt it');
+  assert(!/woodland sedge/i.test(PLANTS.mountainsedge.blurb),'Mountain Sedge grows in dry meadows as well as open woods');
+});
+
 test('sedges that draw alike carry the colours their sources describe', () => {
   const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
   const lum=hex=>{const [r,g,b]=rgb(hex);return 0.3*r+0.59*g+0.11*b;};
