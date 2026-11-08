@@ -6831,8 +6831,16 @@ Garden's trial of 109 grasses and Hoffman's catalog say, which species are missi
 drawings get wrong. `dev/grass-review.html` shows every grass as a drift and at true scale, and `?check`
 sweeps the sprites and the library and tray pictures. Steps 1-3 have shipped, and two batches of
 step 4: the twelve "Add first" species (0.9.91) and the ten European and design grasses (0.9.92), both
-sourced in `docs/plant-data/grass-sources.json` by `batch`. "Worth adding next", the missing cultivars
-and the site headings are still open. **A European nursery gives no USDA zone**, and the RHS's H ratings
+sourced in `docs/plant-data/grass-sources.json` by `batch`, and step 5, site headings (0.9.93). "Worth
+adding next" and the missing cultivars are still open. **The Grasses tab lists by site as the Sedges
+tab does** (`GRASS_SITES`, `grassSiteOf`, `SITE_LAYOUTS`, ui.js; a category names its layout with
+`sites` in `TRAY_CATS`): Dry meadow, Meadow, Wet meadow, Dry shade, Woodland, Moist shade, from light and
+moisture alone. **A family whose choices grow in different places is split** (`splitGroupBySite`): the
+moor grasses are a card under Dry meadow, Dry shade and Woodland, each with only what grows there, its own
+`id` (`group:moorgrass@woodland`) and DOM id, so drill-in looks among the split cards as well as the
+catalog's. A family that grows in one place keeps the catalog's own card, which is why no sedge moved. The
+category strip still counts families, so a split family is one on the chip and one under each heading.
+**A European nursery gives no USDA zone**, and the RHS's H ratings
 are its own scale, so a European grass takes its zones from a US nursery (Digging Dog states one for
 most) or NC State, with Knoll and the RHS for size and season.
 **Step 4 added three opt-in pieces**: `headStyle:'bristle'` (`drawGrassBristles`: `brushSpan`,

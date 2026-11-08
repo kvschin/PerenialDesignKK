@@ -1637,8 +1637,8 @@ test('the Sedges tab is laid out by site, and loses no plant doing it', () => {
     assertEqual(siteOf('sedge'),'Meadow',"and so is Plains Oval, on average soil");
     // the catalog's order holds inside a site
     for (const s of sites){ const at=s.groups.map(g=>groups.indexOf(g)); assertEqual(at.join(),[...at].sort((a,b)=>a-b).join(),`${s.label}: catalog order`); }
-    // only the Sedges tab, and never a search or the All view
-    assertEqual(discoverySiteSections(groups,normalizeDiscovery({source:'all',category:'grasses'})),null,'grasses are a flat list');
+    // only the tabs that ask, and never a search or the All view
+    assertEqual(discoverySiteSections(groups,normalizeDiscovery({source:'all',category:'sunper'})),null,'sun perennials are a flat list');
     assertEqual(discoverySiteSections(groups,normalizeDiscovery({source:'all',category:null})),null,'so is All');
     assertEqual(discoverySiteSections(groups,normalizeDiscovery({source:'all',category:'sedges',query:'carex'})),null,'and a search');
     // a record with odd data still lands somewhere, rather than falling out of the list
@@ -1671,14 +1671,55 @@ test('the Sedges tab draws a heading over each site, and other tabs stay one lis
     assertEqual(lists.length,want.length,'a list per site');
     assertEqual(lists.map(l=>l.children.length).join(),want.map(s=>s.groups.length).join(),'every family drawn under its own heading');
     assertEqual(part(tray,'discovery-load-more').length,0,'no Load more in the middle of a site');
-    game.discovery=normalizeDiscovery({source:'all',category:'grasses'});
+    game.discovery=normalizeDiscovery({source:'all',category:'sunper'});
     const flat=document.createElement('div');
     renderDiscoveryTray(flat);
-    assertEqual(part(flat,'discovery-site-head').length,0,'grasses draw no site headings');
+    assertEqual(part(flat,'discovery-site-head').length,0,'sun perennials draw no site headings');
     assertEqual(part(flat,'plant-result-grid').length,1,'one list');
     resetDiscoveryArt();
   } finally { [game.design,game.filters,game.discovery]=saved; }
   assert(!String(buildToolTrayInner).includes('sedgeSections'),'the old unreachable copy of the split stays gone');
+});
+
+test('the Grasses tab is laid out by site, and a family that grows in two places is filed in both', () => {
+  setup(21,21);
+  const saved=[game.design,game.filters,game.discovery,discoveryOpenSpecies];
+  try {
+    game.design=null; game.filters=normalizeFilters({nativeRegion:'north-america',nativeMode:'any'});
+    const d=normalizeDiscovery({source:'all',category:'grasses'}), groups=groupDiscoveryRefs(discoveryRefsFor(d));
+    const sites=discoverySiteSections(groups,d);
+    assertEqual(sites.map(s=>s.label).join('|'),'Dry meadow|Meadow|Wet meadow|Dry shade|Woodland|Moist shade','dry sun first, then shade, each from dry to wet');
+    // every exact choice is listed, once, wherever its family is split
+    const key=r=>r.s+'|'+(r.v||''), all=groups.flatMap(g=>g.refs.map(key)), listed=sites.flatMap(s=>s.groups.flatMap(g=>g.refs.map(key)));
+    assertEqual(listed.length,all.length,'every choice is listed');
+    assertEqual(new Set(listed).size,all.length,'and only once');
+    const cards=sites.flatMap(s=>s.groups);
+    assertEqual(new Set(cards.map(g=>g.id)).size,cards.length,'each card has its own id');
+    assertEqual(new Set(cards.map(g=>g.domId)).size,cards.length,'and its own element');
+    const siteOf=(k,v)=>sites.filter(s=>s.groups.some(g=>g.refs.some(r=>r.s===k&&(r.v||null)===(v||null)))).map(s=>s.label).join('|');
+    assertEqual(siteOf('bluestem'),'Dry meadow'); assertEqual(siteOf('switchgrass'),'Meadow');
+    assertEqual(siteOf('prairiecordgrass'),'Wet meadow'); assertEqual(siteOf('californiafescue'),'Dry shade');
+    assertEqual(siteOf('hakone'),'Woodland'); assertEqual(siteOf('northernseaoats'),'Moist shade');
+    // the moor grasses grow in three places, and the card in each holds what grows there
+    assertEqual(siteOf('nestmoorgrass')+','+siteOf('silvermoorgrass'),'Dry meadow,Dry meadow','Nest and Silver Moor Grass are for dry sun');
+    assertEqual(siteOf('sesleria'),'Dry shade','Autumn Moor Grass for dry shade');
+    assertEqual(siteOf('bluemoorgrass')+','+siteOf('greenleemoorgrass'),'Woodland,Woodland','Blue and Greenlee for woodland');
+    assertEqual(siteOf('karl')+','+siteOf('koreanfeatherreed'),'Meadow,Woodland','a feather reed for sun and one for shade');
+    assertEqual(siteOf('tuftedhair','goldtau'),'Moist shade','a cultivar follows its own record');
+    // a family that grows in one place is still one card, the catalog's own
+    const switchCard=cards.find(g=>g.refs.some(r=>r.s==='switchgrass'));
+    assert(groups.includes(switchCard),'an unsplit family keeps the card the catalog made');
+    for (const s of sites){ const at=s.groups.filter(g=>groups.includes(g)).map(g=>groups.indexOf(g)); assertEqual(at.join(),[...at].sort((a,b)=>a-b).join(),`${s.label}: catalog order`); }
+    // opening a split card shows only its own choices
+    const woodlandMoor=sites.find(s=>s.label==='Woodland').groups.find(g=>g.id.startsWith('group:moorgrass'));
+    assertEqual(woodlandMoor.refs.length,2,'the woodland moor grass card holds two');
+    game.discovery=d; discoveryOpenSpecies=woodlandMoor.id;
+    const tray=document.createElement('div'); renderDiscoveryTray(tray);
+    const grid=tray.children.find(c=>c.className==='plant-variant-grid');
+    assert(grid,'the split card opens');
+    assertEqual(grid.children.length,2,'on its own two choices, not all five moor grasses');
+    resetDiscoveryArt();
+  } finally { [game.design,game.filters,game.discovery,discoveryOpenSpecies]=saved; }
 });
 
 /* Every style's list is a claim about the plant. These were the ones a sum could not stop:

@@ -2,8 +2,8 @@
 
 Audited November 7, 2026, against the catalog at 0.9.87: 40 records in the Grasses category, with
 45 cultivars. The data fixes, bugs and snow shipped in 0.9.88, a crown for every grass in 0.9.89, and the
-rebuilt forms in 0.9.90, the twelve "Add first" species in 0.9.91 and the ten European and design grasses in 0.9.92.
-"Worth adding next", the cultivars and the site headings are still open, in the order at the end.
+rebuilt forms in 0.9.90, the twelve "Add first" species in 0.9.91, the ten European and design grasses in 0.9.92,
+and site headings in 0.9.93. "Worth adding next" and the cultivars are still open.
 
 `dev/grass-review.html` is the page used for all of it. It shows every grass in four seasons, as a
 drift, and at true scale beside a 6 ft post. It takes `?base`, `?form=vertgrass`, `?only=`, `?check`
@@ -558,6 +558,36 @@ both batches, and holds the European one to seven natives, a hybrid with no rang
 each fail it or the calendar test. Neither EASIN nor Cal-IPC lists any of the ten. One procedural draw is 0.15-0.27ms,
 against Miscanthus's 0.21.
 
+## Shipped in 0.9.93
+
+Step 5: the Grasses tab lists by site, as the Sedges tab has since 0.9.82, with one site more in front. A grass is
+filed by its light and moisture: **Dry meadow** (full sun, dry: prairie, steppe and gravel, the largest group),
+**Meadow** (full sun, average soil), **Wet meadow** (full sun, moist), then **Dry shade**, **Woodland** and **Moist
+shade** for part shade from dry to wet. The names are the sedges' own, so the two tabs read alike.
+
+| Site | Grasses (records) |
+| --- | --- |
+| Dry meadow | 27 |
+| Meadow | 18 |
+| Wet meadow | 4 |
+| Dry shade | 4 |
+| Woodland | 7 |
+| Moist shade | 2 |
+
+A family card used to be filed by its first member, which for the moor grasses would have put Nest and Silver Moor Grass,
+both for dry sun, under Dry shade with Autumn Moor Grass. A family whose choices grow in different places is now a card
+under each site, holding only what grows there, and opens on those choices alone. Four families split: the moor grasses
+(Dry meadow, Dry shade, Woodland), the feather reed grasses ('Karl Foerster' and 'Overdam' in Meadow, Korean in
+Woodland), the gamagrasses and the hairgrasses. A family that grows in one place keeps its own card, which is why the
+Sedges tab, where no family is split, is unchanged. The category strip still counts families, so a split family counts
+once there and once under each heading it appears in.
+
+A style's list keeps only its own sites, as the sedges do: the demo garden, a prairie, shows Dry meadow, Meadow and Wet
+meadow. A search, which clears the category, is still one flat list.
+
+Checked in the real app in headless Chrome, at 1440x900 and on a 390x844 phone, and by the browser search test on both;
+a new test holds the six sites, every choice filed once, the split families, and a split card opening on its own choices.
+
 ## How they look
 
 Measured on 0.9.87, before any of the above, in the real renderer at full growth, in Fall, on a neutral grey backdrop with the cast shadow gated
@@ -657,4 +687,4 @@ has the detail. The timed-out 3-year runs fit, since a slowed run needs far more
    0.9.91, Bottlebrush Grass with a bristle head of its own. The sedges' `brush` did not serve: it is a glyph a few
    pixels long with short awns, where these heads are a fifth of the culm with awns longer than their spikelets.
    The European and design grasses followed in 0.9.92. Next are "Worth adding next" and the cultivars.
-5. **Site headings on the tab,** as sedges have, once it passes 50 or so records. It is at 62.
+5. **Site headings on the tab,** as sedges have, once it passes 50 or so records. Shipped in 0.9.93, at 62.

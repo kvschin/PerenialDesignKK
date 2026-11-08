@@ -1536,13 +1536,44 @@ function sedgeSiteOf(P){
   if (open) return 'meadow';
   return P.moist==='dry'?'dryshade':'woodland';
 }
+/* Grasses the same way (0.9.93), with one site more in front: dry sun is the largest group
+   on the tab, prairie, steppe and gravel, and a different planting from the meadow grasses
+   of average soil. No grass carries a prairie role while taking part shade, so its light
+   and its moisture alone file it. */
+const GRASS_SITES=[['drymeadow','Dry meadow'],['meadow','Meadow'],['wetmeadow','Wet meadow'],
+  ['dryshade','Dry shade'],['woodland','Woodland'],['moistshade','Moist shade']];
+function grassSiteOf(P){
+  const open=P.sun!=='part';
+  if (P.moist==='moist') return open?'wetmeadow':'moistshade';
+  if (open) return P.moist==='dry'?'drymeadow':'meadow';
+  return P.moist==='dry'?'dryshade':'woodland';
+}
+const SITE_LAYOUTS={sedge:[SEDGE_SITES,sedgeSiteOf], grass:[GRASS_SITES,grassSiteOf]};
+/* A family whose choices grow in different places is filed under each of them, with only
+   the choices that grow there. Filed by its first member, the moor grass card put Nest and
+   Silver Moor Grass, both for dry sun, under Dry shade with Autumn Moor Grass. A family that
+   grows in one place keeps its own card, and its own id. */
+function splitGroupBySite(group,siteOf){
+  const by=new Map();
+  for (const ref of group.refs){
+    const id=siteOf(refDef(ref)||PLANTS[ref.s]);
+    if (!by.has(id)) by.set(id,[]);
+    by.get(id).push(ref);
+  }
+  if (by.size<2) return [[by.keys().next().value,group]];
+  return [...by].map(([site,refs])=>{
+    const baseRefs=refs.filter(r=>!r.v), rep=baseRefs[0]||refs[0];
+    return [site,Object.assign({},group,{id:group.id+'@'+site,domId:group.domId+'-'+site,s:rep.s,refs,baseRefs,
+      cultivarRefs:refs.filter(r=>r.v),baseRef:baseRefs[0]||null,representativeRef:rep,crossSpecies:new Set(refs.map(r=>r.s)).size>1})];
+  });
+}
 /* null means an ordinary flat list. Choosing the category is what asks for sites, so
    searching, which clears the category, stays flat. */
 function discoverySiteSections(groups,d){
-  const cat=d.category && TRAY_CATS.find(c=>c.id===d.category);
-  if (!cat || !cat.sedgeSections) return null;
-  const site=g=>sedgeSiteOf(refDef(g.representativeRef)||PLANTS[g.s]);
-  return SEDGE_SITES.map(([id,label])=>({id,label,groups:groups.filter(g=>site(g)===id)}))
+  const cat=d.category && TRAY_CATS.find(c=>c.id===d.category), layout=cat&&SITE_LAYOUTS[cat.sites];
+  if (!layout) return null;
+  const [sites,siteOf]=layout, filed=groups.flatMap(g=>splitGroupBySite(g,siteOf));
+  return sites.map(([id,label])=>({id,label,groups:filed.filter(([s])=>s===id).map(([,g])=>g)}))
     .filter(section=>section.groups.length);
 }
 function discoveryCriteriaLabels(f=activeFilters()){

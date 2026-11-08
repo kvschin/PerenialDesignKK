@@ -154,7 +154,7 @@ async function runSearchChecks(garden){
       assert(activeDiscovery().light.length===0&&activeDiscovery().moisture.length===0,'and that clears these too');
       setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null}); buildToolTray(true); await sleep(30);
     });
-    await check('Sedges list by site, and a search flattens the list in place',async()=>{
+    await check('Sedges and grasses list by site, and a search flattens the list in place',async()=>{
       setDiscovery({source:'all',collectionId:null,query:'',category:'sedges',returnCategory:null,colorFamilies:[],bloomSeasons:[]});
       buildToolTray(true); await sleep(30);
       const heads=()=>document.querySelectorAll('#toolTray .discovery-site-head').length;
@@ -166,7 +166,12 @@ async function runSearchChecks(garden){
       oracle();
       setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null});
       buildToolTray(true); await sleep(30);
+      assert(heads()===GRASS_SITES.length,'grasses list by site too');
+      setDiscovery({source:'all',collectionId:null,query:'',category:'sunper',returnCategory:null});
+      buildToolTray(true); await sleep(30);
       assert(heads()===0,'other tabs draw one list');
+      setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null});
+      buildToolTray(true); await sleep(30);
     });
     await check('starting a query exits cultivar drill-in and resets paging',async()=>{
       setDiscovery({category:null,query:'',limit:72}); buildToolTray(true);

@@ -3,8 +3,8 @@
 /* tray categories: the bottom main menu. Shrubs and Trees are honest
    placeholders until woody plants exist (type 'shrub' / 'tree'). */
 const TRAY_CATS=[
-  {id:'grasses',  label:'Grasses',          types:['grass']},
-  {id:'sedges',   label:'Sedges',           types:['sedge'], sedgeSections:true},
+  {id:'grasses',  label:'Grasses',          types:['grass'], sites:'grass'},
+  {id:'sedges',   label:'Sedges',           types:['sedge'], sites:'sedge'},
   {id:'sunper',   label:'Sun Perennials',   types:['forb'], sunFilter:'full'},
   {id:'shadeper', label:'Shade Perennials', types:['forb'], sunFilter:'part'},
   {id:'bulbs',    label:'Bulbs',            types:['bulb']},
@@ -2655,7 +2655,10 @@ function renderDiscoveryTrayInner(tray){
       :{source:'all',collectionId:null,category:null,query:'',colorFamilies:[],bloomSeasons:[],light:[],moisture:[],limit:36},true); buildToolTray(); };
     empty.appendChild(reset); tray.appendChild(empty); return;
   }
-  const openGroup=discoveryOpenSpecies&&groups.find(group=>group.id===discoveryOpenSpecies);
+  // a family filed under two sites is two cards, and each opens on its own choices
+  const sites=discoverySiteSections(groups,d);
+  const openGroup=discoveryOpenSpecies&&(groups.find(group=>group.id===discoveryOpenSpecies)
+    ||(sites&&sites.flatMap(site=>site.groups).find(group=>group.id===discoveryOpenSpecies)));
   if (openGroup){
     tray.classList.add('cultivar-drill');
     const base=PLANTS[openGroup.s], head=document.createElement('div'); head.className='cultivar-drill-head'; head.id=`plant-varieties-${openGroup.domId}`;
@@ -2679,7 +2682,6 @@ function renderDiscoveryTrayInner(tray){
     return;
   }
   discoveryOpenSpecies=null;
-  const sites=discoverySiteSections(groups,d);
   if (sites){
     // Every section is drawn: the card art is painted as it scrolls into view, and
     // a Load more button would land in the middle of one site.

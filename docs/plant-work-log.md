@@ -233,3 +233,12 @@ later runs do not redo or touch the same records.
 - One procedural draw is 0.15-0.27ms. The measuring harness once reported 9ms for Pheasant's Tail Grass; the review
   page's own bench, run twice, gives 0.23-0.25ms, so that was the harness.
 - Next: "Worth adding next" and the missing cultivars, then step 5, site headings, now the tab is at 62.
+
+## 2026-11-08 — grass audit, step 5, site headings (0.9.93)
+
+- Direct to master. The Grasses tab lists by site: Dry meadow, Meadow, Wet meadow, Dry shade, Woodland, Moist shade, from
+  each record's `sun` and `moist`. No plant data changed.
+- `TRAY_CATS` names a layout with `sites:'grass'|'sedge'` (it was `sedgeSections:true`); `discoverySiteSections` reads it
+  through `SITE_LAYOUTS`. Mixed families split by site (`splitGroupBySite`): moorgrass, featherreed, gamagrass, hairgrass.
+- The browser search probe now expects headings on Grasses and takes Sun Perennials as its flat tab.
+- Next: "Worth adding next" and the missing cultivars.
