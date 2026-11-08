@@ -160,3 +160,26 @@ later runs do not redo or touch the same records.
   morninglight .58, zebrinus .58, fountaingrass .78, redhead .71, cassian .68, orientalfountain .75,
   karleyrose .92, hakone 1.42, benikaze 1.76, deergrass .79, dwarffakahatcheegrass .7, lindheimersmuhly .75.
 - Next: step 3 of the audit, rebuilding the forms that draw the wrong plant.
+
+## 2026-11-07 — grass audit, step 3 (0.9.90)
+
+- Direct to master. The audit's "Shipped in 0.9.90" has the drawing and the measurements; this is the per-plant record.
+  Every value below is judgement against photographs and the stated sizes, not sourced.
+- Hanging panicles (`headStyle:'panicle'`): giantstipa (11 culms, 8 branches, awns 9px), quakinggrass (`spkShape:'locket'`),
+  northernseaoats (`spkShape:'flat'`, `culmNod` .75, 4 leaves on each culm), blueoatgrass (`culmNod` .6, narrow),
+  bluefescue (short upright culms), purpleneedlegrass (nodding, awns 7px). Basal leaves shortened under the culms and
+  given `leafArch` on giantstipa (.34 of H), quakinggrass (.3), northernseaoats (.36).
+- sideoats: `headStyle:'pennant'`, 9 culms with 9 spikes down one side, anthers in flower.
+- Domes (`foliage:'dome'`): blueoatgrass (130 leaves, crownIn 12 to 8) and bluefescue (130 leaves, crownIn 11 to 7), which
+  moved from `bunchgrass` to `oatgrass`. 'Beyond Blue' no longer states its own crown.
+- moorgrass heads: sesleria and prairiejunegrass `'spike'`, bluemoorgrass a short `'spike'` that reads as an ovoid,
+  moorhexe (18 culms) and purplemoorgrass (14, looser) `'narrow'`. Culm lengths set so the heads stand at `heightIn`.
+- mexicanfeather `habit:'mop'`: 60 leaf threads under 80 blond ones.
+- hakone and its four cultivars: the one-way cascade, 46 narrower blades (`leafW` 2.6 to 1.6), `arch` .74.
+- miscanthus `fountain:true`: 34 ribbons with a pale midrib, 12 plumed culms, `plumeStyle:'silk'`. gracillimus and
+  morninglight finer ribbons; zebrinus and strictus `bands`, and their Summer `fol` greener now that the bands carry
+  the gold; strictus narrower and stiffer.
+- `sideScale` re-measured on the new drawings: northernseaoats .66, blueoatgrass .76, adagio .65, morninglight .66,
+  zebrinus .66, mexicanfeather 1.03 (from 1.42), hakone 1.23 (from 1.42), benikaze 1.53 (from 1.76); purpleneedlegrass
+  needs none.
+- Next: step 4, the missing species, drawn on these forms.

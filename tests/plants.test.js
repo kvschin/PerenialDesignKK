@@ -1154,7 +1154,8 @@ test('sunflower species keep distinct visual signatures', () => {
 
 test('ornamental grass forms keep distinct silhouettes and picker entries', () => {
   assertEqual(PLANTS.sesleria.form, 'moorgrass', 'autumn moor grass should not reuse the airy cloudgrass silhouette');
-  assert(PLANTS.sesleria.look.seedBeads >= 4, 'autumn moor grass needs short upright seed wands');
+  assert(PLANTS.sesleria.look.headStyle === 'spike' && PLANTS.sesleria.look.stems >= 4,
+    'autumn moor grass needs short upright seed wands');
   assertEqual(PLANTS.tuftedhair.form, 'cloudgrass', 'tufted hairgrass keeps the airy seed-cloud form');
   assertEqual(PLANTS.hakone.form, 'forestgrass', 'japanese forest grass keeps its cascading forestgrass form');
   assert(PLANTS.hakone.look.leaves >= 20, 'japanese forest grass needs a fuller flowing mound');
@@ -1374,7 +1375,9 @@ test('native landscape-gap additions retain their botanical identity and intende
   assertEqual(PLANTS.purpleprairieclover.group, 'prairieclover', 'both prairie clovers share a picker');
   assertEqual(PLANTS.whiteprairieclover.group, 'prairieclover', 'both prairie clovers share a picker');
   assertEqual(PLANTS.bluegrama.look.headStyle, 'eyelash', 'blue grama needs its signature seed combs');
-  assert(PLANTS.northernseaoats.look.spikeletW > 3, 'northern sea oats needs broad hanging spikelets');
+  const seaOats=PLANTS.northernseaoats.look;
+  assert(seaOats.headStyle==='panicle' && seaOats.spkShape==='flat' && seaOats.spkW>=2,
+    'northern sea oats needs broad flat spikelets hanging from a panicle');
   assertEqual(PLANTS.michiganlily.bulbSeason, 'summer', 'Michigan lily must not use the spring-ephemeral bulb envelope');
 });
 

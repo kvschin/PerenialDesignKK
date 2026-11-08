@@ -648,9 +648,15 @@ test('palm sedge carries spiralled leaves on arching stems, not ranks on poles',
 
 /* Everything a draw puts on the canvas, split into the plant and the snow on it. The cap colour is
    the painter's own, read back from the context at the moment the ellipse is laid. */
+/* A quadratic is ink all along its length, not only at its end: sample it from the pen's position.
+   Recording endpoints alone, snow on the middle of a long arching ribbon read as snow in the air,
+   and a curve bulging past its sprite box went unseen. */
+function quadPts(x0,y0,cx,cy,x1,y1,push){
+  for (const t of [0.2,0.4,0.6,0.8,1]){ const s=1-t; push(s*s*x0+2*s*t*cx+t*t*x1, s*s*y0+2*s*t*cy+t*t*y1); }
+}
 function grassWinterDraw(k,v,seed){
   const pts=[], caps=[], stream=[];
-  let tx=0, ty=0;
+  let tx=0, ty=0, px=0, py=0;
   const ctx=new Proxy({},{
     get(o,p){
       if(p in o)return o[p];
@@ -658,8 +664,8 @@ function grassWinterDraw(k,v,seed){
       if(p==='translate')return (a,b)=>{ tx+=a; ty+=b; };
       return (...a)=>{
         if(p==='ellipse'&&String(o.fillStyle).startsWith('rgba(240,244,250')){ caps.push([a[0]+tx,a[1]+ty]); return; }
-        if(p==='moveTo'||p==='lineTo'||p==='ellipse'||p==='arc'){ pts.push([a[0]+tx,a[1]+ty]); stream.push(String(p),a[0]+tx,a[1]+ty); }
-        if(p==='quadraticCurveTo'){ pts.push([a[2]+tx,a[3]+ty]); stream.push('q',a[2]+tx,a[3]+ty); }
+        if(p==='moveTo'||p==='lineTo'||p==='ellipse'||p==='arc'){ pts.push([a[0]+tx,a[1]+ty]); stream.push(String(p),a[0]+tx,a[1]+ty); px=a[0]; py=a[1]; }
+        if(p==='quadraticCurveTo'){ quadPts(px,py,a[0],a[1],a[2],a[3],(x,y)=>pts.push([x+tx,y+ty])); stream.push('q',a[2]+tx,a[3]+ty); px=a[2]; py=a[3]; }
       };
     },set(o,p,v){o[p]=v;return true;}
   });
@@ -694,8 +700,9 @@ test('snow does not disturb what a grass draws', () => {
 /* Everything a grass draw reaches, in the frame the sprite is baked in. Follows translate and scale
    as a canvas would, and reports what is left of the translate at the end. */
 function grassReachDraw(k,v,season,seed,growth){
-  const pts=[];
-  let tx=0, ty=0, sx=1, translated=0;
+  const pts=[], starts=[];
+  let tx=0, ty=0, sx=1, translated=0, px=0, py=0;
+  const at=(x,y)=>[(x+tx)*sx,y+ty];
   const ctx=new Proxy({},{
     get(o,p){
       if(p in o)return o[p];
@@ -703,13 +710,14 @@ function grassReachDraw(k,v,season,seed,growth){
       if(p==='translate')return (a,b)=>{ tx+=a; ty+=b; translated++; };
       if(p==='scale')return a=>{ sx*=a; };
       return (...a)=>{
-        if(p==='moveTo'||p==='lineTo') pts.push([(a[0]+tx)*sx,a[1]+ty]);
-        if(p==='quadraticCurveTo') pts.push([(a[2]+tx)*sx,a[3]+ty]);
+        if(p==='moveTo'){ pts.push(at(a[0],a[1])); starts.push(at(a[0],a[1])); px=a[0]; py=a[1]; }
+        if(p==='lineTo'){ pts.push(at(a[0],a[1])); px=a[0]; py=a[1]; }
+        if(p==='quadraticCurveTo'){ quadPts(px,py,a[0],a[1],a[2],a[3],(x,y)=>pts.push(at(x,y))); px=a[2]; py=a[3]; }
       };
     },set(o,p,val){o[p]=val;return true;}
   });
   drawPlant(ctx,0,0,k,growth===undefined?1:growth,season,seed,0,v||null,1);
-  return {pts,tx,ty,translated};
+  return {pts,starts,tx,ty,translated};
 }
 const GRASS_REFS=()=>PLANT_KEYS.filter(k=>PLANTS[k].type==='grass').flatMap(k=>[[k,null],...Object.keys(PLANTS[k].cv||{}).map(v=>[k,v])]);
 test('every grass stands on a crown, and nothing else does', () => {
@@ -720,14 +728,17 @@ test('every grass stands on a crown, and nothing else does', () => {
   }
 });
 test('a crown spreads a clump at the ground, where every blade used to leave one point', () => {
+  // Measured where strokes START near the ground: a cascade lays its blade tips on the ground too,
+  // and those would read as crown. Every grass, since a form that batches its strokes puts the
+  // crown into its own points rather than a translate the next test could count.
   const was=ART2.on;
   const baseWidth=k=>{
-    const near=grassReachDraw(k,null,'Summer',7).pts.filter(p=>Math.abs(p[1])<plantVisualH(PLANTS[k])*0.04), xs=near.map(p=>p[0]);
+    const near=grassReachDraw(k,null,'Summer',7).starts.filter(p=>Math.abs(p[1])<plantVisualH(PLANTS[k])*0.04), xs=near.map(p=>p[0]);
     return Math.max(...xs)-Math.min(...xs);
   };
   try { for (const mode of [true,false]){
     ART2.on=mode;
-    for (const k of ['bluestem','karl','miscanthus','switchgrass','fountaingrass','sesleria','sideoats','bigbluestem','mexicanfeather','hakone']){
+    for (const k of PLANT_KEYS.filter(k=>PLANTS[k].type==='grass')){
       const rx=grassCrownRx(PLANTS[k],k,1), crowned=baseWidth(k), L=PLANTS[k].look, keep=L.crownIn;
       assert(crowned>=rx*1.2,k+': blades rise across the crown, '+crowned+' against a half-width of '+rx);
       try { L.crownIn=0; assert(baseWidth(k)<crowned*0.6,k+': and without one they meet at the foot'); }
@@ -745,13 +756,13 @@ test('without a crown a form spends nothing on one', () => {
   assertEqual(grassCrownRx(PLANTS.whiteoak,'whiteoak',1),0,'a plant with no crownIn has no crown');
 });
 test('a crown always steps back, whichever way a form leaves its loop', () => {
-  // Oatgrass leaves a culm early when it has no head, which is every Spring.
+  // Oatgrass leaves a culm early when it has no head, which is every Spring. That a form uses its
+  // crown at all is the spread test above; the batched forms never translate.
   const was=ART2.on;
   try { for (const mode of [true,false]){
     ART2.on=mode;
     for (const [k,v] of GRASS_REFS()) for (const season of SEASONS){
       const r=grassReachDraw(k,v,season,101);
-      assert(r.translated>=2,k+': it stepped out at all');
       assert(Math.abs(r.tx)<1e-6&&Math.abs(r.ty)<1e-6,`${k}${v?':'+v:''} ${season}: left the canvas ${r.tx},${r.ty} off`);
     }
   } } finally { ART2.on=was; }
@@ -773,15 +784,6 @@ test('the sprite box holds every blade of a crowned grass, at every age', () => 
     }
   }
 });
-test('a grass whose wisps run wide has a sprite that holds them', () => {
-  // The wisps of a feather grass run past their stem tips; measured, Mexican Feather Grass cut
-  // its sides off in 9 of 9 sprites before it declared the reach.
-  for (const k of ['mexicanfeather','purpleneedlegrass']){
-    const P=PLANTS[k], L=P.look, H=plantVisualH(P);
-    const reach=H*(L.plumeLen*1.07*(L.plumeSpread)+0.25+0.2)+2.5+grassCrownRx(P,k,1)*0.7;
-    assert(plantDrawBox(P,k,1).halfW>=reach,`${k}: box ${plantDrawBox(P,k,1).halfW} holds a reach of ${reach}`);
-  }
-});
 test('Japanese Forest Grass shows flower stalks only while it flowers', () => {
   const count=(bloom)=>{ let n=0; const ctx=new Proxy({},{
       get(o,p){ if(p in o)return o[p];
@@ -790,6 +792,88 @@ test('Japanese Forest Grass shows flower stalks only while it flowers', () => {
       set(o,p,v){o[p]=v;return true;} });
     drawPlant(ctx,0,0,'hakone',1,'Summer',7,0,null,bloom); return n; };
   assertEqual(count(1)-count(0),3,'three stalks at full bloom and none outside it');
+});
+/* Every canvas call a draw makes, with the fill and stroke in force and the translate so far. */
+function grassOps(fn){
+  const ops=[]; let tx=0, ty=0;
+  const ctx=new Proxy({},{
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+      if(p==='translate')return (a,b)=>{ tx+=a; ty+=b; };
+      return (...a)=>{ ops.push({op:p,a,fill:o.fillStyle,stroke:o.strokeStyle,width:o.lineWidth,tx,ty}); };
+    },set(o,p,v){o[p]=v;return true;}
+  });
+  fn(ctx); return ops;
+}
+// moveTo then quadraticCurveTo: one blade or culm, as [x0,y0,cx,cy,x1,y1] in the canvas's frame
+function grassCurves(ops){
+  const out=[];
+  for (let i=0;i+1<ops.length;i++) if (ops[i].op==='moveTo'&&ops[i+1].op==='quadraticCurveTo'){
+    const m=ops[i], q=ops[i+1];
+    out.push({p:[m.a[0]+m.tx,m.a[1]+m.ty,q.a[0]+q.tx,q.a[1]+q.ty,q.a[2]+q.tx,q.a[3]+q.ty],stroke:q.stroke,width:q.width});
+  }
+  return out;
+}
+test('a grass panicle hangs its spikelets on stalks, from branches spread round the culm', () => {
+  // Giant feather grass, quaking grass, sea oats and blue oat grass drew a ladder of beads up the culm.
+  const L={panSpan:0.4,panBranches:7,panW:0.12,panRise:0.3,panDroop:0.6,panSpk:3,spkLen:5,spkW:1.2,spkPed:2};
+  const ops=grassOps(ctx=>drawGrassPanicle(ctx,L,0,0,0,-60,0,-100,100,'#c0a060','#806040',mulberry(7),null));
+  const stalks=[];
+  for (let i=0;i+1<ops.length;i++) if (ops[i].op==='moveTo'&&ops[i+1].op==='lineTo') stalks.push([ops[i].a,ops[i+1].a]);
+  assertEqual(stalks.length,7*3,'a stalk for every spikelet');
+  for (const [a,b] of stalks) assert(b[1]>a[1],'every spikelet hangs below where its stalk leaves the branch');
+  const xs=ops.filter(o=>o.op==='ellipse').map(o=>o.a[0]);
+  assert(Math.min(...xs)<-4&&Math.max(...xs)>4,'branches carry them out on both sides of the culm');
+});
+test('sideoats grama hangs its spikes down one side of the culm', () => {
+  const body=shade('#b8a88a',-10);
+  for (const dir of [1,-1]){
+    const ops=grassOps(ctx=>drawGrassPennants(ctx,{pennants:9,pennantFrom:0.5,spkLen:3.4,spkW:0.85},0,0,0,-50,0,-100,'#b8a88a',null,mulberry(3),dir,null));
+    const spikes=ops.filter(o=>o.op==='ellipse'&&o.fill===body);
+    assertEqual(spikes.length,9,'one spike for each pennant');
+    for (const s of spikes) assert(s.a[0]*dir>0,'every spike on the same side');
+  }
+});
+test('Japanese forest grass flows one way', () => {
+  // Fanned both ways from the middle it drew a flat two-way rosette.
+  const was=ART2.on;
+  try { ART2.on=false;
+    for (const seed of [7,101,4410]){
+      const blades=grassCurves(grassOps(ctx=>drawPlant(ctx,0,0,'hakone',1,'Summer',seed,0,null,0)));
+      assert(blades.length>=30,'every blade is one stroke');
+      const right=blades.filter(b=>b.p[4]>b.p[0]).length;
+      assert(right>=blades.length*0.9,`seed ${seed}: ${right} of ${blades.length} blades fall to the same side`);
+    }
+  } finally { ART2.on=was; }
+});
+test('a Miscanthus ribbon arches out and falls, and only the banded cultivars carry bands', () => {
+  // As vertgrass blades they were nine straight spears.
+  const was=ART2.on;
+  try { ART2.on=false;
+    const H=plantVisualH(PLANTS.miscanthus);
+    const ribbons=grassCurves(grassOps(ctx=>drawPlant(ctx,0,0,'miscanthus',1,'Summer',7,0,null,0)));
+    assert(ribbons.length>=30,'a fountain of ribbons');
+    const tips=ribbons.map(r=>r.p[4]);
+    assert(Math.min(...tips)<-H*0.25&&Math.max(...tips)>H*0.25,'they reach out on both sides');
+    const outer=ribbons.filter(r=>Math.abs(r.p[4]-r.p[0])>H*0.2), fall=r=>{
+      let top=0; for (let t=0;t<=1;t+=0.05){ const s=1-t; top=Math.min(top,s*s*r.p[1]+2*s*t*r.p[3]+t*t*r.p[5]); }
+      return r.p[5]-top;
+    };
+    assert(outer.filter(r=>fall(r)>H*0.08).length>=outer.length*0.6,'an outer ribbon comes down from the top of its arch');
+    const bands=k=>grassOps(ctx=>drawPlant(ctx,0,0,'miscanthus',1,'Summer',7,0,k,0)).filter(o=>o.op==='stroke'&&o.stroke==='#e4cf5e').length;
+    assertEqual(bands(null),0,'the species has no bands');
+    assert(bands('zebrinus')>0&&bands('strictus')>0,"'Zebrinus' and 'Strictus' do");
+  } finally { ART2.on=was; }
+});
+test('purple moor grass holds its narrow heads on wiry culms clear of the tuft', () => {
+  // The bead column on a short stem read as a lupine, or a grape hyacinth on 'Moorhexe'.
+  for (const k of ['moorhexe','purplemoorgrass']){
+    const P=PLANTS[k], L=P.look, H=plantVisualH(P), body=shade(P.sea.Summer.bloom,-10);
+    const heads=grassOps(ctx=>drawPlant(ctx,0,0,k,1,'Summer',7,0,null,1)).filter(o=>o.op==='ellipse'&&o.fill===body);
+    assert(heads.length>=L.stems*L.headBranches,k+': spikelets on every culm');
+    for (const h of heads) assert(h.a[1]+h.ty<-H*0.55,k+': every head above the tussock, which stands about half the height in flower');
+  }
 });
 test('Miscanthus names the wider evidence, in North America', () => {
   const g=plantGuidance({s:'miscanthus'}), srcs=g.invasive.map(n=>n.source);

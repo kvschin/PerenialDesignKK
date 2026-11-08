@@ -6829,8 +6829,25 @@ clovers — typical height in flower, `h` untouched; see the plant work log).
 **Grass catalog (0.9.88):** `docs/plant-data/grass-audit.md` is the audit: what Chicago Botanic
 Garden's trial of 109 grasses and Hoffman's catalog say, which species are missing, and what the
 drawings get wrong. `dev/grass-review.html` shows every grass as a drift and at true scale, and `?check`
-sweeps the sprites and the library and tray pictures. Steps 1 and 2 have shipped; the rebuilt forms and the
-missing species are still open.
+sweeps the sprites and the library and tray pictures. Steps 1-3 have shipped; the missing species and
+site headings are still open.
+**The rebuilt forms (0.9.90) are opt-in by `look`**, so a grass that does not ask draws as before. On
+`oatgrass`, `headStyle:'panicle'` hangs spikelets on stalks from branches spread round the culm
+(`drawGrassPanicle`: `panSpan`, `panBranches`, `panW`, `panRise`, `panDroop`, `panSpk`, `spkLen`, `spkW`,
+`spkPed`, `spkAwn`, `spkShape` 'flat'|'locket') and `'pennant'` hangs spikes down one side
+(`drawGrassPennants`), both through `drawHeadedCulms` (`stemLen`, `stemFan`, `culmNod`, `culmLeaves`);
+`foliage:'dome'` is a hedgehog (`drawGrassDome`, `domeSpread`/`domeLift`/`domeLow`/`domeUp`/`domeDroop`) and
+`leafArch` bows a fan's blades over. `moorgrass` takes `headStyle` 'spike' or 'narrow' on culms held clear
+(`culmLen`), `feathergrass` a `habit:'mop'` of threads (`drawGrassMop`) or panicle culms, `forestgrass` a
+one-way cascade (`flowAz`, `flowSpread`), and `vertgrass` `fountain:true` (`drawGrassFountain`: `ribbons`,
+`ribbonLen`/`Spread`/`Droop`/`W`, `bands`, with `culms` and `culmLen` for the plumes, `plumeStyle:'silk'`).
+**A batched form cannot draw inside the crown's translate**, so it calls `grassCrownAt` and adds `_crX`,`_crY`
+to its own points; anything a form pushes for snow while it IS translated needs the same offset, or the caps
+land off the plant. Space leaves all round by even steps of ANGLE, not of depth: even depth steps leave
+nothing pointing at the viewer and the middle of a dome goes hollow. A thread that should read as one line
+is one polyline: the shared thread batch starts every segment with its own `moveTo`, which the crown test
+reads as a stroke starting mid-air. The grass test recorders sample each quadratic along its length,
+since endpoints alone hid a curve bulging past its box and called snow on a ribbon's middle "in the air".
 **Every grass stands on a crown** (0.9.89): `look.crownIn` is the clump's width at the ground in real inches,
 and each blade and culm steps out to its own place on that ellipse and back (`grassCrownRx`, `grassCrownIn`,
 `grassCrownOut`, draw.js), so no form's geometry moved: with no plant opted in, every drawing matched 0.9.88

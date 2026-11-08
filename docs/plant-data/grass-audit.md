@@ -1,8 +1,8 @@
 # Grass audit
 
 Audited November 7, 2026, against the catalog at 0.9.87: 40 records in the Grasses category, with
-45 cultivars. The data fixes, bugs and snow shipped in 0.9.88. A crown for every grass, the rebuilt forms
-and the missing species are still open, in the order at the end.
+45 cultivars. The data fixes, bugs and snow shipped in 0.9.88, a crown for every grass in 0.9.89, and the
+rebuilt forms in 0.9.90. The missing species and site headings are still open, in the order at the end.
 
 `dev/grass-review.html` is the page used for all of it. It shows every grass in four seasons, as a
 drift, and at true scale beside a 6 ft post. It takes `?base`, `?form=vertgrass`, `?only=`, `?check`
@@ -196,7 +196,7 @@ The Miscanthus seed counts are one year at one site, in 2010, so zero is not pro
 ### Made worse until step 3
 
 'Moorhexe' and Purple Moor Grass are now the right height, so the hyacinth they draw as is a bigger hyacinth. Their
-form is rebuilt in step 3.
+form is rebuilt in step 3. (Done in 0.9.90.)
 
 ## Shipped in 0.9.89
 
@@ -320,6 +320,109 @@ bake count does not move. The sprites are 7-9% bigger, which is the room at the 
 blit is what that costs. The procedural frame swung between 92 and 162ms from run to run in both builds, so it is not
 read here; the single-draw figures above are the measure of it.
 
+## Shipped in 0.9.90
+
+Step 3: the forms that drew the wrong plant. Each new drawing is chosen by `look`, so a grass that does not ask for
+one draws exactly as it did; the 25 grasses outside this list are untouched.
+
+### What each one became
+
+- **A hanging panicle** (`headStyle:'panicle'`, `drawGrassPanicle`). Branches leave the top of the culm, point all round
+  it, spread and droop, and every spikelet hangs from a fine stalk; a branch pointing at the viewer comes out short and
+  the far ones go a shade darker. Giant Feather Grass is a see-through veil of golden oats with long awns, held on
+  eleven culms over a low arching mound. Quaking Grass dangles plump lockets (`spkShape:'locket'`). Sea Oats nods its
+  culms over (`culmNod`), carries its broad leaves up them (`culmLeaves`), and turns some spikelets edge-on
+  (`spkShape:'flat'`) so they read as flat. Blue Oat Grass and Purple Needlegrass carry narrow nodding panicles, the
+  needlegrass with long awns.
+- **Pennants** (`headStyle:'pennant'`, Sideoats Grama). Short spikes hang down one side of each culm, the curtipendula
+  of its name, with the anthers under them in flower.
+- **A dome** (`foliage:'dome'`, Blue Oat Grass and Blue Fescue, which moved from `bunchgrass` to `oatgrass`). Stiff leaves
+  radiate from a tight crown: near level at the rim, upright in the middle, the near ones coming down the screen. Each
+  is a tapered three-segment curve lit by where its tip sits on the dome, laid back half first. Leaves are spaced by
+  angle, not by depth: by depth, nothing pointed at the viewer and the middle went hollow.
+- **Moor grass heads** (`moorgrass` `headStyle`). Culms held clear of the tuft, at the stated flowering height. Autumn
+  Moor Grass, Prairie Junegrass and Blue Moor Grass carry one lit spike along the culm, the first with its pale anthers.
+  The two Molinias are a brush of wiry culms, 18 on 'Moorhexe' and 14 looser on the species, each topped with a narrow
+  panicle of short branches pressed to the axis.
+- **A mop** (`habit:'mop'`, Mexican Feather Grass). Hair-fine threads rise from the crown and fall over all round, green
+  leaves under blond panicles; each thread is one polyline, lit by where its tip sits.
+- **A one-way cascade** (`forestgrass`, Japanese Forest Grass and its cultivars). Blades rise, arch and spill to the
+  same side, those from the back of the crown highest and laid last, so the top of the wave lies over the skirt. The
+  flow points right and a little toward the viewer in every clump, as a planting of it flows toward the light. The
+  blades are narrower, so one pointing at the viewer no longer reads as a slab, and the flower stalks lean with the
+  flow among the leaves instead of standing out of the mound.
+- **A fountain** (`vertgrass` `fountain:true`, Miscanthus and its six cultivars). Ribbons with a pale midrib rise from
+  the crown, arch out and fall, the outer ones furthest; the culms carry only the plumes, which are a fan of silky
+  racemes (`plumeStyle:'silk'`) where the old fan read as a shuttlecock. 'Zebrinus' and 'Strictus' have their gold
+  bands, and greener leaves now the bands carry the gold; 'Gracillimus' and 'Morning Light' have finer ribbons.
+
+### What it did
+
+Measured with the same harness as before, in the real renderer: width in Fall, drift in Summer, height in Fall against
+the height in flower the record states.
+
+| Grass | Drift % | Width | Height, ft |
+| --- | --- | --- | --- |
+| Giant Feather Grass | 99 → 97 | 0.80 → 1.01 | 6.9 → 6.6, of 6.0 |
+| Quaking Grass | 81 → 83 | 1.34 → 1.51 | 2.1 → 2.4, of 2.5 |
+| Northern Sea Oats | 98 → 91 | 0.88 → 1.26 | 3.9 → 3.6, of 3.5 |
+| Sideoats Grama | 89 → 84 | 1.17 → 1.08 | 2.7 → 2.8, of 2.5 |
+| Blue Oat Grass | 95 → 98 | 1.00 → 1.10 | 3.3 → 3.2, of 3.5 |
+| Blue Fescue | 72 → 48 | 1.37 → 1.20 | 0.9 → 0.9, of 1.0 |
+| Mexican Feather Grass | 89 → 92 | 1.38 → 1.13 | 1.9 → 2.0, of 1.8 |
+| Purple Needlegrass | 72 → 80 | 1.17 → 0.84 | 2.0 → 2.8, of 3.0 |
+| Autumn Moor Grass | 80 → 84 | 1.42 → 1.42 | 1.5 → 1.8, of 1.7 |
+| Blue Moor Grass | 65 → 61 | 1.16 → 1.12 | 1.2 → 1.1, of 1.0 |
+| 'Moorhexe' | 94 → 84 | 0.79 → 0.72 | 3.0 → 3.1, of 3.0 |
+| Purple Moor Grass | 94 → 83 | 0.91 → 0.84 | 2.9 → 3.1, of 3.0 |
+| Prairie Junegrass | 65 → 61 | 1.28 → 1.28 | 1.7 → 1.6, of 1.5 |
+| Japanese Forest Grass | 76 → 89 | 1.21 → 0.82 | 1.3 → 1.6, of 1.5 |
+| Miscanthus | 99 → 100 | 0.93 → 0.97 | 7.8 → 6.8, of 6.0 |
+
+Blue Fescue is the one that loses ground, and that is the trade it was given: a tight hemisphere on an 18 in tile
+covers less of it than a fan splayed flat, and 48% is nearer what a 12 in clump on that spacing really covers. The
+Molinias lose some because their culms are now held up where the heads belong, not packed into the tuft, and the
+species' tussock came down to about half its height in flower, as its sources and its own blurb describe it. Purple
+Needlegrass and Japanese Forest Grass reach their stated height, which they fell well short of. Miscanthus comes down a
+foot to near its 6 ft, and Giant Feather Grass and Sea Oats closer to theirs.
+
+### How it was checked
+
+- Real pixels: 2,040 sprites with no ink on their border and 680 library cards and tray pictures with nothing cut off,
+  in the default renderer. The Classic renderer clips five library cards of Little Bluestem 'Carousel' and Prairie
+  Dropseed, exactly as 0.9.89 does; none of the rebuilt grasses. Eight choices carry a new or re-measured `sideScale`,
+  four of them smaller than before, since the new drawings reach less far than the old ones did.
+- New tests hold that a panicle's spikelets hang below their stalks from branches on both sides of the culm, that
+  Sideoats hangs its spikes down one side, that Japanese Forest Grass flows one way, that a Miscanthus ribbon reaches out
+  and falls with bands only on the banded cultivars, and that the Molinia heads stand above the leaves. Eight deliberate
+  breaks each fail one.
+- The crown test now runs over every grass, measured where strokes start, and the test recorders sample each curve along
+  its length rather than keeping only its end, which makes the sprite-box and snow tests stricter for all 40 grasses.
+
+### What it costs
+
+Against 0.9.89, in one headless browser, alternating three rounds, best of each: one procedural draw of every grass
+choice in Spring, Summer and Winter goes 8.76 to 9.06ms, 17.19 to 17.66 and 17.21 to 17.78, about 3%, which is near
+the run-to-run spread of the untouched grasses. Underneath that the forms moved both ways. Miscanthus and its
+cultivars, Giant Feather Grass and Sea Oats roughly double, to about 0.2ms a draw, for their ribbons, veils and leafy
+culms; Japanese Forest Grass goes up a third. The batched forms got cheaper: Mexican Feather Grass 0.24 to 0.07ms a
+draw, Prairie Junegrass by 43%, Purple Needlegrass by a third, the blue fescues and Blue Oat Grass by a quarter to a
+third, and the other moor grasses by 2-19%.
+
+`dev/ff-bench.cjs` on the all-grass demo garden (323 plants, 2-year hold, alternating, the same bench in both):
+
+| | 0.9.89 | 0.9.90 |
+| --- | --- | --- |
+| Desktop sprite frame, 3 runs | 5.36, 5.27, 5.29ms | 5.11, 5.07, 4.89ms |
+| Desktop, while baking (Spring, Summer, Fall, Winter, mean of 3) | 7.41, 7.48, 6.72, 7.68ms | 7.25, 7.22, 6.38, 7.52ms |
+| Bakes a frame, Summer | 7.4 | 7.3 |
+| Desktop cache peak, of 48MB | 17.7MB | 17.6MB |
+| Phone sprite frame, 1 run | 4.84ms | 4.74ms |
+| Phone cache peak, of 48MB | 38.6MB | 38.3MB |
+
+So nothing on the path a garden actually draws, and a little back: the re-measured `sideScale` values made the widest
+grass sprites smaller, which is what a blit costs. The bake count does not move.
+
 ## How they look
 
 Measured on 0.9.87, before any of the above, in the real renderer at full growth, in Fall, on a neutral grey backdrop with the cast shadow gated
@@ -374,9 +477,10 @@ good across the tab.
    form already takes `foliageHeight`: Karl and Indiangrass do not set it, and 'Overdam' sets 0.72 where Hoffman
    gave about 0.3. Fixed in 0.9.88 for those three, by data alone; the rest of `vertgrass` is close.
 5. **Blades do not arch.** `vertgrass` puts its control point on the line, so Miscanthus cannot fall over.
+   Fixed for Miscanthus in 0.9.90, which draws ribbons that arch and fall.
 6. **Cultivars differ mostly by colour.** 'Zebrinus' and 'Strictus' have no bands, though the note promises them;
    'Morning Light' has no pale margins; 'Overdam' has so pale a `fol` that it reads as straw in Summer, where Chicago
-   gives it green with cream margins.
+   gives it green with cream margins. 'Overdam' fixed in 0.9.88; the bands and the paler, finer 'Morning Light' in 0.9.90.
 
 ### Cost
 
@@ -413,7 +517,7 @@ has the detail. The timed-out 3-year runs fit, since a slowed run needs far more
    foliage on the low species so a drift knits. Shipped in 0.9.89.
 3. **Rebuild the wrong forms:** a dangling open panicle in `oatgrass` for Giant Feather Grass, Quaking Grass, Sea Oats
    and Sideoats; a dome for Blue Oat Grass and Blue Fescue; a real `moorgrass`; a mop for `feathergrass`; a one-way
-   cascade for `forestgrass`; arching ribbons with bands for Miscanthus.
+   cascade for `forestgrass`; arching ribbons with bands for Miscanthus. Shipped in 0.9.90.
 4. **The missing species,** after step 3, so new records use the new drawing. Bottlebrush Grass needs its bristly
    head, and the sedges' `brush` may serve.
 5. **Site headings on the tab,** as sedges have, once it passes 50 or so records.
