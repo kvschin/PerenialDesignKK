@@ -2,8 +2,8 @@
 
 Audited November 7, 2026, against the catalog at 0.9.87: 40 records in the Grasses category, with
 45 cultivars. The data fixes, bugs and snow shipped in 0.9.88, a crown for every grass in 0.9.89, and the
-rebuilt forms in 0.9.90, and the twelve "Add first" species in 0.9.91. The rest of the missing species and the site
-headings are still open, in the order at the end.
+rebuilt forms in 0.9.90, the twelve "Add first" species in 0.9.91 and the ten European and design grasses in 0.9.92.
+"Worth adding next", the cultivars and the site headings are still open, in the order at the end.
 
 `dev/grass-review.html` is the page used for all of it. It shows every grass in four seasons, as a
 drift, and at true scale beside a 6 ft post. It takes `?base`, `?form=vertgrass`, `?only=`, `?check`
@@ -104,7 +104,7 @@ All twelve shipped in 0.9.91; see below.
 ### Europe and design grasses
 
 These are named by few of the lists read, because few European lists could be read. They are in common use
-by designers, so read them on their own terms rather than by count.
+by designers, so read them on their own terms rather than by count. All ten shipped in 0.9.92; see below.
 
 | Plant | Evidence |
 | --- | --- |
@@ -503,6 +503,61 @@ One procedural draw measures 0.13-0.49ms, against 0.51 for Switchgrass, the cost
 existing plant draws differently, a garden without the new grasses costs exactly what it did, and a frame-time A/B
 would measure nothing.
 
+## Shipped in 0.9.92
+
+Step 4, second batch: the ten of "Europe and design grasses". Seven are European natives: Silver Spike Grass
+(*Achnatherum calamagrostis*), Nest and Silver Moor Grass (*Sesleria nitida*, *S. argentea*), Bowles' Golden Grass
+(*Milium effusum* 'Aureum', a selection of wood millet, which is native across the north), Large Blue Fescue (*Festuca
+amethystina*), Silky-spike Melic (*Melica ciliata*) and Mauritania Vine Reed (*Ampelodesmos mauritanicus*). The other
+three are design staples from elsewhere: Greenlee's Moor Grass, a garden hybrid with no wild range, Pheasant's Tail Grass
+from New Zealand and Common Tussock Grass from Australia. Sources and reasoning are in the `europe` batch of
+`docs/plant-data/grass-sources.json`.
+
+| | 0.9.91 | 0.9.92 |
+| --- | --- | --- |
+| Records | 52 | 62 |
+| Straight species native to North America / Europe / Asia / Australasia | 36 / 9 / 6 / 1 | 36 / 15 / 8 / 3 |
+| Moisture: dry / medium / moist | 24 / 22 / 6 | 31 / 25 / 6 |
+| Light: full / part | 42 / 10 | 49 / 13 |
+| Species per zone, 3 to 11 | 11, 29, 39, 44, 47, 52, 41, 12, 1 | 11, 33, 46, 51, 54, 62, 45, 15, 1 |
+
+**Sources.** The European half was the audit's weak half, and still leans on one UK nursery: Knoll Gardens gave height,
+flowering and habit for nine of the ten, the RHS sizes and ranges for all ten, and Digging Dog, a Californian nursery, US
+zones for eight. A European source gives no USDA zone at all, and the RHS's hardiness ratings are its own scale, so the
+zones lean on US nurseries and on NC State where it had a page. Two disagreements worth knowing: the RHS rates Silver Spike
+Grass H4 (to -10 C) and Digging Dog zone 7, where High Country Gardens and Jelitto, the German seed house, give 5-8, which
+fits a plant of the Alps; and the RHS gives Pheasant's Tail Grass's range as Taiwan, where it is endemic to New Zealand.
+Still not read: any German or Dutch nursery.
+
+**Drawing.** No new form or option. The three Seslerias are `moorgrass` spikes and join Autumn and Blue Moor Grass on one
+card; Silver Spike Grass, Pheasant's Tail Grass, Tussock Grass and the Vine Reed stand the step 4 oatgrass fountain under
+hanging panicles; Large Blue Fescue is the Blue Fescue dome, finer and floppier under violet stems; Bowles' Golden Grass
+is a fan of broad gold leaves under an airy panicle; Silky-spike Melic is `vertgrass` with narrow, nodding cream spikes.
+
+| Grass | Drift % | Width | Height, ft |
+| --- | --- | --- | --- |
+| Silver Spike Grass | 98 | 0.83 | 3.0, of 3.0 |
+| Nest Moor Grass | 67 | 1.09 | 2.1, of 1.8 |
+| Silver Moor Grass | 83 | 1.42 | 1.9, of 1.7 |
+| Greenlee's Moor Grass | 86 | 1.13 | 1.4, of 1.2 |
+| Bowles' Golden Grass | 75 | 1.21 | 2.0, of 1.7 |
+| Pheasant's Tail Grass | 98 | 0.89 | 2.9, of 2.5 |
+| Large Blue Fescue | 75 | 1.93 | 1.9, of 1.7 |
+| Silky-spike Melic | 74 | 1.25 | 2.7, of 2.0 |
+| Mauritania Vine Reed | 100 | 1.17 | 7.5, of 7.0 |
+| Common Tussock Grass | 98 | 1.05 | 3.6, of 3.3 |
+
+Large Blue Fescue draws nearly twice its stated spread across, for the reason Blue Fescue does: a 12 in clump's leaves
+flop out past it, and the dome reads by its silhouette. Nest Moor Grass covers the least ground, as a stiff, upright tuft
+should.
+
+**Checks.** No existing line of plant data or drawing code changed, so every other plant draws exactly as in 0.9.91. All 62
+grasses: 2,592 sprites with no ink on their border and 864 library and tray pictures with nothing cut off, the Classic
+renderer's five old clips aside. Three choices carry a `sideScale` measured off their reach. The sources test now covers
+both batches, and holds the European one to seven natives, a hybrid with no range and a selection; five deliberate breaks
+each fail it or the calendar test. Neither EASIN nor Cal-IPC lists any of the ten. One procedural draw is 0.15-0.27ms,
+against Miscanthus's 0.21.
+
 ## How they look
 
 Measured on 0.9.87, before any of the above, in the real renderer at full growth, in Fall, on a neutral grey backdrop with the cast shadow gated
@@ -601,5 +656,5 @@ has the detail. The timed-out 3-year runs fit, since a slowed run needs far more
 4. **The missing species,** after step 3, so new records use the new drawing. The "Add first" twelve shipped in
    0.9.91, Bottlebrush Grass with a bristle head of its own. The sedges' `brush` did not serve: it is a glyph a few
    pixels long with short awns, where these heads are a fifth of the culm with awns longer than their spikelets.
-   Next are the European and design grasses, where the catalog is thinnest, then "Worth adding next" and the cultivars.
-5. **Site headings on the tab,** as sedges have, once it passes 50 or so records. It is at 52.
+   The European and design grasses followed in 0.9.92. Next are "Worth adding next" and the cultivars.
+5. **Site headings on the tab,** as sedges have, once it passes 50 or so records. It is at 62.

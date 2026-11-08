@@ -6829,9 +6829,12 @@ clovers — typical height in flower, `h` untouched; see the plant work log).
 **Grass catalog (0.9.88):** `docs/plant-data/grass-audit.md` is the audit: what Chicago Botanic
 Garden's trial of 109 grasses and Hoffman's catalog say, which species are missing, and what the
 drawings get wrong. `dev/grass-review.html` shows every grass as a drift and at true scale, and `?check`
-sweeps the sprites and the library and tray pictures. Steps 1-3 have shipped, and the first batch of
-step 4 (0.9.91): the twelve "Add first" species, sourced in `docs/plant-data/grass-sources.json`. The
-European and design grasses and the site headings are still open.
+sweeps the sprites and the library and tray pictures. Steps 1-3 have shipped, and two batches of
+step 4: the twelve "Add first" species (0.9.91) and the ten European and design grasses (0.9.92), both
+sourced in `docs/plant-data/grass-sources.json` by `batch`. "Worth adding next", the missing cultivars
+and the site headings are still open. **A European nursery gives no USDA zone**, and the RHS's H ratings
+are its own scale, so a European grass takes its zones from a US nursery (Digging Dog states one for
+most) or NC State, with Knoll and the RHS for size and season.
 **Step 4 added three opt-in pieces**: `headStyle:'bristle'` (`drawGrassBristles`: `brushSpan`,
 `brushNodes`, `brushAngle`, `spkLen`, `spkAwn`, `awnCurl`), pairs of awned spikelets standing off the
 culm, out near level for Bottlebrush Grass and close in for Canada Wild Rye; `foliage:'fountain'` on

@@ -209,3 +209,27 @@ later runs do not redo or touch the same records.
   sandcordgrass .8, prairiecordgrass .69, beakgrass .79, rubymuhly .82, undaunted 1.04.
 - Next: the European and design grasses (Stipa calamagrostis, the Seslerias, Milium 'Aureum' and the rest), where the tab
   is thinnest, then step 5, site headings, now the tab is at 52.
+
+## 2026-11-08 — grass audit, step 4, European and design grasses (0.9.92)
+
+- Direct to master. The ten of the audit's "Europe and design grasses" table. Sizes, zones, ranges and bloom months are
+  sourced, with the reasoning per plant in the `europe` batch of `docs/plant-data/grass-sources.json`; colours and
+  drawing values are judgement against photographs.
+- Knoll Gardens (product pages answer a plain fetch; their slugs come from the planting-area pages, and two are odd:
+  `achnatherum-stipa-allgau`, `ampelodesmos-mauritanica`) gave height, flowering and habit for nine. The RHS
+  (`/plants/<id>/wd/details`, ids from a search) gave size, hardiness rating and range for all ten. Digging Dog
+  (`diggingdog.com/plant.php/G-nnnn`, ids from its genus pages) gave US zones, sizes and bloom months for eight. Hoffman
+  stocks only 'Greenlee Hybrid'. NC State answered for Festuca amethystina and Melica ciliata and 404'd the rest.
+- Decisions: Silver Spike Grass 5-8 (High Country Gardens and Jelitto) against Digging Dog's 7 and the RHS's H4. Tussock
+  Grass 8-10 from the RHS's H4 and Plant Lust's 8a-11. Pheasant's Tail Grass is New Zealand's, though the RHS page says
+  Taiwan. Bowles' Golden Grass is a base record for the selection, `provenance:'selection'`, with wood millet's range,
+  rather than a wood millet record nobody grows. 'Greenlee Hybrid' is a hybrid with no wild range.
+- Groups: the three Seslerias join `moorgrass` (chips Nest, Silver, Greenlee).
+- Drawing: no new code. Seslerias `moorgrass` spikes; silverspikegrass, pheasantstailgrass (with orange `folTip`),
+  tussockgrass and vinereed `foliage:'fountain'` under `headStyle:'panicle'`; largebluefescue the dome (crownIn 9, since 7
+  failed the crown test on a plant twice Blue Fescue's height); bowlesgoldengrass a fan of broad gold leaves under an airy
+  panicle; silkyspikemelic `vertgrass` with a narrow nodding `'spike'` plume (the `'fan'` plume drew pampas).
+- `sideScale`: silverspikegrass .72, pheasantstailgrass .94, tussockgrass .7.
+- One procedural draw is 0.15-0.27ms. The measuring harness once reported 9ms for Pheasant's Tail Grass; the review
+  page's own bench, run twice, gives 0.23-0.25ms, so that was the harness.
+- Next: "Worth adding next" and the missing cultivars, then step 5, site headings, now the tab is at 62.
