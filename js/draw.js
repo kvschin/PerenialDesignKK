@@ -4177,29 +4177,68 @@ function drawGrassPanicle(ctx,L,x0,y0,cx,cy,x1,y1,H,col,stemCol,rnd,sn){
   if (sn) sn.push([x1+_crX,y1+_crY,2.2]);
 }
 /* Sideoats grama: a row of short spikes hanging down ONE side of the culm, the curtipendula of its
-   name. The bead ladder put them on both sides, straight up. In flower each shows its anthers. */
+   name. The bead ladder put them on both sides, straight up. In flower each shows its anthers.
+   `pennantUp` is the cordgrasses' head instead: short spikes held UP against the culm on both sides,
+   alternately, each a comb with its spikelets to one side, which at this scale is a narrow upright
+   spike standing off a short stalk. */
 function drawGrassPennants(ctx,L,x0,y0,cx,cy,x1,y1,col,anther,rnd,dir,sn){
-  const n=L.pennants||14, from=L.pennantFrom||0.45, len=L.spkLen||3.4, wid=L.spkW||0.9;
+  const n=L.pennants||14, from=L.pennantFrom||0.45, len=L.spkLen||3.4, wid=L.spkW||0.9, up=!!L.pennantUp;
   ctx.strokeStyle=shade(col,-18); ctx.lineWidth=0.45; ctx.beginPath();
   let m=0;
   for (let i=0;i<n;i++){
     const t=from+(1-from)*(n>1?i/(n-1):1), ax=qBez(t,x0,cx,x1), ay=qBez(t,y0,cy,y1);
-    const ox=dir*(0.7+rnd()*0.9), hang=0.6+rnd()*0.7;
-    ctx.moveTo(ax,ay); ctx.lineTo(ax+ox,ay+hang);
-    if (m<PAN_MAX){ const r=wid*(0.85+rnd()*0.3);
-      _pnX[m]=ax+ox+dir*0.35; _pnY[m]=ay+hang+len*0.5; _pnR[m]=r; _pnS[m]=len*0.5/r; m++; }
+    const d=up&&i%2?-dir:dir, ox=d*(up?0.5+rnd()*0.7:0.7+rnd()*0.9), hang=0.6+rnd()*0.7;
+    ctx.moveTo(ax,ay); ctx.lineTo(ax+ox,up?ay-hang:ay+hang);
+    if (m<PAN_MAX){ const r=wid*(0.85+rnd()*0.3), l=up?len*(1-0.4*t*t)*(0.85+rnd()*0.3):len;   // a hanging pennant spends no number on it
+      _pnX[m]=ax+ox+d*0.35; _pnY[m]=up?ay-hang-l*0.5:ay+hang+l*0.5; _pnR[m]=r; _pnS[m]=l*0.5/r; _pnF[m]=d>0?1:0; m++; }
   }
   ctx.stroke();
   for (let i=0;i<m;i++) fcPush(_pnX[i],_pnY[i],_pnR[i],_pnS[i]);
   fcDraw(ctx,col,20,-10);
   if (anther){
-    for (let i=0;i<m;i+=1) fcPush(_pnX[i]+dir*0.5,_pnY[i]+_pnR[i]*_pnS[i]+0.6,0.55,1.3);
+    // a pennant shows its anthers under it; a spike held up shows them down its open side
+    for (let i=0;i<m;i+=1){ const d=up?(_pnF[i]?1:-1):dir;
+      fcPush(_pnX[i]+d*(up?_pnR[i]*0.9:0.5),up?_pnY[i]:_pnY[i]+_pnR[i]*_pnS[i]+0.6,0.55,1.3); }
     fcDraw(ctx,anther,10,-4);
   }
   if (sn){ sn.push([x1+_crX,y1+_crY,2.2]); sn.push([qBez(0.7,x0,cx,x1)+_crX,qBez(0.7,y0,cy,y1)+_crY,2.2]); }
 }
-/* Culms that each carry a head: `headStyle` 'panicle' or 'pennant'. `culmNod` bends the top over
-   so the head hangs (sea oats, blue oat grass); `stemFan` leans them apart into a vase. */
+/* Bottlebrush grass and the wild ryes: a spike whose spikelets stand off the top of the culm in
+   pairs, each drawn out into a long awn, so the head bristles. `brushSpan` is how much of the culm
+   it takes and `brushNodes` its joints; the two spikelets at a joint point round the axis, so some
+   go behind it. `brushAngle` is how far they stand off: bottlebrush grass holds them out nearly
+   level, which is the bottle brush, and Canada wild rye close in under awns that `awnCurl` bends
+   out and down. The far spikelets go down first and a shade darker, then the awns, then the near
+   ones: three strokes a head whatever the count. */
+function drawGrassBristles(ctx,L,x0,y0,cx,cy,x1,y1,col,rnd,sn){
+  const span=L.brushSpan||0.3, nodes=Math.max(3,L.brushNodes||9), ang=L.brushAngle===undefined?1.2:L.brushAngle;
+  const sl=L.spkLen||2.6, aw=L.spkAwn===undefined?5:L.spkAwn, curl=L.awnCurl||0, t0=1-span;
+  for (let j=0;j<nodes;j++){
+    const f=(j+0.5)/nodes, t=t0+span*f, ax=qBez(t,x0,cx,x1), ay=qBez(t,y0,cy,y1);
+    let dx=2*(1-t)*(cx-x0)+2*t*(x1-cx), dy=2*(1-t)*(cy-y0)+2*t*(y1-cy);
+    const d=Math.hypot(dx,dy)||1; dx/=d; dy/=d;
+    const taper=1-0.3*Math.abs(2*f-1);           // shorter at both ends of the spike
+    for (let s=0;s<2;s++){
+      const az=j*2.39996+s*Math.PI+rnd()*0.6, hx=Math.cos(az), dz=Math.sin(az);
+      const a=ang*(0.85+rnd()*0.3), ca=Math.cos(a), sa=Math.sin(a);
+      // along the axis by cos(a), out round it by sin(a); the depth part drops a little down the screen
+      const ux=dx*ca-dy*sa*hx, uy=dy*ca+dx*sa*hx+sa*dz*0.35;
+      const l=sl*taper*(0.85+rnd()*0.3), al=aw*taper*(0.8+rnd()*0.4);
+      const sx=ax+ux*l, sy=ay+uy*l, mx=sx+ux*al*0.5, my=sy+uy*al*0.5+curl*al*0.15;
+      thrPush(dz>0?1:0,ax,ay,sx,sy);
+      if (al>0){ thrPush(2,sx,sy,mx,my); thrPush(2,mx,my,mx+ux*al*0.5+curl*al*0.12*Math.sign(ux||1),my+uy*al*0.5+curl*al*0.4); }
+    }
+    if (sn && j===(nodes>>1)) sn.push([ax+_crX,ay+_crY,2.2]);
+  }
+  ctx.lineCap='round'; ctx.lineWidth=L.spkW||1;
+  thrStroke(ctx,0,shade(col,-18));
+  const ga=ctx.globalAlpha; ctx.globalAlpha=ga*0.75; ctx.lineWidth=0.42;
+  thrStroke(ctx,2,shade(col,12)); ctx.globalAlpha=ga;
+  ctx.lineWidth=L.spkW||1; thrStroke(ctx,1,col);
+  if (sn) sn.push([x1+_crX,y1+_crY,2.2]);
+}
+/* Culms that each carry a head: `headStyle` 'panicle', 'pennant' or 'bristle'. `culmNod` bends the
+   top over so the head hangs (sea oats, blue oat grass); `stemFan` leans them apart into a vase. */
 function drawHeadedCulms(ctx,L,S,H,crownRx,rnd,sway,a2,head,bloom,sn,snow){
   const culmCol=shade(S.fol?mixHex(S.fol,head,L.culmTint===undefined?0.45:L.culmTint):head,-14);
   const nod=L.culmNod||0, fan=L.stemFan===undefined?0.4:L.stemFan;
@@ -4215,6 +4254,7 @@ function drawHeadedCulms(ctx,L,S,H,crownRx,rnd,sway,a2,head,bloom,sn,snow){
     if (L.culmLeaves && S.fol) drawCulmLeaves(ctx,L,S,H,bx,0,cx,cy,x1,y1,rnd,a2);
     // the spikes keep their own colour and the bloom is the anthers hanging under them
     if (L.headStyle==='pennant') drawGrassPennants(ctx,L,bx,0,cx,cy,x1,y1,S.seed||head,bloom,rnd,dir,snow);
+    else if (L.headStyle==='bristle') drawGrassBristles(ctx,L,bx,0,cx,cy,x1,y1,head,rnd,snow);
     else drawGrassPanicle(ctx,L,bx,0,cx,cy,x1,y1,H,head,shade(culmCol,6),rnd,snow);
     grassCrownOut(ctx);
   }
@@ -5187,6 +5227,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const L=P.look||{}, a2=art2On(L);
     const snow=grassSnowOn(season,mature);
     if (L.foliage==='dome'){ if (S.fol) drawGrassDome(ctx,L,S,H,crownRx,rnd,stemFor,snow); }
+    // the cordgrasses and California fescue: Miscanthus's arching ribbons under a head of their own
+    else if (L.foliage==='fountain'){ if (S.fol) drawGrassFountain(ctx,L,S,H,crownRx,rnd,stemFor,a2,snow); }
     else {
     const n=stemFor(L.leaves||9), leafFan=L.leafFan===undefined?1.4:L.leafFan;
     // leafArch lets a blade bow over and fall; at 0 the geometry is exactly the stiff blade
@@ -5212,7 +5254,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     // combs / dangling spikelets tint to the fresh bloom colour while blooming,
     // then read as tan seed. A no-op for any oatgrass season without a bloom.
     const sn=stemFor(L.stems||5), oat=(blooming?S.bloom:null)||S.seed;
-    if (L.headStyle==='panicle'||L.headStyle==='pennant'){
+    if (L.headStyle==='panicle'||L.headStyle==='pennant'||L.headStyle==='bristle'){
       // A culm here is only drawn while it carries a head: in Spring, before it flowers, there is none.
       if (oat && mature) drawHeadedCulms(ctx,L,S,H,crownRx,rnd,sway,a2,oat,blooming?S.bloom:null,sn,snow);
     } else

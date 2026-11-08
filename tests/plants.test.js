@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,726,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,738,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),528,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),529,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -234,6 +234,35 @@ test('wet-ground batch preserves reviewed data and says which values are estimat
   assert(Math.max(...Object.values(counts))<=doc.popularity.lists.length,'no count is above the lists read');
   assertEqual(Object.keys(counts).filter(k=>counts[k]<2).join(','),'cottonGrass','one candidate missed the bar');
   for(const d of doc.dropped) assert(!PLANT_KEYS.some(k=>PLANTS[k].latin===d.latin),d.plant+': was dropped, and stays out');
+});
+
+test("the grass audit's missing species are in, as reviewed, with their sources", () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/grass-sources.json')), rows=doc.plants;
+  assertEqual(rows.length,12,"the audit's 'Add first' table is twelve grasses");
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], R=row.proposed;
+    assert(P,row.suggestedKey+': missing species');
+    for(const f of ['name','latin','type','form','heightIn','spread','space','sun','moist','phen','provenance'])
+      assertEqual(P[f],R[f],row.suggestedKey+': reviewed '+f);
+    assertEqual(P.zones.join(','),R.zones.join(','),row.suggestedKey+': reviewed zones');
+    assertEqual(P.nativeTo.join(','),R.nativeTo.join(','),row.suggestedKey+': reviewed range');
+    assertEqual(P.bloomMonths.join(','),R.bloomMonths.join(','),row.suggestedKey+': reviewed bloom months');
+    assert(row.sources.length>=3,row.suggestedKey+': read against three sources at least');
+    row.sources.forEach(u=>assert(/^https:\/\//.test(u),row.suggestedKey+': source is a URL'));
+    assert(row.estimates&&row.estimates.heightIn&&row.estimates.spread,row.suggestedKey+': says how its size was chosen');
+    assert(P.nativeTo.includes('north-america')&&P.provenance==='species',row.suggestedKey+': a straight North American native');
+  }
+  for(const c of doc.cultivars){ const [k,v]=c.ref.split('|'); assert(PLANTS[k].cv&&PLANTS[k].cv[v],c.ref+': cultivar exists'); }
+  // the new species join their relatives' cards, and the old ones keep their names
+  const members=g=>keys.filter(k=>PLANTS[k].group===g).sort().join(',');
+  assertEqual(members('gamagrass'),'dwarffakahatcheegrass,easterngamagrass','gamagrass: eastern and its dwarf Florida relative');
+  assertEqual(members('hairgrass'),'tuftedhair,wavyhairgrass','hairgrass: tufted and wavy');
+  assertEqual(members('cordgrass'),'prairiecordgrass,sandcordgrass','cordgrass: prairie and sand');
+  // the gaps the audit named: wet ground, shade, Europe, and a grass for zone 10 and 11
+  assert(PLANTS.wavyhairgrass.nativeTo.includes('europe'),'wavy hairgrass is European too');
+  assert(['bottlebrushgrass','beakgrass','wavyhairgrass','californiafescue'].every(k=>PLANTS[k].sun==='part'),'four take shade');
+  assert(['bushybluestem','sandcordgrass','prairiecordgrass','easterngamagrass'].every(k=>PLANTS[k].moist==='moist'),'four take wet ground');
+  assertEqual(PLANTS.sandcordgrass.zones[1],11,'sand cordgrass reaches south Florida');
 });
 
 test('wet-ground plants are planted in soil, and only claim the range their source gives', () => {

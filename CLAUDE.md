@@ -6829,8 +6829,18 @@ clovers — typical height in flower, `h` untouched; see the plant work log).
 **Grass catalog (0.9.88):** `docs/plant-data/grass-audit.md` is the audit: what Chicago Botanic
 Garden's trial of 109 grasses and Hoffman's catalog say, which species are missing, and what the
 drawings get wrong. `dev/grass-review.html` shows every grass as a drift and at true scale, and `?check`
-sweeps the sprites and the library and tray pictures. Steps 1-3 have shipped; the missing species and
-site headings are still open.
+sweeps the sprites and the library and tray pictures. Steps 1-3 have shipped, and the first batch of
+step 4 (0.9.91): the twelve "Add first" species, sourced in `docs/plant-data/grass-sources.json`. The
+European and design grasses and the site headings are still open.
+**Step 4 added three opt-in pieces**: `headStyle:'bristle'` (`drawGrassBristles`: `brushSpan`,
+`brushNodes`, `brushAngle`, `spkLen`, `spkAwn`, `awnCurl`), pairs of awned spikelets standing off the
+culm, out near level for Bottlebrush Grass and close in for Canada Wild Rye; `foliage:'fountain'` on
+`oatgrass`, Miscanthus's ribbons under any oatgrass head; and `pennantUp`, spikes held up on both sides
+of the culm (the cordgrasses). **An option on a shared painter spends no random number for a plant that
+does not ask for it**: `pennantUp` draws its spike length off `rnd` only when set, or Sideoats would
+have been reshuffled. A catalog-wide call-for-call comparison against the last release proves it (every
+existing draw identical in 0.9.91). The Wildflower Center's bloom months are often a Texas or whole-range
+season, so a plant that runs north takes its zone 5-7 window from a northern source.
 **The rebuilt forms (0.9.90) are opt-in by `look`**, so a grass that does not ask draws as before. On
 `oatgrass`, `headStyle:'panicle'` hangs spikelets on stalks from branches spread round the culm
 (`drawGrassPanicle`: `panSpan`, `panBranches`, `panW`, `panRise`, `panDroop`, `panSpk`, `spkLen`, `spkW`,

@@ -2,7 +2,8 @@
 
 Audited November 7, 2026, against the catalog at 0.9.87: 40 records in the Grasses category, with
 45 cultivars. The data fixes, bugs and snow shipped in 0.9.88, a crown for every grass in 0.9.89, and the
-rebuilt forms in 0.9.90. The missing species and site headings are still open, in the order at the end.
+rebuilt forms in 0.9.90, and the twelve "Add first" species in 0.9.91. The rest of the missing species and the site
+headings are still open, in the order at the end.
 
 `dev/grass-review.html` is the page used for all of it. It shows every grass in four seasons, as a
 drift, and at true scale beside a 6 ft post. It takes `?base`, `?form=vertgrass`, `?only=`, `?check`
@@ -65,6 +66,8 @@ grasses take any shade, in a planting style that leans on grasses as its matrix.
 The count is how many of the 21 lists name the plant. Facts are Hoffman's unless noted.
 
 ### Add first
+
+All twelve shipped in 0.9.91; see below.
 
 | Plant | Lists | Why | Facts |
 | --- | --- | --- | --- |
@@ -423,6 +426,83 @@ third, and the other moor grasses by 2-19%.
 So nothing on the path a garden actually draws, and a little back: the re-measured `sideScale` values made the widest
 grass sprites smaller, which is what a blit costs. The bake count does not move.
 
+## Shipped in 0.9.91
+
+Step 4, first batch: the twelve grasses of the "Add first" table, drawn on the step 3 forms. Each was read against
+three to five sources; the record, the sources and the reasoning where they disagree are in
+`docs/plant-data/grass-sources.json`. All twelve are straight North American natives, and Wavy Hairgrass is European
+and Asian too. 'Undaunted', the Ruby Muhly sold under Plant Select, came with it.
+
+| | 0.9.87 | 0.9.91 |
+| --- | --- | --- |
+| Records, cultivars | 40, 45 | 52, 46 |
+| Straight species native to North America / Europe / Asia | 24 / 8 / 5 | 36 / 9 / 6 |
+| Moisture: dry / medium / moist | 20 / 18 / 2 | 24 / 22 / 6 |
+| Light: full / part | 34 / 6 | 42 / 10 |
+| Species per zone, 3 to 11 | 9, 23, 30, 35, 37, 40, 31, 7, 0 | 11, 29, 39, 44, 47, 52, 41, 12, 1 |
+
+So the four gaps the audit named moved: wet ground (Bushy Bluestem, the two cordgrasses, Eastern Gamagrass), shade
+(Bottlebrush Grass, Beak Grass, Wavy Hairgrass, California Fescue), zone 10 (five more) and zone 11 (Sand Cordgrass, the
+first). Europe barely moved; its grasses are the next batch.
+
+### How each is drawn
+
+- **Bottlebrush Grass and Canada Wild Rye** carry a new head, `headStyle:'bristle'` (`drawGrassBristles`): spikelets
+  stand off the top of the culm in pairs at each joint, pointing round the axis, each drawn out into a long awn. Bottlebrush
+  Grass holds them out nearly level, which is the bottle brush; Canada Wild Rye holds them close in, under awns that curl
+  out, on culms that nod. Both carry leaves up the culm. Three strokes a head, however many spikelets.
+- **The cordgrasses** stand on Miscanthus's arching ribbons, which `oatgrass` now takes as `foliage:'fountain'`, and carry
+  short spikes held up against the culm on both sides, alternately (`pennantUp` on the Sideoats pennants). Prairie
+  Cordgrass's leaves turn gold in fall.
+- **California Fescue** is the same fountain, fine and blue-green, under nodding open panicles.
+- **Eastern Gamagrass** is a `vertgrass` fountain of broad, coarse ribbons under slender spikes, and shares a card with
+  Dwarf Fakahatchee, its Florida relative (group `gamagrass`).
+- **Beak Grass** is broad glossy leaves with leafy arching culms carrying a few big beaked seeds, the sea oats panicle
+  narrowed.
+- **Giant Sacaton, Ruby Muhly and Wavy Hairgrass** are `cloudgrass`, as their relatives Alkali Sacaton, Pink Muhly and
+  Tufted Hairgrass are; Wavy Hairgrass shares a card with Tufted (group `hairgrass`).
+- **Bushy Bluestem** is `vertgrass` with Miscanthus's silky plume over copper fall leaves; **Wiregrass** is a mop of wiry
+  leaves under awned panicles, as Purple Needlegrass is.
+
+Measured as before (width in Fall, drift and height in Summer):
+
+| Grass | Drift % | Width | Height, ft |
+| --- | --- | --- | --- |
+| Bottlebrush Grass | 89 | 1.27 | 3.9, of 3.5 |
+| Canada Wild Rye | 94 | 0.94 | 4.5, of 4.0 |
+| Beak Grass | 93 | 0.87 | 2.7, of 2.5 |
+| California Fescue | 98 | 1.05 | 4.0, of 4.0 |
+| Prairie Cordgrass | 100 | 1.19 | 7.7, of 6.5 |
+| Sand Cordgrass | 100 | 0.87 | 5.0, of 4.0 |
+| Eastern Gamagrass | 100 | 1.17 | 5.6, of 5.0 |
+| Bushy Bluestem | 87 | 1.00 | 5.1, of 4.5 |
+| Giant Sacaton | 100 | 1.15 | 7.1, of 6.0 |
+| Ruby Muhly | 74 | 1.09 | 2.9, of 2.3 |
+| Wavy Hairgrass | 72 | 1.34 | 2.5, of 1.7 |
+| Wiregrass | 87 | 0.81 | 2.9, of 2.5 |
+
+All inside what the existing grasses already do. Wavy Hairgrass and Ruby Muhly draw a cloud over a low tuft and stand
+over their height as Tufted Hairgrass (3.7, of 2.5) and Pink Muhly (4.1, of 3.5) do.
+
+### How it was checked
+
+- Every plant in the catalog, all four seasons, both renderers, two seeds and two growths: 40,128 draws call for call
+  identical to 0.9.90. The new pieces are opt-in, so nothing that does not ask for them moved.
+- Real pixels: 2,352 sprites across all 52 grasses with no ink on their border and 784 library and tray pictures with
+  nothing cut off. In the Classic renderer the five cards that clipped in 0.9.89 still do, and nothing new. Eight choices
+  carry a `sideScale` measured off their own reach.
+- New tests hold the twelve records to their reviewed sources, the three groups to their members, a bristle head to its
+  pairs of awned spikelets standing further out on Bottlebrush Grass than on Canada Wild Rye, the cordgrass spikes to
+  standing up on both sides of the culm, and the oatgrass fountain to ribbons that arch and fall. Eight deliberate breaks
+  each fail one.
+- Invasive lists: EASIN and Cal-IPC name other species of four of these genera, and none of the twelve.
+
+### What it costs
+
+One procedural draw measures 0.13-0.49ms, against 0.51 for Switchgrass, the costliest grass already here. Since no
+existing plant draws differently, a garden without the new grasses costs exactly what it did, and a frame-time A/B
+would measure nothing.
+
 ## How they look
 
 Measured on 0.9.87, before any of the above, in the real renderer at full growth, in Fall, on a neutral grey backdrop with the cast shadow gated
@@ -518,6 +598,8 @@ has the detail. The timed-out 3-year runs fit, since a slowed run needs far more
 3. **Rebuild the wrong forms:** a dangling open panicle in `oatgrass` for Giant Feather Grass, Quaking Grass, Sea Oats
    and Sideoats; a dome for Blue Oat Grass and Blue Fescue; a real `moorgrass`; a mop for `feathergrass`; a one-way
    cascade for `forestgrass`; arching ribbons with bands for Miscanthus. Shipped in 0.9.90.
-4. **The missing species,** after step 3, so new records use the new drawing. Bottlebrush Grass needs its bristly
-   head, and the sedges' `brush` may serve.
-5. **Site headings on the tab,** as sedges have, once it passes 50 or so records.
+4. **The missing species,** after step 3, so new records use the new drawing. The "Add first" twelve shipped in
+   0.9.91, Bottlebrush Grass with a bristle head of its own. The sedges' `brush` did not serve: it is a glyph a few
+   pixels long with short awns, where these heads are a fifth of the culm with awns longer than their spikelets.
+   Next are the European and design grasses, where the catalog is thinnest, then "Worth adding next" and the cultivars.
+5. **Site headings on the tab,** as sedges have, once it passes 50 or so records. It is at 52.

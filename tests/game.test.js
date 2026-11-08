@@ -875,6 +875,56 @@ test('purple moor grass holds its narrow heads on wiry culms clear of the tuft',
     for (const h of heads) assert(h.a[1]+h.ty<-H*0.55,k+': every head above the tussock, which stands about half the height in flower');
   }
 });
+/* Lines a thread batch laid: each stroke's moveTo/lineTo pairs, with the stroke it went down in. */
+function grassSegs(ops){
+  const out=[];
+  for (let i=0;i+1<ops.length;i++) if (ops[i].op==='moveTo'&&ops[i+1].op==='lineTo')
+    out.push({a:ops[i].a,b:ops[i+1].a,stroke:ops[i+1].stroke});
+  return out;
+}
+test('a bristle head stands its spikelets off the culm in pairs, each drawn out into an awn', () => {
+  // Bottlebrush grass is named for it, and the wild ryes carry it nodding.
+  const col='#9fb07a', culm=[0,0,0,-60,0,-100];
+  const head=L=>{
+    const segs=grassSegs(grassOps(ctx=>drawGrassBristles(ctx,L,...culm,col,mulberry(5),null)));
+    return {spk:segs.filter(s=>s.stroke===col||s.stroke===shade(col,-18)), awn:segs.filter(s=>s.stroke===shade(col,12))};
+  };
+  const off=s=>Math.atan2(Math.abs(s.b[0]-s.a[0]),s.a[1]-s.b[1]);   // radians off the upright axis
+  const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+  const brush=head({brushSpan:0.24,brushNodes:9,brushAngle:1.15,spkLen:1.6,spkAwn:3.2});
+  const rye=head({brushSpan:0.3,brushNodes:16,brushAngle:0.3,spkLen:2.4,spkAwn:5,awnCurl:0.15});
+  assertEqual(brush.spk.length,18,'two spikelets at every joint');
+  assertEqual(brush.awn.length,36,'an awn of two segments on each');
+  for (const s of brush.spk) assert(brush.awn.some(a=>Math.hypot(a.a[0]-s.b[0],a.a[1]-s.b[1])<1e-9),'each awn leaves the tip of its spikelet');
+  // the head takes the top 24% of the culm, which on this quadratic starts at y = -79.6
+  for (const s of brush.spk) assert(s.a[1]<=-79.6,'the head is the top of the culm, '+s.a[1].toFixed(1));
+  assert(brush.spk.some(s=>s.b[0]<s.a[0])&&brush.spk.some(s=>s.b[0]>s.a[0]),'they stand out on both sides');
+  assert(mean(brush.spk.map(off))>0.6,'bottlebrush grass holds its spikelets well out from the axis');
+  assert(mean(brush.spk.map(off))>2.5*mean(rye.spk.map(off)),'and the wild rye close in against it');
+});
+test('cordgrass spikes stand up against the culm, on both sides', () => {
+  const body=shade('#a28a5a',-10);
+  for (const dir of [1,-1]){
+    const ops=grassOps(ctx=>drawGrassPennants(ctx,{pennantUp:true,pennants:12,pennantFrom:0.66,spkLen:5,spkW:0.8},0,0,0,-50,0,-100,'#a28a5a',null,mulberry(3),dir,null));
+    const stalks=grassSegs(ops), spikes=ops.filter(o=>o.op==='ellipse'&&o.fill===body);
+    assertEqual(spikes.length,12,'one spike for each');
+    spikes.forEach((s,i)=>assert(s.a[1]<stalks[i].a[1],'every spike rises above where it leaves the culm'));
+    stalks.forEach(s=>assert(s.b[1]<s.a[1],'on a stalk that rises with it'));
+    assert(spikes.some(s=>s.a[0]<0)&&spikes.some(s=>s.a[0]>0),'alternately, on both sides');
+  }
+});
+test('an oatgrass can stand on arching ribbons, as the cordgrasses and California fescue do', () => {
+  const was=ART2.on;
+  try { ART2.on=false;
+    for (const k of ['prairiecordgrass','sandcordgrass','californiafescue']){
+      const H=plantVisualH(PLANTS[k]), ribbons=grassCurves(grassOps(ctx=>drawPlant(ctx,0,0,k,1,'Summer',7,0,null,0)))
+        .filter(r=>Math.abs(r.p[4]-r.p[0])>H*0.15);
+      assert(ribbons.length>=12,k+': a fountain of ribbons, not a fan of blades');
+      const fall=r=>{ let top=0; for (let t=0;t<=1;t+=0.05){ const s=1-t; top=Math.min(top,s*s*r.p[1]+2*s*t*r.p[3]+t*t*r.p[5]); } return r.p[5]-top; };
+      assert(ribbons.filter(r=>fall(r)>H*0.05).length>=ribbons.length*0.5,k+': and they come down from the top of their arch');
+    }
+  } finally { ART2.on=was; }
+});
 test('Miscanthus names the wider evidence, in North America', () => {
   const g=plantGuidance({s:'miscanthus'}), srcs=g.invasive.map(n=>n.source);
   assert(srcs.includes('marylandGrasses')&&srcs.includes('chicagoGrasses'),'both sources stand');

@@ -183,3 +183,29 @@ later runs do not redo or touch the same records.
   zebrinus .66, mexicanfeather 1.03 (from 1.42), hakone 1.23 (from 1.42), benikaze 1.53 (from 1.76); purpleneedlegrass
   needs none.
 - Next: step 4, the missing species, drawn on these forms.
+
+## 2026-11-08 — grass audit, step 4, first batch (0.9.91)
+
+- Direct to master. Twelve species from the audit's "Add first" table and 'Undaunted' Ruby Muhly. Sizes, zones, ranges
+  and bloom months are sourced, with the reasoning per plant in `docs/plant-data/grass-sources.json`; colours and drawing
+  values are judgement against photographs.
+- Hoffman supplied zone, season and height with and without bloom for six (read in the browser pane); New Moon, NVK,
+  Prairie Moon, FNPS, UF, Plant Select, Chicago's trial and the Wildflower Center the rest. The Wildflower Center gave
+  bloom months for all twelve, but for a Texas or whole-range season where a plant runs north, so Giant Sacaton, Eastern
+  Gamagrass and Prairie Cordgrass carry an estimated zone 5-7 window.
+- Zones that needed a decision: Bottlebrush 3-8 (sources 2-9), California Fescue 7-10 (sources 5-11; its range is west of
+  the Cascades and Sierra), Eastern Gamagrass 4-10 (FNPS and UF Miami-Dade take it to 10), Sand Cordgrass 8-11 (FNPS and
+  UF; Hoffman's 6-9 is beyond the range), Prairie Cordgrass 3-9 (Prairie Moon 3-8; the range reaches Louisiana).
+- Wiregrass is Aristida stricta, as Hoffman and the Wildflower Center have it, with A. beyrichiana and A. stricta var.
+  beyrichiana as synonyms. The cordgrasses carry their 2014 Sporobolus names as synonyms. Wikipedia files Wavy Hairgrass
+  under Avenella flexuosa and Sand Cordgrass under Sporobolus bakeri; Prairie Cordgrass resolves only to the genus.
+- Groups: gamagrass (eastern, and dwarffakahatcheegrass, which gains the group), hairgrass (wavy, and tuftedhair),
+  cordgrass (prairie, sand).
+- Drawing: bottlebrushgrass and canadawildrye `headStyle:'bristle'`; the cordgrasses and californiafescue
+  `foliage:'fountain'` on `oatgrass`, the cordgrasses under `pennantUp` spikes; easterngamagrass a `vertgrass` fountain of
+  3px ribbons; beakgrass a narrow panicle of big spikelets on leafy culms; giantsacaton, rubymuhly and wavyhairgrass
+  `cloudgrass`; bushybluestem `vertgrass` with the silk plume; wiregrass `feathergrass` with awned panicle culms.
+- `sideScale` measured off each choice's own reach: giantsacaton .76, californiafescue .61, easterngamagrass .82,
+  sandcordgrass .8, prairiecordgrass .69, beakgrass .79, rubymuhly .82, undaunted 1.04.
+- Next: the European and design grasses (Stipa calamagrostis, the Seslerias, Milium 'Aureum' and the rest), where the tab
+  is thinnest, then step 5, site headings, now the tab is at 52.

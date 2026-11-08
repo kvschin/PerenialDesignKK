@@ -1,0 +1,224 @@
+{
+  "reviewed": "2026-11-08",
+  "note": "The grass audit's 'Add first' table (docs/plant-data/grass-audit.md), added in 0.9.91. Each row is the record as written, its sources, and where the sources disagree, what was chosen and why. Hoffman's figures come from its catalog listing at https://hoffmannursery.com/plants, read through a browser because the site refuses a plain fetch. Colours are authored throughout.",
+  "plants": [
+    {
+      "suggestedKey": "bottlebrushgrass",
+      "lists": 9,
+      "proposed": {"name": "Bottlebrush Grass", "latin": "Elymus hystrix", "type": "grass", "form": "oatgrass", "heightIn": 42, "spread": 18, "space": 15, "zones": [3, 8], "nativeTo": ["north-america"], "provenance": "species", "sun": "part", "moist": "medium", "phen": "cool", "bloomMonths": [6, 7, 8]},
+      "sources": [
+        "https://hoffmannursery.com/plants",
+        "https://newmoonnursery.com/plant/Elymus-hystrix",
+        "https://www.prairiemoon.com/elymus-hystrix-bottlebrush-grass",
+        "https://www.wildflower.org/plants/result.php?id_plant=ELHY"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman gives 3 ft of leaf and 4 ft in flower, Prairie Moon 3 ft, New Moon 3-5 ft. 42 in sits between them.",
+        "spread": "New Moon prints '1 - 2 in', a slip for feet; Prairie Moon spaces it 12-18 in. 18 in is a planning value.",
+        "zones": "Hoffman 4-9, New Moon 2-8, Prairie Moon 3-8. Its range runs north to Manitoba and south to Georgia, so 3-8.",
+        "bloomMonths": "The Wildflower Center and Prairie Moon both give June to August.",
+        "moist": "Hoffman dry to moist, the Wildflower Center dry or moist: medium."
+      }
+    },
+    {
+      "suggestedKey": "giantsacaton",
+      "lists": 5,
+      "proposed": {"name": "Giant Sacaton", "latin": "Sporobolus wrightii", "type": "grass", "form": "cloudgrass", "heightIn": 72, "spread": 54, "space": 48, "zones": [5, 9], "nativeTo": ["north-america"], "provenance": "species", "sun": "full", "moist": "medium", "phen": "warm", "bloomMonths": [7, 8, 9]},
+      "sources": [
+        "https://hoffmannursery.com/plants",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://plantselect.org/plant/sporobolus-wrightii/",
+        "https://www.wildflower.org/plants/result.php?id_plant=SPWR2"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman gives 4-5 ft of leaf and 6-7 ft in flower, Plant Select 60-84 in, and Chicago measured 'Windbreaker' at 80 in in flower. 72 in.",
+        "spread": "Plant Select 48-60 in, Chicago 60 in for 'Windbreaker'. 54 in.",
+        "zones": "Hoffman 5-9, Plant Select 5-8. 5-9.",
+        "bloomMonths": "The Wildflower Center gives May to December across the whole range and Hoffman early summer. July to September is when the panicles open in a zone 5-7 garden; this is an estimate.",
+        "moist": "Hoffman dry to wet, the Wildflower Center wet and saline tolerant. Medium is the design default, and the blurb says it takes both."
+      }
+    },
+    {
+      "suggestedKey": "californiafescue",
+      "lists": 5,
+      "proposed": {"name": "California Fescue", "latin": "Festuca californica", "type": "grass", "form": "oatgrass", "heightIn": 48, "spread": 30, "space": 24, "zones": [7, 10], "nativeTo": ["north-america"], "provenance": "species", "sun": "part", "moist": "dry", "phen": "cool", "bloomMonths": [4, 5, 6]},
+      "sources": [
+        "https://www.ucanr.edu/site/mg-sonoma/native-grasses",
+        "https://www.wildflower.org/plants/result.php?id_plant=FECA",
+        "https://uclpit.ucdavis.edu/Festuca_californica",
+        "https://devilmountainnursery.com/festuca-californica/"
+      ],
+      "estimates": {
+        "heightIn": "UC Sonoma gives 2-3 ft, which is the leaves; the Wildflower Center gives leaves to 4 ft and culms of 3-6 ft. 48 in is the height in flower.",
+        "spread": "UC Sonoma 1-2 ft, UC Davis 3 ft. 30 in.",
+        "zones": "The sources run from 5 to 11 and disagree. Its range, west of the Cascades and the Sierra from Oregon to southern California, is zones 7-10, and Devil Mountain gives 7-11. 7-10.",
+        "bloomMonths": "The Wildflower Center gives March to July. April to June.",
+        "sun": "The Wildflower Center: part shade, dry soil."
+      }
+    },
+    {
+      "suggestedKey": "easterngamagrass",
+      "lists": 5,
+      "proposed": {"name": "Eastern Gamagrass", "latin": "Tripsacum dactyloides", "type": "grass", "form": "vertgrass", "heightIn": 60, "spread": 48, "space": 36, "zones": [4, 10], "nativeTo": ["north-america", "central-america", "south-america"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "warm", "bloomMonths": [5, 6, 7]},
+      "sources": [
+        "https://www.wildflower.org/plants/result.php?id_plant=TRDA3",
+        "https://www.fnps.org/plant/tripsacum-dactyloides",
+        "https://ritasgardenpath.com/plants/285221-eastern-gamagrass-tripsacum-dactyloides",
+        "https://secure.caes.uga.edu/extension/publications/files/html/B987-4/Grass-Sedge-Selection-Guide.pdf",
+        "https://sfyl.ifas.ufl.edu/miami-dade/landscapes--gardening/ornamental-grasses/"
+      ],
+      "estimates": {
+        "heightIn": "The Wildflower Center says usually 2-3 ft of leaf and up to 12 ft; FNPS 4-6 ft, UGA and Rita's Garden Path 4-8 ft, UF Miami-Dade 4-5 ft. 60 in.",
+        "spread": "FNPS 2-4 ft, Rita's Garden Path 4-6 ft. 48 in.",
+        "zones": "Rita's Garden Path 4-9; FNPS gives Florida zones 8-10, and UF lists it for Miami-Dade. 4-10.",
+        "bloomMonths": "The Wildflower Center gives April to June, in Texas. May to July is an estimate for a zone 5-7 garden.",
+        "nativeTo": "The Wildflower Center: Massachusetts to Iowa and Kansas, south through Mexico, Central America and the Caribbean to Paraguay."
+      }
+    },
+    {
+      "suggestedKey": "rubymuhly",
+      "lists": 4,
+      "proposed": {"name": "Ruby Muhly", "latin": "Muhlenbergia reverchonii", "type": "grass", "form": "cloudgrass", "heightIn": 28, "spread": 24, "space": 18, "zones": [5, 10], "nativeTo": ["north-america"], "provenance": "species", "sun": "full", "moist": "dry", "phen": "warm", "bloomMonths": [9, 10]},
+      "sources": [
+        "https://hoffmannursery.com/plants",
+        "https://plantselect.org/plant/muhlenbergia-reverchonii-pund01s/",
+        "https://www.wildflower.org/plants/result.php?id_plant=MURE"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman gives 1.5 ft of leaf and 2-2.5 ft in flower; Plant Select 16-20 in, reaching 30 in in flower. 28 in.",
+        "spread": "Plant Select 18-24 in. 24 in.",
+        "zones": "Hoffman and Plant Select 5-10.",
+        "bloomMonths": "The Wildflower Center gives August to November and Hoffman early fall. September and October."
+      }
+    },
+    {
+      "suggestedKey": "wavyhairgrass",
+      "lists": 4,
+      "proposed": {"name": "Wavy Hairgrass", "latin": "Deschampsia flexuosa", "type": "grass", "form": "cloudgrass", "heightIn": 20, "spread": 15, "space": 12, "zones": [4, 8], "nativeTo": ["north-america", "europe", "asia"], "provenance": "species", "sun": "part", "moist": "dry", "phen": "cool", "bloomMonths": [5, 6, 7]},
+      "sources": [
+        "https://hoffmannursery.com/plants",
+        "https://newmoonnursery.com/plant/Deschampsia-flexuosa",
+        "https://www.nvknurseries.com/plant/Deschampsia-flexuosa",
+        "https://www.wildflower.org/plants/result.php?id_plant=DEFL"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman gives 1.5 ft of leaf and 2 ft in flower, New Moon 1 ft, NVK 40-100 cm, the Wildflower Center up to 32 in. 20 in.",
+        "spread": "NVK 30-50 cm. 15 in.",
+        "zones": "Hoffman 4-7, New Moon 3-8. 4-8.",
+        "bloomMonths": "The Wildflower Center gives April and May, New Moon June, Hoffman late spring. May to July, while the panicles ripen.",
+        "nativeTo": "New Moon: Greenland and Canada south to Georgia; Hoffman: the eastern US and Eurasia."
+      }
+    },
+    {
+      "suggestedKey": "bushybluestem",
+      "lists": 4,
+      "proposed": {"name": "Bushy Bluestem", "latin": "Andropogon glomeratus", "type": "grass", "form": "vertgrass", "heightIn": 54, "spread": 24, "space": 18, "zones": [5, 9], "nativeTo": ["north-america", "central-america"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "warm", "bloomMonths": [9, 10, 11]},
+      "sources": [
+        "https://hoffmannursery.com/plants",
+        "https://www.wildflower.org/plants/result.php?id_plant=ANGL2",
+        "https://www.fnps.org/plant/andropogon-glomeratus"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman gives 4 ft of leaf and 6 ft in flower, the Wildflower Center 2-5 ft, FNPS 3-5 ft. 54 in.",
+        "spread": "FNPS 1-3 ft. 24 in.",
+        "zones": "Hoffman 5-9.",
+        "bloomMonths": "The Wildflower Center gives August to November and Hoffman early fall. September to November.",
+        "nativeTo": "The Wildflower Center: New England to Florida and west to California, south through Mexico to Central America and the West Indies."
+      }
+    },
+    {
+      "suggestedKey": "sandcordgrass",
+      "lists": 4,
+      "proposed": {"name": "Sand Cordgrass", "latin": "Spartina bakeri", "type": "grass", "form": "oatgrass", "heightIn": 48, "spread": 48, "space": 48, "zones": [8, 11], "nativeTo": ["north-america"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "warm", "bloomMonths": [3, 4]},
+      "sources": [
+        "https://hoffmannursery.com/plants",
+        "https://www.fnps.org/plant/spartina-bakeri",
+        "https://gardeningsolutions.ifas.ufl.edu/plants/ornamentals/native-grasses/",
+        "https://sfyl.ifas.ufl.edu/miami-dade/landscapes--gardening/ornamental-grasses/",
+        "https://www.wildflower.org/plants/result.php?id_plant=SPBA"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 5 ft, FNPS and UF Gardening Solutions 3-4 ft, UF Miami-Dade 4-6 ft. 48 in.",
+        "spread": "UF Gardening Solutions 3-5 ft. 48 in.",
+        "space": "Planning value, a clump's width apart.",
+        "zones": "FNPS 8-10 and UF 8b-11, and UF Miami-Dade lists it. Hoffman's 6-9 is a nursery's claim beyond the range, which is Florida, Georgia, South Carolina and Texas. 8-11.",
+        "bloomMonths": "The Wildflower Center gives March and April, and the flowers are inconspicuous."
+      }
+    },
+    {
+      "suggestedKey": "wiregrass",
+      "lists": 4,
+      "proposed": {"name": "Wiregrass", "latin": "Aristida stricta", "type": "grass", "form": "feathergrass", "heightIn": 30, "spread": 24, "space": 18, "zones": [8, 10], "nativeTo": ["north-america"], "provenance": "species", "sun": "full", "moist": "dry", "phen": "warm", "bloomMonths": [8, 9]},
+      "sources": [
+        "https://hoffmannursery.com/plants",
+        "https://www.fnps.org/plant/aristida-stricta-var-beyrichiana",
+        "https://www.wildflower.org/plants/result.php?id_plant=ARST5"
+      ],
+      "estimates": {
+        "heightIn": "FNPS 1-4 ft, Hoffman 1-3 ft of leaf and 1-4 ft in flower, the Wildflower Center 2-4 ft. 30 in.",
+        "spread": "FNPS 1-3 ft. 24 in.",
+        "zones": "Hoffman and FNPS 8-10.",
+        "bloomMonths": "FNPS gives July to September, and only after the plant has been burned or cut in the previous nine months. August and September; the blurb says what to expect.",
+        "latin": "Hoffman and the Wildflower Center use Aristida stricta. FNPS files the southern plant as A. stricta var. beyrichiana, which others treat as A. beyrichiana. Both are synonyms here."
+      }
+    },
+    {
+      "suggestedKey": "prairiecordgrass",
+      "lists": 3,
+      "proposed": {"name": "Prairie Cordgrass", "latin": "Spartina pectinata", "type": "grass", "form": "oatgrass", "heightIn": 78, "spread": 48, "space": 36, "zones": [3, 9], "nativeTo": ["north-america"], "provenance": "species", "sun": "full", "moist": "moist", "phen": "warm", "bloomMonths": [7, 8, 9]},
+      "sources": [
+        "https://www.nvknurseries.com/plant/Spartina-pectinata",
+        "https://www.prairiemoon.com/spartina-pectinata-cord-grass-prairie-moon-nursery.html",
+        "https://www.wildflower.org/plants/result.php?id_plant=SPPE"
+      ],
+      "estimates": {
+        "heightIn": "NVK 175-225 cm, Prairie Moon 8 ft, the Wildflower Center 5-8 ft. 78 in.",
+        "spread": "NVK 100-120 cm for a clump. It runs by rhizome beyond that, which the blurb says.",
+        "zones": "Prairie Moon 3-8. The range runs south to Louisiana and Texas, so 3-9.",
+        "bloomMonths": "The Wildflower Center gives June. July to September is an estimate for the Midwest, where it is planted most."
+      }
+    },
+    {
+      "suggestedKey": "canadawildrye",
+      "lists": 3,
+      "proposed": {"name": "Canada Wild Rye", "latin": "Elymus canadensis", "type": "grass", "form": "oatgrass", "heightIn": 48, "spread": 30, "space": 24, "zones": [3, 9], "nativeTo": ["north-america"], "provenance": "species", "sun": "full", "moist": "medium", "phen": "cool", "bloomMonths": [7, 8]},
+      "sources": [
+        "https://www.nvknurseries.com/plant/Elymus-canadensis",
+        "https://www.prairiemoon.com/elymus-canadensis-canada-wild-rye",
+        "https://www.wildflower.org/plants/result.php?id_plant=ELCA4"
+      ],
+      "estimates": {
+        "heightIn": "Prairie Moon 5 ft, NVK 125-150 cm, the Wildflower Center 2-4 ft. 48 in.",
+        "spread": "NVK 60-90 cm, and Prairie Moon spaces it 2-3 ft. 30 in.",
+        "zones": "Prairie Moon 3-9.",
+        "bloomMonths": "Prairie Moon gives July to October; the Wildflower Center's March to June is Texas. July and August."
+      }
+    },
+    {
+      "suggestedKey": "beakgrass",
+      "lists": 0,
+      "proposed": {"name": "Beak Grass", "latin": "Diarrhena americana", "type": "grass", "form": "oatgrass", "heightIn": 30, "spread": 30, "space": 24, "zones": [4, 8], "nativeTo": ["north-america"], "provenance": "species", "sun": "part", "moist": "medium", "phen": "cool", "bloomMonths": [7, 8]},
+      "sources": [
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://newmoonnursery.com/plant/Diarrhena-americana",
+        "https://www.prairiemoon.com/diarrhena-obovata-beak-grass",
+        "https://www.wildflower.org/plants/result.php?id_plant=DIAM"
+      ],
+      "estimates": {
+        "heightIn": "New Moon 2-3 ft, Chicago 36 in, Prairie Moon 2 ft for D. obovata, the Wildflower Center up to 4 ft. 30 in.",
+        "spread": "New Moon 2-3 ft, Chicago 40 in, and it spreads by rhizome into a colony. 30 in.",
+        "zones": "New Moon 4-8, and Prairie Moon 4-8 for D. obovata.",
+        "bloomMonths": "The Wildflower Center gives June and July, New Moon July, Chicago mid-July to October. July and August.",
+        "lists": "Few lists name it. It is here for the shade gap, on Chicago's four-star rating in moist shade.",
+        "latin": "Chicago trialled D. americana. The Midwest's plant is usually D. obovata, sold under both names; it was left out rather than added as a second record for the same garden use."
+      }
+    }
+  ],
+  "cultivars": [
+    {
+      "ref": "rubymuhly|undaunted",
+      "sources": ["https://plantselect.org/plant/muhlenbergia-reverchonii-pund01s/"],
+      "estimates": {"heightIn": "Plant Select gives 16-20 in, and up to 30 in in flower. 24 in.", "spread": "Plant Select 18-24 in. It draws wider than the species because it is as wide as it is tall."}
+    }
+  ]
+}
