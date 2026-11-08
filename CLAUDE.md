@@ -285,8 +285,27 @@ See §13a.
   sustained hold DRIFTS. Defaults to `demo-garden.json` on desktop and phone
   viewports; `--stress` packs a quarter acre, `--garden` takes an exported
   file, `--years`/`--profile`/`--json` do the obvious. Measured on the demo
-  garden: **10-11x faster than procedural, 1.4-5.7ms a frame, no drift over
-  several game years**, cache resting at the 48MB budget with ~30MB evictable.
+  garden (0.9.88, Edge 157, four game years): **11-12x faster than procedural,
+  2-7ms a frame, no drift**, cache peaking at 15MB on desktop and 33MB on the
+  phone viewport, of the 48MB budget. **It flushes through a 1x1
+  `willReadFrequently` canvas, never with `getImageData` on `cnv`**, and it
+  refuses a run whose garden canvas changes mode under it: a frame that bakes
+  nothing, timed every chunk, past 6x its first reading and 30ms over it.
+  Reading `cnv` back is what Chrome watches. A 2D canvas without `willReadFrequently` drops
+  to the CPU on its second readback, and after about 100 such drops in one page
+  it stays there (Blink's `kFallbackToCPUAfterReadbacks` 2 and
+  `kDisableAccelerationThreshold` 100); on the CPU every GPU-backed sprite
+  bitmap is read back on every blit, about 0.5ms each. The bench used to flush
+  with `cnv.getImageData` once a chunk, so every long hold went from 2-9ms to
+  190-290ms a frame at its 101st read, around game day 190 of a 3-year run and
+  worse than procedural: it looked like the sprite cache collapsing late in a
+  hold, and it was the bench (Nov 2026). The clock was not involved (frozen, it
+  still flipped on the 101st read), a bare page with no app code does the same,
+  and the app's own loop held fast-forward for 28,000 frames to game day 510 at
+  an unchanged 8.6ms, since nothing a gardener does reads that canvas back.
+  `toBlob`, `toDataURL` and `createImageBitmap` do not count. Any instrument
+  that reads the garden canvas in a loop has the same trap: see the `dbg.flush`
+  note in §11.
   Watch `evictMB`: eviction only ever discards sprites not drawn last frame, so
   that column reaching 0 while `cacheMB` sits over budget is the documented
   failure shape (the whole working set on screen, eviction unable to act in the
@@ -2727,6 +2746,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     back; when you need a number you can subtract, use `drawProfile`, which
     A/Bs whole frames differing only in which entities are present, so the
     pipelining is identical on both sides and the delta is real.
+    **Flush mode also takes the garden canvas off the GPU for the rest of the
+    page**, and it stays off when the mode is switched off (Nov 2026). It is
+    ten-odd `getImageData` calls a frame on `cnv`, and Chrome moves a canvas
+    read back that often to the CPU for good after about 100 (the ff-bench note
+    in Run/test). Measured: thirty frames of it made 684 reads, and a frame that
+    bakes nothing went from 3.7ms to 87ms. So the figures above may describe a
+    CPU canvas. Reload after using it, and trust nothing measured later in the
+    same page. `drawProfile` reads about 50 times a call at its defaults, so a
+    second call in one page can reach the same limit.
     (A hypothesis this killed: the ground blit copies the whole baked canvas,
     margin included, so source-cropping it to the viewport should be ~2.3x
     cheaper. Measured, 1.39MP -> 0.60MP of source changed the blit by **-1.5us**,

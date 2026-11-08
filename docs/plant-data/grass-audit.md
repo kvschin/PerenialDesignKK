@@ -398,10 +398,13 @@ went 6.39 to 5.97ms in Summer, 6.95 to 6.27 in Fall and 6.80 to 6.27 in Winter. 
 Summer bakes more because seven grasses now have a bloom window to re-bake through. That is a single-digit cost on a garden
 made of nothing else, and the same plants save it back in Fall and Winter.
 
-**Not from this work, and still open:** in a 3-year hold, both builds jump from about 3ms to 120-150ms a frame around day
-198, with no bakes. Two-year holds never reach it. It needs a look of its own. In the first set of 3-year runs, which had a
-240s limit, one 0.9.88 run crashed its tab and both 0.9.87 runs timed out, so that crash cannot be pinned on either build.
-It did not recur in the later 3-year or 2-year runs.
+**Not from this work, and since resolved:** in a 3-year hold both builds jumped from about 3ms to 120-150ms a frame around
+day 198, with no bakes. That was the bench, not either build, and the A/B above is unaffected: it used 2-year holds,
+which end around game day 156, before the slowdown starts. The bench read the garden canvas back once a chunk, and Chrome moves a
+canvas read back that often to the CPU for good after about 100 reads, which is about day 190 of a 3-year run. A gardener's
+hold never gets there: the app's own loop held fast-forward to game day 510 at an unchanged 8.6ms a frame. `dev/ff-bench.cjs`
+now flushes without reading the garden canvas and refuses a run in which that canvas changes mode; its note in `CLAUDE.md`
+has the detail. The timed-out 3-year runs fit, since a slowed run needs far more than 240s. The one crash is unexplained.
 
 ## Proposed order
 

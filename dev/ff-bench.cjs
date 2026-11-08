@@ -27,6 +27,23 @@
    degenerate, freezes the clock so a run is deterministic, and forces a readback
    each chunk so it times execution rather than command submission.
 
+   THE READBACK MUST NEVER BE OF THE GARDEN CANVAS ITSELF. It was, as a 1px
+   getImageData on `cnv` once a chunk, and Chrome turns off acceleration for a
+   2D canvas read back without willReadFrequently: from the second read, and
+   after about 100 such switches in one page for good (kFallbackToCPUAfterReadbacks
+   and kDisableAccelerationThreshold in Blink). From then on the garden canvas
+   rasterises on the CPU and every GPU-backed sprite bitmap is read back on every
+   blit, ~0.5ms each. Measured on the demo garden: 2-9ms a frame up to the 101st
+   read, then 190-290ms for the rest of the run, worse than the procedural path,
+   which reads as a sprite cache that collapses around game day 190 of a 3-year
+   hold. It was the bench. With the clock frozen and no bakes it still flipped on
+   the 101st read, a bare page with no app code does the same, and the app's own
+   loop held fast-forward for 28,000 frames to game day 510 at an unchanged 8.6ms
+   a frame, because nothing a gardener does reads that canvas back. So the flush
+   draws the garden into a 1x1 canvas made willReadFrequently (CPU from the start,
+   never counted) and reads that, and `checkCanvas` refuses a run whose garden
+   canvas has changed mode underneath it.
+
    Isolation: a fresh Playwright context, its own disposable server, and the
    service worker switched off in the served index.html (the rewrite
    dev/perf-audit-server.cjs uses). Nothing is downloaded, no application file is
@@ -132,8 +149,46 @@ function measure(opts) {
      rasterizes later, outside any performance.now() pair; one 1px readback makes
      the queue land first. Per CHUNK rather than per frame — a readback also
      kills pipelining, so billing every frame for one would overstate everything
-     (the dbg.flush "shares only" note in CLAUDE.md is the same trap). */
-  const flush = () => cx.getImageData(0, 0, 1, 1);
+     (the dbg.flush "shares only" note in CLAUDE.md is the same trap).
+     Read through a CPU scratch canvas, never `cnv` itself: see the header. Drawing
+     the garden into it still has to wait for the garden's queued raster, which is
+     the whole point of the flush. */
+  const probeCv = document.createElement('canvas');
+  probeCv.width = probeCv.height = 1;
+  const probeCx = probeCv.getContext('2d', { willReadFrequently: true });
+  const flush = () => { probeCx.drawImage(cnv, 0, 0, 1, 1); probeCx.getImageData(0, 0, 1, 1); };
+  /* Has the garden canvas changed mode under the run? A STEADY frame answers it:
+     the clock does not move, so no bucket moves and nothing bakes, and the frame is
+     a blit of the sprites already cached. Healthy that costs a few ms; once the
+     canvas is on the CPU every GPU-backed sprite is read back on every blit and the
+     same frame costs ~200ms (measured: 5ms, then 215ms from the 101st read).
+     Two other probes were tried and could not see it: blitting cached sprites
+     straight after a frame (a CPU canvas keeps what it has just read back, so they
+     stay cheap), and an absolute bar on that. Min of three frames, against the
+     first probe, taken with the cache warm. On the demo garden a healthy run starts
+     at ~5ms and its worst min-of-two was 18.6ms, with another bench sharing the GPU;
+     the old flush tripped the bar at 99.5ms against an 11.8ms start. */
+  const steadyFrame = () => {
+    let best = Infinity;
+    for (let i = 0; i < 3; i++) {
+      flush();
+      const t0 = performance.now();
+      render(performance.now()); flush();
+      best = Math.min(best, performance.now() - t0);
+    }
+    return +best.toFixed(2);
+  };
+  let probeBase = null, probeMax = 0;
+  const checkCanvas = where => {
+    const p = steadyFrame();
+    if (probeBase === null) { probeBase = p; return p; }
+    if (p > probeMax) probeMax = p;
+    if (p > Math.max(6 * probeBase, probeBase + 30))
+      throw new Error('the garden canvas changed mode during the run (' + where + '): a frame that bakes nothing took '
+        + p + 'ms against ' + probeBase + 'ms at the start. Chrome has probably moved the canvas to the CPU, so every '
+        + 'number from here would measure that, not the app. Something read the garden canvas back (getImageData on cnv?).');
+    return p;
+  };
   const FF_STEP = FF_RATE * 16.7;          // game-ms a fast-forward frame advances at 60fps
   const framesPerDay = DAY_MS / FF_STEP;   // ~30
 
@@ -184,6 +239,7 @@ function measure(opts) {
   const on = [], off = [];
   for (let r = 0; r < 4; r++) {
     parkAt(day0); reset(true); warm(); on.push(runFF(60).msPerFrame);
+    checkCanvas('cache vs procedural, round ' + (r + 1));   // the first is the baseline
     parkAt(day0); reset(false); warm(); off.push(runFF(60).msPerFrame);
   }
   const bestOn = Math.min.apply(null, on), bestOff = Math.min.apply(null, off);
@@ -202,6 +258,7 @@ function measure(opts) {
     reset(true); warm();
     const r = runFF(Math.round(framesPerDay * 2));      // two game days inside the season
     r.season = SEASONS[i]; r.cacheMB = mb(PSPRITE.bytes); r.sprites = PSPRITE.map.size;
+    r.steadyMs = checkCanvas(SEASONS[i]);
     out.seasons[SEASONS[i]] = r;
   }
 
@@ -219,14 +276,17 @@ function measure(opts) {
   for (let c = 0; c < chunks; c++) {
     const r = runFF(CHUNK);
     if (PSPRITE.bytes > peak) peak = PSPRITE.bytes;
+    // every chunk, so a run that goes wrong is refused at once rather than after an hour
+    const probe = checkCanvas('game day ' + absDay());
     if (c % every === 0 || c === chunks - 1)
       samples.push({
         gameDay: absDay(), season: calClock().season, msPerFrame: r.msPerFrame,
         bakesPerFrame: r.bakesPerFrame, cacheMB: mb(PSPRITE.bytes), sprites: PSPRITE.map.size,
-        evictableMB: mb(evictableBytes()), heapMB: heapMB()
+        evictableMB: mb(evictableBytes()), heapMB: heapMB(), steadyMs: probe
       });
   }
   out.sustained = { gameYears: years, chunks, peakCacheMB: mb(peak), samples };
+  out.canvasCheck = { probeBaseMs: probeBase, probeMaxMs: probeMax };
 
   window.makePlantSprite = origMake; window.drawPlantMaybeCached = origDraw;
   PSPRITE.off = false;
@@ -305,10 +365,12 @@ function measure(opts) {
         + ' ' + pad(v.reusePerBake, 11) + ' ' + v.cacheMB);
     }
     console.log('  sustained hold (peak ' + r.sustained.peakCacheMB + 'MB of ' + r.budgetMB + 'MB budget)');
-    console.log('    day    season   ms/frame  bakes/f  cacheMB  evictMB  heapMB');
+    console.log('    day    season   ms/frame  bakes/f  cacheMB  evictMB  heapMB  steady');
     for (const s of r.sustained.samples)
       console.log('    ' + pad(s.gameDay, 6) + ' ' + pad(s.season, 8) + ' ' + pad(s.msPerFrame, 9)
-        + ' ' + pad(s.bakesPerFrame, 8) + ' ' + pad(s.cacheMB, 8) + ' ' + pad(s.evictableMB, 8) + ' ' + s.heapMB);
+        + ' ' + pad(s.bakesPerFrame, 8) + ' ' + pad(s.cacheMB, 8) + ' ' + pad(s.evictableMB, 8) + ' ' + pad(s.heapMB, 7) + ' ' + s.steadyMs);
+    console.log('  canvas mode check: a frame that bakes nothing took ' + r.canvasCheck.probeBaseMs + 'ms at the start, at most '
+      + r.canvasCheck.probeMaxMs + 'ms after (a run is refused past 6x and +30ms)');
     if (r.pageErrors.length) console.log('  PAGE ERRORS: ' + r.pageErrors.join(' | '));
     console.log('');
   }
