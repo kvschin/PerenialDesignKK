@@ -650,14 +650,16 @@ test('palm sedge carries spiralled leaves on arching stems, not ranks on poles',
    the painter's own, read back from the context at the moment the ellipse is laid. */
 function grassWinterDraw(k,v,seed){
   const pts=[], caps=[], stream=[];
+  let tx=0, ty=0;
   const ctx=new Proxy({},{
     get(o,p){
       if(p in o)return o[p];
       if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+      if(p==='translate')return (a,b)=>{ tx+=a; ty+=b; };
       return (...a)=>{
-        if(p==='ellipse'&&String(o.fillStyle).startsWith('rgba(240,244,250')){ caps.push([a[0],a[1]]); return; }
-        if(p==='moveTo'||p==='lineTo'||p==='ellipse'||p==='arc'){ pts.push([a[0],a[1]]); stream.push(String(p),a[0],a[1]); }
-        if(p==='quadraticCurveTo'){ pts.push([a[2],a[3]]); stream.push('q',a[2],a[3]); }
+        if(p==='ellipse'&&String(o.fillStyle).startsWith('rgba(240,244,250')){ caps.push([a[0]+tx,a[1]+ty]); return; }
+        if(p==='moveTo'||p==='lineTo'||p==='ellipse'||p==='arc'){ pts.push([a[0]+tx,a[1]+ty]); stream.push(String(p),a[0]+tx,a[1]+ty); }
+        if(p==='quadraticCurveTo'){ pts.push([a[2]+tx,a[3]+ty]); stream.push('q',a[2]+tx,a[3]+ty); }
       };
     },set(o,p,v){o[p]=v;return true;}
   });
@@ -673,7 +675,7 @@ test('snow lands on a grass, on its heads and arches, not in the air beside its 
       const r=grassWinterDraw(k,null,seed), P=plantDef(k,null), box=plantDrawBox(P,k,1);
       assert(r.caps.length>=2,k+': a grass carries snow in Winter');
       for (const c of r.caps){
-        assert(near(c,r.pts,16),`${k}: snow at ${c.map(Math.round)} touches something this draw laid down`);
+        assert(near(c,r.pts,12),`${k}: snow at ${c.map(Math.round)} touches something this draw laid down`);
         assert(Math.abs(c[0])<=box.halfW&&-c[1]<=box.top,k+': and inside the sprite it is baked into');
       }
     }
@@ -689,12 +691,94 @@ test('snow does not disturb what a grass draws', () => {
     assertEqual(JSON.stringify(a),JSON.stringify(b.slice(0,a.length)),k+': the same plant with or without snow');
   } } finally { AMBIENCE.Winter.snow=was; }
 });
+/* Everything a grass draw reaches, in the frame the sprite is baked in. Follows translate and scale
+   as a canvas would, and reports what is left of the translate at the end. */
+function grassReachDraw(k,v,season,seed,growth){
+  const pts=[];
+  let tx=0, ty=0, sx=1, translated=0;
+  const ctx=new Proxy({},{
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+      if(p==='translate')return (a,b)=>{ tx+=a; ty+=b; translated++; };
+      if(p==='scale')return a=>{ sx*=a; };
+      return (...a)=>{
+        if(p==='moveTo'||p==='lineTo') pts.push([(a[0]+tx)*sx,a[1]+ty]);
+        if(p==='quadraticCurveTo') pts.push([(a[2]+tx)*sx,a[3]+ty]);
+      };
+    },set(o,p,val){o[p]=val;return true;}
+  });
+  drawPlant(ctx,0,0,k,growth===undefined?1:growth,season,seed,0,v||null,1);
+  return {pts,tx,ty,translated};
+}
+const GRASS_REFS=()=>PLANT_KEYS.filter(k=>PLANTS[k].type==='grass').flatMap(k=>[[k,null],...Object.keys(PLANTS[k].cv||{}).map(v=>[k,v])]);
+test('every grass stands on a crown, and nothing else does', () => {
+  for (const k of PLANT_KEYS){
+    const L=PLANTS[k].look||{};
+    if (PLANTS[k].type==='grass') assert(L.crownIn>0,k+': a grass rises from a patch of ground, not a point');
+    else assert(!L.crownIn,k+': only grasses carry a crown');
+  }
+});
+test('a crown spreads a clump at the ground, where every blade used to leave one point', () => {
+  const was=ART2.on;
+  const baseWidth=k=>{
+    const near=grassReachDraw(k,null,'Summer',7).pts.filter(p=>Math.abs(p[1])<plantVisualH(PLANTS[k])*0.04), xs=near.map(p=>p[0]);
+    return Math.max(...xs)-Math.min(...xs);
+  };
+  try { for (const mode of [true,false]){
+    ART2.on=mode;
+    for (const k of ['bluestem','karl','miscanthus','switchgrass','fountaingrass','sesleria','sideoats','bigbluestem','mexicanfeather','hakone']){
+      const rx=grassCrownRx(PLANTS[k],k,1), crowned=baseWidth(k), L=PLANTS[k].look, keep=L.crownIn;
+      assert(crowned>=rx*1.2,k+': blades rise across the crown, '+crowned+' against a half-width of '+rx);
+      try { L.crownIn=0; assert(baseWidth(k)<crowned*0.6,k+': and without one they meet at the foot'); }
+      finally { L.crownIn=keep; }
+    }
+  } } finally { ART2.on=was; }
+});
+test('without a crown a form spends nothing on one', () => {
+  let calls=0, moved=0;
+  const ctx={translate(){moved++;}};
+  grassCrownIn(ctx,0,0.3,0.5,()=>{calls++;return 0.5;});
+  grassCrownOut(ctx);
+  assertEqual(calls,0,'no random numbers, so an uncrowned plant keeps its seeded shape');
+  assertEqual(moved,0,'and no transform');
+  assertEqual(grassCrownRx(PLANTS.whiteoak,'whiteoak',1),0,'a plant with no crownIn has no crown');
+});
+test('a crown always steps back, whichever way a form leaves its loop', () => {
+  // Oatgrass leaves a culm early when it has no head, which is every Spring.
+  const was=ART2.on;
+  try { for (const mode of [true,false]){
+    ART2.on=mode;
+    for (const [k,v] of GRASS_REFS()) for (const season of SEASONS){
+      const r=grassReachDraw(k,v,season,101);
+      assert(r.translated>=2,k+': it stepped out at all');
+      assert(Math.abs(r.tx)<1e-6&&Math.abs(r.ty)<1e-6,`${k}${v?':'+v:''} ${season}: left the canvas ${r.tx},${r.ty} off`);
+    }
+  } } finally { ART2.on=was; }
+});
+test('a cultivar stands on a crown cut to its own size', () => {
+  // Drawn inside plantVisualWidthScale, so what reaches the screen is the two together.
+  const onScreen=(k,v)=>{ const P=plantDef(k,v); return grassCrownRx(P,k,1)*plantVisualWidthScale(P,k); };
+  const base=onScreen('fountaingrass',null), bunny=onScreen('fountaingrass','littlebunny');
+  const want=base*PLANTS.fountaingrass.cv.littlebunny.spread/PLANTS.fountaingrass.spread;
+  assert(Math.abs(bunny-want)<0.01,`'Little Bunny': ${bunny} against ${want}`);
+  assert(bunny<base*0.6,'a dwarf does not stand on the full-size crown');
+});
+test('the sprite box holds every blade of a crowned grass, at every age', () => {
+  for (const [k,v] of GRASS_REFS()) for (const season of SEASONS) for (const growth of [1,0.6]) for (const seed of [7,4410]){
+    const P=plantDef(k,v), box=plantDrawBox(P,k,growth);
+    for (const [x,y] of grassReachDraw(k,v,season,seed,growth).pts){
+      assert(Math.abs(x)<=box.halfW,`${k}${v?':'+v:''} ${season}: reaches ${x} past ${box.halfW}`);
+      assert(y<=box.bot&&-y<=box.top,`${k}${v?':'+v:''} ${season}: reaches ${y} past ${-box.top}..${box.bot}`);
+    }
+  }
+});
 test('a grass whose wisps run wide has a sprite that holds them', () => {
   // The wisps of a feather grass run past their stem tips; measured, Mexican Feather Grass cut
   // its sides off in 9 of 9 sprites before it declared the reach.
   for (const k of ['mexicanfeather','purpleneedlegrass']){
     const P=PLANTS[k], L=P.look, H=plantVisualH(P);
-    const reach=H*(L.plumeLen*1.07*(L.plumeSpread)+0.25+0.2)+2.5;
+    const reach=H*(L.plumeLen*1.07*(L.plumeSpread)+0.25+0.2)+2.5+grassCrownRx(P,k,1)*0.7;
     assert(plantDrawBox(P,k,1).halfW>=reach,`${k}: box ${plantDrawBox(P,k,1).halfW} holds a reach of ${reach}`);
   }
 });

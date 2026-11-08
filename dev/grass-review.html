@@ -141,8 +141,20 @@ function checkEdges(){
     for(let y=0;y<h;y++)if(d[y*w*4+3]>8||d[(y*w+w-1)*4+3]>8)edge=true;
     if(edge)bad.push(k+(v?':'+v:'')+' '+season+' seed '+seed+' g'+gB);count++;
   }
-  document.getElementById('status').textContent=count+' sprite checks: '+(bad.length?bad.length+' touching edges — '+bad.join('; '):'no painted edges');
-  window.__edges={count,bad};
+  /* The same question of the library card and the catalog card, which fit a plant by its height
+     and its declared sideScale and so cut off anything wider that does not declare it. */
+  const clipped=[];let previews=0;
+  const sidesPainted=c=>{ const g=c.getContext('2d',{willReadFrequently:true}),w=c.width,h=c.height,dd=g.getImageData(0,0,w,h).data; for(let y=0;y<h;y++)if(dd[y*w*4+3]>24||dd[(y*w+w-1)*4+3]>24)return true; return false; };
+  for(const [k,v] of refs)for(const season of SEASONS){
+    previews+=2;
+    if(sidesPainted(libCanvas(k,v,season,88,120)))clipped.push('card '+k+(v?':'+v:'')+' '+season);
+    const P=plantDef(k,v),a=document.createElement('canvas');a.width=TRAY_ART_W;a.height=TRAY_ART_H;
+    const side=plantVisualH(P)*Math.max(0,(P.look||{}).sideScale||0),sc=Math.min(1.15,88/(plantArtTop(P)||40),side?(TRAY_ART_W-8)/(side*2):1.15),g=a.getContext('2d',{willReadFrequently:true});
+    g.scale(sc,sc);drawPlant(g,56/sc,110/sc,k,1,season,tileSeed(3,7),0,v||undefined,1);
+    if(sidesPainted(a))clipped.push('tray '+k+(v?':'+v:'')+' '+season);
+  }
+  document.getElementById('status').textContent=count+' sprite checks: '+(bad.length?bad.length+' touching edges — '+bad.join('; '):'no painted edges')+' · '+previews+' previews: '+(clipped.length?clipped.length+' clipped — '+clipped.join('; '):'none clipped');
+  window.__edges={count,bad,previews,clipped};
 }
 function bench(){
   const c=new OffscreenCanvas(420,520),ctx=c.getContext('2d'),rows=[];

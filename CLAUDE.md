@@ -6800,8 +6800,21 @@ clovers — typical height in flower, `h` untouched; see the plant work log).
 
 **Grass catalog (0.9.88):** `docs/plant-data/grass-audit.md` is the audit: what Chicago Botanic
 Garden's trial of 109 grasses and Hoffman's catalog say, which species are missing, and what the
-drawings get wrong. `dev/grass-review.html` shows every grass as a drift and at true scale. Its first
-step has shipped; a crown for every grass, the rebuilt forms and the missing species are still open.
+drawings get wrong. `dev/grass-review.html` shows every grass as a drift and at true scale, and `?check`
+sweeps the sprites and the library and tray pictures. Steps 1 and 2 have shipped; the rebuilt forms and the
+missing species are still open.
+**Every grass stands on a crown** (0.9.89): `look.crownIn` is the clump's width at the ground in real inches,
+and each blade and culm steps out to its own place on that ellipse and back (`grassCrownRx`, `grassCrownIn`,
+`grassCrownOut`, draw.js), so no form's geometry moved: with no plant opted in, every drawing matched 0.9.88
+call for call. `drawGrassCrownBase` lays a wash and, where `hairs` is set, a coat of short hairs under the
+blades. **A form that leaves its blade loop early must call `grassCrownOut` first** (Oatgrass's `continue`
+in Spring), or the rest of the plant draws off its crown; a test holds every form to stepping back. **A
+cultivar's crown is scaled by its height against the species'**, because it is drawn inside
+`plantVisualWidthScale`, which already stretches it by spread, so on screen the crown follows the cultivar's
+real spread. **The sprite box adds the crown to its TOP only**: the far side stands up the screen, while the
+padding already holds the sides and foot, and adding it to the width made 20% more sprite for nothing. A
+choice that reaches past its box gets a smaller `crownIn` ('Beyond Blue'), and a preview that clips gets a
+measured `sideScale`.
 **A grass form records where snow lands** (`grassSnowOn`, draw.js): on its heads and arches, using no
 random numbers, so the plant is the same with or without it. The box-wide scatter hung ovals in the
 air beside thin culms. **`foliageHeight` should come from a source**: Hoffman gives height with and

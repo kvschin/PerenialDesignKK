@@ -1832,6 +1832,10 @@ function plantDrawBox(P,key,growth){
   const herbHalf=P.form==='sotol'
     ? Math.max(H*0.62,H*(L.leafLen||0.82)*1.1)
     : H*0.62*Math.max(1,grassW);
+  // A crown's far side stands up the screen, so the top has to allow for it. The sides and the foot
+  // do not: measured over every grass, the padding already holds them, and adding the crown to the
+  // width made 20% more sprite for nothing. A cultivar too wide for that gets a smaller crownIn.
+  const crownRx=grassCrownRx(P,key,growth)*Math.max(1,grassW);
   const halfW=(woody?Math.max(canopy*0.62,H*0.5,authoredHalf):Math.max(herbHalf,authoredHalf))+18;
   // Cloud grasses can throw a seed veil substantially above their nominal
   // height. Size its sprite for the tallest panicle plus cloud rather than
@@ -1841,7 +1845,7 @@ function plantDrawBox(P,key,growth){
     ? Math.max(H*1.12, H*1.05*(L.cloudTop||0.92)+(L.cloudHeight||11)+6)
     : P.form==='sotol' ? artH*1.05
     : artH*1.12;
-  const top=(woody?Math.max(H,0.75*H+canopy*0.7):herbTop)+26;
+  const top=(woody?Math.max(H,0.75*H+canopy*0.7):herbTop+crownRx*0.5)+26;
   // Everything a plant paints BELOW its placement point — the cast ground
   // shadow, and a weeping conifer's cascade — so the cached and live procedural
   // versions do not change silhouette when the governor flips. `growth` here is

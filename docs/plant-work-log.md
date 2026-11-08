@@ -137,3 +137,26 @@ later runs do not redo or touch the same records.
   'Dallas Blues', 'Heavy Metal' and the species of purple moor grass, so those stayed. 'Red Head' and 'Karley Rose'
   moved to 42 in on NVK (35-47), and 'Moorhexe' to 28 in on NVK and RHS.
 - Next: step 2 of the audit, a crown for every grass.
+
+## 2026-11-07 — grass audit, step 2 (0.9.89)
+
+- Direct to master. The audit's "Shipped in 0.9.89" has the drawing and the measurements; this is the per-plant record.
+- `look.crownIn` (clump width at the ground, inches) on all 40 grasses. Judgement, not sourced: about a third of
+  the stated spread for the big clumps, more for the low ones so a drift closes. bluestem 9, bigbluestem 12,
+  switchgrass 12, dropseed 12, indiangrass 8, sideoats 10, bluegrama 12, karl 8, overdam 8, sesleria 12,
+  bluemoorgrass 14, lovegrass 10, pinkmuhly 10, mexicanfeather 6, tuftedhair 10, koreanfeatherreed 12,
+  northernseaoats 12, miscanthus 18, fountaingrass 14, orientalfountain 14, bluefescue 11, hakone 10, giantstipa 14,
+  molinia 14, moorhexe 12, purplemoorgrass 12, blueoatgrass 12, quakinggrass 10, sandlovegrass 12,
+  arizonacottontop 10, deergrass 24, purpleneedlegrass 6, roemersfescue 8, elliottslovegrass 10,
+  dwarffakahatcheegrass 14, prairiejunegrass 11, indianricegrass 10, lindheimersmuhly 18, alkalisacaton 10,
+  slenderindiangrass 10.
+- Cultivars stating their own: standingovation 7 and northwind 8 (upright), beyondblue 9 (reached past its sprite).
+- Hair coats under the fine grasses: bluefescue, roemersfescue, bluegrama, sideoats, quakinggrass, sesleria,
+  bluemoorgrass, prairiejunegrass, moorhexe, purplemoorgrass.
+- More foliage, so a drift closes: `leaves` raised on most grasses, with `fan`/`leafFan` and `moorgrass`'s new
+  `leafSpread` on the low ones; bigbluestem gained basal leaves and `stems:10`; the two fountain grasses `stems:11`.
+- `sideScale` measured on the 21 choices whose library card or tray picture clipped: bluestem .56, chameleon 1.06,
+  carousel 1.32, jazz .67, shenandoah .55, stlouis .77, fastforward 1.09, koreanfeatherreed .65, adagio .58,
+  morninglight .58, zebrinus .58, fountaingrass .78, redhead .71, cassian .68, orientalfountain .75,
+  karleyrose .92, hakone 1.42, benikaze 1.76, deergrass .79, dwarffakahatcheegrass .7, lindheimersmuhly .75.
+- Next: step 3 of the audit, rebuilding the forms that draw the wrong plant.

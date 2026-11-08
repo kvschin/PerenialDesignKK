@@ -198,6 +198,128 @@ The Miscanthus seed counts are one year at one site, in 2010, so zero is not pro
 'Moorhexe' and Purple Moor Grass are now the right height, so the hyacinth they draw as is a bigger hyacinth. Their
 form is rebuilt in step 3.
 
+## Shipped in 0.9.89
+
+Step 2: a crown for every grass.
+
+### The crown
+
+`look.crownIn` is the width of a clump at the ground, in real inches. Each blade and culm steps out to its own place
+on that ellipse before it is drawn and steps back after (`grassCrownIn`/`grassCrownOut`, draw.js), so no form's
+geometry changed. A blade leaving the left of the clump stands at the left of the crown, and the back of the clump
+stands up the screen from the front. Under the blades lies a soft wash (`crownWash`, default 0.2) and, on the fine
+grasses, a coat of short hairs in one thread batch (`hairs`, `hairLen`, `hairLift`, `hairFan`, `hairSpread`, `hairW`),
+which is what hides the soil between tufts, as on the sedges. The crown grows with the plant, from 0.35 of its
+width at planting.
+
+Every grass carries one, and a test refuses one on anything else. Without one a form draws exactly as before: with
+the code in and no plant opted in, 10,032 of 10,032 drawings matched 0.9.88 call for call, both renderers, every
+season. Most grasses also got more leaves (`leaves`, `fan`, and on `moorgrass` a new `leafSpread`), and Big Bluestem's
+`turkeyfoot` got basal leaves of its own (`basalN`, `basalLen`, `basalLift`, `basalFan`) and a `stems` count.
+
+**A cultivar's crown follows its own size.** A cultivar is drawn inside `plantVisualWidthScale`, which already
+stretches it by its spread against the species', so its crown is scaled by its height against the species' and
+what reaches the screen follows its real spread. 'Little Bunny' stands on a crown half the width of the species'.
+'Standing Ovation' (7), 'Northwind' (8) and 'Beyond Blue' (9) state a smaller one, the first two for their upright
+habit and 'Beyond Blue' because it reached past its sprite.
+
+**The sprite box makes room for the crown at the top only.** The far side of a crown stands up the screen, and
+without that allowance Lindheimer's Muhly and Slender Indiangrass clipped by 3px. Measured over every grass and 40
+seeds, the padding already holds the sides and the foot, and adding the crown to the width made 20% more sprite for
+nothing. 21 choices whose library card or tray picture clipped got a measured `sideScale`.
+
+### What it did
+
+Measured as in the next section, in the real renderer: crown is the width of the clump where it meets the ground,
+width is in Fall, drift is Summer. The last column is the same drift on 0.9.87, where that table has it. The drawn crown
+is read off the ink in the lowest few pixels, so Blue Fescue and Blue Moor Grass, which put little ink there, come out
+narrower than their `crownIn`.
+
+| Grass | `crownIn` | Crown drawn, in | Width | Drift % | Was |
+| --- | --- | --- | --- | --- | --- |
+| Roemer's Fescue | 8 | 9 | 0.82 | 61 | |
+| Blue Moor Grass | 14 | 8 | 1.16 | 65 | 10 |
+| Prairie Junegrass | 11 | 13 | 1.28 | 65 | 15 |
+| Blue Fescue | 11 | 6 | 1.37 | 72 | 13 |
+| Purple Needlegrass | 6 | 8 | 1.17 | 72 | 52 |
+| Indian Ricegrass | 10 | 13 | 0.75 | 74 | 42 |
+| Japanese Forest Grass | 10 | 11 | 1.21 | 76 | 41 |
+| Autumn Moor Grass | 12 | 13 | 1.42 | 80 | 15 |
+| Quaking Grass | 10 | 13 | 1.34 | 81 | 26 |
+| Arizona Cottontop | 10 | 13 | 0.67 | 81 | 32 |
+| Blue Grama | 12 | 14 | 1.04 | 82 | 22 |
+| Elliott's Lovegrass | 10 | 11 | 0.96 | 85 | |
+| Purple Lovegrass | 10 | 13 | 1.19 | 87 | |
+| Pink Muhly Grass | 10 | 13 | 1.19 | 87 | |
+| Sideoats Grama | 10 | 13 | 1.17 | 89 | 28 |
+| Mexican Feather Grass | 6 | 9 | 1.38 | 89 | 81 |
+| 'Overdam' | 8 | 11 | 0.87 | 90 | |
+| Prairie Dropseed | 12 | 15 | 1.13 | 91 | 50 |
+| Indiangrass | 8 | 12 | 1.21 | 91 | |
+| Tufted Hairgrass | 10 | 13 | 1.20 | 92 | |
+| Little Bluestem | 9 | 12 | 1.09 | 94 | |
+| Big Bluestem | 12 | 16 | 1.08 | 94 | 46 |
+| 'Moorhexe' | 12 | 15 | 0.79 | 94 | 16 |
+| Purple Moor Grass | 12 | 15 | 0.91 | 94 | 28 |
+| Slender Indiangrass | 10 | 14 | 1.03 | 94 | |
+| Fountain Grass | 14 | 17 | 0.94 | 95 | 60 |
+| Oriental Fountain Grass | 14 | 17 | 0.88 | 95 | |
+| Blue Oat Grass | 12 | 15 | 1.00 | 95 | 35 |
+| 'Karl Foerster' | 8 | 11 | 0.96 | 96 | |
+| Alkali Sacaton | 10 | 13 | 1.16 | 96 | |
+| Korean Feather Reed Grass | 12 | 15 | 1.05 | 97 | |
+| Northern Sea Oats | 12 | 16 | 0.88 | 98 | 55 |
+| 'Transparent' | 14 | 18 | 0.62 | 98 | |
+| Sand Lovegrass | 12 | 16 | 0.88 | 98 | 63 |
+| Miscanthus | 18 | 23 | 0.93 | 99 | 57 |
+| Giant Feather Grass | 14 | 18 | 0.80 | 99 | 46 |
+| Dwarf Fakahatchee Grass | 14 | 18 | 0.80 | 99 | |
+| Lindheimer's Muhly | 18 | 19 | 0.84 | 99 | |
+| Switchgrass | 12 | 16 | 0.83 | 100 | 61 |
+| Deergrass | 24 | 29 | 0.60 | 100 | |
+
+A drift of the tall grasses now reads as one planted mass. The low ones still read as tufts, closer together: a tile
+is 18 in, so a 12 in fescue on every tile has bare ground between clumps however its crown is drawn, and that is true
+of the garden too. The wrong forms are still wrong: the crown is under them, not instead of them.
+
+### How it was checked
+
+- Real pixels: 2,040 sprites (every choice, four seasons, three seeds, two ages) with no ink on their border, and 680
+  library cards and tray pictures with nothing cut off. `dev/grass-review.html?check` now sweeps the previews too.
+- Tests hold that every grass has a crown and nothing else does; that the clump is wider at the ground with one than
+  without, in both renderers; that a plant with none spends no random numbers on it; that every form steps back out of
+  the crown however it leaves its loop, Oatgrass's early exit in Spring included; that a cultivar's crown follows its
+  spread; and that the sprite box holds every blade at two ages. Each was checked by breaking the code on purpose,
+  six ways, and each break fails a test.
+- Snow now lands within 12px of a drawn line on every grass. Japanese Forest Grass in the classic renderer is the
+  farthest, 11.5px; it was 9.9 in 0.9.88, when the test allowed 16. Every other grass is under 8.3px.
+
+### What it costs
+
+The crown itself is a translate per blade. The cost is the foliage added so a drift closes. Against 0.9.88, in one
+headless browser, alternating three rounds, best of each: one procedural draw of all 40 grasses goes 5.71 to 7.79ms in
+Summer, 6.09 to 8.02 in Fall and 6.06 to 8.07 in Winter; the median grass 0.137 to 0.175ms, which is about the
+catalog's median plant. The fountain grasses (0.19 to 0.34ms) and Big Bluestem (0.09 to 0.20) roughly double; the
+hair coats take the low grasses from about 0.09 to 0.16. Nothing that is not a grass changed: 9,352 of 10,032
+drawings are identical, and all 680 that differ are grasses.
+
+That is paid once per sprite bake. `dev/ff-bench.cjs` on the all-grass demo garden (323 plants, 2-year hold, each
+build running 0.9.88's bench, alternating):
+
+| | 0.9.88 | 0.9.89 |
+| --- | --- | --- |
+| Desktop sprite frame, 3 runs | 4.67, 4.86, 4.74ms | 5.18, 5.17, 5.08ms |
+| Desktop, while baking (Spring, Summer, Fall, Winter, mean of 3) | 6.71, 6.79, 6.06, 7.13ms | 6.96, 7.02, 6.31, 7.18ms |
+| Bakes a frame, Summer | 7.3 | 7.4 |
+| Desktop cache peak, of 48MB | 16.3MB | 17.7MB |
+| Phone sprite frame, 1 run | 4.50ms | 4.67ms |
+| Phone cache peak, of 48MB | 35.5MB | 38.6MB |
+
+So about 0.4ms a frame on desktop, 8%, on a garden made of nothing but grasses, and 0.2ms on the phone profile. The
+bake count does not move. The sprites are 7-9% bigger, which is the room at the top for the back of the crown, and the
+blit is what that costs. The procedural frame swung between 92 and 162ms from run to run in both builds, so it is not
+read here; the single-draw figures above are the measure of it.
+
 ## How they look
 
 Measured on 0.9.87, before any of the above, in the real renderer at full growth, in Fall, on a neutral grey backdrop with the cast shadow gated
@@ -240,8 +362,10 @@ good across the tab.
 1. **Every clump grows from a point.** The crown is 2-7 in across on 39 of 40, and the fortieth is only Big
    Bluestem's skirt. So each grass is a bunch of flowers held at the stem. This is the largest single problem,
    and most of the others follow from it. Sedges had it until 0.9.81 and `drawSedgeTufts` fixed it there.
+   Fixed in 0.9.89 with a crown for every grass.
 2. **Drifts do not knit.** Ten species cover under 30% of the ground in a drift, and they stand as a grid of
-   separate dots. 21 of 40 draw under 0.6 of their stated spread.
+   separate dots. 21 of 40 draw under 0.6 of their stated spread. In 0.9.89 every grass covers at least 61%, and
+   none draws under 0.6; Deergrass is the narrowest at 0.60.
 3. **Snow floated.** Every grass in winter carried the white ovals the sedge audit called eggs, in the air and
    across the stems, because grass forms returned no `snowAnchors`. Fixed in 0.9.88.
 4. **Foliage was drawn as tall as the flowers.** Hoffman gives Karl Foerster 2 ft of leaf and 6 ft in flower, and
@@ -283,7 +407,7 @@ It did not recur in the later 3-year or 2-year runs.
 
 1. **Fixes with no design question.** Shipped in 0.9.88.
 2. **A crown for every grass:** blades rising from a ground ellipse, opt-in by `look` as `tuftIn` is, with denser
-   foliage on the low species so a drift knits.
+   foliage on the low species so a drift knits. Shipped in 0.9.89.
 3. **Rebuild the wrong forms:** a dangling open panicle in `oatgrass` for Giant Feather Grass, Quaking Grass, Sea Oats
    and Sideoats; a dome for Blue Oat Grass and Blue Fescue; a real `moorgrass`; a mop for `feathergrass`; a one-way
    cascade for `forestgrass`; arching ribbons with bands for Miscanthus.
