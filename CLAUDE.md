@@ -6892,6 +6892,25 @@ cultivar's `spread`**, so editing one changes how wide that cultivar draws.
 Every grass has a `heightIn` and bloom months, and a test holds both; the calendar test also wants a
 `bloom` colour for those months, and a cloudgrass paints `seed` over `bloom` where it has both.
 
+**Desert rosettes are built in the round (0.9.94)** (`drawSpikyRosette`, `ROSETTE_LEAF`,
+`drawRosetteScape`, `drawOcotillo`, draw.js). Yuccas, hesperaloe, agaves and sotol were a FAN
+of blades left and right of one point: an agave a flat star, a sotol a starburst on the ground.
+Each leaf now has an azimuth (golden angle) and an elevation, is built in 3D, projected with
+`ROS_TILT`, painted back to front and shaded by the face the viewer sees. The `agave` and `sotol`
+forms always use it; `rosette` uses it only when the look names a `leafShape`, so the daylily is
+untouched. A leaf's width runs round the crown, so a leaf seen from its side is a sliver and
+`thick` keeps it from vanishing. **Nothing goes through the ground**: a leaf that would lies
+along it, and the ones lying toward the viewer come down the screen below the foot, which is why
+`spikyRosetteBelow` is a term of `plantDrawBelow`; without it the sprite clipped those leaves.
+`batch` paints thin leaves (sotol, beargrass, soapweed, beaked yucca) in six depth bands, one fill
+per band and tone, with four samples a side. The `margin` look reads the season's `edge` as a
+variegated margin, otherwise `edge` is the spine and teeth. Ocotillo is a vase of wavering canes
+on reused scratch buffers, bare in winter, half-leafed in fall, and draws about 8 ft (`h` 96).
+'Color Guard', 'Bright Edge' and 'Golden Sword' moved from soapweed to the new Adam's needle,
+the species they are, through `PLANT_REF_ALIASES`. Sources: `docs/plant-data/desert-sources.json`;
+decisions and costs: `docs/plant-data/desert-implementation.md`; `dev/desert-review.html` shows
+every choice in four seasons and at true scale (`?nocards&zoom=3`, `?check`, `?bench`).
+
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
 separate carpet, meadow, broad woodland, wet upright, and arching sedges; shared

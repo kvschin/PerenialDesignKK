@@ -1706,7 +1706,7 @@ function plantShadowR(P, growth){
 // shadow, or a weeping conifer's cascade, whichever hangs lower.
 function plantDrawBelow(P, growth, H){
   const shR = plantShadowR(P, growth);
-  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H,growth), coniferGroundBelow(P,growth), coniferTreeBelow(P,growth,H));
+  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H,growth), coniferGroundBelow(P,growth), coniferTreeBelow(P,growth,H), spikyRosetteBelow(P,H));
 }
 const WEEP_LEN_MAX=1.24, WEEP_SCAFFOLD=0.55;  // product of the two length jitters
 function coniferWeepBelow(P,H,growth){
@@ -4037,6 +4037,567 @@ function drawEmergent(ctx,L,S,H,sway,rnd,stemFor,mature,blooming,blv,snow){
   }
   ctx.lineCap='butt';
   return anchors;
+}
+/* ---------- spiky rosettes built in the round (ROSETTE_LEAF) ----------
+   Yuccas, agaves, sotol, hesperaloe and beargrass were drawn as a FAN: blades
+   swept left and right of one point. A yucca came out as a half-dome opening to
+   the sides, an agave and a sotol as a starburst lying flat on the ground. What
+   makes these plants is that their leaves leave a crown ALL the way round: a
+   yucca bristles toward you and away as much as to the sides, a sotol is a ball,
+   an agave an artichoke whose young leaves stand up in a cone in the middle.
+   So every leaf here has an azimuth (the golden angle, the spiral they really
+   grow in) and an elevation (low and outward for the oldest leaves, upright for
+   the youngest in the middle), is built in 3D and projected. A leaf pointing at
+   the viewer is foreshortened and seen full width, one at the side nearly
+   edge-on. Leaves paint back to front, each shaded by the way it faces against
+   the light at the upper left, its top face or its back depending on which one
+   the viewer sees.
+   A rosette leaf's width runs ROUND the crown, so it is the same direction all
+   along the leaf, and a leaf seen from its side is a sliver; `thick` is the
+   leaf's own thickness, so one seen edge-on never vanishes.
+   Look fields:
+     leafShape   a ROSETTE_LEAF outline: sword (yucca), dagger, agave, lance,
+                 strap (hesperaloe), ribbon (sotol), grass (beargrass), needle
+     leaves, leafLen, leafW   count, length (share of H), widest width
+     elev:[out,in]  elevation in degrees of the oldest and the youngest leaves;
+                 elevPow how quickly they rise toward the middle, elevJit spread
+     lenIn, wIn  length and width of the youngest leaves against the oldest
+     arch        how far a leaf bends under its own weight: positive arches it
+                 out and down, negative cups it up and in (an agave)
+     core        radius of the crown the leaf bases stand on (share of H)
+     crownZ      crown height above the ground (share of H); `ball` sets the
+                 bases round a sphere, which is what a sotol is
+     thick       leaf thickness against its width; contrast the light swing
+     margin      the season's `edge` is a margin colour (variegation), marginW
+                 its share of the half-width; otherwise `edge` is the spine
+     teeth, spine, toothSize   marginal teeth per side and the terminal spine,
+                 in `edge` (or `spineCol` when `edge` is the margin)
+     budPrint    the pale ghost of the next leaf's teeth across an agave leaf
+     filaments   curling threads peeling off the margins (Adam's needle)
+     dead, deadCol  the oldest leaves hanging dead under the living ones
+     trunk, trunkW, trunkCol   a stem the crown stands on (beaked yucca)
+     pups        offsets round an agave's foot
+     batch       thin leaves: paint in depth bands, one fill per band and tone,
+                 instead of one per leaf (sotol, beargrass, beaked yucca)
+   Draws nothing random outside its own stream, and returns where snow lands. */
+const ROS_TILT=0.46, ROS_TILT_C=Math.sqrt(1-ROS_TILT*ROS_TILT), ROS_GOLD=2.399963229728653;
+const ROS_LIGHT=[-0.5,0.35,0.79];                 // to the light: left, a little toward the viewer, up
+const ROSETTE_LEAF={
+  // bw width at the base against the widest, p where it is widest, hold where it
+  // starts to taper, tp how: 1 a straight point, above 1 a long fine one
+  sword: {bw:0.42,p:0.2, hold:0.6, tp:1.15},
+  dagger:{bw:0.5, p:0.28,hold:0.5, tp:1.3},
+  agave: {bw:0.7, p:0.42,hold:0.5, tp:0.95},
+  lance: {bw:0.6, p:0.3, hold:0.4, tp:1.25},
+  strap: {bw:0.72,p:0.1, hold:0.5, tp:1.4},
+  ribbon:{bw:0.86,p:0.06,hold:0.76,tp:0.8},
+  grass: {bw:0.8, p:0.05,hold:0.3, tp:1.7},
+  needle:{bw:0.62,p:0.12,hold:0.42,tp:1.05},
+};
+function rosetteLeafW(sh,t){
+  if (t<sh.p) return sh.bw+(1-sh.bw)*Math.sin(t/sh.p*1.5707963);
+  if (t<=sh.hold) return 1;
+  const c=Math.cos((t-sh.hold)/(1-sh.hold)*1.5707963);
+  return c<=0?0:Math.pow(c,sh.tp);
+}
+/* A rosette's outer leaves lie along the ground where they cannot go through it, and
+   the ones toward the viewer come down the screen by ROS_TILT of their reach: below the
+   plant's foot, where the sprite box has to make room. Offsets sit further out still. */
+function spikyRosetteBelow(P,H){
+  const L=P.look||{};
+  if (!spikyRosetteOn(P) || P.form==='ocotillo' || !H) return 0;
+  const len=H*(L.leafLen||0.45)*1.12*(L.pups?1.4:1), core=H*(L.core||0.04);
+  return (len+core)*ROS_TILT+(L.leafW||3)*0.5+(L.spine||0)+3;
+}
+function spikyRosetteOn(P){
+  const L=P.look||{};
+  return P.form==='agave'||P.form==='sotol'||P.form==='ocotillo'||(P.form==='rosette'&&!!ROSETTE_LEAF[L.leafShape]);
+}
+const SPK_MAX=420, SPK_K=7;
+const _spk={
+  b:new Float32Array(SPK_MAX*2), c:new Float32Array(SPK_MAX*2), t:new Float32Array(SPK_MAX*2),
+  u:new Float32Array(SPK_MAX*2), w:new Float32Array(SPK_MAX), dep:new Float32Array(SPK_MAX),
+  lam:new Float32Array(SPK_MAX), kind:new Uint8Array(SPK_MAX), top:new Uint8Array(SPK_MAX),
+  sh:new Array(SPK_MAX), idx:new Int16Array(SPK_MAX), zt:new Float32Array(SPK_MAX),
+};
+const _spkE=new Float32Array((SPK_K+1)*4);         // the two edges of one leaf, sampled
+// sample a leaf's edges into _spkE: [lx,ly,rx,ry] per sample, `f` scales the width
+function rosetteEdges(i,f,thick,K){
+  K=K||SPK_K;
+  const R=_spk, bx=R.b[i*2],by=R.b[i*2+1],cx=R.c[i*2],cy=R.c[i*2+1],tx=R.t[i*2],ty=R.t[i*2+1];
+  const ux=R.u[i*2], uy=R.u[i*2+1], w=R.w[i]*0.5*f, sh=R.sh[i];
+  for (let k=0;k<=K;k++){
+    const t=k/K, s=1-t;
+    const qx=s*s*bx+2*s*t*cx+t*t*tx, qy=s*s*by+2*s*t*cy+t*t*ty;
+    let gx=2*s*(cx-bx)+2*t*(tx-cx), gy=2*s*(cy-by)+2*t*(ty-cy);
+    const gl=Math.sqrt(gx*gx+gy*gy)||1; gx/=gl; gy/=gl;
+    const nx=-gy, ny=gx, d=ux*nx+uy*ny, sg=d<0?-1:1;
+    const hw=w*rosetteLeafW(sh,t), th=hw*thick*(1-Math.min(1,Math.abs(d)))*sg;
+    const ox=ux*hw+nx*th, oy=uy*hw+ny*th;
+    _spkE[k*4]=qx+ox; _spkE[k*4+1]=qy+oy; _spkE[k*4+2]=qx-ox; _spkE[k*4+3]=qy-oy;
+  }
+}
+function rosettePolyPath(ctx,half,K){   // the whole leaf, or the half on its `left` edge
+  K=K||SPK_K;
+  ctx.moveTo(_spkE[0],_spkE[1]);
+  for (let k=1;k<=K;k++) ctx.lineTo(_spkE[k*4],_spkE[k*4+1]);
+  if (half){
+    for (let k=K-1;k>=0;k--){
+      ctx.lineTo((_spkE[k*4]+_spkE[k*4+2])*0.5,(_spkE[k*4+1]+_spkE[k*4+3])*0.5);
+    }
+  } else for (let k=K-1;k>=0;k--) ctx.lineTo(_spkE[k*4+2],_spkE[k*4+3]);
+  ctx.closePath();
+}
+function drawSpikyRosette(ctx,L,S,H,growth,rnd,sway,season,snow){
+  const R=_spk, shape=ROSETTE_LEAF[L.leafShape]||ROSETTE_LEAF.sword, gs=0.25+0.75*growth;
+  const fol=S.fol||'#7d8f80', dead=L.deadCol||mixHex(fol,'#9c8462',0.72);
+  const trunkZ=H*(L.trunk||0)*Math.min(1,growth*1.25);
+  const zc=trunkZ+H*(L.crownZ||0.04), core=H*(L.core||0.04);
+  const el=L.elev||[-5,85], e0=el[0]*0.017453, e1=el[1]*0.017453, ePow=L.elevPow||1;
+  const ejit=(L.elevJit===undefined?10:L.elevJit)*0.017453;
+  const len0=H*(L.leafLen||0.45), lenIn=L.lenIn===undefined?0.8:L.lenIn;
+  const wIn=L.wIn===undefined?0.85:L.wIn, arch=L.arch||0, thick=L.thick===undefined?0.28:L.thick;
+  const leafW=(L.leafW||3)*gs, swk=(L.swayK===undefined?0.01:L.swayK)*sway;
+  const deadN=S.fol?(L.dead||0):0, contrast=L.contrast||26;
+  let n=0;
+  // one leaf into the scratch arrays, in world inches-ish (draw units)
+  const leaf=(ox,oy,oz,th,ev,len,w,kind,ar,cr)=>{
+    if (n>=SPK_MAX) return;
+    const ct=Math.cos(th), st=Math.sin(th), ce=Math.cos(ev), se=Math.sin(ev);
+    let bx,by,bz;
+    if (L.ball && kind!==2){ bx=ox+cr*ce*ct; by=oy+cr*ce*st; bz=oz+cr*se; }
+    else { bx=ox+cr*ct; by=oy+cr*st; bz=oz; }
+    // the tip's own direction: bent down by its weight, more as it lies flatter
+    let et=ev-ar*1.66*(0.45+0.55*ce);
+    if (et>1.53) et=1.53;
+    const cet=Math.cos(et), set=Math.sin(et);
+    const mx=0.45*ce+0.55*cet, mz=0.45*se+0.55*set;
+    // nothing goes through the ground: a leaf that would lies along it instead
+    const tx=bx+ct*mx*len, ty=by+st*mx*len, tz=Math.max(0,bz+mz*len);
+    const kx=bx+ct*ce*len*0.5, ky=by+st*ce*len*0.5, kz=Math.max(0,bz+se*len*0.5);
+    R.b[n*2]=bx+swk*bz*0.02; R.b[n*2+1]=by*ROS_TILT-bz;
+    R.c[n*2]=kx+swk*kz*0.02; R.c[n*2+1]=ky*ROS_TILT-kz;
+    R.t[n*2]=tx+swk*tz*0.02; R.t[n*2+1]=ty*ROS_TILT-tz;
+    R.u[n*2]=-st; R.u[n*2+1]=ct*ROS_TILT;
+    R.w[n]=w; R.kind[n]=kind; R.sh[n]=shape; R.zt[n]=tz;
+    R.dep[n]=(by+ty)*0.5*ROS_TILT_C+(bz+tz)*0.5*ROS_TILT;
+    // which face shows, and how the light falls on it
+    const em=(ev+et)*0.5, sm=Math.sin(em), cm=Math.cos(em);
+    let nx=-sm*ct, ny=-sm*st, nz=cm;
+    const top=ny*ROS_TILT_C+nz*ROS_TILT>=0;
+    if (!top){ nx=-nx; ny=-ny; nz=-nz; }
+    R.top[n]=top?1:0;
+    R.lam[n]=nx*ROS_LIGHT[0]+ny*ROS_LIGHT[1]+nz*ROS_LIGHT[2]+(rnd()-0.5)*0.24;
+    n++;
+  };
+  const leafN=Math.min(SPK_MAX-60,Math.max(5,Math.round((L.leaves||40)*(0.45+0.55*growth))));
+  const start=rnd()*6.283;
+  if (S.fol) for (let i=0;i<leafN;i++){
+    const r=(i+0.5)/leafN, isDead=i<deadN;
+    const th=start+i*ROS_GOLD+(rnd()-0.5)*0.35;
+    let ev=e0+(e1-e0)*Math.pow(r,ePow)+(rnd()-0.5)*ejit;
+    if (isDead) ev=-0.55-rnd()*0.65;
+    const len=len0*(1+(lenIn-1)*r)*(0.86+rnd()*0.26)*(isDead?0.82:1);
+    const w=leafW*(1+(wIn-1)*r)*(isDead?0.8:1);
+    const cr=core*(L.ball?1:(1-0.6*r)), oz=zc+(L.ball?0:core*0.7*r);
+    leaf(0,0,oz,th,ev,len,w,isDead?1:0,isDead?Math.max(arch,0.15):arch,cr);
+  }
+  // offsets round an agave's foot: small rosettes of their own
+  const pups=S.fol&&growth>0.55?(L.pups||0):0;
+  for (let p=0;p<pups;p++){
+    const pa=start+1.1+p*2.2+(rnd()-0.5)*0.5, pr=len0*(0.72+rnd()*0.18), ps=0.32+rnd()*0.1;
+    const px=Math.cos(pa)*pr, py=Math.sin(pa)*pr, pn=7;
+    for (let i=0;i<pn;i++){
+      const r=(i+0.5)/pn, th=pa+i*ROS_GOLD;
+      const ev=e0+(e1-e0)*Math.pow(r,ePow)+(rnd()-0.5)*ejit;
+      leaf(px,py,0,th,ev,len0*ps*(1+(lenIn-1)*r),leafW*ps*1.4*(1+(wIn-1)*r),2,arch,core*ps);
+    }
+  }
+  const idx=R.idx;
+  for (let i=0;i<n;i++) idx[i]=i;
+  const order=idx.subarray(0,n);
+  order.sort((a,b)=>R.dep[a]-R.dep[b]);
+  // a rosette's own shadow, as wide as its leaves reach
+  const reach=len0*(Math.cos(Math.max(0,e0))*0.9)+core;
+  if (S.fol) drawSoftShadow(ctx,0,2,reach*0.95,reach*0.3,0.18);
+  // the trunk goes in between the leaves behind it and the leaves in front
+  let drewTrunk=!trunkZ;
+  const drawTrunk=()=>{
+    drewTrunk=true;
+    const tw=H*(L.trunkW||0.06)*gs, bark=L.trunkCol||shade(dead,-26);
+    ctx.fillStyle=shade(bark,-12);
+    ctx.beginPath(); ctx.moveTo(-tw*0.62,0); ctx.lineTo(-tw*0.5,-zc+core*0.4);
+    ctx.lineTo(tw*0.5,-zc+core*0.4); ctx.lineTo(tw*0.62,0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=shade(bark,10);
+    ctx.beginPath(); ctx.moveTo(-tw*0.62,0); ctx.lineTo(-tw*0.5,-zc+core*0.4);
+    ctx.lineTo(-tw*0.08,-zc+core*0.4); ctx.lineTo(-tw*0.12,0); ctx.closePath(); ctx.fill();
+    // the old leaves it keeps: a shag hanging down the stem
+    if (L.shag!==false){
+      ctx.strokeStyle=shade(dead,-6); ctx.lineWidth=Math.max(0.6,leafW*0.42); ctx.beginPath();
+      const rows=Math.max(2,Math.round(trunkZ/(leafW*2.2)));
+      for (let r=0;r<rows;r++){
+        const y=-zc+core*0.4+(r+0.5)/rows*(zc-core*0.6);
+        for (let s=-2;s<=2;s++){
+          const x=s*tw*0.24+(rnd()-0.5)*tw*0.2;
+          ctx.moveTo(x,y); ctx.lineTo(x+s*tw*0.16,y+leafW*2.6);
+        }
+      }
+      ctx.stroke();
+    }
+  };
+  // the shade inside a dense ball, so the leaves behind it read as depth and not as a starburst
+  let drewMass=!(L.mass&&S.fol);
+  const drawMass=()=>{
+    drewMass=true;
+    const r=len0*L.mass, cy=-zc;
+    ctx.fillStyle=shade(fol,-34); ctx.beginPath(); ctx.ellipse(0,cy,r,r*0.92,0,0,7); ctx.fill();
+    ctx.fillStyle=shade(fol,-18); ctx.beginPath(); ctx.ellipse(-r*0.22,cy-r*0.24,r*0.62,r*0.56,0,0,7); ctx.fill();
+  };
+  const spine=L.margin?(L.spineCol||shade(fol,-48)):(S.edge||L.spineCol||shade(fol,-48));
+  const teeth=L.teeth||0, spineLen=(L.spine||0)*gs, tsz=(L.toothSize||0.8)*gs;
+  if (L.batch){
+    // thin leaves: depth bands, a fill per band and tone
+    const bands=6, per=Math.ceil(n/bands);
+    for (let b=0;b<bands;b++){
+      const lo=b*per, hi=Math.min(n,lo+per);
+      if (lo>=hi) break;
+      if (!drewTrunk && R.dep[order[lo]]>=0) drawTrunk();
+      if (!drewMass && R.dep[order[lo]]>=0) drawMass();
+      for (let q=0;q<6;q++){
+        let any=false;
+        ctx.beginPath();
+        for (let j=lo;j<hi;j++){
+          const i=order[j], kq=R.kind[i]===1?5:Math.max(0,Math.min(4,Math.round((R.lam[i]+0.7)*2.6)));
+          if (kq!==q) continue;
+          rosetteEdges(i,1,thick,4); rosettePolyPath(ctx,false,4); any=true;
+        }
+        if (!any) continue;
+        ctx.fillStyle=q===5?shade(dead,(b-3)*3):shade(fol,Math.round((q-2.3)*contrast*0.42+(b-2.5)*2));
+        ctx.fill();
+      }
+    }
+  } else {
+    const marginW=L.margin?(L.marginW||0.28):0.13;
+    for (let j=0;j<n;j++){
+      const i=order[j];
+      if (!drewTrunk && R.dep[i]>=0) drawTrunk();
+      const isDead=R.kind[i]===1, base=isDead?dead:fol;
+      const tone=Math.round((R.lam[i]-0.25)*contrast)+(R.top[i]?0:-4);
+      // the outline, or the variegated margin
+      rosetteEdges(i,1,thick);
+      ctx.beginPath(); rosettePolyPath(ctx,false);
+      ctx.fillStyle=L.margin&&!isDead&&S.edge?shade(S.edge,Math.round(tone*0.7)):shade(base,tone-26);
+      ctx.fill();
+      rosetteEdges(i,1-marginW,thick*0.6);
+      ctx.beginPath(); rosettePolyPath(ctx,false);
+      ctx.fillStyle=shade(base,tone); ctx.fill();
+      // the lit half of a keeled or channelled leaf
+      if (R.kind[i]===2) continue;          // an offset: outline and body are enough at its size
+      if (R.w[i]>2.4 && !isDead){
+        ctx.beginPath(); rosettePolyPath(ctx,true);
+        ctx.fillStyle=shade(base,tone+(R.top[i]?14:10)); ctx.fill();
+      }
+      if (isDead) continue;
+      // the ghost of the next leaf's teeth, printed across an agave's face
+      if (L.budPrint && R.top[i] && R.w[i]>5){
+        const k=Math.round(SPK_K*0.55), k2=Math.round(SPK_K*0.35);
+        ctx.strokeStyle=shade(base,tone+18); ctx.lineWidth=0.6; ctx.beginPath();
+        for (const kk of [k,k2]){
+          const lx=_spkE[kk*4],ly=_spkE[kk*4+1],rx=_spkE[kk*4+2],ry=_spkE[kk*4+3];
+          ctx.moveTo(lx*0.8+rx*0.2,ly*0.8+ry*0.2);
+          ctx.quadraticCurveTo((lx+rx)*0.5,(ly+ry)*0.5-1.2,lx*0.2+rx*0.8,ly*0.2+ry*0.8);
+        }
+        ctx.stroke();
+      }
+      if (teeth||spineLen){
+        rosetteEdges(i,1,thick);
+        ctx.beginPath();
+        if (spineLen){
+          const k=SPK_K, ex=_spkE[k*4], ey=_spkE[k*4+1];
+          const px=(_spkE[(k-1)*4]+_spkE[(k-1)*4+2])*0.5, py=(_spkE[(k-1)*4+1]+_spkE[(k-1)*4+3])*0.5;
+          let gx=ex-px, gy=ey-py; const gl=Math.sqrt(gx*gx+gy*gy)||1; gx/=gl; gy/=gl;
+          const sw=Math.max(0.55,R.w[i]*0.09);
+          ctx.moveTo(ex-gy*sw-gx*spineLen*0.8,ey+gx*sw-gy*spineLen*0.8);
+          ctx.lineTo(ex+gx*spineLen,ey+gy*spineLen);
+          ctx.lineTo(ex+gy*sw-gx*spineLen*0.8,ey-gx*sw-gy*spineLen*0.8); ctx.closePath();
+        }
+        if (teeth && R.w[i]*gs>1.4) for (let t=0;t<teeth;t++){
+          const f=(t+1)/(teeth+1)*(SPK_K-1), k=Math.floor(f), fr=f-k;
+          for (let side=0;side<2;side++){
+            const o=side*2;
+            const ax=_spkE[k*4+o]+(_spkE[(k+1)*4+o]-_spkE[k*4+o])*fr, ay=_spkE[k*4+o+1]+(_spkE[(k+1)*4+o+1]-_spkE[k*4+o+1])*fr;
+            const mx=(_spkE[k*4]+_spkE[k*4+2])*0.5, my=(_spkE[k*4+1]+_spkE[k*4+3])*0.5;
+            let ox=ax-mx, oy=ay-my; const ol=Math.sqrt(ox*ox+oy*oy);
+            if (ol<0.4) continue;
+            ox/=ol; oy/=ol;
+            let gx=_spkE[(k+1)*4+o]-_spkE[k*4+o], gy=_spkE[(k+1)*4+o+1]-_spkE[k*4+o+1];
+            const gl=Math.sqrt(gx*gx+gy*gy)||1; gx/=gl; gy/=gl;
+            ctx.moveTo(ax-gx*tsz*0.6,ay-gy*tsz*0.6);
+            ctx.lineTo(ax+ox*tsz*1.1+gx*tsz*0.5,ay+oy*tsz*1.1+gy*tsz*0.5);
+            ctx.lineTo(ax+gx*tsz*0.6,ay+gy*tsz*0.6); ctx.closePath();
+          }
+        }
+        ctx.fillStyle=spine; ctx.fill();
+      }
+      if (L.filaments && R.top[i] && j%2===0 && R.zt[i]>H*0.08){
+        rosetteEdges(i,1,thick);
+        ctx.strokeStyle=L.filamentCol||'rgba(240,233,214,0.85)'; ctx.lineWidth=0.5; ctx.beginPath();
+        for (let t=0;t<2;t++){
+          const k=2+t*2+(j%2), o=((j>>1)+t)%2*2;
+          if (k>=SPK_K) continue;
+          const ax=_spkE[k*4+o], ay=_spkE[k*4+o+1], mx=(_spkE[k*4]+_spkE[k*4+2])*0.5;
+          const s=ax>=mx?1:-1, cl=2.6*gs;
+          ctx.moveTo(ax,ay); ctx.quadraticCurveTo(ax+s*cl,ay-cl*0.2,ax+s*cl*0.7,ay+cl*0.9);
+          ctx.quadraticCurveTo(ax+s*cl*0.2,ay+cl*1.5,ax+s*cl*0.9,ay+cl*1.9);
+        }
+        ctx.stroke();
+      }
+    }
+  }
+  if (!drewTrunk) drawTrunk();
+  if (!drewMass) drawMass();
+  if (!snow||!S.fol) return null;
+  // snow lies on the highest leaves that face up, and in the heart of the crown
+  const out=[[0,-zc-len0*0.3,Math.max(2.4,Math.min(4,leafW*0.45))]];
+  for (let j=n-1;j>=0&&out.length<7;j--){
+    const i=order[j];
+    if (!R.top[i]||R.kind[i]===1) continue;
+    out.push([(R.c[i*2]+R.t[i*2])*0.5,(R.c[i*2+1]+R.t[i*2+1])*0.5,Math.max(2.2,Math.min(3.6,R.w[i]*0.4))]);
+  }
+  return out;
+}
+
+/* ---------- the flower stalk a rosette sends up (L.scapeStyle) ----------
+     bells   yucca: a stout stalk of nodding cream bells, close on a raceme
+             (soapweed) or hung from side branches (`branches`, Adam's needle)
+     tubes   hesperaloe: slender arching wands hung with small tubes
+     column  sotol: a tall straight stalk ending in a narrow dense column
+     plume   beargrass: loose cream panicles among and above the leaves
+   `scape` is the stalk's top as a share of H, `flowerFrom` where on it the
+   flowers start, `stems` how many, `scapeArch` how far a wand leans out.
+   In seed the same structure carries capsules in the season's `seed`. */
+function drawRosetteScape(ctx,L,S,H,growth,rnd,sway,blooming,blv){
+  const style=L.scapeStyle||'bells', col=(blooming?S.bloom:null)||S.seed;
+  if (!col) return;
+  const seed=!blooming, gs=0.25+0.75*growth;
+  const zc=H*(L.trunk||0)*Math.min(1,growth*1.25)+H*(L.crownZ||0.04);
+  const sn=Math.max(1,L.stems||1), top=H*(L.scape||1), from=L.flowerFrom===undefined?0.45:L.flowerFrom;
+  const stalkCol=L.scapeCol||shade(S.fol||'#7d7a60',-30);
+  for (let st=0;st<sn;st++){
+    const side=sn>1?((st/(sn-1))-0.5)*2:0, th=st*ROS_GOLD+0.4;
+    const lean=(L.scapeArch||0)*H*(side||(rnd()-0.5)), depth=Math.sin(th)*(L.scapeArch||0)*H*0.4;
+    const h=top*(sn>1?0.86+rnd()*0.2:1);
+    const bx=side*H*0.03, by=-zc;
+    const tx=bx+lean+sway*h*0.03, ty=-h+depth*ROS_TILT;
+    const cx=bx+lean*0.12, cy=by+(ty-by)*0.62;
+    const pt=(t,o)=>{ const s=1-t; o[0]=s*s*bx+2*s*t*cx+t*t*tx; o[1]=s*s*by+2*s*t*cy+t*t*ty; return o; };
+    const stalkW=style==='column'?1.9:style==='bells'?1.7:style==='plume'?0.8:1.0;
+    ctx.strokeStyle=stalkCol; ctx.lineWidth=stalkW*gs; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.quadraticCurveTo(cx,cy,tx,ty); ctx.stroke();
+    const P=[0,0], Q=[0,0];
+    if (style==='bells'){
+      const total=Math.max(4,Math.round((L.bells||22)*(seed?0.6:Math.max(0.25,blv)))), br=L.branches||0;
+      const bw=(L.bellW||2.1)*gs, bh=(L.bellH||2.6)*gs;
+      const bell=(x,y)=>{
+        if (seed){
+          // an upright capsule, split into its three valves once it has dried
+          fbEllipse(0,shade(col,(rnd()-0.5)*12),x,y-bh*0.6,bw*0.62,bh*1.05,0);
+          fbEllipse(1,shade(col,-26),x+bw*0.08,y-bh*0.6,bw*0.14,bh*0.95,0);
+          return;
+        }
+        // a nodding bell: narrow where it hangs, flared and open at the mouth
+        const tint=S.eye&&rnd()<0.35?mixHex(col,S.eye,0.35):col, a=(rnd()-0.5)*0.5;
+        fbShape(0,shade(tint,-14),x,y,a,[-bw*0.3,0, -bw*0.62,bh*0.5,-bw,bh*1.5, 0,bh*1.78,bw,bh*1.5, bw*0.62,bh*0.5,bw*0.3,0]);
+        fbShape(1,shade(tint,10),x,y,a,[-bw*0.26,bh*0.1, -bw*0.5,bh*0.55,-bw*0.72,bh*1.3, -bw*0.2,bh*1.1,-bw*0.06,bh*0.2]);
+        fbEllipse(2,shade(tint,-34),x-Math.sin(a)*bh*1.52,y+Math.cos(a)*bh*1.52,bw*0.78,bh*0.2,a);
+      };
+      if (br){
+        ctx.strokeStyle=stalkCol; ctx.lineWidth=0.8*gs; ctx.beginPath();
+        const per=Math.max(1,Math.round(total/br)), sites=[];
+        for (let b=0;b<br;b++){
+          const t=from+(b+0.5)/br*(1-from)*0.92; pt(t,P);
+          const a=(b*ROS_GOLD)%6.283, reach=H*(L.branchLen||0.13)*(1-0.55*(b/br))*gs;
+          const ex=P[0]+Math.cos(a)*reach, ey=P[1]-reach*0.62+Math.sin(a)*reach*ROS_TILT;
+          ctx.moveTo(P[0],P[1]); ctx.quadraticCurveTo(P[0]+Math.cos(a)*reach*0.5,P[1]-reach*0.35,ex,ey);
+          for (let k=0;k<per;k++){ const f=0.35+0.65*(k+0.5)/per;
+            sites.push(P[0]+(ex-P[0])*f+(rnd()-0.5)*1.2, P[1]+(ey-P[1])*f+(rnd()-0.3)*1.5); }
+        }
+        ctx.stroke();
+        for (let s=0;s<sites.length;s+=2) bell(sites[s],sites[s+1]);
+      } else {
+        ctx.strokeStyle=stalkCol; ctx.lineWidth=0.6*gs; ctx.beginPath();
+        const sites=[];
+        for (let b=0;b<total;b++){
+          const t=from+(b+0.5)/total*(1-from)*0.95; pt(t,P);
+          const a=b*ROS_GOLD, r=(L.pedicel||2.6)*gs*(1-0.4*(b/total));
+          const x=P[0]+Math.cos(a)*r, y=P[1]+Math.sin(a)*r*ROS_TILT;
+          ctx.moveTo(P[0],P[1]); ctx.lineTo(x,y);
+          sites.push(x,y,Math.sin(a));
+        }
+        ctx.stroke();
+        // the bells round the back first, so the stalk stands in front of them
+        for (let pass=0;pass<2;pass++)
+          for (let s=0;s<sites.length;s+=3) if ((sites[s+2]<0)===(pass===0)) bell(sites[s],sites[s+1]);
+      }
+      fbFlush(ctx);
+    } else if (style==='tubes'){
+      const total=Math.max(3,Math.round((L.bells||14)*(seed?0.55:Math.max(0.3,blv))));
+      const tl=(L.tubeLen||3.2)*gs, tw=(L.tubeW||0.95)*gs;
+      ctx.strokeStyle=stalkCol; ctx.lineWidth=0.55*gs; ctx.beginPath();
+      const sites=[];
+      for (let b=0;b<total;b++){
+        const t=from+(b+0.5)/total*(1-from); pt(t,P); pt(Math.min(1,t+0.02),Q);
+        const s=b%2?1:-1, r=(1.6+rnd()*1.4)*gs;
+        const x=P[0]+s*r, y=P[1]+r*0.3;
+        ctx.moveTo(P[0],P[1]); ctx.lineTo(x,y);
+        sites.push(x,y,s);
+      }
+      ctx.stroke();
+      for (let s=0;s<sites.length;s+=3){
+        const x=sites[s], y=sites[s+1], sd=sites[s+2];
+        if (seed){
+          fbEllipse(0,shade(col,(rnd()-0.5)*14),x,y+tw*1.2,tw*1.35,tw*1.45,0);
+          fbEllipse(1,shade(col,18),x-tw*0.4,y+tw*0.8,tw*0.5,tw*0.5,0);
+        } else {
+          const rot=sd*0.28;
+          fbEllipse(0,shade(col,(rnd()-0.5)*12),x+sd*tl*0.12,y+tl*0.48,tw,tl*0.5,rot);
+          fbEllipse(1,shade(col,16),x+sd*tl*0.08-tw*0.3,y+tl*0.36,tw*0.42,tl*0.32,rot);
+          if (S.eye) fbEllipse(2,S.eye,x+sd*tl*0.24,y+tl*0.92,tw*0.72,tw*0.42,rot);
+        }
+      }
+      fbFlush(ctx);
+    } else if (style==='column'){
+      // a sotol's spike: dense short side clusters packed into a narrow column
+      const levels=Math.round((L.levels||30)*(0.6+0.4*growth)), cw=(L.columnW||4.2)*gs;
+      for (let k=0;k<levels;k++){
+        const t=from+(k+0.5)/levels*(1-from); pt(t,P);
+        const f=(k+0.5)/levels, wide=cw*Math.pow(Math.sin(Math.PI*Math.min(1,f*1.15)),0.55)*(0.75+rnd()*0.35);
+        const a=k*ROS_GOLD;
+        for (let s=0;s<4;s++){
+          const aa=a+s*1.571, rr=wide*(0.35+0.65*rnd());
+          const x=P[0]+Math.cos(aa)*rr, y=P[1]+Math.sin(aa)*rr*ROS_TILT+(rnd()-0.5)*1.4;
+          const front=Math.sin(aa)>0;
+          fbEllipse(front?1:0,shade(col,(front?6:-16)+(rnd()-0.5)*14),x,y,0.95*gs,0.8*gs,0);
+        }
+      }
+      fbFlush(ctx);
+    } else if (style==='plume'){
+      // beargrass: open panicles of tiny flowers on branching side shoots
+      const twigs=Math.round((L.twigs||9)*(0.6+0.4*growth)), dots=L.dots||5;
+      ctx.strokeStyle=stalkCol; ctx.lineWidth=0.45*gs; ctx.beginPath();
+      const sites=[];
+      for (let k=0;k<twigs;k++){
+        const t=from+(k+0.5)/twigs*(1-from); pt(t,P);
+        const s=k%2?1:-1, reach=H*(L.twigLen||0.07)*(1-0.5*(k/twigs))*(0.7+rnd()*0.5);
+        const ex=P[0]+s*reach, ey=P[1]-reach*0.55;
+        ctx.moveTo(P[0],P[1]); ctx.quadraticCurveTo(P[0]+s*reach*0.5,P[1]-reach*0.1,ex,ey);
+        for (let d=0;d<dots;d++){ const f=(d+1)/dots; sites.push(P[0]+(ex-P[0])*f+(rnd()-0.5)*1.6, P[1]+(ey-P[1])*f+(rnd()-0.5)*1.6); }
+      }
+      ctx.stroke();
+      for (let s=0;s<sites.length;s+=2)
+        fbEllipse(s%4?1:0,shade(col,(rnd()-0.5)*18),sites[s],sites[s+1],(seed?1.05:0.95)*gs,(seed?0.9:0.85)*gs,0);
+      fbFlush(ctx);
+    }
+  }
+  ctx.lineCap='butt';
+}
+
+/* ---------- ocotillo: whips from one crown ----------
+   It was a fan of straight sticks in one plane, dense enough to read as a broom,
+   and six feet tall for a plant whose canes run to fifteen. An ocotillo is a
+   few dozen unbranched canes leaving a short crown all the way round and
+   leaning out at their own angles, a vase you can see the sky through, each cane
+   wavering a little, grey and furrowed, studded with spines. After rain it
+   leafs out along its whole length, so the canes turn into green wands; in
+   spring each tip carries a slim flame of scarlet tubes. The canes are built in
+   the round like the rosettes above and paint back to front.
+   Look fields: canes, lean:[min,max] degrees from upright, waver, caneW. */
+const OCO_MAX=48, OCO_M=7;
+const _oc={pts:new Float32Array(OCO_MAX*(OCO_M+1)*2), dep:new Float32Array(OCO_MAX), lit:new Float32Array(OCO_MAX), idx:new Int16Array(OCO_MAX)};
+function drawOcotillo(ctx,L,S,H,growth,rnd,sway,season,blooming,blv,snow){
+  const n=Math.max(4,Math.round((L.canes||22)*(0.4+0.6*growth))), gs=0.25+0.75*growth;
+  const ln=L.lean||[4,34], l0=ln[0]*0.017453, l1=ln[1]*0.017453;
+  const bark=S.edge||'#7d7563', leafCol=S.fol, cw=(L.caneW||2.4)*gs, M=OCO_M;
+  const leafFrac=season==='Fall'?0.5:1, start=rnd()*6.283;
+  const C=_oc, cnt=Math.min(OCO_MAX,n);
+  for (let i=0;i<cnt;i++){
+    const th=start+i*ROS_GOLD+(rnd()-0.5)*0.4;
+    const r=rnd(), lean=l0+(l1-l0)*Math.pow(r,0.8);
+    const len=H*(0.7+rnd()*0.36)*(1-0.18*r);
+    const ct=Math.cos(th), st=Math.sin(th);
+    const pts=C.pts.subarray(i*(OCO_M+1)*2,(i+1)*(OCO_M+1)*2);
+    let x=ct*H*0.015, y=st*H*0.015, z=0, a=lean;
+    const wav=(L.waver||0.06), ph=rnd()*6.283;
+    for (let k=0;k<=M;k++){
+      pts[k*2]=x+sway*z*0.04; pts[k*2+1]=y*ROS_TILT-z;
+      const seg=len/M, aa=a+Math.sin(ph+k*1.3)*wav;
+      x+=ct*Math.sin(aa)*seg; y+=st*Math.sin(aa)*seg; z+=Math.cos(aa)*seg;
+      a+=(L.bow||0.02);                      // canes bow a little outward as they climb
+    }
+    C.dep[i]=st*len*0.5*ROS_TILT_C; C.lit[i]=-ct*0.5+st*0.3; C.idx[i]=i;
+  }
+  const order=C.idx.subarray(0,cnt);
+  order.sort((p,q)=>C.dep[p]-C.dep[q]);
+  const P=[0,0];
+  const ptAt=(pts,t,o)=>{ const f=t*M, k=Math.min(M-1,Math.floor(f)), fr=f-k;
+    o[0]=pts[k*2]+(pts[k*2+2]-pts[k*2])*fr; o[1]=pts[k*2+1]+(pts[k*2+3]-pts[k*2+1])*fr; return o; };
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  for (let j=0;j<cnt;j++){
+    const ci=order[j], pts=C.pts.subarray(ci*(OCO_M+1)*2,(ci+1)*(OCO_M+1)*2), tone=Math.round(C.lit[ci]*18);
+    // the cane: a tapered stroke in three steps, base to tip
+    for (let s=0;s<3;s++){
+      const k0=Math.floor(s*M/3), k1=Math.floor((s+1)*M/3);
+      ctx.strokeStyle=shade(bark,tone-6+s*3); ctx.lineWidth=cw*(1-s*0.28);
+      ctx.beginPath(); ctx.moveTo(pts[k0*2],pts[k0*2+1]);
+      for (let k=k0+1;k<=k1;k++) ctx.lineTo(pts[k*2],pts[k*2+1]);
+      ctx.stroke();
+    }
+    // the lit flank, and the spines
+    ctx.strokeStyle=shade(bark,tone+18); ctx.lineWidth=Math.max(0.5,cw*0.3);
+    ctx.beginPath(); ctx.moveTo(pts[0]-cw*0.25,pts[1]);
+    for (let k=1;k<=M-2;k++) ctx.lineTo(pts[k*2]-cw*0.25,pts[k*2+1]);
+    ctx.stroke();
+    if (!leafCol){
+      ctx.strokeStyle=shade(bark,-34); ctx.lineWidth=0.55; ctx.beginPath();
+      for (let k=0;k<9;k++){ ptAt(pts,0.1+k*0.095,P); const s=k%2?1:-1;
+        ctx.moveTo(P[0],P[1]); ctx.lineTo(P[0]+s*cw*0.75,P[1]-cw*0.4); }
+      ctx.stroke();
+    } else {
+      // leaves in little bunches at each spine, all the way up the cane
+      const bunches=Math.round((L.bunches||16)*leafFrac);
+      ctx.fillStyle=shade(leafCol,tone*0.6); ctx.beginPath();
+      for (let k=0;k<bunches;k++){
+        if (leafFrac<1 && rnd()<0.35) continue;
+        ptAt(pts,0.08+k/bunches*0.9,P);
+        const s=k%2?1:-1, lx=P[0]+s*cw*0.75, ly=P[1]+(rnd()-0.5)*1.2, rx=1.2*gs, ry=1.8*gs, rot=s*0.6;
+        ctx.moveTo(lx+Math.cos(rot)*rx,ly+Math.sin(rot)*rx); ctx.ellipse(lx,ly,rx,ry,rot,0,7);
+      }
+      ctx.fill();
+    }
+    const tx=pts[M*2], ty=pts[M*2+1];
+    if (blooming && S.bloom){
+      // a narrow flame of tubes at the tip
+      const fl=H*(L.flameLen||0.09)*(0.6+0.4*blv), fw=cw*1.25;
+      ptAt(pts,0.9,P);
+      let gx=tx-P[0], gy=ty-P[1]; const gl=Math.sqrt(gx*gx+gy*gy)||1; gx/=gl; gy/=gl;
+      const bx=tx-gx*fl*0.35, by=ty-gy*fl*0.35, ex=tx+gx*fl*0.65, ey=ty+gy*fl*0.65;
+      ctx.fillStyle=shade(S.bloom,-14); ctx.beginPath();
+      ctx.moveTo(bx-gy*fw,by+gx*fw); ctx.quadraticCurveTo(tx-gy*fw*1.5,ty+gx*fw*1.5,ex,ey);
+      ctx.quadraticCurveTo(tx+gy*fw*1.5,ty-gx*fw*1.5,bx+gy*fw,by-gx*fw); ctx.closePath(); ctx.fill();
+      ctx.fillStyle=shade(S.bloom,16); ctx.beginPath();
+      for (let d=0;d<4;d++){ const f=0.15+d*0.22, px=bx+(ex-bx)*f, py=by+(ey-by)*f, s=d%2?1:-1;
+        ctx.moveTo(px+s*fw*0.9,py); ctx.ellipse(px+s*fw*0.5,py,fw*0.5,fw*0.32,0,0,7); }
+      ctx.fill();
+    } else if (S.seed){
+      ctx.strokeStyle=S.seed; ctx.lineWidth=0.8; ctx.beginPath();
+      ctx.moveTo(tx,ty); ctx.lineTo(tx+(rnd()-0.5)*2,ty-H*0.04); ctx.stroke();
+    }
+  }
+  ctx.lineCap='butt'; ctx.lineJoin='miter';
+  if (!snow) return null;
+  const out=[];
+  for (let j=Math.max(0,cnt-4);j<cnt;j++){ const ci=order[j]; ptAt(C.pts.subarray(ci*(OCO_M+1)*2,(ci+1)*(OCO_M+1)*2),0.55,P); out.push([P[0],P[1],2.2]); }
+  return out;
 }
 /* An arum's flower: a pale hood wrapped round a finger. Drawn as a hood leaning
    to one side so it reads as a calla from any seed rather than a white blob. */
@@ -6801,35 +7362,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       if (S.seed && !blooming){ ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(tip,-len,1.25,2.2,0,0,7); ctx.fill(); }
     }
   }
-  else if (P.form === 'sotol'){ // dense serrated spoon rosette and tall, fine panicle
-    const L=P.look||{}, leaves=stemFor(L.leaves||46), cy=-H*(L.rosetteLift||0.16), squash=L.rosetteSquash||0.44;
-    if (S.fol){
-      for(let i=0;i<leaves;i++){
-        const a=i/leaves*Math.PI*2+(rnd()-0.5)*0.10, len=H*(L.leafLen||0.82)*(0.76+rnd()*0.30);
-        const tx=Math.cos(a)*len+sway*len*0.02, ty=cy+Math.sin(a)*len*squash;
-        ctx.strokeStyle=shade(S.edge||S.fol,-24); ctx.lineWidth=(L.leafW||0.9)+0.9;
-        ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(tx*0.46,cy-len*0.18,tx,ty); ctx.stroke();
-        ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*16); ctx.lineWidth=L.leafW||0.9;
-        ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(tx*0.46,cy-len*0.18,tx,ty); ctx.stroke();
-        if (i%(L.toothEvery||3)===0){ ctx.strokeStyle=S.edge||shade(S.fol,-30); ctx.lineWidth=0.45;
-          for(let t=0;t<(L.teeth||12);t++){ const f=(t+1)/((L.teeth||12)+2), px=tx*f, py=cy+(ty-cy)*f-len*0.12*f*(1-f);
-            ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+Math.sin(a)*1.1,py-Math.cos(a)*1.1*squash); ctx.stroke(); }
-        }
-      }
-    }
-    if (mature && ((blooming&&S.bloom)||S.seed)){
-      const col=(blooming?S.bloom:null)||S.seed, len=H*(L.scapeLen||1.7), tip=sway*len*0.02;
-      ctx.strokeStyle=shade(S.fol||col,-24); ctx.lineWidth=1.25;
-      ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(0,-len*0.52,tip,-len); ctx.stroke();
-      const branches=Math.max(8,Math.round(L.panicleBranches||18)), dots=L.panicleDots||3, start=L.panicleStart||0.42;
-      for(let b=0;b<branches;b++){
-        const f=start+(b/(branches-1))*(1-start), side=b%2?-1:1, by=-len*f, reach=(1-f)*(L.panicleReach||13)*(0.72+rnd()*0.35);
-        ctx.strokeStyle=shade(S.fol||col,-18); ctx.lineWidth=0.52;
-        ctx.beginPath(); ctx.moveTo(tip,by); ctx.lineTo(tip+side*reach,by+1.5+rnd()*2); ctx.stroke();
-        ctx.fillStyle=shade(col,(rnd()-0.5)*14);
-        for(let d=0;d<dots;d++){ ctx.beginPath(); ctx.arc(tip+side*reach*(0.45+d/(dots+1)*0.55),by+1+rnd()*2,0.75,0,7); ctx.fill(); }
-      }
-    }
+  else if (P.form === 'sotol'){ // a ball of narrow toothed leaves, and a tall narrow flower column
+    const L=P.look||{}, sn=!!AMBIENCE[season].snow&&mature;
+    snowAnchors=drawSpikyRosette(ctx,L,S,H,growth,rnd,sway,season,sn);
+    if (mature && ((blooming&&S.bloom)||S.seed)) drawRosetteScape(ctx,L,S,H,growth,rnd,sway,blooming,blv);
   }
   else if (P.form === 'archbell'){ // arched stems with Solomon's seal bells or bleeding-heart flowers
     const L=P.look||{}, sn=stemFor(L.stems||4);
@@ -6976,6 +7512,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'rosette'){ // yucca: evergreen sword-leaf crown + bell tower
     const L=P.look||{};
+    if (ROSETTE_LEAF[L.leafShape]){ // yuccas and hesperaloe: built in the round
+      snowAnchors=drawSpikyRosette(ctx,L,S,H,growth,rnd,sway,season,!!AMBIENCE[season].snow&&mature);
+      if (mature && ((blooming&&S.bloom)||S.seed)) drawRosetteScape(ctx,L,S,H,growth,rnd,sway,blooming,blv);
+    } else {
     if (S.fol){
       const n=stemFor(L.leaves||18), baseLen=H*(L.leafLen||0.5), lw=L.leafW||2.8;
       ctx.lineCap='round';
@@ -7054,74 +7594,13 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         }
       }
     }
+    }
   }
-  else if (P.form === 'agave'){ // succulent rosette: thick pointed leaves radiating from a tight crown
-    const L=P.look||{};
-    const n=stemFor(L.leaves||30), maxLen=H*(L.leafLen||0.5);
-    const cy=-H*0.32, squash=0.58;                 // iso foreshortening of the radial star
-    const fol=S.fol||'#8ba3a0', spine=S.edge||shade(fol,-45);
-    const leaves=[];
-    for (let i=0;i<n;i++){
-      const a=(i/n)*Math.PI*2 + (rnd()-0.5)*0.12;
-      leaves.push({dx:Math.cos(a), dy:Math.sin(a), len:maxLen*(0.72+rnd()*0.4)});
-    }
-    leaves.sort((p,q)=>p.dy-q.dy);                 // dy>0 points toward the viewer — paint back-to-front
-    ctx.lineCap='round';
-    for (const lf of leaves){
-      const tipX=lf.dx*lf.len + sway*lf.len*0.02;
-      const tipY=cy + lf.dy*lf.len*squash;
-      const midX=lf.dx*lf.len*0.55, midY=cy + lf.dy*lf.len*squash*0.55 - lf.len*0.12; // slight upward recurve
-      const dep=(lf.dy+1)/2;                        // 0 back .. 1 front
-      const w=(L.leafW||3.2)*(0.9+0.2*dep);
-      ctx.strokeStyle=shade(fol,-34); ctx.lineWidth=w+1.6;   // dark undershadow
-      ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(midX,midY,tipX,tipY); ctx.stroke();
-      if (art2On(L)){
-        // an agave leaf is a thick wedge tapering to its spine, not a strap.
-        // The dark undershadow stroke above stays — it is what separates
-        // overlapping leaves in a rosette this tight.
-        drawBlade(ctx, 0,cy, midX,midY, tipX,tipY,
-                  w*(L.bladeHW||0.62), shade(fol,-6+dep*20), dep>0.35);
-      } else {
-        ctx.strokeStyle=shade(fol,-10+dep*20+(rnd()-0.5)*8); ctx.lineWidth=w;   // leaf body
-        ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(midX,midY,tipX,tipY); ctx.stroke(); }
-      ctx.strokeStyle=spine; ctx.lineWidth=1.2;              // dark terminal spine
-      ctx.beginPath(); ctx.moveTo(tipX,tipY); ctx.lineTo(tipX+lf.dx*2.2,tipY+lf.dy*squash*2.2); ctx.stroke();
-    }
-    ctx.lineCap='butt';
-    ctx.fillStyle=shade(fol,16);                   // tight new leaves in the crown
-    ctx.beginPath(); ctx.ellipse(0,cy,(L.leafW||3.2)*1.1,(L.leafW||3.2)*0.7,0,0,7); ctx.fill();
+  else if (P.form === 'agave'){ // an artichoke of thick spined leaves, the young ones upright in the middle
+    snowAnchors=drawSpikyRosette(ctx,P.look||{},S,H,growth,rnd,sway,season,!!AMBIENCE[season].snow&&mature);
   }
-  else if (P.form === 'ocotillo'){ // a spray of tall bare canes, flame-red at the tips in spring
-    const L=P.look||{};
-    const n=stemFor(L.canes||L.leaves||11), spread=L.spread||0.95;
-    const caneCol=S.edge||shade(S.fol||'#8a8a6e',-30);
-    const hasLeaves=!!S.fol, leafCol=S.fol||'#6f8a5a';
-    for (let i=0;i<n;i++){
-      const t=n>1?(i/(n-1)-0.5):0;                  // -0.5 .. 0.5 across the fan
-      const ang=t*spread, len=H*(0.82+rnd()*0.3), baseX=t*4;
-      const tipX=baseX+Math.sin(ang)*len + sway*len*0.05, tipY=-Math.cos(ang)*len;
-      const midX=baseX+Math.sin(ang)*len*0.5, midY=-Math.cos(ang)*len*0.52;
-      ctx.strokeStyle=shade(caneCol,(rnd()-0.5)*16); ctx.lineWidth=2.4*(0.5+0.5*growth); ctx.lineCap='round';
-      ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo(midX,midY,tipX,tipY); ctx.stroke();
-      if (hasLeaves && mature){                      // leaf flush along the cane after rain
-        ctx.fillStyle=leafCol;
-        for (let s=0.28;s<0.95;s+=0.13){
-          const lx=baseX+(tipX-baseX)*s+(rnd()-0.5)*2, ly=tipY*s+(rnd()-0.5)*2;
-          ctx.beginPath(); ctx.ellipse(lx,ly,1.5,2.3,ang,0,7); ctx.fill();
-        }
-      }
-      if (blooming && S.bloom){                      // flame-red cluster at the tip
-        ctx.fillStyle=S.bloom;
-        const fn=Math.max(1,Math.round(3*blv));
-        for (let f=0;f<fn;f++){
-          ctx.beginPath(); ctx.ellipse(tipX+(rnd()-0.5)*3, tipY-2-f*2.5, 1.8, 3.4, 0, 0, 7); ctx.fill();
-        }
-      } else if (S.seed){
-        ctx.fillStyle=S.seed;
-        ctx.beginPath(); ctx.ellipse(tipX,tipY-2,1.3,2.4,0,0,7); ctx.fill();
-      }
-    }
-    ctx.lineCap='butt';
+  else if (P.form === 'ocotillo'){ // whips leaning out from one crown
+    snowAnchors=drawOcotillo(ctx,P.look||{},S,H,growth,rnd,sway,season,blooming,blv,!!AMBIENCE[season].snow&&mature);
   }
   else if (P.form === 'shrub'){
     const L=P.look||{}, habit=L.habit||'mound', fol=S.fol||S.seed||'#6f8f5a';
@@ -9409,7 +9888,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // the rest of the year H is air, and big leaves on stalks light themselves.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
       && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look))
-      && !shrubHabitOf(P) && !basalFoliageOnly(P.look)){
+      && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
     ctx.save(); ctx.globalAlpha=isTreeDef(P)?0.16:0.13;
     ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';

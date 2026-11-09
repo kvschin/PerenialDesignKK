@@ -21775,3 +21775,106 @@ test('every wet-ground choice stays inside its sprite box at full growth', () =>
     }
   }
 });
+/* ---------- desert rosettes and ocotillo built in the round ---------- */
+const DESERT_KEYS=['yucca','adamsneedle','spanishdagger','beakedyucca','falsealoe','redyucca','gianthesperaloe',
+  'sotol','texassotol','texasbeargrass','ocotillo','parryagave','havardagave','whalestongue'];
+
+test('every desert rosette and the ocotillo stays inside its sprite box, bottom included', () => {
+  for(const k of DESERT_KEYS){
+    const P=PLANTS[k];
+    for(const v of [null,...Object.keys(P.cv||{})]){
+      const D=plantDef(k,v), box=plantDrawBox(D,k,1), id=k+(v?':'+v:'');
+      for(const season of SEASONS) for(const seed of [7,101,4410]){
+        for(const o of wetOps(k,season,v,1,seed)){
+          if((o.op!=='moveTo'&&o.op!=='lineTo')||typeof o.a[0]!=='number') continue;
+          assert(Math.abs(o.a[0])<=box.halfW+1,id+' '+season+' x '+o.a[0].toFixed(1)+' within '+box.halfW.toFixed(1));
+          assert(-o.a[1]<=box.top+1,id+' '+season+' top');
+          // leaves splayed toward the viewer come down the screen below the foot
+          assert(o.a[1]<=box.bot+1,id+' '+season+' seed '+seed+' bottom '+o.a[1].toFixed(1)+' within '+box.bot.toFixed(1));
+        }
+      }
+    }
+  }
+});
+
+test('a desert rosette is built in the round: leaves come toward the viewer, not only out to the sides', () => {
+  // The old fan drew every blade above and beside one point, so nothing ever came
+  // down in front of the plant's foot. A rosette whose oldest leaves lie low does.
+  for(const k of ['yucca','adamsneedle','sotol','texasbeargrass','falsealoe','parryagave','havardagave','whalestongue']){
+    const ops=wetOps(k,'Summer').filter(o=>o.op==='lineTo'&&typeof o.a[0]==='number');
+    const H=plantVisualH(PLANTS[k]);
+    assert(ops.some(o=>o.a[1]>1),k+': a leaf comes forward of the crown');
+    assert(ops.some(o=>o.a[1]<-H*0.25),k+': and others stand up behind it');
+    assert(ops.some(o=>o.a[0]<-H*0.2)&&ops.some(o=>o.a[0]>H*0.2),k+': and out to both sides');
+  }
+  for(const k of DESERT_KEYS) assert(spikyRosetteOn(PLANTS[k]),k+': drawn by the rosette or ocotillo painter');
+  // the daylily shares the rosette form and keeps its own fan of straps
+  assert(!spikyRosetteOn(PLANTS.daylily),'daylily is not a spiky rosette');
+});
+
+test('nothing in a rosette goes through the ground', () => {
+  // leaves splayed toward the viewer lie along the ground; with no clamp the
+  // oldest, drooping leaves of a yucca came out below the ground line
+  for(const k of ['yucca','adamsneedle','redyucca','texasbeargrass','sotol']){
+    const box=plantDrawBox(PLANTS[k],k,1);
+    for(const o of wetOps(k,'Summer')) if(o.op==='lineTo'&&typeof o.a[1]==='number')
+      assert(o.a[1]<=spikyRosetteBelow(PLANTS[k],plantVisualH(PLANTS[k]))+0.5,k+': point within the reserved strip below the foot');
+    assert(spikyRosetteBelow(PLANTS[k],plantVisualH(PLANTS[k]))+8<=box.bot+0.01,k+': the sprite box holds that strip');
+  }
+});
+
+test('ocotillo is a vase of tall canes: bare in winter, in leaf after rain, flame-tipped in spring', () => {
+  const P=PLANTS.ocotillo;
+  assert(!P.sea.Winter.fol,'winter canes carry no leaves');
+  const ell=s=>wetOps('ocotillo',s).filter(o=>o.op==='ellipse').length;
+  assert(ell('Summer')>ell('Winter')+150,'summer leaves bunch all the way up the canes');
+  assert(ell('Fall')<ell('Summer'),'fall drops some of them');
+  // drawn on the scale small trees use, not as a six-foot shrub
+  assert(plantVisualH(P)/PX_PER_FT>=7.5,'ocotillo draws at least 7.5 ft');
+  const spring=wetOps('ocotillo','Spring');
+  assert(spring.some(o=>o.op==='fill'&&o.fill===shade(P.sea.Spring.bloom,-14)),'spring tips carry their scarlet flames');
+});
+
+test('the variegated Adam\'s needles moved to the species they are', () => {
+  for(const v of ['colorguard','brightedge','goldensword']){
+    const ref=canonicalPlantRef('yucca',v);
+    assertEqual(ref.s,'adamsneedle',v+': a saved yucca cultivar opens as Adam\'s needle');
+    assertEqual(ref.v,v,v+': and keeps its cultivar');
+    assert(!(PLANTS.yucca.cv&&PLANTS.yucca.cv[v]),v+': no longer filed under soapweed');
+    const D=plantDef('adamsneedle',v);
+    assertEqual(D.latin,'Yucca filamentosa',v+': Yucca filamentosa');
+    assertEqual(D.provenance,'selection',v+': a selection');
+    assert(D.nativeTo.includes('north-america'),v+': of a North American native, which it was never credited with');
+    assert(D.look.margin===true,v+': its edge colour is drawn as a margin');
+  }
+  for(const k of ['yucca','adamsneedle','spanishdagger','beakedyucca']) assertEqual(PLANTS[k].group,'yucca',k+': on the Yucca card');
+  for(const k of ['redyucca','gianthesperaloe']) assertEqual(PLANTS[k].group,'hesperaloe',k+': on the Hesperaloe card');
+  for(const k of ['sotol','texassotol']) assertEqual(PLANTS[k].group,'sotol',k+': on the Sotol card');
+  for(const k of ['parryagave','havardagave','whalestongue']) assertEqual(PLANTS[k].group,'agave',k+': on the Agave card');
+});
+
+test('the desert additions carry their sourced sizes, ranges and seasons', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/desert-sources.json'));
+  for(const row of doc.plants){
+    const P=row.cultivar?plantDef(row.key,row.cultivar):PLANTS[row.key], id=row.key+(row.cultivar?':'+row.cultivar:'');
+    assert(P,id+': in the catalog');
+    assertEqual(P.latin,row.latin,id+': latin');
+    for(const f of ['heightIn','spread']) if(row[f]!==undefined) assertEqual(P[f],row[f],id+': '+f);
+    if(row.zones) assertEqual(P.zones.join('-'),row.zones.join('-'),id+': zones');
+    if(row.nativeTo) assertEqual(P.nativeTo.join(','),row.nativeTo.join(','),id+': native range');
+    assert(row.sources&&row.sources.length,id+': names its sources');
+  }
+  for(const k of ['adamsneedle','spanishdagger','beakedyucca','falsealoe','gianthesperaloe','texassotol','texasbeargrass','whalestongue']){
+    const P=PLANTS[k];
+    assert(doc.plants.some(r=>r.key===k&&!r.cultivar),k+': has a sources row');
+    assert(P.heightIn>0,k+': heightIn');
+    assert(WIKIPEDIA_ARTICLES[k],k+': a Learn more article');
+    if(P.form==='agave') assert(!P.bloomMonths,k+': an agave flowers once and dies, so it shows no calendar');
+    else {
+      assert(P.bloomMonths&&P.bloomMonths.length,k+': bloom months');
+      assert(SEASONS.some(s=>P.sea[s].bloom),k+': and a bloom colour to show in them');
+    }
+  }
+  assertEqual(PLANTS.whalestongue.look.pups||0,0,'whale\'s tongue does not offset');
+  assert(PLANTS.parryagave.look.pups>0,'Parry\'s agave pups round its foot');
+});
