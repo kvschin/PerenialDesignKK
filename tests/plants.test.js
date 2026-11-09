@@ -114,7 +114,7 @@ test('a record that states its own native range keeps it through the migration',
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
   assertEqual(PLANT_KEYS.length,756,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),537,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),546,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -1190,9 +1190,56 @@ test('signature grass cultivars keep their real-world size hierarchy', () => {
 
 test('sunflower species keep distinct visual signatures', () => {
   assertEqual(PLANTS.willowsunflower.look.leafStyle, 'willow', 'willowleaf should read as fine spring foliage');
-  assert(PLANTS.willowsunflower.look.leaves >= 30, 'willowleaf needs dense threadlike spring leaves');
+  // its thread leaves hang from the stems, top to bottom; a long basal fan
+  // of blades drew it as a yucca, and stem starbursts as a cycad
+  const willow = PLANTS.willowsunflower.look;
+  assert(willow.stemLeaves >= 10 && willow.stemLeafDroop > 0.5, 'willowleaf stems are clothed in drooping leaves');
+  assert(willow.leafLen <= 0.3 && willow.crowns === 0, 'willowleaf has no tall basal fan and no starbursts');
   assert(PLANTS.maximiliansunflower.look.heads >= 4, 'maximilian should render as a flower burst');
   assert(PLANTS.maximiliansunflower.look.stems >= 12, 'maximilian should carry many flowering stems');
+});
+
+// The daisy-family audit (Nov 2026). Every one of these drew as the same gold
+// daisy with a dark button on a bare stalk; the button colour is the cheapest
+// thing that tells them apart, and the sources agree on it.
+test('daisy family: buttons are the colour the plants are, and look-alikes stay apart', () => {
+  const rgb = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
+  const lum = h => { const [r,g,b] = rgb(h); return 0.2126*r + 0.7152*g + 0.0722*b; };
+  const dist = (a,b) => Math.hypot(...rgb(a).map((x,i) => x - rgb(b)[i]));
+  const cv = (k,v) => Object.assign({}, PLANTS[k], PLANTS[k].cv[v], { look:Object.assign({}, PLANTS[k].look, PLANTS[k].cv[v].look) });
+  // yellow disks (Minnesota Wildflowers, missouriplants.com, NC State, Illinois Wildflowers)
+  for (const [k,s] of [['maximiliansunflower','Fall'],['sawtoothsunflower','Fall'],['ashysunflower','Summer'],
+                       ['woodlandsunflower','Summer'],['helenium','Summer'],['helenium','Fall']])
+    assert(lum(PLANTS[k].sea[s].eye) > 130, `${k}: the wild plant's disk is yellow, not a black-eyed Susan's`);
+  // and the dark ones that really are dark
+  for (const [k,s] of [['stiffsunflower','Summer'],['willowsunflower','Fall'],['swampsunflower','Summer'],
+                       ['beachsunflower','Summer'],['rudbeckia','Summer']])
+    assert(lum(PLANTS[k].sea[s].eye) < 90, `${k}: keeps its dark disk`);
+  assert(lum(PLANTS.helenium.cv.moerheim.sea.Summer.eye) < 90, 'the copper cultivars keep their brown buttons');
+  // a Susan's cone is about a quarter of the head, not half of it
+  for (const L of [PLANTS.rudbeckia.look, cv('rudbeckia','americangoldrush').look, PLANTS.rudbeckiatriloba.look])
+    assert(L.discW / L.rayLen <= 0.46, 'the gold rays carry the head');
+  // tall sunflowers are leafy to the flowers; willowleaf is checked above
+  for (const k of ['sawtoothsunflower','ashysunflower','woodlandsunflower'])
+    assert(PLANTS[k].look.stemLeaves >= 4, `${k}: leaves run up the stem`);
+  // pairs that drew as one plant
+  assert(dist(PLANTS.echinacea.cv.tikitorch.sea.Summer.bloom, PLANTS.echinacea.cv.cheyennespirit.sea.Summer.bloom) > 60,
+    'Tiki Torch and Cheyenne Spirit are different colours');
+  assert(PLANTS.echinacea.cv.tikitorch.look.droop < 1.5, 'Tiki Torch holds its rays flat, as its note says');
+  assert(dist(PLANTS.helenium.cv.moerheim.sea.Summer.bloom, PLANTS.helenium.cv.rubinzwerg.sea.Summer.bloom) > 60,
+    'Rubinzwerg is ruby, not a second copper');
+  assert(PLANTS.shastadaisy.look.rayLen - PLANTS.oxeyedaisy.look.rayLen >= 1, 'a Shasta head is clearly bigger than an oxeye');
+  // cultivars added by the audit, each sized from its own sources
+  for (const [k,v] of [['echinacea','greenjewel'],['echinacea','pinkdoubledelight'],['helenium','rubinzwerg'],
+      ['rudbeckiatriloba','prairieglow'],['shastadaisy','bananacream'],['falsesunflower','burninghearts'],
+      ['falsesunflower','lorainesunshine'],['willowsunflower','lowdown'],['stiffsunflower','lemonqueen']]){
+    const C = PLANTS[k].cv && PLANTS[k].cv[v];
+    assert(C, `${k}.${v}: added`);
+    assert(/'[^']+'/.test(C.latin), `${k}.${v}: states its cultivar name`);
+    if (PLANTS[k].heightIn) assert(C.heightIn > 0, `${k}.${v}: a resized cultivar under a sized species states its height`);
+  }
+  assertEqual(PLANTS.stiffsunflower.cv.lemonqueen.provenance, 'hybrid', 'Lemon Queen is a hybrid selection');
+  assertEqual(PLANTS.stiffsunflower.cv.lemonqueen.nativeTo.length, 0, 'so it claims no wild range');
 });
 
 test('ornamental grass forms keep distinct silhouettes and picker entries', () => {

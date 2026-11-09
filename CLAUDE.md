@@ -6920,6 +6920,18 @@ the species they are, through `PLANT_REF_ALIASES`. Sources: `docs/plant-data/des
 decisions and costs: `docs/plant-data/desert-implementation.md`; `dev/desert-review.html` shows
 every choice in four seasons and at true scale (`?nocards&zoom=3`, `?check`, `?bench`).
 
+**The daisy family (0.9.96)** — sneezeweed, daisies, coneflowers, Susans, sunflowers — all
+share the `cone` form, so they drift toward one picture: a gold daisy with a dark button on a
+bare stalk. **The button colour is the cheapest thing that tells them apart, and it must follow
+the plant**: Maximilian, sawtooth, ashy and woodland sunflower and wild sneezeweed have YELLOW
+disks; stiff, willowleaf, swamp and beach sunflower and the Susans have dark ones. A Susan's
+cone is about a quarter of the head (`discW/rayLen` under ~0.45; a test holds it), and the tall
+sunflowers are leafy to the flowers. Opt-in knobs from the audit: `stemLeafDroop` (0..1, leaves
+hang from the node) and `stemLeafTop` (how high the nodes run) on the classic stem-leaf pass,
+`crowns:0` meaning none (`stemFor` floors any count at three), and matflower `eyeR`. Record:
+`docs/plant-data/daisy-audit.md`; `dev/daisy-review.html` shows every choice with its head
+close-up and true scale, and takes `?ov=key:field=value` to try a change unedited.
+
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
 separate carpet, meadow, broad woodland, wet upright, and arching sedges; shared

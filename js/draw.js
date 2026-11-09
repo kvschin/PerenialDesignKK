@@ -6037,7 +6037,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           drawLeaf(ctx, bx,by, ex,ey, (L.leafW||0.85)*(L.leafHW||1.6), shade(S.fol,(rnd()-0.5)*16),
                    {shape:L.leafShape, bow:side*0.10, rib:false});
         }
-        const crowns = stemFor(L.crowns||0);
+        // crowns:0 means none; stemFor floors any count at three
+        const crowns = L.crowns===0 ? 0 : stemFor(L.crowns||0);
         for (let c=0;c<crowns;c++){
           const cx=(rnd()-0.5)*16, cy=-H*(0.28+rnd()*0.42), cn=L.crownLeaves||6;
           for (let j=0;j<cn;j++){
@@ -6095,7 +6096,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.beginPath(); ctx.moveTo(bx,by);
           ctx.quadraticCurveTo(bx+side*l*0.18,by-l*0.42,ex,ey); ctx.stroke();
         }
-        const crowns = stemFor(L.crowns||0);
+        // crowns:0 means none; stemFor floors any count at three
+        const crowns = L.crowns===0 ? 0 : stemFor(L.crowns||0);
         for (let c=0;c<crowns;c++){
           const cx=(rnd()-0.5)*16, cy=-H*(0.28+rnd()*0.42), n=L.crownLeaves||6;
           for (let j=0;j<n;j++){
@@ -6160,20 +6162,27 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const leafPairs = Math.max(1, Math.round(L.stemLeaves));
         ctx.strokeStyle = S.fol; ctx.lineWidth = L.stemLeafW || 1;
         ctx.lineCap = 'round';
+        // stemLeafDroop (0..1) hangs each leaf below its node, for a stem
+        // clothed in drooping thread leaves (willowleaf sunflower), and
+        // stemLeafTop carries the nodes up toward the head. Both are opt-in:
+        // unset, every offset is the one the stemmed forbs always drew.
+        const lDroop=L.stemLeafDroop, lSpan=L.stemLeafTop===undefined?0.54:L.stemLeafTop-0.18;
         for (let lp=0; lp<leafPairs; lp++){
-          const f=(lp+1)/(leafPairs+1), px=ox*0.35+(tx-ox*0.35)*f*0.75, py=by0-len*(0.18+f*0.54);
+          const f=(lp+1)/(leafPairs+1), px=ox*0.35+(tx-ox*0.35)*f*0.75, py=by0-len*(0.18+f*lSpan);
           const side=((lp+i)%2===0?-1:1), ll=(L.stemLeafLen||7)*(0.8+rnd()*0.35)*rec;
           if (art2On(L) && L.leafShape){
-            drawLeaf(ctx, px,py, px+side*ll, py-ll*0.30,
+            drawLeaf(ctx, px,py, lDroop===undefined?px+side*ll:px+side*ll*(1-0.3*lDroop),
+                     lDroop===undefined?py-ll*0.30:py+ll*lDroop,
                      (L.stemLeafW||1)*(L.leafHW||1.6), S.fol,
                      // same size gate as the mound: a false sunflower carries
                      // 36 of these, and under ~9px the midrib is not resolvable
                      {shape:L.leafShape, teeth:L.leafTeeth, teethN:L.leafTeethN,
-                      bow:side*0.05, rib:ll>=9});
+                      bow:side*(lDroop===undefined?0.05:-0.16), rib:ll>=9});
             ctx.strokeStyle=S.fol;
           } else {
             ctx.beginPath(); ctx.moveTo(px,py);
-            ctx.quadraticCurveTo(px+side*ll*0.45,py-ll*0.08,px+side*ll,py-ll*0.28);
+            if (lDroop===undefined) ctx.quadraticCurveTo(px+side*ll*0.45,py-ll*0.08,px+side*ll,py-ll*0.28);
+            else ctx.quadraticCurveTo(px+side*ll*0.55,py-ll*0.12,px+side*ll*(1-0.3*lDroop),py+ll*lDroop);
             ctx.stroke();
           }
         }
@@ -7789,7 +7798,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             } else
             for(let p=0;p<petals;p++){ const a=p/petals*Math.PI*2;
               ctx.beginPath(); ctx.ellipse(cx+Math.cos(a)*petalLen*0.42,cy+Math.sin(a)*petalLen*0.25,petalLen*0.56,petalW*0.52,a,0,7); ctx.fill(); }
-            if (S.eye){ ctx.fillStyle=S.eye; ctx.beginPath(); ctx.arc(cx,cy,petalW*0.30,0,7); ctx.fill(); ctx.fillStyle=col; }
+            // eyeR sizes the disc on its own: a beach sunflower's dark eye is a
+            // third of the head, and petalW*0.30 left it a dot under the rays
+            if (S.eye){ ctx.fillStyle=S.eye; ctx.beginPath();
+              if (L.eyeR) ctx.ellipse(cx,cy,L.eyeR,L.eyeR*0.62,0,0,7); else ctx.arc(cx,cy,petalW*0.30,0,7);
+              ctx.fill(); ctx.fillStyle=col; }
           }
         }
         else if (habit==='asterdome'||habit==='asterupright'||habit==='asterclean'){

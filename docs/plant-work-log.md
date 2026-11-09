@@ -242,3 +242,21 @@ later runs do not redo or touch the same records.
   through `SITE_LAYOUTS`. Mixed families split by site (`splitGroupBySite`): moorgrass, featherreed, gamagrass, hairgrass.
 - The browser search probe now expects headings on Grasses and takes Sun Perennials as its flat tab.
 - Next: "Worth adding next" and the missing cultivars.
+
+## 2026-11-09 — daisy family audit (0.9.96)
+
+- Direct to master. Sneezeweed, daisies, coneflowers, Susans and sunflowers, 40 choices, each drawn in four seasons,
+  as a head close-up and at true scale (`dev/daisy-review.html`). Record: `docs/plant-data/daisy-audit.md`.
+- Disk colours: Maximilian, sawtooth, ashy and woodland sunflower yellow (all four were dark, so drew as black-eyed
+  Susans); sneezeweed species yellow, its copper cultivars still brown. Sources: Minnesota Wildflowers,
+  missouriplants.com, NC State, Illinois Wildflowers.
+- Habit: sawtooth, ashy and woodland sunflower leafy to the flowers; willowleaf a column of drooping thread leaves
+  (was a basal fan and starbursts); sneezeweed a branched leafy clump; Susans with cones a quarter of the head and
+  wider clumps; purple coneflower with stem leaves; Tiki Torch and Cheyenne Spirit flat-rayed and different colours.
+- Renderer, opt-in: `stemLeafDroop`/`stemLeafTop` on stemmed forbs, `crowns:0` meaning none, matflower `eyeR`.
+  Old data through old and new draw.js: identical call streams over 10,344 draws.
+- Added: Echinacea Green Jewel and Pink Double Delight, Helenium Rubinzwerg, Rudbeckia triloba Prairie Glow,
+  Leucanthemum Banana Cream, Heliopsis Burning Hearts and Loraine Sunshine, Helianthus salicifolius Low Down,
+  Helianthus Lemon Queen (under stiff sunflower, hybrid). Nested choices 537 -> 546.
+- Next: prairie dock's disk is probably yellow too (unsourced here); Maximilian flowers down the stem, which the
+  cone form cannot draw.
