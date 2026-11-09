@@ -114,7 +114,7 @@ test('a record that states its own native range keeps it through the migration',
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
   assertEqual(PLANT_KEYS.length,756,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),546,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),554,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -1665,7 +1665,7 @@ test('second-wave perennial staples keep exact lineages, origins, and morphology
   const cultivars = {
     bleedingheart:['alba','goldheart'],
     lambsear:['bigears','silvercarpet'],
-    redhotpoker:['royalstandard','beessunset'],
+    redhotpoker:['royalstandard','beessunset','alcazar','timothy','percyspride','icequeen','tawnyking','toffeenosed','littlemaid','papayapopsicle'],
     orientalpoppy:['beautyoflivermere','pattysplum'],
     delphinium:['blackknight','bluebird'],
     spikespeedwell:['glory','icicle','rotfuchs'],
@@ -1676,7 +1676,7 @@ test('second-wave perennial staples keep exact lineages, origins, and morphology
     assert(PLANTS[k].cv[v],`${k}.${v}: starter cultivar`);
 
   assertEqual(PLANTS.bleedingheart.look.archStyle,'bleedingHeart','bleeding heart keeps heart-shaped flowers');
-  assertEqual(PLANTS.redhotpoker.look.spikeStyle,'poker','Kniphofia keeps a bicolor torch');
+  assertEqual(PLANTS.redhotpoker.look.spikeStyle,'torch','Kniphofia keeps a bicolor torch of hanging tubes');
   assertEqual(PLANTS.delphinium.look.spikeStyle,'delphinium','delphinium keeps an open-floret raceme');
   assertEqual(PLANTS.delphinium.cv.blackknight.latin,'Delphinium Black Knight Group',
     'Black Knight keeps its accepted Pacific-hybrid group identity');

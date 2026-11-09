@@ -260,3 +260,18 @@ later runs do not redo or touch the same records.
   Helianthus Lemon Queen (under stiff sunflower, hybrid). Nested choices 537 -> 546.
 - Next: prairie dock's disk is probably yellow too (unsourced here); Maximilian flowers down the stem, which the
   cone form cannot draw.
+
+## 2026-11-09 — border perennial audit (0.9.97)
+
+- Direct to master. Lesser calamint, great St. Johnswort, the five bee balms and the red-hot pokers, each drawn in four
+  seasons, as a head close-up and at true scale (`dev/border-review.html`). Record: `docs/plant-data/border-audit.md`.
+- Calamint: a leafy-stemmed dome under a haze of tiny flowers (was stalks under flat plates). St. Johnswort: pinwheel
+  flowers round a stamen boss, opposite leaves, pointed capsules (was a coneflower). Bee balms: whorls of two-lipped
+  tubes on bract ruffs, leafy square stems, bristly seed balls; horsemint and lemon mint tiered (were alliums and
+  bead columns). Red-hot poker: buds pointing up over hanging flowers, arching strap foliage (was a bead column).
+- Renderer, opt-in: `globeStyle`/`whorlStyle:'monarda'`, `flowerStyle:'hypericum'`, `seedStyle:'capsule'`,
+  `spikeStyle:'torch'`, `stemBase`, `stemLeafSpan`, `stemLeafRise`, `decussate`, `winterBare`, `leafArch`.
+  Old data through old and new draw.js: identical call streams over 20,832 draws.
+- Added: Kniphofia 'Alcazar', 'Timothy', 'Percy's Pride', 'Ice Queen', 'Tawny King', 'Toffee Nosed', 'Little Maid',
+  'Papaya Popsicle'. Sources: RHS plant pages, Cotswold Garden Flowers, Walters Gardens. Nested choices 546 -> 554.
+- Next: the shrubby St. Johnsworts are missing from the catalog.

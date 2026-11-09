@@ -968,6 +968,84 @@ test('a stem-built mound reserves the width it draws', () => {
   }
 });
 
+/* The 0.9.97 border audit (docs/plant-data/border-audit.md): four perennials
+   that drew as some other plant. Each test asks the drawing for the thing that
+   makes the plant itself, so a refactor that loses it fails here. */
+test('bee balms draw whorls of two-lipped tubes on leafy stems, then a bristly seed ball', () => {
+  for (const k of ['monarda','scarletbeebalm','easternbeebalm']){
+    const P=plantDef(k), L=P.look, season=k==='easternbeebalm'?'Spring':'Summer', bloom=P.sea[season].bloom;
+    assertEqual(L.globeStyle,'monarda',`${k}: a whorl of tubes, not a ball with spokes`);
+    assertEqual(L.leaves,0,`${k}: no basal fan; bee balm is a clump of leafy stems`);
+    assertEqual(L.stemLeafArrangement,'opposite',`${k}: opposite leaves up the square stem`);
+    const tubes=stemMoundOps(k,season).filter(o=>o.op==='quadraticCurveTo'
+      &&(o.stroke===shade(bloom,2)||o.stroke===shade(bloom,-18)));
+    assert(tubes.length>=L.tubes, `${k}: at least one full head of tubes (${tubes.length})`);
+    const teeth=stemMoundOps(k,'Fall').filter(o=>o.op==='lineTo'&&o.stroke===shade(P.sea.Fall.seed,16));
+    assert(teeth.length>=14, `${k}: the seedhead is a ball of calyx teeth (${teeth.length})`);
+  }
+  assert(PLANTS.scarletbeebalm.sea.Summer.bract && PLANTS.monarda.sea.Summer.bract,
+    'each head sits on its own ruff of bracts');
+  for (const k of ['spottedbeebalm','lemonbeebalm']){
+    const P=plantDef(k), L=P.look;
+    assertEqual(L.whorlStyle,'monarda',`${k}: bee balm whorls, tiered`);
+    assert(L.tiers>=3, `${k}: three or more whorls up the stem`);
+    const ruffs=stemMoundOps(k,'Summer').filter(o=>o.op==='fill'&&o.fill===shade(P.sea.Summer.bract,4));
+    assert(ruffs.length>=L.tiers, `${k}: a bract ruff under every whorl (${ruffs.length})`);
+  }
+});
+
+test('great St. Johnswort is a pinwheel and a capsule, not a coneflower', () => {
+  const P=plantDef('greatstjohnswort'), L=P.look, S=P.sea.Summer;
+  assertEqual(L.leaves,0,'leafy stems, no basal fan');
+  assertEqual(L.stemLeafArrangement,'opposite','opposite clasping leaves');
+  for (const season of ['Summer','Fall','Winter'])
+    assertEqual(stemMoundOps('greatstjohnswort',season).filter(o=>o.op==='createRadialGradient').length,0,
+      `${season}: no cone dome`);
+  const stamens=stemMoundOps('greatstjohnswort','Summer').filter(o=>o.op==='lineTo'&&o.stroke===shade(S.bloom,-22));
+  assert(stamens.length>=L.stamens, `a boss of stamens (${stamens.length})`);
+  const capsules=stemMoundOps('greatstjohnswort','Fall').filter(o=>o.op==='quadraticCurveTo'&&o.stroke===shade(P.sea.Fall.seed,-26));
+  assert(capsules.length>=4, `pointed capsules with their seams in fall (${capsules.length})`);
+  // Fall draws every leaf as well as the capsules; winter only the capsules
+  const fills=s=>stemMoundOps('greatstjohnswort',s).filter(o=>o.op==='fill').length;
+  assert(fills('Winter')<fills('Fall')/2, `the stems stand bare in winter (${fills('Winter')} fills against ${fills('Fall')})`);
+});
+
+test('a red-hot poker torch is buds pointing up over flowers hanging down', () => {
+  const tubes=(v)=>{
+    const P=plantDef('redhotpoker',v), S=P.sea.Summer, out={bud:[],open:[]};
+    let mx=0,my=0;
+    for (const o of stemMoundOps('redhotpoker','Summer',v)){
+      if (o.op==='moveTo'){ mx=o.a[0]; my=o.a[1]; continue; }
+      if (o.op!=='lineTo') continue;
+      if (o.stroke===shade(S.eye,4)||o.stroke===shade(S.eye,-18)) out.bud.push(o.a[1]-my);
+      if (o.stroke===shade(S.bloom,4)||o.stroke===shade(S.bloom,-18)) out.open.push({dy:o.a[1]-my,y:my});
+    }
+    return out;
+  };
+  for (const v of [null,...Object.keys(PLANTS.redhotpoker.cv)]){
+    const t=tubes(v), name='redhotpoker'+(v?':'+v:'');
+    assert(t.bud.length && t.open.length, `${name}: both buds and open flowers`);
+    assert(t.bud.filter(d=>d<0).length>=t.bud.length*0.9, `${name}: the buds point up`);
+    assert(t.open.filter(o=>o.dy>0).length>=t.open.length*0.9, `${name}: the open flowers hang`);
+    const b=plantDef('redhotpoker',v).look.budFrac;
+    assert(b>0 && b<1, `${name}: a share of the torch in bud`);
+  }
+  const pairs=new Set(Object.values(PLANTS.redhotpoker.cv).map(c=>c.sea.Summer.bloom+c.sea.Summer.eye));
+  assertEqual(pairs.size,Object.keys(PLANTS.redhotpoker.cv).length,'every poker cultivar has its own colours');
+  assertEqual(PLANTS.redhotpoker.cv.papayapopsicle.zones.join('-'),'6-9','Popsicle series is zone 6-9 (Walters Gardens)');
+});
+
+test('lesser calamint is a dome of leafy stems under a haze of tiny flowers', () => {
+  const P=plantDef('calamint'), L=P.look, H=plantVisualH(P);
+  assertEqual(P.form,'shrub','a mound, not stalks under flat heads');
+  assertEqual(L.habit,'leafystems','built from its stems');
+  assertEqual(L.mass,'dome','a rounded mound');
+  assertEqual(L.headStyle,'haze','flowers in loose sprays all over the top');
+  const florets=stemMoundOps('calamint','Summer').filter(o=>o.op==='ellipse'&&o.fill===shade(P.sea.Summer.bloom,-16));
+  assert(florets.length>=L.flowerStems*L.branchlets, `a haze, not a few heads (${florets.length})`);
+  assert(Math.max(...florets.map(o=>Math.abs(o.a[0])))>H*0.5, 'the haze spreads across the mound');
+});
+
 test('evergreen silver cushions keep their foliage mass in winter; a bluestar does not', () => {
   const grads=(k,s)=>stemMoundOps(k,s).filter(o=>o.op==='createLinearGradient').length;
   assert(grads('amsonia','Summer')>=1, 'a bluestar is a lit mass in leaf');

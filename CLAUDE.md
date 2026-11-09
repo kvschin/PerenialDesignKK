@@ -6932,6 +6932,24 @@ hang from the node) and `stemLeafTop` (how high the nodes run) on the classic st
 `docs/plant-data/daisy-audit.md`; `dev/daisy-review.html` shows every choice with its head
 close-up and true scale, and takes `?ov=key:field=value` to try a change unedited.
 
+**Four border perennials that drew as other plants (0.9.97)**, each now on a grammar of its own,
+all opt-in (old data through old and new draw.js: identical streams over 20,832 draws). **Bee
+balm** (`globeStyle:'monarda'`, and `whorlStyle:'monarda'` on `bractstack` for the tiered
+horsemint and lemon mint; `drawMonardaHead`) is a whorl of two-lipped tubes built in the round
+on a ruff of bracts in the season's `bract` colour, a green knot on a stem not yet in flower, a
+bristly seed ball after; drawn as a ball with spokes it was an allium. **St. Johnswort**
+(`flowerStyle:'hypericum'`, `seedStyle:'capsule'` on `cone`) is pinwheel petals round a stamen
+boss, then an upright pointed capsule; a cone dome made it a coneflower. **Red-hot poker**
+(`spikeStyle:'torch'`, `drawTorchLily`) is buds pointing up in `eye` over flowers hanging in
+`bloom`, the open part reaching `budFrac` of the torch at peak; every tube is held to an outline
+that narrows over the buds, or the turn through horizontal juts out as a bow tie. `poker` stays
+as it was for the euphorbias. **Calamint** is the `leafystems` dome with a `haze`. Leafy stems
+gained `stemBase` (a clump rising across a broad base), `stemLeafSpan`, `stemLeafRise`,
+`decussate` (each opposite pair turned a quarter from the last, or a leafy stem reads as a
+ladder) and `winterBare`; the basal fan gained `leafArch`, arching both sides outward, since
+`leafBow` curves every blade the same way. Eight sourced Kniphofia cultivars. Record:
+`docs/plant-data/border-audit.md`; `dev/border-review.html`.
+
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
 separate carpet, meadow, broad woodland, wet upright, and arching sedges; shared
