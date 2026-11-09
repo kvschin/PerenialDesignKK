@@ -1258,6 +1258,30 @@ test('a plant that keeps its leaves through winter is not cut back in spring', (
   assert(plantGrowth({s:'bluestem',d:absDay()-200})<0.2,'beside a cut-back grass');
 });
 
+test('the yuccas, agaves, sotols and ocotillo keep their size through spring', () => {
+  // Their winter leaves are drawn grey or blue-green, which the colour test cannot read
+  // as evergreen, and ocotillo's canes are wood with no winter leaves at all.
+  setup();
+  const ydOf=d=>{ game.dayOffset=(game.dayOffset||0)+(d-(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)); };
+  ydOf(0);
+  const kept=['yucca','adamsneedle','spanishdagger','beakedyucca','redyucca','gianthesperaloe','sotol','texassotol',
+    'texasbeargrass','ocotillo','parryagave','havardagave','whalestongue'];
+  for (const k of kept){
+    assert(PLANTS[k].noCutback,k+': marked on the record');
+    assertEqual(seasonEnvelope(k),1,k+': stands at full size on the first day of spring');
+  }
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].noCutback).sort().join(),kept.slice().sort().join(),'and nothing else is');
+  // false aloe dies back to the ground in winter and comes again like any perennial
+  assert(!PLANTS.falsealoe.noCutback&&seasonEnvelope('falsealoe')<0.2,'false aloe is still cut back');
+  // the flag means something only where the spring envelope applies
+  for (const k of kept) assert(!isWoodyDef(PLANTS[k])&&PLANTS[k].type!=='bulb',k+': herbaceous-typed');
+  game.previewMode='today';
+  assertEqual(plantGrowth({s:'yucca',d:absDay()-200}),1,'an established yucca is full size in early spring');
+  assert(plantGrowth({s:'yucca',d:absDay()})<0.2,'a new one still grows in over its establishment days');
+  for (const v of Object.keys(PLANTS.parryagave.cv||{}))
+    assertEqual(plantGrowth({s:'parryagave',v,d:absDay()-200}),1,'parryagave:'+v+': a cultivar keeps its size too');
+});
+
 test('a marginal out of reach of water is planted and advised, never refused', () => {
   setup();
   setTile('terrain','10,10',{k:'water',c:'pond'});

@@ -1661,6 +1661,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    (the perennial year: cut back to 0.12 at spring day 1, regrow on the
    species' `phen` schedule — cool wakes day 0/full day 14, mid 4/24,
    warm 7/28 — full through fall, winter holds full-size dead structure).
+   A plant that keeps its top skips that cutback and stands at full size all
+   year: `holdsWinterLeaves` reads an `evergreen` role or a green Winter `fol`,
+   and a record's own **`noCutback:true`** says it outright (0.9.95) for the
+   thirteen yuccas, agaves, sotols, hesperaloes and ocotillo, whose grey and
+   blue-green winter leaves that colour test cannot read, and whose canes, for
+   ocotillo, are wood. It is a field rather than the `evergreen` role because
+   that role also weights the Japanese and Formal style lists. False aloe dies
+   back and is not marked. Establishment still grows a new planting in.
    Woody plants (`type` shrub/tree) skip the envelope entirely — no spring
    cutback — and establish over `grow` *years* of growing days instead of
    10 days. Bulbs (`type` bulb) use `bulbEnvelope()`: spring bulbs are up at
@@ -6906,6 +6914,7 @@ along it, and the ones lying toward the viewer come down the screen below the fo
 per band and tone, with four samples a side. The `margin` look reads the season's `edge` as a
 variegated margin, otherwise `edge` is the spine and teeth. Ocotillo is a vase of wavering canes
 on reused scratch buffers, bare in winter, half-leafed in fall, and draws about 8 ft (`h` 96).
+All of them but false aloe carry `noCutback` (0.9.95, §9), so none drops to 12% each spring.
 'Color Guard', 'Bright Edge' and 'Golden Sword' moved from soapweed to the new Adam's needle,
 the species they are, through `PLANT_REF_ALIASES`. Sources: `docs/plant-data/desert-sources.json`;
 decisions and costs: `docs/plant-data/desert-implementation.md`; `dev/desert-review.html` shows

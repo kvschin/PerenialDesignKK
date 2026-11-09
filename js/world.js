@@ -590,8 +590,14 @@ function holdsWinterLeaves(key){
   }
   return v;
 }
+/* A few herbaceous-typed plants keep a top that lasts for years whatever colour their
+   winter leaves are drawn in: yuccas, agaves, sotols and hesperaloes are evergreen
+   rosettes in grey and blue-greens the colour test above cannot read, and ocotillo's
+   canes are wood. The record says so with noCutback, and they stand at full size all
+   year. A new planting still grows in over its establishment days. */
 function seasonEnvelope(key){
-  if (holdsWinterLeaves(key)) return 1;
+  const P=PLANTS[key];
+  if ((P&&P.noCutback) || holdsWinterLeaves(key)) return 1;
   const ydf=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
   if (ydf>=YEAR_DAYS-DAYS_PER_SEASON) return 1;      // winter: structure stands
   const g=PHEN[(PLANTS[key]&&PLANTS[key].phen)||'mid'];

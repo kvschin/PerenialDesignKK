@@ -84,6 +84,21 @@ shows every choice in four seasons and at true scale beside a 6 ft post
 (`?nocards&zoom=3&only=key,key:cv`), sweeps the sprite edges (`?check`), and times a
 bake (`?bench`).
 
+## They keep their size through spring (0.9.95)
+
+Herbaceous plants are cut back to 12% on the first day of spring and regrow, unless
+they keep their leaves over winter. The app reads that off an `evergreen` role or a
+green winter colour, and these plants have neither: their winter leaves are drawn grey
+or blue-green, and ocotillo has no winter leaves at all, only canes that last for
+decades. So every yucca, agave and sotol shrank each spring and grew back, which no
+real one does. All of them except false aloe now carry `noCutback:true`, read by
+`seasonEnvelope` (world.js). False aloe really does die back to the ground.
+
+A new planting still grows in over its establishment days. The change shows only in
+the Today view; the Established preview already draws everything at full size. It
+costs nothing at run time: one property read, and fewer sprite re-bakes in spring,
+since a plant that keeps its size stays in one growth bucket.
+
 ## Left out, and why
 
 - **Century plant** (*Agave americana*): huge and tender (zone 8+), and it may carry
