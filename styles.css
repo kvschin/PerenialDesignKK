@@ -295,12 +295,28 @@ button:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
 .ext-link:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 .ext-arrow{margin-left:.25em;font-size:.9em;opacity:.8}
 
-#menuScreen{background:transparent}
+/* ---------- main menu ----------
+   The title screen is a planted border (the menu canvas, screens.js) with the
+   title and the three entries standing in front of it: one column down the
+   left on a wide screen, so the border has the rest; stacked on a phone.
+
+   The left gutter and the column width below are also written into
+   MENU_BORDER (SHELL_MIN/VW/MAX, SHELL_W), because the shade that makes the
+   title legible is painted into the picture, fitted to this column. A test
+   holds the two together.
+
+   Nothing here uses backdrop-filter. A blurred plate over a canvas that
+   animates is re-blurred by the compositor on every frame, and this screen has
+   five plates; they are simply opaque enough to read on their own. */
+#menuScreen{background:transparent;align-items:flex-start;justify-content:flex-start;
+  padding-left:max(clamp(28px,6.5vw,112px),env(safe-area-inset-left))}
 #menuCanvas{position:absolute;top:0;left:0;width:100%;height:100vh;
   height:calc(100vh + env(safe-area-inset-bottom));z-index:0;pointer-events:none}
-.menu-shell{position:relative;width:min(390px,calc(100vw - 36px));min-height:min(720px,100%);display:flex;flex-direction:column;
-  justify-content:center;gap:18px;padding:48px 0 34px;text-align:center}
-.menu-title-block{padding:0 10px}
+/* Title and entries share the middle; the footer takes the foot of the last
+   row. A window too short for all of it lets the rows collapse and the screen
+   scroll, rather than one piece being laid over another. */
+.menu-shell{flex:1 0 auto;width:min(430px,100%);display:grid;grid-template-rows:1fr auto auto 1fr;row-gap:22px}
+.menu-title-block{grid-row:2}
 /* accent-700 is the higher-contrast accent step in both themes; the literal
    #d59a63 this replaced is the dark value, so dark is unchanged. */
 .eyebrow{font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:10px}
@@ -308,32 +324,50 @@ button:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
 h1.title{font-family:'Fraunces',serif;font-weight:700;font-size:clamp(46px,9vw,84px);line-height:.95;color:var(--seedhead);text-shadow:0 2px 0 rgba(0,0,0,.35)}
 h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .tagline{margin:14px 0 30px;color:var(--text-secondary);font-size:15px}
-.menu-card{width:100%;display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3);border-radius:var(--radius-panel);
-  border:1.5px solid var(--border-quiet);background:linear-gradient(180deg,rgba(var(--paper-rgb),.68),rgba(var(--paper-rgb),.80));
-  box-shadow:0 22px 70px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(12px)}
-.menu-action{min-height:76px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);
-  padding:16px 18px;border-radius:var(--radius-control);border:1.5px solid var(--border-quiet);
-  background:var(--surface-control);color:var(--text-primary);text-align:left;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:transform var(--motion-control) var(--ease-standard),background var(--motion-control),border-color var(--motion-control),box-shadow var(--motion-control)}
-.menu-action:hover{transform:translateY(-1px);border-color:var(--border-strong);background:var(--surface-control-hover)}
-.menu-action:active{transform:translateY(1px) scale(.99)}
-.menu-action strong{display:block;font-family:'Fraunces',serif;font-size:22px;font-weight:650;letter-spacing:0}
-.menu-action small{display:block;margin-top:3px;color:var(--text-secondary);font-size:13px;line-height:1.35}
+/* The title's italic word and the eyebrow take the season's colour, written to
+   --menu-accent when the season is set (setMenuSeason), and turn while the
+   next border is planted and crossfaded in. The title sits on the border's painted shade in
+   both themes, so every accent is a light colour in both. */
+.menu-title-block .eyebrow{margin-bottom:12px;color:var(--menu-accent,var(--color-accent-700));
+  transition:color 900ms var(--ease-standard)}
+.menu-title-block h1.title{font-size:clamp(54px,6.6vw,96px);line-height:.92}
+.menu-title-block h1.title em{color:var(--menu-accent,var(--bronze));transition:color 900ms var(--ease-standard)}
+.menu-tagline{margin-top:16px;color:var(--text-secondary);font-size:15px;line-height:1.45;max-width:36ch}
+.menu-card{grid-row:3;width:100%;display:flex;flex-direction:column;gap:10px}
+.menu-action{min-height:94px;width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;
+  padding:9px 16px 9px 9px;border-radius:var(--radius-panel);border:1.5px solid var(--border-quiet);
+  background:linear-gradient(180deg,rgba(var(--paper-rgb),.80),rgba(var(--paper-rgb),.90));color:var(--text-primary);text-align:left;
+  box-shadow:0 14px 40px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.06);
+  transition:transform var(--motion-control) var(--ease-standard),background var(--motion-control),border-color var(--motion-control),box-shadow var(--motion-control)}
+.menu-action:hover{transform:translateY(-1px);border-color:var(--border-strong);
+  background:linear-gradient(180deg,rgba(var(--paper-rgb),.88),rgba(var(--paper-rgb),.95))}
+.menu-action:active{transform:translateY(1px) scale(.995)}
+.menu-action strong{display:block;font-family:'Fraunces',serif;font-size:22px;font-weight:650;line-height:1.15;letter-spacing:0}
+.menu-action small{display:block;margin-top:4px;color:var(--text-secondary);font-size:13px;line-height:1.35}
 .menu-action .menu-chevron{width:22px;height:22px;color:rgba(var(--ink-rgb),.64)}
 .menu-action.primary{background:linear-gradient(180deg,#d49253,#b86b38);border-color:#e1a46a;color:#211610;
-  box-shadow:0 10px 24px rgba(139,74,36,.3),inset 0 1px 0 rgba(255,255,255,.24)}
+  box-shadow:0 12px 30px rgba(139,74,36,.36),inset 0 1px 0 rgba(255,255,255,.24)}
 /* The primary button keeps its bronze gradient in both themes, so this dark
    ink is theme-independent — .74 measured 3.56:1, below AA in either. */
 .menu-action.primary small{color:rgba(33,22,16,.92)}
 .menu-action.primary .menu-chevron{color:rgba(33,22,16,.72)}
 .menu-action.primary:hover{background:linear-gradient(180deg,#e0a060,#c4763f);border-color:#efb37a}
 .menu-action.disabled,.menu-action:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
-.menu-action.disabled:hover,.menu-action:disabled:hover{transform:none;background:var(--surface-control);border-color:var(--border-quiet)}
+.menu-action.disabled:hover,.menu-action:disabled:hover{transform:none;border-color:var(--border-quiet)}
 .menu-action:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
+/* Each entry shows what it opens, drawn by the app's own painters. The picture
+   is world art, like the border, and keeps its colours in both themes. */
+.menu-art{position:relative;display:block;width:74px;height:74px}
+.menu-art canvas{position:relative;z-index:1;display:block;width:100%;height:100%;border-radius:var(--radius-control);
+  border:1px solid rgba(0,0,0,.34);box-shadow:0 4px 12px rgba(0,0,0,.28);background:#2b211b}
+/* more than one garden saved: the picture is the top of a stack */
+.menu-art.stack::before,.menu-art.stack::after{content:"";position:absolute;inset:0;
+  border-radius:var(--radius-control);border:1px solid rgba(0,0,0,.30)}
+.menu-art.stack::before{transform:rotate(-7deg) translate(-3px,1px);background:#cbb38d}
+.menu-art.stack::after{transform:rotate(5deg) translate(3px,0);background:#dcc9a6}
 /* Now a <p> carrying three links (credits · Privacy · Terms) rather than one
    anchor, so the colour and hover move to the children. */
-.menu-foot{align-self:center;color:rgba(var(--ink-rgb),.80);font-size:11px;margin:auto 0 0;
-  padding-top:10px;letter-spacing:.03em;text-align:center}
+.menu-foot{grid-row:4;align-self:end;justify-self:start;color:rgba(var(--ink-rgb),.82);font-size:11px;letter-spacing:.03em}
 /* Credits/Privacy/Terms measured 14px tall. They are inline links inside a
    sentence, so WCAG 2.2's target-size rule grants them the inline exception and
    the 44px minimum would break the line — but 14px is still a poor tap. An
@@ -341,6 +375,80 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    actually applies here, without disturbing the sentence. */
 .menu-foot a{color:inherit;text-decoration:none;display:inline-block;padding:5px 3px}
 .menu-foot a:hover{color:var(--seedhead)}
+/* The key: what is planted in the border, named as a plan sheet names it, and
+   the four dots that turn it to another season. .menu-shell is deliberately
+   not positioned, so on a wide screen this sits in the SCREEN's bottom-right
+   corner rather than the column's. */
+.menu-key{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(22px,env(safe-area-inset-bottom));
+  width:306px;padding:14px 12px 10px 14px;border-radius:var(--radius-panel);border:1.5px solid var(--border-quiet);
+  background:rgba(var(--paper-rgb),.88);color:var(--text-primary);box-shadow:0 14px 40px rgba(0,0,0,.30);text-align:left}
+.menu-key-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.menu-key-eyebrow{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:3px}
+.menu-key-season{font-family:'Fraunces',serif;font-size:25px;font-weight:600;line-height:1}
+.menu-pips{display:flex;gap:2px;margin:0 -4px -5px 0}
+.menu-pip{width:30px;height:30px;border:0;border-radius:50%;background:none;display:grid;place-items:center;padding:0}
+.menu-pip i{display:block;width:12px;height:12px;border-radius:50%;background:var(--pip);opacity:.5;
+  box-shadow:0 0 0 1.5px rgba(var(--ink-rgb),.28);
+  transition:opacity var(--motion-menu),box-shadow var(--motion-menu),transform var(--motion-menu)}
+.menu-pip:hover i{opacity:.85}
+/* The season shown is named in words beside the dots, so the ring is a second
+   signal rather than the only one. */
+.menu-pip[aria-pressed="true"] i{opacity:1;transform:scale(1.15);
+  box-shadow:0 0 0 2.5px rgb(var(--paper-rgb)),0 0 0 4px var(--pip)}
+.menu-pip:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+.menu-key-line{display:none}
+.menu-key-list{list-style:none;margin-top:10px;padding-top:6px;border-top:1px solid var(--border-quiet)}
+.menu-key-row{display:grid;grid-template-columns:13px auto minmax(0,1fr);align-items:baseline;gap:9px;
+  width:calc(100% + 10px);margin:0 -5px;padding:4px 5px;background:none;border:0;border-radius:4px;
+  color:inherit;text-align:left;font-size:13px;line-height:1.3}
+.menu-key-row:hover{background:var(--surface-control-hover)}
+.menu-key-row:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+/* a drift, not a square: the plan sheet's blob at swatch size */
+.menu-key-row i{width:13px;height:11px;align-self:center;border-radius:46% 54% 52% 48%/58% 44% 56% 42%;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.22),0 0 0 1px rgba(var(--ink-rgb),.24)}
+.menu-key-row span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.menu-key-row em{font-style:italic;font-size:12px;color:var(--text-muted);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A window too narrow to give the key a column of its own folds it to one
+   line: the season, what is in it, and the four dots. */
+@media (max-width:1180px){
+  .menu-key{width:auto;max-width:360px;padding:6px 6px 6px 14px;display:flex;align-items:center;gap:10px}
+  .menu-key-head{display:contents}
+  .menu-key-eyebrow,.menu-key-list{display:none}
+  .menu-key-season{font-size:19px;flex:0 0 auto}
+  .menu-key-line{display:block;flex:1 1 0;min-width:0;font-size:12px;color:var(--text-secondary);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;order:2}
+  .menu-pips{order:3;margin:0 0 0 auto}
+}
+/* On a phone the four dots are four 44px targets and take most of the line;
+   the season's name stays, the plant names go. */
+@media (max-width:480px){ .menu-key-line{display:none} }
+/* A 320px phone: the eyebrow ran under the two corner buttons. The id is there
+   to outrank the SHEET rule further down the file, which a media query alone
+   cannot. */
+@media (max-width:359px){ #menuScreen .menu-title-block .eyebrow{font-size:10px;letter-spacing:.12em} }
+/* Short windows, and a phone on its side. */
+@media (max-height:700px){
+  .menu-shell{row-gap:14px}
+  .menu-title-block h1.title{font-size:clamp(40px,5.2vw,64px)}
+  .menu-tagline{display:none}
+  .menu-action{min-height:74px}
+  .menu-art{width:58px;height:58px}
+  .menu-action strong{font-size:20px}
+  .menu-key-list li:nth-child(n+5){display:none}
+}
+@media (max-height:520px){
+  .menu-shell{row-gap:10px}
+  .menu-title-block .eyebrow{display:none}
+  .menu-title-block h1.title{font-size:34px}
+  /* one line: the break goes, so the italic word needs its own space */
+  .menu-title-block h1.title br{display:none}
+  .menu-title-block h1.title em{margin-left:.22em}
+  .menu-action{min-height:58px;padding:6px 12px 6px 6px}
+  .menu-art{width:44px;height:44px}
+  .menu-action strong{font-size:17px}
+  .menu-action small{font-size:12px;margin-top:1px}
+  .menu-key-list{display:none}
+}
 /* The settings gear, top-right of the MENU SCREEN's padding box — so it takes
    the same max(18px, safe-area) inset .screen already pads by, rather than a
    second, drifting copy of that number. Chrome over the meadow needs an opaque
@@ -360,13 +468,13 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   top:max(18px,env(safe-area-inset-top));right:max(18px,env(safe-area-inset-right))}
 .menu-corner-btn{display:flex;align-items:center;gap:7px;min-height:40px;padding:0 13px 0 11px;
   border:1.5px solid var(--border-quiet);border-radius:var(--radius-pill);
-  background:var(--surface-overlay);color:var(--text-primary);
+  background:rgba(var(--paper-rgb),.86);color:var(--text-primary);
   font-size:13px;font-weight:600;letter-spacing:.02em;
-  box-shadow:0 6px 20px rgba(0,0,0,.28);backdrop-filter:blur(10px);
+  box-shadow:0 6px 20px rgba(0,0,0,.28);
   transition:transform var(--motion-control) var(--ease-standard),
              background var(--motion-control),border-color var(--motion-control)}
 .menu-corner-btn .ui-icon{width:18px;height:18px;color:var(--color-accent-700)}
-.menu-corner-btn:hover{border-color:var(--border-strong);background:var(--surface-control-hover);transform:translateY(-1px)}
+.menu-corner-btn:hover{border-color:var(--border-strong);background:rgba(var(--paper-rgb),.94);transform:translateY(-1px)}
 .menu-corner-btn:active{transform:translateY(1px)}
 .menu-corner-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
 /* Phones only (a portrait tablet keeps the row): the two icons stack, Settings
@@ -1867,10 +1975,17 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 
 @media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
   .world-row{--thumb-w:clamp(96px,calc(100vw - 240px),120px);column-gap:10px;padding:10px}
-  #menuScreen{padding:14px 16px}
-  .menu-shell{width:min(330px,calc(100vw - 32px));min-height:100%;gap:14px;padding:54px 0 24px}
-  .menu-title-block{padding:0}
-  h1.title{font-size:clamp(54px,17vw,76px)}
+  /* The same three things, stacked and centred: title, entries, then the key
+     and the footer at the foot of the screen with the border between. The key
+     is IN the column here (a row of its own), so on a phone too short for all
+     of it the screen scrolls instead of the key lying over the entries. */
+  #menuScreen{padding:14px 16px;align-items:center}
+  .menu-shell{width:min(380px,100%);grid-template-rows:auto auto 1fr auto auto;row-gap:14px;padding-top:44px;text-align:center}
+  .menu-title-block{grid-row:1}
+  /* narrower, so it clears the two corner buttons */
+  .menu-title-block .eyebrow{font-size:10.5px;letter-spacing:.2em;margin-bottom:10px}
+  .menu-title-block h1.title{font-size:clamp(46px,13vw,64px);line-height:.95}
+  .menu-tagline{margin:10px auto 0;font-size:13.5px}
   /* Gear only. The label earns its place on a desktop, where the pill sits in
      empty space beside a wide title block; on a phone it is 106px of chrome
      over the meadow for a control every user already knows by its icon.
@@ -1882,11 +1997,13 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .menu-corner-btn span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
     overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
   .menu-corner-btn .ui-icon{width:21px;height:21px}
-  .menu-card{padding:12px;gap:9px}
-  .menu-action{min-height:74px;padding:15px 16px}
-  .menu-action strong{font-size:20px}
+  .menu-card{grid-row:2;gap:9px}
+  .menu-action{min-height:76px;padding:8px 10px 8px 8px;gap:11px}
+  .menu-action strong{font-size:19px}
   .menu-action small{font-size:12.5px}
-  .menu-foot{font-size:10.5px}
+  .menu-art{width:58px;height:58px}
+  .menu-key{position:static;grid-row:4;max-width:none}
+  .menu-foot{grid-row:5;justify-self:center;font-size:10.5px}
   .season-dial{padding:7px 9px;gap:9px;align-items:center}
   .season-box{width:132px;min-width:84px;padding:3px 9px}
   .season-box .season-name{font-size:14.5px}
@@ -2869,6 +2986,9 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
      base rule already pads it where the label still shows (a landscape
      tablet). */
   .menu-corner-btn{min-height:44px}
+  /* The season dots: the dot stays 12px, the target round it is the button. */
+  .menu-pip{width:44px;height:44px}
+  .menu-key-row{min-height:44px}
   /* The OPTION is the target, not the track around it, so 44 is on the
      option and the track grows to 52. */
   .set-choice-opt,.set-action{min-height:44px}
@@ -2907,6 +3027,9 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
 @media (forced-colors: active){
   /* Both selected states are background-only, which forced colors discards. */
   .set-choice-opt,.set-action,.settings-x,.menu-corner-btn{border:1px solid ButtonBorder!important}
+  .menu-action,.menu-key{border:1px solid ButtonBorder!important}
+  .menu-pip i{forced-color-adjust:none;background:ButtonText;box-shadow:none;opacity:.6}
+  .menu-pip[aria-pressed="true"] i{background:Highlight;opacity:1;box-shadow:0 0 0 2px Canvas,0 0 0 4px Highlight}
   .set-choice-opt.on{border:2px solid Highlight!important;forced-color-adjust:none;
     background:Highlight!important;color:HighlightText!important}
   .set-switch{border:1px solid ButtonBorder!important;forced-color-adjust:none;background:Canvas!important}

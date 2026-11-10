@@ -119,7 +119,23 @@ right is a `.menu-corner` flex row of two labelled pills —
 Guide-then-Settings order). They share a row
 rather than being positioned independently because the settings pill's width
 depends on whether its label is showing, which is a text measurement no
-`right:` can be written against. A dev-only
+`right:` can be written against.
+**The title screen is a planted border** (0.9.98; the renderer is in §17).
+The title, a tagline and the three entries are one column down the left on a
+wide screen (`.menu-shell`, a grid whose footer takes the foot of the last row)
+and stacked on SHEET. Each entry carries a picture of what it opens, drawn by
+the app's own painters (`paintMenuArt`, screens.js): a small garden, stacked
+once more than one is saved; a coneflower in its four seasons; a plan. A
+**key** (`#menuKey`) names the six plants that carry most of the border, each
+row opening the Plant Library at that plant (`openPlantLibraryAt`), beside four
+season dots that turn the border by hand (`setMenuSeason`; the choice is
+written to `hortus:menuSeasonIdx`, so the next visit carries on from it). The
+key sits in the screen's corner on a wide window, folds to one line under
+1180px, and on SHEET is a row of the column's own grid, so a short phone
+scrolls instead of laying it over the entries; `.menu-shell` is therefore NOT
+positioned. The title's italic word and eyebrow take the season's `accent`
+(`--menu-accent`). No menu chrome uses `backdrop-filter`: a blurred plate over
+an animating canvas is re-blurred every frame, and there are five plates. A dev-only
 **Plant Creator** (`dev/plant-creator.html`, opened directly, not linked from the
 game) loads the real `plants.js` + game modules to author `PLANTS` entries with
 a live `drawPlant` preview.
@@ -376,6 +392,12 @@ See §13a.
   `DEMOTED` line against the phases after it: on one 270-plant garden it names a
   single fast-forward frame in 0.9.73 and 0.9.74 alike, while every later phase holds
   ~160fps with a probe of 0ms, which is not a canvas that went to software for good.
+  **`--menu` asks the same of the title screen**, whose border is ~200 clump
+  sprites blitted every frame onto a canvas of its own (§17). There the probe is
+  the JS cost of a whole `menuRender` across all four seasons; `--menu
+  --canvases` bakes the sprites as canvases and must report DEMOTED, which is
+  how to tell the probe still works. Run it on any change to how the border's
+  images are made or drawn.
 - `node dev/ground-verify.cjs` is the gate on the ground bake's PARTIAL paths
   (§11): a pan re-bakes only the band that came into view and an edit only the
   viewport, so this asks whether either still draws the ground a full bake
@@ -6259,20 +6281,75 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `plantFits`' zone/native-range/deer/rabbit/squirrel gates that never touches game state)
     updates under every knob so each choice visibly does something. Selections
     commit to `game.design`/`game.filters` on Next, unchanged. Setup panels
-    rise-fade in (`.panel-enter`) and sit more translucent over the meadow, which
-    **replants live** to the chosen style + zone (`styleMeadowKeys`/
-    `applyMeadowPalette`, called on every style/zone change): the tray's own
-    `plantStyleScore` ranks a herbaceous, zone-filtered palette and the species
-    are reassigned in place over the existing meadow slots — same positions, so
-    the backdrop reads as being replanted, not teleporting (Prairie → grasses,
-    Cottage → forbs, Shade → ferns/sedges; 'Any garden' keeps the curated
-    seasonal meadow). Going Back to the menu re-seeds the season default.
+    rise-fade in (`.panel-enter`) and sit more translucent over the menu's
+    border (§17), which **replants live** to the chosen style + zone
+    (`styleMeadowKeys`/`applyMeadowPalette`, called on every style/zone change):
+    the tray's own `plantStyleScore` ranks a herbaceous, zone-filtered palette,
+    `menuSchemeFromKeys` sorts it into a border's parts (grasses and sedges the
+    matrix, the tallest few the emergents, the lowest the front), and the border
+    is replanted over the same ground, since its rows and the outlines of its
+    drifts are seeded by the season and not by the palette (Prairie → grasses,
+    Cottage → forbs, Shade → ferns/sedges; 'Any garden' keeps the season's own
+    scheme). The click itself only records the palette; the planting happens
+    over the next frames. Going Back to the menu clears it (`advanceMenuSeason`).
     Plain DOM, toggled by `show()`. The planting-list
     (`#exportScreen`), plant filters (`#filterScreen`), design plan
     (`#planScreen`), and bloom calendar (`#bloomScreen`) overlays sit outside
     `show()` — in-game overlays toggled directly; the
     keyboard handler ignores game keys while one is open (Escape closes).
-17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
+17. **Menu border + main loop** — the title screen's planted border, then
+    `loop(t)`.
+    **The border** (`MENU_SCENES`, `MENU_BORDER`, `menuBorderPlan`,
+    `menuBorderBuild`, `menuRender`, screens.js; 0.9.98) is the backdrop of the
+    menu and of every screen reached from it. It replaced 54 plants scattered
+    along the bottom edge at 58-72% opacity and redrawn procedurally every
+    frame, which measured **32-37ms of JavaScript a frame** at 1024x768 for a
+    picture that read as confetti on a dark gradient. Each season is now a
+    planting SCHEME, authored from contact sheets of the real art: a `matrix`
+    of grasses, `drifts` of forbs that come round again across the width, tall
+    `emergents`, and a low `front`, running from a hazed far field to
+    foreground clumps under a low sun. A test holds every listed plant to being
+    herbaceous and UP in its season (the guidebook's rule).
+    **Plan and bake are separate.** `menuBorderPlan(season,W,H,sheet,scheme)`
+    is pure: no canvas, no clock, no `Math.random`. Each row walks left to right
+    on its own seeded stream, so a wider window keeps the plants it had and adds
+    more on the right (tested). `menuBorderBuild` is a generator that bakes the
+    plan into images and is stepped `STEP_MS` (6) per animation frame by
+    `menuBorderWork`, on every frame the menu is the backdrop and not only the
+    30fps ones that draw, so the border on screen keeps moving while the next is
+    planted behind it and the two crossfade. It hands back the border with only
+    its sky and shade first, which goes up at once on a cold start, and
+    publishes everything else together, so a half-planted border is never drawn.
+    The first eight rows are stamped small from a pooled set into ONE still
+    layer, veiled row by row for distance; the five near rows are a sprite a
+    clump, and the wind is a shear on each blit, the garden's own trick.
+    Measured in Chrome at 1024x768: 169-198 clumps, 14-17MB of sprites, 110-180ms
+    of baking a season, and **0.5ms of JavaScript a frame**; on a 375x812 phone
+    at the 1.5 device scale, 83-92 clumps and 13-17MB. Live in the pane at
+    1396x1240 every frame landed on the display's 6.1ms.
+    **Memory is what it costs, and three things bound it.** Near sprites share
+    `MENU_BORDER.MEM` (48MB, the garden cache's figure) and are baked softer on
+    a very large canvas rather than exceed it (`q`, floor 0.5). The part of a
+    front-row clump below the bottom of the screen is never baked. And
+    `releaseMenuBorder()` hands the whole border back when a garden opens
+    (`enterGarden`), so it never sits beside the garden's own sprite cache; it
+    is replanted, sky first, when the menu returns. Images a border no longer
+    uses are closed a frame after they were last drawn (`menuRetired`).
+    **The sprites are ImageBitmaps, through the garden's `spriteBakeSurface`**,
+    and that is load-bearing in Firefox: with `<canvas>` sprites the same menu
+    measured 23-26ms a frame and ~6fps at 1920x995 once it had been demoted,
+    against sub-millisecond frames with bitmaps. `node dev/ff-accel-check.cjs
+    --menu` is the guard, and `--menu --canvases` is its negative control.
+    **Legibility is painted into the picture** (`menuPaintShade`): a
+    season-tinted shade the title stands in, fitted to the column from
+    `MENU_BORDER.SHELL_*` rather than from a layout read (a test holds those to
+    the CSS), laid only while `#menuScreen` itself is up; the other screens'
+    panels carry their own plates over the unshaded border.
+    **It is neither planted nor painted behind the Library or the guidebook**
+    (`menuBackdropCovered`): both are full-bleed plates, and the old meadow kept
+    drawing at 30fps behind them with their backdrop blur recomposited for every
+    frame. With motion reduced nothing in it moves, so `menuRender` draws only
+    when the border, the canvas or the shade has changed.
     The loop throttles itself: garden frames render full-rate only while
     something is happening (`shouldRenderGarden` — a state signature +
     gesture/fx checks + a **250ms** activity grace, `IDLE_GRACE_MS`), else at a
@@ -6293,7 +6370,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     than `game.hoverTile`, and used to be covered only because any pointermove
     kept the long grace alive (`buildingDraftSig`);
     render is skipped entirely under the full-screen Library/Plan/Bloom/Export
-    overlays, and the menu meadow runs at 30fps. A **glass governor**
+    overlays, and the menu border draws at 30fps. A **glass governor**
     (`updateGlassMode`, `GLASS`) watches frame *spacing* on interaction frames
     only — the backdrop-blur recomposite is GPU cost the JS phase timers can't
     see — and on sustained jank adds `body.no-glass` for the session (blur off

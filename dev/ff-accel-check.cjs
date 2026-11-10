@@ -21,8 +21,19 @@
    the local software canvas Firefox demotes to, it is rasterised on the spot,
    several ms at this size. A frame's `sky` above 1.5ms means demoted.
 
+   --menu asks the same question of the TITLE SCREEN. Its border is ~200 clump
+   sprites blitted every frame (menuBorderBuild, js/screens.js), which is the
+   exact shape that demoted the garden, on a canvas of its own. There the
+   probe is the JS cost of a whole menuRender: ~1ms while it is only recorded,
+   tens of ms once every blit is rasterised on the spot. It turns the border
+   through all four seasons, since each turn is a fresh set of images.
+   --menu --canvases bakes the sprites as <canvas> elements instead, which is
+   what the check exists to catch: it should report DEMOTED, and if it does
+   not, the probe has stopped working.
+
    Usage:
      node dev/ff-accel-check.cjs [--garden file.json] [--w 2560 --h 1400]
+     node dev/ff-accel-check.cjs --menu [--canvases] [--w 2560 --h 1400]
    Runs the garden (default demo-garden.json) through open, pan, fast-forward,
    a season Skip, pan, night pan, and prints fps and the probe per phase. Exits
    1 if the canvas was demoted, naming the frame it happened on. Needs Firefox;
@@ -39,6 +50,8 @@ const opt = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i
 const REPO = path.resolve(__dirname, '..');
 const GARDEN = fs.readFileSync(path.resolve(opt('garden', path.join(REPO, 'demo-garden.json'))));
 const W = +opt('w', 2560), H = +opt('h', 1400);
+const MENU = argv.includes('--menu'), CANVASES = argv.includes('--canvases');
+const MENU_SOFT_MS = 5;      // a menu frame's JS past this, five frames running, is a software canvas
 const FF = [process.env.PP_FIREFOX_PATH, 'C:/Program Files/Mozilla Firefox/firefox.exe',
   '/Applications/Firefox.app/Contents/MacOS/firefox', '/usr/bin/firefox'].filter(Boolean).find(p => fs.existsSync(p));
 if (!FF) { console.error('Firefox not found. Set PP_FIREFOX_PATH.'); process.exit(1); }
@@ -73,6 +86,50 @@ const DRIVER = `
   }catch(e){ await say({error:String(e&&e.stack||e)}); }
 })();
 `;
+const MENU_DRIVER = `
+(async function(){
+  const say = o => fetch('/__result',{method:'POST',body:JSON.stringify(o)});
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  try{
+    try{ localStorage.setItem('hortus:welcomed','1'); }catch(e){}
+    while (typeof menuRender!=='function' || typeof menuBorderWork!=='function' || typeof mcnv==='undefined') await sleep(50);
+    await sleep(300);
+    const pop=document.getElementById('confirmPop'); if (pop) pop.remove();   // the first-run offer, on a fresh profile
+    ${CANVASES ? 'spriteBitmaps=false; releaseMenuBorder();' : ''}
+    const frames=[]; let phase='open';
+    const oR=window.menuRender;
+    window.menuRender=function(t){ const a=performance.now(); const r=oR.apply(this,arguments);
+      frames.push([Math.round(a),phase,+(performance.now()-a).toFixed(2)]); return r; };
+    const up=async()=>{ const t0=performance.now();
+      while (!(menuBorder && menuBorder.ready && !menuJob) && performance.now()-t0<30000) await sleep(50); };
+    await up();
+    phase=menuSeason; await sleep(4000);
+    for (const s of SEASONS.filter(x=>x!==menuSeason)){
+      setMenuSeason(s,false); phase='planting '+s; await up();
+      phase=s; await sleep(3500);
+    }
+    await say({canvas:mcnv.width+'x'+mcnv.height, sprites:menuBorder.sprites.length, mb:+(menuBorder.bytes/1048576).toFixed(1),
+      bitmaps:spriteBitmaps, frames});
+  }catch(e){ await say({error:String(e&&e.stack||e)}); }
+})();
+`;
+function reportMenu(r) {
+  console.log('menu canvas ' + r.canvas + '  ' + r.sprites + ' clumps, ' + r.mb + 'MB of sprites  sprite bitmaps ' + (r.bitmaps ? 'on' : 'off'));
+  let firstSoft = -1, run = 0;
+  r.frames.forEach((f, i) => { run = f[2] > MENU_SOFT_MS ? run + 1 : 0; if (firstSoft < 0 && run >= 5) firstSoft = i - 4; });
+  for (const p of [...new Set(r.frames.map(f => f[1]))]) {
+    const fr = r.frames.filter(f => f[1] === p), ms = fr.map(f => f[2]).sort((a, b) => a - b);
+    const span = fr.length > 1 ? fr[fr.length - 1][0] - fr[0][0] : 0;
+    console.log('  ' + p.padEnd(16) + String(span ? (1000 * (fr.length - 1) / span).toFixed(1) : '-').padStart(6) + ' fps'
+      + '   menuRender median ' + ms[ms.length >> 1] + 'ms   p95 ' + ms[Math.min(ms.length - 1, Math.floor(ms.length * .95))] + 'ms');
+  }
+  if (firstSoft >= 0) {
+    console.log('\nDEMOTED: frame #' + firstSoft + ' (' + r.frames[firstSoft][1] + ') is the first of five running drawn on a software canvas.');
+    process.exit(1);
+  }
+  console.log('\nstayed accelerated for all ' + r.frames.length + ' frames');
+  process.exit(0);
+}
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.png': 'image/png', '.svg': 'image/svg+xml' };
 let done; const ready = new Promise(r => done = r);
 const server = http.createServer((req, res) => {
@@ -82,7 +139,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (req.url === '/__garden.json') { res.setHeader('Content-Type', 'application/json'); res.end(GARDEN); return; }
-  if (req.url.startsWith('/__driver.js')) { res.setHeader('Content-Type', 'text/javascript'); res.end(DRIVER); return; }
+  if (req.url.startsWith('/__driver.js')) { res.setHeader('Content-Type', 'text/javascript'); res.end(MENU ? MENU_DRIVER : DRIVER); return; }
   const rel = req.url === '/' ? 'index.html' : decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '');
   const abs = path.resolve(REPO, rel);
   if (!abs.startsWith(REPO + path.sep)) { res.writeHead(403); res.end(); return; }
@@ -109,6 +166,7 @@ server.listen(0, '127.0.0.1', async () => {
     .catch(e => ({ error: e.message }));
   closeTestBrowser(child, profile); server.close();
   if (r.error) { console.error(r.error); process.exit(1); }
+  if (MENU) return reportMenu(r);
   console.log('canvas ' + r.canvas + '  sprite cache ' + (r.sprites ? 'on' : 'OFF (a lighter garden will not exercise this)')
     + '  sprite bitmaps ' + (r.bitmaps ? 'on' : 'off'));
   const phases = [...new Set(r.frames.map(f => f[1]))];

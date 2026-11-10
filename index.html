@@ -113,36 +113,56 @@ if ('serviceWorker' in navigator)
     <div class="menu-title-block">
       <div class="eyebrow">Pocket prairie garden design</div>
       <h1 class="title">Pocket<br><em>Prairie</em></h1>
+      <p class="menu-tagline">Design a planting, then watch it through a year.</p>
     </div>
     <!-- Three entries, not four. "Design a Garden" and "View Gardens" used to
          run the SAME handler (openWorlds), so each label was wrong in one of the
          two states: on a fresh device View Gardens started a new garden, and on
          a stocked one Design a Garden showed a list. One door, honestly named.
          Plant Library sits above the daily challenge deliberately — 348 species
-         with real spacing and zone data is what a sceptical buyer opens first. -->
+         with real spacing and zone data is what a sceptical buyer opens first.
+         Each entry carries a picture of what it opens, drawn by the app's own
+         painters (paintMenuArt, screens.js): a garden, one plant in its four
+         seasons, a plan. -->
     <div class="menu-card" aria-label="Main menu">
       <button class="menu-action primary" id="btnDesign" type="button">
-        <span>
+        <span class="menu-art" id="menuArtGardensWrap"><canvas id="menuArtGardens" width="148" height="148" aria-hidden="true"></canvas></span>
+        <span class="menu-action-text">
           <strong>Your gardens</strong>
           <small>Design your first planting</small>
         </span>
         <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
       <button class="menu-action" id="btnLibrary" type="button">
-        <span>
+        <span class="menu-art"><canvas id="menuArtLibrary" width="148" height="148" aria-hidden="true"></canvas></span>
+        <span class="menu-action-text">
           <strong>Plant Library</strong>
           <small>Browse every species and its notes</small>
         </span>
         <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
       <button class="menu-action" id="btnDaily" type="button">
-        <span>
+        <span class="menu-art"><canvas id="menuArtDaily" width="148" height="148" aria-hidden="true"></canvas></span>
+        <span class="menu-action-text">
           <strong>Daily design challenge</strong>
           <small>A fresh planting prompt each day</small>
         </span>
         <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
     </div>
+    <!-- The key: what is planted in the border behind the menu, named the way a
+         plan sheet names it, and the four dots that turn it to another season.
+         The rows are written by syncMenuBorderChrome once a border is up, and
+         each opens the Plant Library at that plant. On a phone, and in a window
+         too narrow to give it a column of its own, it folds to one line. -->
+    <aside class="menu-key" id="menuKey" aria-label="What is planted in the border">
+      <div class="menu-key-head">
+        <div><div class="menu-key-eyebrow">In the border</div><div class="menu-key-season" id="menuKeySeason">Fall</div></div>
+        <div class="menu-pips" id="menuPips" role="group" aria-label="Season shown"></div>
+      </div>
+      <p class="menu-key-line" id="menuKeyLine"></p>
+      <ul class="menu-key-list" id="menuKeyList"></ul>
+    </aside>
     <!-- Both stores expect the policy pages to be reachable from inside the
          app, not only from the listing. They are plain static pages with no
          dependency on the game, so they open fine offline too. -->

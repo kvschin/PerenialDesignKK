@@ -10584,6 +10584,217 @@ test('styleMeadowKeys replants the menu backdrop per style, herbaceous only', ()
   assert(warm.every(k => PLANTS[k].zones[0] <= 4 && PLANTS[k].zones[1] >= 4), 'zone 4 palette all tolerate zone 4');
 });
 
+/* ---------- the menu border ---------- */
+
+test('every plant in a menu border exists, is herbaceous, and is up in its season', () => {
+  /* A border is authored per season, and a plant listed in the wrong one draws
+     nothing: a bulb in October is underground, and the row it was given is a
+     gap in the planting. The guidebook's demos are held to the same rule. */
+  for (const season of SEASONS){
+    const S = MENU_SCENES[season];
+    assert(S, `${season} has a border`);
+    for (const part of MENU_SCHEME_PARTS){
+      assert(S[part] && S[part].length >= 3, `${season} has a ${part}`);
+      for (const k of S[part]){
+        const P = PLANTS[k];
+        assert(P, `${season} ${part}: "${k}" is a plant`);
+        assert(['grass', 'sedge', 'forb', 'bulb'].includes(P.type), `${k} is herbaceous (no trees in the backdrop)`);
+        const sea = (plantDef(k).sea || {})[season] || {};
+        assert(sea.fol || sea.bloom || sea.seed || sea.twig, `${k} draws something in ${season}`);
+      }
+    }
+    assert(S.matrix.every(k => ['grass', 'sedge'].includes(PLANTS[k].type)), `${season}: the matrix is grasses and sedges`);
+    assert(/^#[0-9a-f]{6}$/.test(S.accent) && /^#[0-9a-f]{6}$/.test(S.pageBg), `${season} names its accent and page colour`);
+    // the title stands on the border's shade in BOTH themes, so the accent is a light colour
+    assert(oklabOf(S.accent)[0] > 0.7, `${season}'s title accent is light enough to sit on the shade`);
+  }
+});
+
+test('the menu border plan is pure, and a wider window keeps the plants it had', () => {
+  const flat = p => p.near.map(n => [n.k, n.row, n.x.toFixed(3), n.y.toFixed(3), n.z.toFixed(4), n.seed].join()).join('|');
+  const a = menuBorderPlan('Fall', 1024, 768, false, null);
+  assertEqual(flat(a), flat(menuBorderPlan('Fall', 1024, 768, false, null)), 'same inputs, same border');
+  assert(flat(a) !== flat(menuBorderPlan('Summer', 1024, 768, false, null)), 'a season is a different planting');
+
+  /* Each row walks left to right on its own seeded stream, so widening the
+     window adds plants on the right and moves none: a resize must read as more
+     border, not as a reshuffle. */
+  const wide = menuBorderPlan('Fall', 1600, 768, false, null);
+  const key = n => [n.k, n.row, n.x.toFixed(3), n.y.toFixed(3)].join();
+  const there = new Set(wide.near.map(key));
+  assert(a.near.every(n => there.has(key(n))), 'every clump of the narrower border stands where it stood');
+  assert(wide.near.length > a.near.length, 'and the wider one has more');
+  const stamp = s => [s.k, s.v, s.x.toFixed(3), s.y.toFixed(3)].join();
+  a.far.forEach((row, r) => {
+    const w = new Set(wide.far[r].stamps.map(stamp));
+    assert(row.stamps.every(s => w.has(stamp(s))), `far row ${r} keeps its stamps`);
+  });
+
+  // drawn back to front, and every plant is one the season's scheme names
+  for (let i = 1; i < a.near.length; i++) assert(a.near[i].y >= a.near[i - 1].y, 'near clumps are in painting order');
+  const scheme = new Set(MENU_SCHEME_PARTS.flatMap(p => MENU_SCENES.Fall[p]));
+  assert(a.near.every(n => scheme.has(n.k)) && a.far.every(row => row.stamps.every(s => scheme.has(s.k))),
+    'nothing is planted that the scheme does not list');
+  assertEqual(a.far.length, MENU_BORDER.FAR, 'the far rows are the still layer');
+  assertEqual(MENU_BORDER.FAR_VEIL.length, MENU_BORDER.FAR, 'one veil a far row');
+  assertEqual(MENU_BORDER.NEAR_TINT.length, MENU_BORDER.ROWS.length - MENU_BORDER.FAR, 'one tint a near row');
+
+  /* What a frame costs is one blit a near clump, so the count is the budget.
+     Measured 169-186 at 1024x768 and 91 on a phone. */
+  for (const season of SEASONS){
+    const desk = menuBorderPlan(season, 1024, 768, false, null).near.length;
+    const phone = menuBorderPlan(season, 375, 812, true, null).near.length;
+    assert(desk > 100 && desk <= 230, `${season} at 1024x768 is ${desk} clumps`);
+    assert(phone > 40 && phone <= 130, `${season} on a phone is ${phone} clumps`);
+  }
+
+  // the key names the plants that carry the most of the border
+  const top = menuKeyPlants(a.tally, 6);
+  assertEqual(top.length, 6, 'six plants in the key');
+  assert(top.every(k => scheme.has(k)), 'all of them planted');
+  assert(a.tally.get(top[0]) >= a.tally.get(top[5]), 'most first');
+});
+
+test('the menu border bakes sky first and publishes its planting whole', () => {
+  const was = { w: mcnv.width, h: mcnv.height };
+  mcnv.width = 640; mcnv.height = 480;
+  try {
+    const plan = menuBorderPlan('Winter', 640, 480, false, null);
+    const it = menuBorderBuild(plan);
+    let r = it.next();
+    const first = r.value;
+    assert(first && !r.done && !first.ready, 'the first thing handed back is a border that is not ready');
+    assert(first.bg && first.shade, 'with its sky and its shade, which is enough to put on screen');
+    let steps = 0;
+    while (!r.done){
+      assert(first.sprites.length === 0 && !first.far, 'a half-planted border is never visible');
+      r = it.next(); steps++;
+    }
+    const b = r.value;
+    assert(b === first && b.ready, 'the same border, now ready');
+    assert(steps > plan.near.length / 2, 'the bake yields between clumps, so it can be spread over frames');
+    assert(b.far && b.glow && b.sprites.length > 0 && b.sprites.length <= plan.near.length, 'far field, light and clumps all arrive together');
+    assertEqual(b.made, null, 'nothing is left owed to a cancel');
+    assert(b.bytes > 0 && b.bytes <= MENU_BORDER.MEM * 1.05, 'inside the sprite budget');
+    assert(b.sprites.every(p => p.up >= 1 && Number.isFinite(p.x) && Number.isFinite(p.y)), 'every clump has a place');
+
+    /* The front row's base is below the bottom of the screen. Baking the part of
+       a clump nobody can see was a third of that row's memory. */
+    const R = MENU_BORDER.ROWS.length, front = plan.near.filter(n => n.row === R - 1);
+    assert(front.length && front.every(n => n.y > 480), 'the front row stands below the bottom edge');
+    const box = plantDrawBox(plantDef(front[0].k), front[0].k, 1);
+    const whole = menuBakePlant(front[0].k, 'Winter', 1, front[0].z, undefined, null, box, null);
+    const cropped = menuBakePlant(front[0].k, 'Winter', 1, front[0].z, undefined, null, box, (480 - front[0].y) / front[0].z + 2);
+    assert(cropped && cropped.h < whole.h, 'so it is baked cropped to what shows');
+    assertEqual(menuBakePlant(front[0].k, 'Winter', 1, 1, undefined, null, box, -box.top - 5), null, 'and not at all when nothing would');
+
+    // on screen, then released when a garden opens
+    const held = menuBorder;
+    menuBorder = b; menuRender(0);
+    releaseMenuBorder();
+    assertEqual(menuBorder, null, 'a garden opening hands the border back');
+    assertEqual(menuJob, null, 'and stops any planting');
+    menuRender(0);          // nothing to draw is not an error
+    menuBorder = held;
+  } finally { mcnv.width = was.w; mcnv.height = was.h; }
+});
+
+test('the questionnaire replants the border, and the menu takes its own scheme back', () => {
+  applyMeadowPalette('prairie', 6, {});
+  const keys = styleMeadowKeys('prairie', 6, {});
+  assert(menuPalette && menuPaletteSig === keys.join(','), 'a style hands the border its palette');
+  for (const part of MENU_SCHEME_PARTS)
+    assert(menuPalette[part].length && menuPalette[part].every(k => keys.includes(k)), `${part} comes from the style's own list`);
+  assert(menuPalette.matrix.every(k => ['grass', 'sedge'].includes(PLANTS[k].type)), 'a prairie matrix is grass');
+  const tall = k => plantVisualH(plantDef(k));
+  assert(Math.min(...menuPalette.emergents.map(tall)) >= Math.max(...menuPalette.front.map(tall)),
+    'the emergents are the tall ones and the front the low ones');
+  const styled = menuBorderPlan('Summer', 1024, 768, false, menuPalette);
+  assert(styled.near.every(n => keys.includes(n.k)), 'and the border is planted from it');
+
+  // a style with no grasses still gets a matrix
+  const forbs = keys.filter(k => PLANTS[k].type === 'forb');
+  if (forbs.length >= 4) assert(menuSchemeFromKeys(forbs).matrix.length > 0, 'forbs alone still fill the ground');
+
+  applyMeadowPalette('any', 6, {});
+  assertEqual(menuPalette, null, "'Any garden' keeps the season's own scheme");
+  applyMeadowPalette('prairie', 6, {});
+  advanceMenuSeason();
+  assertEqual(menuPalette, null, 'going back to the menu clears it');
+  assertEqual(menuPaletteSig, '', 'so the next border is the season as authored');
+});
+
+test('the season dots turn the border and are remembered', () => {
+  const was = menuSeason;
+  try {
+    setMenuSeason('Winter', true);
+    assertEqual(menuSeason, 'Winter');
+    assertEqual(localStorage.getItem('hortus:menuSeasonIdx'), String(SEASONS.indexOf('Winter')), 'the choice is stored');
+    advanceMenuSeason();
+    assertEqual(menuSeason, 'Spring', 'and the next visit carries on from it');
+    setMenuSeason('Monsoon', true);
+    assertEqual(menuSeason, 'Spring', 'a season the menu has no border for is refused');
+    assert(/Winter\|/.test((menuSeason = 'Winter', menuBorderKey())), 'the season is part of what border should be up');
+  } finally { setMenuSeason(was, true); }
+});
+
+test('the border is neither planted nor painted behind the Library or the guidebook', () => {
+  /* Both are full-bleed plates over the menu canvas. It used to keep drawing at
+     30fps behind them, 54 procedural plants a frame nobody could see, with the
+     plates' backdrop blur recomposited for every one. */
+  show('libraryScreen'); assert(menuBackdropCovered(), 'the Library covers it');
+  show('guideScreen'); assert(menuBackdropCovered(), 'so does the guidebook');
+  show('worldsScreen'); assert(!menuBackdropCovered(), 'a panel over the border does not');
+  show('menuScreen'); assert(!menuBackdropCovered());
+  const src = readRepoFile('js/screens.js');
+  assert(/else if \(!menuBackdropCovered\(\)\)\{\s*menuBorderWork\(t,rawGap\);/.test(src),
+    'the frame loop asks before planting or painting');
+  // and a garden gives the memory back
+  assert(/mcnv\.classList\.add\('hidden'\);\s*releaseMenuBorder\(\);/.test(src), 'entering a garden releases the border');
+});
+
+test('the menu keeps its three entries, each with a picture, and a key in the column', () => {
+  const html = readRepoFile('index.html');
+  const menu = html.slice(html.indexOf('id="menuScreen"'), html.indexOf('<!-- DAILY DESIGN CHALLENGE -->'));
+  const at = ['btnDesign', 'btnLibrary', 'btnDaily'].map(id => menu.indexOf(`id="${id}"`));
+  assert(at.every(i => i > -1) && at[0] < at[1] && at[1] < at[2], 'Your gardens, Plant Library, Daily design challenge, in that order');
+  assertEqual((menu.match(/class="menu-action(?: primary)?"/g) || []).length, 3, 'three entries, not four');
+  for (const id of ['menuArtGardens', 'menuArtLibrary', 'menuArtDaily'])
+    assert(new RegExp(`<canvas id="${id}"[^>]*aria-hidden="true"`).test(menu), `${id} is a picture, hidden from assistive tech`);
+  for (const id of ['menuKey', 'menuKeySeason', 'menuPips', 'menuKeyLine', 'menuKeyList'])
+    assert(menu.includes(`id="${id}"`), `the key has #${id}`);
+  /* The key is INSIDE the column: on a phone it is a row of the column's grid,
+     so a short screen scrolls instead of laying the key over the entries. */
+  const shell = menu.slice(menu.indexOf('class="menu-shell"'));
+  assert(shell.indexOf('id="menuKey"') > shell.indexOf('id="btnDaily"') && shell.indexOf('id="menuKey"') < shell.indexOf('class="menu-foot"'),
+    'after the entries and before the footer');
+  // the season dots are built from the app's own season colours
+  buildMenuPips();
+  assertEqual(menuPipButtons.length, SEASONS.length, 'one dot a season');
+  assert(menuPipButtons.every((b, i) => b.dataset.season === SEASONS[i] && /Show the border in/.test(b.getAttribute('aria-label'))),
+    'each named for what it does');
+});
+
+test('menu chrome lies over an animating canvas, so none of it blurs', () => {
+  const css = readRepoFile('styles.css');
+  const start = css.indexOf('/* ---------- main menu ----------'), end = css.indexOf('.btn{border:1.5px');
+  assert(start > -1 && end > start, 'the menu block is where it is expected');
+  const block = css.slice(start, end).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert(!/backdrop-filter/.test(block), 'no backdrop-filter on the plates, the key or the corner pills');
+  /* The shade that makes the title legible is painted into the picture, fitted
+     to the column from MENU_BORDER rather than from a layout read. These are
+     the same numbers. */
+  const B = MENU_BORDER;
+  assert(css.includes(`padding-left:max(clamp(${B.SHELL_MIN}px,${B.SHELL_VW * 100}vw,${B.SHELL_MAX}px),env(safe-area-inset-left))`),
+    'the gutter the shade is fitted to');
+  assert(css.includes(`.menu-shell{flex:1 0 auto;width:min(${B.SHELL_W}px,100%)`), 'and the column width');
+  // the key has to reach the SCREEN's corner, so the column must not be its containing block
+  assert(!/\.menu-shell\{[^}]*position\s*:/.test(block), 'the column is not positioned');
+  // the pressed dot is not signalled by colour alone where colour is taken away
+  const forced = css.slice(css.indexOf('@media (forced-colors: active)'));
+  assert(/\.menu-pip\[aria-pressed="true"\] i\{[^}]*Highlight/.test(forced), 'forced colours re-signal the season shown');
+});
+
 test('worlds-list thumbnails: meta counts live plants and reads the save season', () => {
   const g = firstOfType('grass');
   const save = {
@@ -11549,8 +11760,8 @@ test('light mode deepens the accent and keeps no cream ink on paper', () => {
 
   /* Chrome that sits on the meadow CANVAS cannot follow the theme either: the
      meadow is world art and never flips, so light mode painted dark ink onto a
-     dark meadow at 1.03:1. Everything between them is inside .menu-card, which
-     carries a themed paper plate. */
+     dark meadow at 1.03:1. Everything between them is a .menu-action or the
+     key, each of which carries its own themed plate. */
   assert(/\[data-theme="light"\][^{]*\.menu-title-block/.test(css),
     'the menu title block must keep its dark-theme inks in light mode');
   assert(/\[data-theme="light"\][^{]*\.menu-foot/.test(css),

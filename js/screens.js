@@ -662,11 +662,15 @@ function syncMenuVersion(){
 async function refreshMenuCards(){
   syncMenuVersion();
   const dc=$('btnDaily'); if (dc) dc.querySelector('small').textContent='Today · '+todaysChallenge().title;
+  // the Library's own count, so the menu and its search field name one number
+  const lb=$('btnLibrary'); if (lb) lb.querySelector('small').textContent=`${libraryAllKeys().length} plants, each drawn in four seasons`;
   const g=$('btnDesign'); if (!g) return;
   const idx=hasStorage ? await migrateLegacyWorld() : [];
   g.querySelector('small').textContent=idx.length
     ? `${idx.length} saved garden${idx.length>1?'s':''} — continue or start another`
     : 'Design your first planting';
+  // the thumbnail is a stack once there is more than one garden to open
+  const art=$('menuArtGardensWrap'); if (art) art.classList.toggle('stack',idx.length>1);
 }
 
 $('btnDesign').onclick=openWorlds;
@@ -1318,6 +1322,7 @@ function enterGarden(){
   beginGardenOpen(); // viewport setup can request a draw before the garden is ready
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
+  releaseMenuBorder();
   setActiveCanvas(cnv);
   setViewportFill('#4b5044');
   resetSelectionState();
@@ -2575,59 +2580,113 @@ if ($('btnLibraryPlacing')) $('btnLibraryPlacing').onclick=()=>setSheetState('fu
   if (up) up.onclick=e=>{ e.stopPropagation(); nudgeCatalogHandle(1); };
 })();
 
-/* ---------- menu background: a living meadow ---------- */
+/* ---------- menu background: a planted border ----------
+   The title screen is a planting, drawn by the same drawPlant the garden uses,
+   and it is the backdrop of every screen reached from the menu (gardens list,
+   questionnaire, plot setup, daily brief).
+
+   It used to be 54 plants scattered along the bottom edge at 58-72% opacity,
+   every one redrawn procedurally every frame: measured ~33ms of JavaScript a
+   frame at 1024x768, for a picture that read as confetti on a dark gradient.
+   Now each season is a PLANTING SCHEME, the way a border is designed: a matrix
+   of grasses the rest sits in, drifts of forbs that come round again across the
+   width, a few tall emergents standing through them, low plants along the
+   front. It runs from a hazed far field to foreground clumps under a low sun,
+   so the colour is the plants' own.
+
+   Two halves, deliberately. menuBorderPlan is PURE: season, size and scheme in,
+   a list of who stands where out, with no canvas in it, so the layout can be
+   tested. menuBorderBuild bakes that plan once into images; a frame is then
+   blits (~0.5ms of JavaScript at 1024x768) and the wind is a shear on each
+   blit, the garden's own sprite trick. The build is a generator stepped a few
+   ms per animation frame, so the border that is up keeps moving while the next
+   one is planted behind it, and the two crossfade.
+
+   What it costs is memory, so three things bound it. Near sprites share a byte
+   budget (MENU_BORDER.MEM) and are baked a little soft on a very large canvas
+   rather than exceed it. The part of a front-row clump below the bottom of the
+   screen is never baked. And the whole border is released when a garden opens,
+   so it never sits beside the garden's own sprite cache.
+
+   Sprites are ImageBitmaps where the garden's are (spriteBakeSurface): in
+   Firefox a frame of small-canvas blits is a frame of texture uploads, and
+   enough of those take a canvas off the GPU for good (renderer.js has the
+   record). Nothing here uses backdrop-filter either; legibility is a shade
+   painted into the picture. */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');
 setActiveCanvas(mcnv);
+/* sky: stops from the top of the canvas (0) to the horizon (1). land: horizon,
+   mid, foreground. shade: the rgb of the shadow the title stands in. accent:
+   what the title's italic word and eyebrow take for the season; it sits on that
+   shade in both themes, so it is a light colour in both. */
 const MENU_SCENES={
-  Spring:{
-    sky:['#6f8795','#cfdac3','#1c1813'],
-    glow:['rgba(202,213,132,.30)','rgba(96,132,78,.18)'],
-    ground:'rgba(30,46,29,.30)', pageBg:'#1d1f16', alpha:.72, bloom:1,
-    keys:['crocus','daffodil','muscari','camassia','baptisia','amsonia','sedge','karl']
-  },
-  Summer:{
-    sky:['#627d83','#9ebd91','#1d1812'],
-    glow:['rgba(218,184,96,.28)','rgba(80,112,70,.18)'],
-    ground:'rgba(31,55,29,.34)', pageBg:'#1e2216', alpha:.66, bloom:1,
-    keys:['echinacea','pallida','rattlesnake','allium','yarrow','monarda','culvers','switchgrass','dropseed']
-  },
-  Fall:{
-    sky:['#211610','#3b2a22','#17100d'],
-    glow:['rgba(166,91,44,.28)','rgba(92,58,36,.16)'],
-    ground:'rgba(16,10,8,.34)', pageBg:'#150e0b', alpha:.58, bloom:1,
-    keys:['aster','newengland','goldenrod','liatris','sedum','bluestem','switchgrass','indiangrass','sanguisorba','helenium']
-  },
-  Winter:{
-    sky:['#26303a','#6d746f','#171613'],
-    glow:['rgba(211,221,226,.20)','rgba(112,116,108,.12)'],
-    ground:'rgba(235,238,232,.11)', pageBg:'#2e2e2a', alpha:.64, bloom:undefined, snow:true,
-    keys:['bluestem','bigbluestem','switchgrass','rattlesnake','allium','culvers','sanguisorba','goldenrod','karl','sideoats']
-  }
+  Spring:{ seed:1207, accent:'#c8dd8e', shade:'14,26,24', pageBg:'#0e1714', bloom:1,
+    sky:[[0,'#3f637a'],[.34,'#7aa3b2'],[.64,'#c6d8c4'],[.86,'#eee9c2'],[1,'#f6f0cc']], sunX:.74, sun:'255,250,212', haze:'#dde8cc',
+    land:['#a6c27c','#5d8345','#1e2b17'],
+    matrix:['switchgrass','pennsedge','bluestem','tuftedhair','sesleria'],
+    drifts:['amsonia','baptisia','peony','catmint','euphorbiawulfenii','germaniris','meadowsage','camassialeichtlinii','woodlandphlox','orientalpoppy','goldenalexander','easternbluestar','columbine','spiderwort','globeflower','bluebells'],
+    emergents:['baptisia','euphorbiawulfenii','karl','ostrichfern'],
+    front:['daffodil','muscari','gardentulip','cushionspurge','blueoatgrass','hakone','prairiesmoke','hyacinth','lambsear'] },
+  Summer:{ seed:3391, accent:'#ecaac4', shade:'16,27,20', pageBg:'#0f170f', bloom:1,
+    sky:[[0,'#356482'],[.36,'#739fb2'],[.66,'#bfd4c0'],[.86,'#ece5b6'],[1,'#f6ecc0']], sunX:.72, sun:'255,245,196', haze:'#d6e2c2',
+    land:['#93b06c','#4f7140','#1b2915'],
+    matrix:['bluestem','dropseed','mexicanfeather','switchgrass','tuftedhair'],
+    drifts:['echinacea','monarda','catmint','russiansage','liatrisspicata','agastache','amsonia','baptisia','mountainmint','echinops','helenium','persicaria','allium','yarrow','rudbeckia','scarletbeebalm','pallida','peony'],
+    emergents:['karl','culvers','rattlesnake','joepye','rudbeckiamaxima','giantstipa','liatrispycnostachya'],
+    front:['catmint','calamint','allium','stachys','blueoatgrass','lambsear','butterfly','sesleria'] },
+  Fall:{ seed:5521, accent:'#e6a565', shade:'25,15,18', pageBg:'#130c0c', bloom:1,
+    sky:[[0,'#2a1f31'],[.30,'#5a3e4e'],[.56,'#a7675a'],[.80,'#e0a367'],[1,'#f2cb8b']], sunX:.70, sun:'255,216,150', haze:'#dcaa78',
+    land:['#b48d54','#6f5331','#231711'],
+    matrix:['bluestem','dropseed','switchgrass','bluestem','tuftedhair'],
+    drifts:['amsonia','pinkmuhly','roughgoldenrod','newengland','lovegrass','smoothaster','persicaria','helenium','sedum','russiansage','baptisia','bluemistflower','prairieironweed','japaneseanemone','echinacea','rudbeckiatriloba','goldenrod'],
+    emergents:['bigbluestem','indiangrass','molinia','miscanthus','karl','joepye'],
+    front:['sedum','autumnfire','lovegrass','rubymuhly','aster','calamint','sesleria','matrona'] },
+  Winter:{ seed:7741, accent:'#c2d5e2', shade:'15,21,30', pageBg:'#0e131a', bloom:undefined, snow:true,
+    sky:[[0,'#263141'],[.36,'#596a7d'],[.64,'#a6b0b9'],[.86,'#dbd6cd'],[1,'#eee4d4']], sunX:.66, sun:'255,238,216', haze:'#d9d8d3',
+    land:['#dedcd4','#aeada5','#4b4a47'],
+    matrix:['bluestem','switchgrass','dropseed','tuftedhair','moorhexe'],
+    drifts:['echinacea','rudbeckia','sedum','baptisia','amsonia','russiansage','monarda','matrona','helenium','pinkmuhly','lovegrass','blueoatgrass','agastache','culvers','persicaria'],
+    emergents:['bigbluestem','indiangrass','karl','molinia','miscanthus','joepye','rattlesnake'],
+    front:['sedum','blueoatgrass','dropseed','lentenrose','christmasfern','matrona','sesleria'] }
 };
-const meadow=[], menuSnow=[];
+const MENU_SCHEME_PARTS=['matrix','drifts','emergents','front'];
+/* ROWS: each row of the border, as a fraction of the way from the horizon to
+   the bottom edge; a plant's scale follows the same number, which is what
+   perspective is. The first FAR rows are stamped small into one still layer and
+   veiled row by row, so distance hazes out; the rest are a sprite a clump. */
+const MENU_BORDER={
+  ROWS:[.006,.018,.034,.054,.08,.112,.15,.20, .285,.40,.56,.77,1.04], FAR:8,
+  FAR_VEIL:[.16,.15,.14,.13,.12,.10,.08,.05], NEAR_TINT:[.07,.04,0,0,0],
+  MEM:48*1048576,       // bytes of near sprites one border may hold
+  STEP_MS:6,            // planting per animation frame, while frames arrive at speed
+  SETTLE_MS:140,        // a resize holds still this long before the border is replanted
+  FADE_MS:950, SWAP_MS:260, FIRST_MS:600,
+  /* the title column, as styles.css lays it out (.menu-shell). The shade is
+     fitted to it from these rather than from a layout read; a test holds the
+     two together. */
+  SHELL_MIN:28, SHELL_VW:.065, SHELL_MAX:112, SHELL_W:430,
+};
 let menuSeason='Fall';
-function rgbaWithAlpha(color, alpha){
-  const m=String(color).match(/^rgba\(\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*[^)]+\)$/);
-  return m ? `rgba(${m[1]},${m[2]},${m[3]},${alpha})` : color;
-}
+let menuBorder=null, menuJob=null, menuBorderSeq=0;
+let menuPalette=null, menuPaletteSig='';         // the questionnaire's style palette, or none
+let menuSizeKey='', menuSizeAt=-Infinity;
+let menuFade=null, menuFadeCv=null, menuShadeA=1, menuDrawnSig='';
+let menuRetired=[];
+const menuSnow=[], menuPipButtons=[];
+
+function menuHash(n){ let x=Math.imul((n|0)^0x9e3779b9,0x85ebca6b); x^=x>>>13; x=Math.imul(x,0xc2b2ae35); x^=x>>>16; return (x>>>0)/4294967296; }
+function menuKeySeed(s){ let h=7; for (let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return (h%1e9)|0; }
+function menuRgb(hex){ const n=parseInt(hex.slice(1),16); return ((n>>16)&255)+','+((n>>8)&255)+','+(n&255); }
+function menuSeasonColour(k,season){ const s=(plantDef(k).sea||{})[season]||{}; return s.bloom||s.seed||s.fol||'#8a8a70'; }
 function setMenuViewportFill(){
   const sc=MENU_SCENES[menuSeason]||MENU_SCENES.Fall;
-  setViewportFill(sc.pageBg||sc.sky[2]||'#241a16');
+  setViewportFill(sc.pageBg||'#241a16');
 }
-function seedMenuMeadow(){
-  const sc=MENU_SCENES[menuSeason], keys=sc.keys;
-  meadow.length=0; menuSnow.length=0;
-  for (let i=0;i<54;i++) meadow.push({k:keys[i%keys.length], x:Math.random(),
-    y:0.76+Math.random()*0.22, s:0.45+Math.random()*1.05, seed:(Math.random()*1e9)|0});
-  meadow.sort((a,b)=>a.y-b.y);
-}
-/* The design questionnaire replants the menu meadow behind it to match the
-   chosen style + zone, so a choice visibly changes the world, not just a form.
-   Reuses the tray's own plantStyleScore ranking (herbaceous only — no trees in
-   the backdrop) filtered to the zone; 'Any garden' (no style weights) keeps the
-   curated seasonal meadow. applyMeadowPalette reassigns species IN PLACE over
-   the existing slots — same positions/seeds, so it reads as the meadow being
-   replanted rather than teleporting. */
+/* The design questionnaire replants the border behind it to match the chosen
+   style + zone, so a choice visibly changes the world, not just a form. Reuses
+   the tray's own plantStyleScore ranking (herbaceous only, no trees in the
+   backdrop) filtered to the zone; 'Any garden' (no style weights) keeps the
+   season's own scheme. */
 function styleMeadowKeys(type, zone, criteria){
   if (!type || !STYLE_ROLE_WEIGHTS[type]) return null;
   const herb=k=>{ const t=PLANTS[k].type; return t==='grass'||t==='sedge'||t==='forb'||t==='bulb'; };
@@ -2639,11 +2698,46 @@ function styleMeadowKeys(type, zone, criteria){
     .sort((a,b)=>b[1]-a[1]).slice(0,12).map(e=>e[0]);
   return ranked.length>=4 ? ranked : null;
 }
-function applyMeadowPalette(type, zone, criteria){
-  const keys=styleMeadowKeys(type,zone,criteria) || (MENU_SCENES[menuSeason]||MENU_SCENES.Fall).keys;
-  if (!meadow.length) seedMenuMeadow();
-  for (let i=0;i<meadow.length;i++) meadow[i].k=keys[i%keys.length];
+/* A ranked style palette is a flat list; a border needs to know who is the
+   matrix and who stands through it. Grasses and sedges are the matrix where the
+   style has any, the tallest few are the emergents, the lowest the front. */
+function menuSchemeFromKeys(keys){
+  const grassy=k=>{ const t=PLANTS[k].type; return t==='grass'||t==='sedge'; };
+  const tall=k=>plantVisualH(plantDef(k))||0;
+  const grasses=keys.filter(grassy), forbs=keys.filter(k=>!grassy(k));
+  const byH=keys.slice().sort((a,b)=>tall(b)-tall(a));
+  return {
+    matrix: grasses.length ? grasses.slice(0,4) : forbs.slice(0,3),
+    drifts: forbs.length ? forbs : grasses,
+    emergents: byH.slice(0,Math.max(1,Math.min(3,Math.floor(keys.length/4)))),
+    front: byH.slice(-4).reverse(),
+  };
 }
+/* The species are swapped over the same ground: the rows and the outlines of
+   the drifts are seeded by the season, not the palette, so a style choice reads
+   as the border being replanted where it stands rather than as a new picture. */
+function applyMeadowPalette(type, zone, criteria){
+  const keys=styleMeadowKeys(type,zone,criteria), sig=keys?keys.join(','):'';
+  if (sig===menuPaletteSig) return;
+  menuPaletteSig=sig; menuPalette=keys?menuSchemeFromKeys(keys):null;
+}
+function syncMenuSeasonChrome(){
+  const name=$('menuKeySeason'); if (name && name.textContent!==menuSeason) name.textContent=menuSeason;
+  for (const b of menuPipButtons) b.setAttribute('aria-pressed',String(b.dataset.season===menuSeason));
+}
+function setMenuSeason(season, remember){
+  if (!MENU_SCENES[season]) return;
+  menuSeason=season;
+  if (remember && hasStorage){ try{ localStorage.setItem('hortus:menuSeasonIdx',String(SEASONS.indexOf(season))); }catch(_){ } }
+  setMenuViewportFill();
+  /* The title turns colour here, not when the border lands: the 900ms it takes
+     then runs alongside the planting and the crossfade instead of after them,
+     and the first paint of a visit already has the season's colour. */
+  document.documentElement.style.setProperty('--menu-accent',MENU_SCENES[season].accent);
+  syncMenuSeasonChrome();
+}
+/* Each visit to the menu opens on the next season; the four dots on the key
+   turn it by hand and are remembered, so the next visit carries on from there. */
 function advanceMenuSeason(){
   let next=0;
   if (hasStorage){
@@ -2653,41 +2747,455 @@ function advanceMenuSeason(){
   } else {
     next=(SEASONS.indexOf(menuSeason)+1)%SEASONS.length;
   }
-  menuSeason=SEASONS[next];
-  seedMenuMeadow();
-  setMenuViewportFill();
+  menuPalette=null; menuPaletteSig='';      // back from the questionnaire: the season's own scheme
+  setMenuSeason(SEASONS[next],false);
+}
+
+/* Who stands where. Pure: no canvas, no clock, no Math.random. Every row has
+   its own seeded stream and walks left to right, so a wider window keeps the
+   plants it had and adds more to the right. */
+function menuBorderPlan(season,W,H,sheet,scheme){
+  const S=MENU_SCENES[season]||MENU_SCENES.Fall, P=scheme||S, B=MENU_BORDER, ROWS=B.ROWS, R=ROWS.length;
+  const U=Math.max(.8,Math.min(3,H/860))*(sheet?.9:1);
+  const horizon=Math.round(H*(sheet?.635:.565)), depth=H-horizon, gxs=(sheet?2.3:1)/H;
+  // drifts: ellipses on the ground plane, each species coming round again
+  const rb=mulberry(S.seed), blobs=[]; let order=[];
+  for (let gx=-.25; gx<4.4; gx+=.10+rb()*.05){
+    if (!order.length){
+      order=P.drifts.slice();
+      for (let i=order.length-1;i>0;i--){ const j=(rb()*(i+1))|0, o=order[i]; order[i]=order[j]; order[j]=o; }
+    }
+    blobs.push({k:order.pop(), cx:gx, cd:.06+rb()*.9, rx:.09+rb()*.14, rd:.07+rb()*.14});
+  }
+  const matrixAt=(gx,d)=>P.matrix[Math.min(P.matrix.length-1,(menuHash(Math.floor(gx*2.7+d*1.9)+S.seed)*P.matrix.length)|0)];
+  // forbs stand closer together than grasses, so a drift has mass
+  const close=k=>{ const t=PLANTS[k].type; return t==='grass'||t==='sedge' ? 1 : t==='bulb' ? .5 : .66; };
+  const grassy=k=>{ const t=PLANTS[k].type; return t==='grass'||t==='sedge'; };
+  function pick(gx,d,r,rr){
+    if (r===R-1){
+      if (rr()<.14) return P.matrix[(rr()*P.matrix.length)|0];
+      return P.front[Math.min(P.front.length-1,(menuHash(Math.floor(gx*3.4)+S.seed*3)*P.front.length)|0)];
+    }
+    for (const b of blobs){
+      const dx=(gx-b.cx)/b.rx, dd=(d-b.cd)/b.rd;
+      if (dx*dx+dd*dd<1+(rr()-.5)*.4) return rr()<.14 ? matrixAt(gx,d) : b.k;
+    }
+    if (r>=5 && r<=R-2 && rr()<.085)
+      return P.emergents[Math.min(P.emergents.length-1,(menuHash(Math.floor(gx*1.6+d*4)+S.seed*7)*P.emergents.length)|0)];
+    return rr()<.22 ? P.matrix[(rr()*P.matrix.length)|0] : matrixAt(gx,d);
+  }
+  const gap=r=>depth*((ROWS[r+1]||ROWS[r]*1.3)-ROWS[r]);
+  const far=[], near=[], tally=new Map(), note=(k,w)=>tally.set(k,(tally.get(k)||0)+w);
+  for (let r=0;r<B.FAR;r++){
+    const yf=ROWS[r], s=(.2+2.1*yf)*U, y=horizon+depth*yf, rr=mulberry(S.seed+r*977), step=24*s, stamps=[];
+    for (let x=-50*s-rr()*step, k=null; x<W+50*s; x+=step*(.55+rr()*.9)*(k?close(k):1)){
+      const jy=(rr()-.35)*gap(r), d=(r+jy/gap(r))/(R-1);
+      k=pick(x*gxs,d,r,rr);
+      stamps.push({k, v:(rr()*3)|0, x, y:y+jy, z:s*(.84+rr()*.34)});
+      note(k,.25);
+    }
+    stamps.sort((a,b)=>a.y-b.y);
+    far.push({veil:B.FAR_VEIL[r], stamps});
+  }
+  for (let r=B.FAR;r<R;r++){
+    const yf=ROWS[r], s=(.2+2.1*yf)*U, y=horizon+depth*yf, rr=mulberry(S.seed+r*977);
+    const last=r===R-1, step=(last?44:32)*s;
+    for (let x=-60*s-rr()*step, i=0, k=null; x<W+60*s; x+=step*(.6+rr()*.8)*(k?close(k):1), i++){
+      const jy=last?0:(rr()-.4)*gap(r)*.8, d=(r+jy/gap(r))/(R-1);
+      k=pick(x*gxs,d,r,rr);
+      const z=s*(.86+rr()*.3);
+      near.push({k, row:r, x, y:y+jy, z, seed:(S.seed*31+r*7919+i*104729)|0,
+        ph:rr()*6.28, amp:(grassy(k)?1.25:.8)*(.8+rr()*.4)});
+      note(k,1+yf);
+    }
+  }
+  near.sort((a,b)=>a.y-b.y);
+  return {season, W, H, sheet:!!sheet, U, horizon, depth, far, near, tally};
+}
+
+/* ---- baking ---- */
+function menuRetireImage(img){ if (img && typeof img.close==='function') menuRetired.push(img); }
+function menuCloseRetired(){
+  if (!menuRetired.length) return;
+  for (const b of menuRetired){ try{ b.close(); }catch(_){ } }
+  menuRetired=[];
+}
+function menuBakeSurface(w,h,paint){
+  const s=spriteBakeSurface('menu',Math.max(1,Math.round(w)),Math.max(1,Math.round(h)));
+  paint(s.getContext('2d'),s.width,s.height);
+  return spriteBakeImage('menu',s);
+}
+function menuHills(g,W,H,base,amp,col,seed,rough){
+  const r=mulberry(seed), a=[r()*6,r()*6,r()*6,r()*6];
+  g.beginPath(); g.moveTo(-2,base+1);
+  for (let x=-2;x<=W+3;x+=3){
+    const u=x/(H*.3);
+    g.lineTo(x, base-amp*(.42+.28*Math.sin(u*1.3+a[0])+.18*Math.sin(u*3.1+a[1])+.12*rough*Math.sin(u*9.7+a[2])+.07*rough*Math.abs(Math.sin(u*23+a[3]))));
+  }
+  g.lineTo(W+3,base+1); g.closePath(); g.fillStyle=col; g.fill();
+}
+/* Sky, sun, far hills and the ground the planting stands on. Half resolution:
+   it is all gradients and one soft skyline, and at full size it was the single
+   largest image a border held. */
+function menuPaintBackground(S,W,H,horizon,dpr){
+  const k=dpr/2;
+  return menuBakeSurface(W*k,H*k,g=>{
+    g.setTransform(k,0,0,k,0,0);
+    const sky=g.createLinearGradient(0,0,0,horizon); S.sky.forEach(st=>sky.addColorStop(st[0],st[1]));
+    g.fillStyle=sky; g.fillRect(0,0,W,horizon+2);
+    const sx=W*S.sunX, sy=horizon-H*.012, rg=g.createRadialGradient(sx,sy,0,sx,sy,Math.max(W,H)*.6);
+    rg.addColorStop(0,`rgba(${S.sun},.92)`); rg.addColorStop(.07,`rgba(${S.sun},.55)`);
+    rg.addColorStop(.3,`rgba(${S.sun},.16)`); rg.addColorStop(1,`rgba(${S.sun},0)`);
+    g.fillStyle=rg; g.fillRect(0,0,W,horizon+2);
+    menuHills(g,W,H,horizon,H*.05,mixHex(S.haze,S.land[1],.30),S.seed+11,1);
+    menuHills(g,W,H,horizon,H*.024,mixHex(S.haze,S.land[1],.52),S.seed+29,.6);
+    const lg=g.createLinearGradient(0,horizon,0,H);
+    lg.addColorStop(0,mixHex(S.land[0],S.haze,.45)); lg.addColorStop(.16,S.land[0]); lg.addColorStop(.5,S.land[1]); lg.addColorStop(1,S.land[2]);
+    g.fillStyle=lg; g.fillRect(0,horizon,W,H-horizon);
+    const sp=g.createRadialGradient(sx,horizon,0,sx,horizon,W*.42);   // the sun spilling onto the far field
+    sp.addColorStop(0,`rgba(${S.sun},.42)`); sp.addColorStop(1,`rgba(${S.sun},0)`);
+    g.save(); g.beginPath(); g.rect(0,horizon,W,(H-horizon)*.5); g.clip();
+    g.transform(1,0,0,.28,0,horizon*.72); g.fillStyle=sp; g.fillRect(0,horizon-W*.42,W,W*.84); g.restore();
+  });
+}
+/* Legibility is painted INTO the picture, as shade: the title stands in the
+   shadow of something out of frame and looks out at a lit border. It is tinted
+   by the season and crossfades with the rest, and it is only laid while the
+   menu itself is up; the panels of the other screens bring their own plates. */
+function menuPaintShade(S,W,H,sheet){
+  const K=4, B=MENU_BORDER;
+  return menuBakeSurface(W/K,H/K,g=>{
+    g.setTransform(1/K,0,0,1/K,0,0);
+    const a=o=>`rgba(${S.shade},${o})`;
+    if (!sheet){
+      const left=Math.max(B.SHELL_MIN,Math.min(B.SHELL_MAX,W*B.SHELL_VW)), right=left+Math.min(B.SHELL_W,W-left-18);
+      const x2=Math.min(W,right+W*.30), lg=g.createLinearGradient(0,0,x2,0);
+      lg.addColorStop(0,a(.92)); lg.addColorStop(Math.min(.9,Math.max(.02,left/x2)),a(.88));
+      lg.addColorStop(Math.min(.95,right/x2),a(.58)); lg.addColorStop(1,a(0));
+      g.fillStyle=lg; g.fillRect(0,0,x2,H);
+    } else {
+      const y2=H*.60, lg=g.createLinearGradient(0,0,0,y2);
+      lg.addColorStop(0,a(.90)); lg.addColorStop(.42,a(.66)); lg.addColorStop(1,a(0));
+      g.fillStyle=lg; g.fillRect(0,0,W,y2);
+    }
+    const top=H*(sheet?.80:.86), bg=g.createLinearGradient(0,H,0,top);
+    bg.addColorStop(0,a(sheet?.84:.5)); bg.addColorStop(1,a(0));
+    g.fillStyle=bg; g.fillRect(0,top,W,H-top);
+  });
+}
+/* One clump, at px device pixels per drawing unit. `below` crops what would
+   fall under the bottom of the screen; null keeps the whole drawing. */
+function menuBakePlant(k,season,seed,px,bloom,tint,box,below){
+  const bot=below==null?box.bot:Math.min(box.bot,below);
+  if (box.top+bot<=2) return null;                       // wholly below the screen
+  const w=Math.ceil(box.halfW*2*px)+2, h=Math.ceil((box.top+bot)*px)+2;
+  const img=menuBakeSurface(w,h,g=>{
+    g.setTransform(px,0,0,px,box.halfW*px+1,box.top*px+1);
+    drawPlant(g,0,0,k,1,season,seed,0,undefined,bloom);
+    if (tint){ g.setTransform(1,0,0,1,0,0); g.globalCompositeOperation='source-atop'; g.fillStyle=tint; g.fillRect(0,0,w,h); }
+  });
+  return {img, ox:box.halfW*px+1, oy:box.top*px+1, w, h};
+}
+/* A generator, so the bake can be spread over frames. The first value it hands
+   back is the border with only its sky and shade, which is enough to put on
+   screen at once; everything else is published together at the end, so a
+   half-planted border is never drawn. `made` is what a cancelled build has to
+   give back. */
+function* menuBorderBuild(plan){
+  const S=MENU_SCENES[plan.season]||MENU_SCENES.Fall, B=MENU_BORDER, R=B.ROWS.length;
+  const W=plan.W, H=plan.H, U=plan.U, horizon=plan.horizon, dw=mcnv.width, dh=mcnv.height, dpr=dw/W;
+  const b={id:++menuBorderSeq, season:plan.season, W, H, dw, dh, ready:false, tally:plan.tally,
+    bg:menuPaintBackground(S,W,H,horizon,dpr), shade:menuPaintShade(S,W,H,plan.sheet),
+    far:null, farY:0, farW:0, farH:0, glow:null, sprites:[], bytes:0, made:[]};
+  yield b;
+  const boxes=new Map(), boxOf=k=>{ let bx=boxes.get(k); if (!bx){ bx=plantDrawBox(plantDef(k),k,1); boxes.set(k,bx); } return bx; };
+  // the far field: stamped from a small pool into one still layer, veiled row by row
+  const farY0=Math.floor(horizon-150*U), farCss=Math.ceil(plan.depth*B.ROWS[B.FAR]+170*U);
+  const fw=Math.max(1,Math.round(W*dpr)), fh=Math.max(1,Math.round(farCss*dpr));
+  let fs;
+  if (spriteBitmaps) fs=new OffscreenCanvas(fw,fh);
+  else { fs=document.createElement('canvas'); fs.width=fw; fs.height=fh; }
+  const fg=fs.getContext('2d'); fg.setTransform(dpr,0,0,dpr,0,-farY0*dpr); fg.imageSmoothingQuality='high';
+  const pool=new Map(), px0=.64*U*dpr, haze=menuRgb(S.haze);
+  for (const row of plan.far){
+    for (const st of row.stamps){
+      const key=st.k+'|'+st.v; let sp=pool.get(key);
+      if (sp===undefined){
+        sp=menuBakePlant(st.k,plan.season,menuKeySeed(key),px0,S.bloom,null,boxOf(st.k),null);
+        pool.set(key,sp); if (sp) b.made.push(sp.img);
+        yield null;
+      }
+      if (!sp) continue;
+      const z=st.z/px0;
+      fg.drawImage(sp.img, st.x-sp.ox*z, st.y-sp.oy*z, sp.w*z, sp.h*z);
+    }
+    fg.globalCompositeOperation='source-atop'; fg.fillStyle=`rgba(${haze},${row.veil})`;
+    fg.fillRect(0,farY0,W,farCss); fg.globalCompositeOperation='source-over';
+    yield null;
+  }
+  const far=(spriteBitmaps && typeof fs.transferToImageBitmap==='function') ? fs.transferToImageBitmap() : fs;
+  b.made.push(far);
+  // near rows: a sprite a clump, so the wind can move each one. Sized against the budget first.
+  const resOf=p=>dpr*(p.row>=R-2?.8:1);        // the two nearest rows stand in shade and are a touch soft
+  const belowOf=p=>(H-p.y)/p.z+2;
+  let est=0;
+  for (const p of plan.near){
+    const bx=boxOf(p.k), bot=Math.min(bx.bot,belowOf(p)); if (bx.top+bot<=2) continue;
+    const px=p.z*resOf(p); est+=(bx.halfW*2*px+2)*((bx.top+bot)*px+2)*4;
+  }
+  const q=Math.max(.5,Math.min(1,Math.sqrt(B.MEM/Math.max(1,est))));
+  const sprites=[]; let bytes=0;
+  for (const p of plan.near){
+    const res=resOf(p)*q, last=p.row===R-1;
+    const tint=last ? `rgba(${S.shade},.30)` : p.row===R-2 ? `rgba(${S.shade},.10)`
+      : B.NEAR_TINT[p.row-B.FAR] ? `rgba(${haze},${B.NEAR_TINT[p.row-B.FAR]})` : null;
+    const sp=menuBakePlant(p.k,plan.season,p.seed,p.z*res,S.bloom,tint,boxOf(p.k),belowOf(p));
+    if (sp){
+      b.made.push(sp.img); bytes+=sp.w*sp.h*4;
+      sprites.push({img:sp.img, ox:sp.ox, oy:sp.oy, up:dpr/res, x:p.x*dpr, y:p.y*dpr, ph:p.ph, amp:p.amp});
+    }
+    yield null;
+  }
+  // light coming through the planting from behind
+  const gw=192, gh=Math.max(96,Math.round(gw*H/W));
+  const glow=menuBakeSurface(gw,gh,g=>{
+    const gx=gw*S.sunX, gy=gh*(horizon/H), gr=g.createRadialGradient(gx,gy,0,gx,gy,gw*.5);
+    gr.addColorStop(0,`rgba(${S.sun},.24)`); gr.addColorStop(.5,`rgba(${S.sun},.07)`); gr.addColorStop(1,`rgba(${S.sun},0)`);
+    g.fillStyle=gr; g.fillRect(0,0,gw,gh);
+  });
+  // the pool has been stamped and transferred; a border keeps none of it
+  for (const sp of pool.values()) if (sp) menuRetireImage(sp.img);
+  b.far=far; b.farY=farY0*dpr; b.farW=fw; b.farH=fh; b.glow=glow; b.sprites=sprites; b.bytes=bytes; b.q=q;
+  b.made=null; b.ready=true;
+  return b;
+}
+function menuBorderImages(b){
+  const out=[b.bg,b.shade,b.far,b.glow];
+  for (const p of b.sprites) out.push(p.img);
+  return out;
+}
+function menuRetireBorder(b){ if (b) for (const img of menuBorderImages(b)) menuRetireImage(img); }
+function menuCancelJob(){
+  const job=menuJob; if (!job) return;
+  menuJob=null;
+  const b=job.b; if (!b) return;
+  if (b.made) for (const img of b.made) menuRetireImage(img);
+  if (b!==menuBorder){ menuRetireImage(b.bg); menuRetireImage(b.shade); }
+}
+/* A garden has opened: give the border's memory back. It is replanted when the
+   menu returns, sky first. */
+function releaseMenuBorder(){
+  menuCancelJob();
+  menuRetireBorder(menuBorder); menuBorder=null;
+  menuFade=null; menuFadeCv=null; menuDrawnSig=''; menuSnow.length=0;
+  menuCloseRetired();
+}
+function menuBorderKey(){ return menuSeason+'|'+mcnv.width+'x'+mcnv.height+'|'+(mobileSheetUi()?1:0)+'|'+menuPaletteSig; }
+function menuAdoptBorder(b,t){
+  const old=menuBorder;
+  if (old && menuDrawnSig && !reducedMotion()){
+    if (!menuFadeCv) menuFadeCv=document.createElement('canvas');
+    if (menuFadeCv.width!==mcnv.width || menuFadeCv.height!==mcnv.height){ menuFadeCv.width=mcnv.width; menuFadeCv.height=mcnv.height; }
+    const g=menuFadeCv.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.globalAlpha=1;
+    g.clearRect(0,0,menuFadeCv.width,menuFadeCv.height); g.drawImage(mcnv,0,0);
+    const B=MENU_BORDER;
+    menuFade={t0:t, ms: old===b ? B.FIRST_MS : old.season===b.season ? B.SWAP_MS : B.FADE_MS};
+  }
+  if (old!==b) menuRetireBorder(old);
+  menuBorder=b; menuDrawnSig='';
+  if (b.ready) syncMenuBorderChrome(b);
+}
+/* Plant the border that should be up, a few ms at a time. Called every
+   animation frame the menu is the backdrop, not only on the 30fps frames that
+   draw it, so a build takes a third of a second rather than a second and a
+   half. Where frames are NOT arriving at speed nothing is animating to protect,
+   so the planting simply finishes. */
+function menuBorderWork(t,gap){
+  const W=VW, H=VH;
+  if (!(W>0 && H>0) || !mcnv.width || !mcnv.height) return;
+  const size=mcnv.width+'x'+mcnv.height;
+  if (size!==menuSizeKey){ menuSizeKey=size; menuSizeAt=t; }
+  const want=menuBorderKey();
+  const have=menuJob ? menuJob.key : (menuBorder && menuBorder.ready ? menuBorder.key : '');
+  if (have!==want && (!menuBorder || t-menuSizeAt>=MENU_BORDER.SETTLE_MS)){
+    menuCancelJob();
+    const plan=menuBorderPlan(menuSeason,W,H,mobileSheetUi(),menuPalette);
+    menuJob={key:want, it:menuBorderBuild(plan), b:null};
+  }
+  const job=menuJob; if (!job) return;
+  const budget=gap>180 ? 400 : MENU_BORDER.STEP_MS, t0=performance.now();
+  let r;
+  do {
+    r=job.it.next();
+    if (!r.done && r.value){ job.b=r.value; job.b.key=job.key; if (!menuBorder) menuAdoptBorder(job.b,t); }
+  } while (!r.done && performance.now()-t0<budget);
+  if (r.done){ menuJob=null; r.value.key=job.key; menuAdoptBorder(r.value,t); }
+}
+function menuDrawBorder(b,t,shadeA,still){
+  const dw=mcnv.width, dh=mcnv.height, sx=dw/b.dw, sy=dh/b.dh;
+  mcx.setTransform(1,0,0,1,0,0); mcx.globalAlpha=1; mcx.globalCompositeOperation='source-over';
+  mcx.drawImage(b.bg,0,0,dw,dh);
+  if (b.far) mcx.drawImage(b.far,0,b.farY*sy,b.farW*sx,b.farH*sy);
+  for (const p of b.sprites){
+    /* a gust travelling across the border, plus each clump's own time */
+    const k=still?0:(.62*Math.sin(t*.0011-p.x*.0026)+.38*Math.sin(t*.0017+p.ph))*.042*p.amp, u=p.up;
+    if (!p.img.width) continue;            // a closed bitmap would throw, and a throw here ends the loop
+    mcx.setTransform(u*sx,0,k*u*sx,u*sy,sx*(p.x-u*p.ox-k*u*p.oy),sy*(p.y-u*p.oy));
+    mcx.drawImage(p.img,0,0);
+  }
+  mcx.setTransform(1,0,0,1,0,0);
+  if (b.glow){ mcx.globalCompositeOperation='screen'; mcx.drawImage(b.glow,0,0,dw,dh); mcx.globalCompositeOperation='source-over'; }
+  if (shadeA>0){ mcx.globalAlpha=shadeA; mcx.drawImage(b.shade,0,0,dw,dh); mcx.globalAlpha=1; }
+  if (MENU_SCENES[b.season].snow && b.ready && !still){
+    const d=dw/b.W;
+    if (menuSnow.length<70 && Math.random()<.5)
+      menuSnow.push({x:Math.random()*dw,y:-6,v:(.3+.6*Math.random())*d,r:(1+1.5*Math.random())*d,w:Math.random()*7});
+    mcx.fillStyle='rgba(246,249,252,.78)';
+    for (const f of menuSnow){ f.y+=f.v; f.x+=Math.sin(t*.001+f.w)*.3; mcx.beginPath(); mcx.arc(f.x,f.y,f.r,0,7); mcx.fill(); }
+    for (let i=menuSnow.length-1;i>=0;i--) if (menuSnow[i].y>dh+6) menuSnow.splice(i,1);
+  } else if (menuSnow.length && !MENU_SCENES[b.season].snow) menuSnow.length=0;
 }
 function menuRender(t){
-  const W=VW,H=VH;
-  const sc=MENU_SCENES[menuSeason]||MENU_SCENES.Fall;
-  const g=mcx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,sc.sky[0]); g.addColorStop(0.52,sc.sky[1]); g.addColorStop(1,sc.sky[2]);
-  mcx.fillStyle=g; mcx.fillRect(0,0,W,H);
-  const glow=mcx.createRadialGradient(W*.5,H*.7,10,W*.5,H*.72,Math.max(W,H)*.58);
-  glow.addColorStop(0,sc.glow[0]);
-  glow.addColorStop(0.42,sc.glow[1]);
-  glow.addColorStop(1,'rgba(23,16,13,0)');
-  mcx.fillStyle=glow; mcx.fillRect(0,0,W,H);
-  const ground=mcx.createLinearGradient(0,H*.68,0,H);
-  ground.addColorStop(0,rgbaWithAlpha(sc.ground,0));
-  ground.addColorStop(.55,rgbaWithAlpha(sc.ground,.14));
-  ground.addColorStop(1,sc.ground);
-  mcx.fillStyle=ground;
-  mcx.fillRect(0,H*.68,W,H*.32);
-  const sway=Math.sin(t*0.0011);
-  mcx.save(); mcx.globalAlpha=sc.alpha;
-  meadow.forEach(m=>{ mcx.save(); mcx.translate(m.x*W,m.y*H); mcx.scale(m.s,m.s);
-    drawPlant(mcx,0,0,m.k,1,menuSeason,m.seed,sway+Math.sin(t*0.0014+m.seed)*0.42,undefined,sc.bloom); mcx.restore(); });
-  mcx.restore();
-  if (sc.snow){
-    if (menuSnow.length<48 && Math.random()<0.42)
-      menuSnow.push({x:Math.random()*W,y:-5,v:0.25+Math.random()*0.45,r:1+Math.random()*1.4,w:Math.random()*7});
-    mcx.fillStyle='rgba(245,248,252,0.72)';
-    menuSnow.forEach(f=>{ f.y+=f.v; f.x+=Math.sin((t*0.001)+f.w)*0.22;
-      mcx.beginPath(); mcx.arc(f.x,f.y,f.r,0,7); mcx.fill(); });
-    for (let i=menuSnow.length-1;i>=0;i--) if (menuSnow[i].y>H+5) menuSnow.splice(i,1);
+  if (!(VW>0 && VH>0) || !mcnv.width || !mcnv.height) return;
+  menuCloseRetired();          // a frame after they were last drawn
+  const b=menuBorder;
+  if (!b){
+    mcx.setTransform(1,0,0,1,0,0);
+    mcx.fillStyle=(MENU_SCENES[menuSeason]||MENU_SCENES.Fall).pageBg; mcx.fillRect(0,0,mcnv.width,mcnv.height);
+    mcx.setTransform(DPR,0,0,DPR,0,0);
+    return;
+  }
+  const still=reducedMotion(), target=screenOpen('menuScreen')?1:0;
+  menuShadeA=still ? target : menuShadeA+(target-menuShadeA)*.3;
+  if (Math.abs(target-menuShadeA)<.01) menuShadeA=target;
+  /* With motion off nothing in the picture moves, so one frame IS the picture:
+     draw again only when the border, the canvas or the shade has changed. */
+  const sig=b.id+'|'+(b.ready?1:0)+'|'+mcnv.width+'x'+mcnv.height+'|'+menuShadeA;
+  if (still && !menuFade && sig===menuDrawnSig) return;
+  menuDrawnSig=sig;
+  menuDrawBorder(b,t,menuShadeA,still);
+  if (menuFade){
+    const e=Math.min(1,Math.max(0,(t-menuFade.t0)/menuFade.ms));
+    if (e<1 && menuFadeCv){
+      mcx.globalAlpha=1-e*e*(3-2*e); mcx.drawImage(menuFadeCv,0,0,mcnv.width,mcnv.height); mcx.globalAlpha=1;
+    } else menuFade=null;
+  }
+  mcx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+/* ---- the menu's own chrome: the key, the season dots, the entry art ---- */
+function buildMenuPips(){
+  const host=$('menuPips'); if (!host || menuPipButtons.length) return;
+  SEASONS.forEach(s=>{
+    const b=document.createElement('button'); b.type='button'; b.className='menu-pip'; b.dataset.season=s;
+    b.style.setProperty('--pip',SEASON_FILL[s]); b.title=s;
+    b.setAttribute('aria-label','Show the border in '+s); b.setAttribute('aria-pressed','false');
+    b.appendChild(document.createElement('i'));
+    b.onclick=()=>{ if (s!==menuSeason) setMenuSeason(s,true); };
+    host.appendChild(b); menuPipButtons.push(b);
+  });
+}
+/* The Plant Library, open on one plant: the key's rows land here. */
+function openPlantLibraryAt(key){
+  openLibrary();
+  if (!PLANTS[key] || !libraryAllKeys().includes(key)) return;
+  showLibraryDetail(key);
+  const row=document.querySelector('.lib-item.sel');
+  if (row && typeof row.scrollIntoView==='function') row.scrollIntoView({block:'center'});
+}
+/* What is planted in the border, as a plan sheet names it: the six that carry
+   the most of it, each with the colour it has this season. */
+function menuKeyPlants(tally,n){
+  return [...tally.entries()].sort((a,b)=>b[1]-a[1]).slice(0,n).map(e=>e[0]);
+}
+function syncMenuBorderChrome(b){
+  paintMenuGardenArt(b.season);
+  const list=$('menuKeyList'), line=$('menuKeyLine'); if (!list) return;
+  const all=menuKeyPlants(b.tally,99), top=all.slice(0,6);
+  list.replaceChildren();
+  top.forEach(k=>{
+    const P=plantDef(k), li=document.createElement('li'), row=document.createElement('button');
+    row.type='button'; row.className='menu-key-row';
+    const sw=document.createElement('i'); sw.style.background=menuSeasonColour(k,b.season);
+    const nm=document.createElement('span'); nm.textContent=P.name;
+    const la=document.createElement('em'); la.textContent=P.latin;
+    row.append(sw,nm,la); row.onclick=()=>openPlantLibraryAt(k);
+    li.appendChild(row); list.appendChild(li);
+  });
+  if (line){
+    const short=k=>plantDef(k).name.replace(/\s*'[^']*'/,'');
+    line.textContent=all.slice(0,3).map(short).join(', ')+(all.length>3?` and ${all.length-3} more`:'');
   }
 }
+/* Each entry shows the thing it opens, drawn by the app: a garden, a plant in
+   its four seasons, a plan. */
+const MENU_GARDEN_ART={
+  Spring:['baptisia','amsonia','camassia','sesleria','cushionspurge','muscari','camassia','sesleria','daffodil'],
+  Summer:['culvers','echinacea','monarda','dropseed','yarrow','allium','echinacea','sesleria','calamint'],
+  Fall:['indiangrass','newengland','bluestem','goldenrod','aster','sedum','bluestem','dropseed','sedum'],
+  Winter:['bigbluestem','echinacea','bluestem','rudbeckia','switchgrass','sedum','bluestem','dropseed','sedum'] };
+function paintMenuGardenArt(season){
+  const c=$('menuArtGardens'); if (!c || !c.getContext) return;
+  const g=c.getContext('2d'), w=c.width, h=c.height, A=AMBIENCE[season]||AMBIENCE.Fall;
+  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,w,h);
+  const sky=g.createLinearGradient(0,0,0,h); sky.addColorStop(0,A.sky[0]); sky.addColorStop(1,A.sky[1]); g.fillStyle=sky; g.fillRect(0,0,w,h);
+  const X=w/2, Y=h*.69, hw=w*.47, hh=hw/2;
+  const diamond=(y,a,b)=>{ g.beginPath(); g.moveTo(X,y-b); g.lineTo(X+a,y); g.lineTo(X,y+b); g.lineTo(X-a,y); g.closePath(); };
+  diamond(Y+7,hw,hh); g.fillStyle=mixHex(A.soil,'#000000',.35); g.fill();          // the plot's edge
+  diamond(Y,hw,hh); g.fillStyle=A.snow?'#e4e6e2':A.grass[0]; g.fill();
+  diamond(Y-1,hw*.74,hh*.74); g.fillStyle=A.snow?'#d3d4cf':A.soil; g.fill();
+  const keys=MENU_GARDEN_ART[season]||MENU_GARDEN_ART.Fall, cells=[];
+  for (let i=0;i<3;i++) for (let j=0;j<3;j++) cells.push([i,j]);
+  cells.sort((a,b)=>(a[0]+a[1])-(b[0]+b[1]));
+  cells.forEach((cell,n)=>{ const k=keys[n%keys.length]; if (!PLANTS[k]) return;
+    g.save(); g.translate(X+(cell[0]-cell[1])*hw*.235, Y-1+(cell[0]+cell[1]-2)*hh*.235); g.scale(.36,.36);
+    drawPlant(g,0,0,k,1,season,tileSeed(cell[0]+3,cell[1]+8),0,undefined,(MENU_SCENES[season]||MENU_SCENES.Fall).bloom); g.restore(); });
+}
+function paintMenuLibraryArt(){
+  const c=$('menuArtLibrary'); if (!c || !c.getContext) return;
+  const g=c.getContext('2d'), w=c.width, h=c.height, pw=w/2, ph=h/2, k='echinacea', P=plantDef(k);
+  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,w,h);
+  SEASONS.forEach((s,i)=>{ const x=(i%2)*pw, y=((i/2)|0)*ph, A=AMBIENCE[s];
+    g.save(); g.beginPath(); g.rect(x,y,pw,ph); g.clip();
+    const sky=g.createLinearGradient(0,y,0,y+ph); sky.addColorStop(0,A.sky[0]); sky.addColorStop(1,A.sky[1]); g.fillStyle=sky; g.fillRect(x,y,pw,ph);
+    g.fillStyle=A.snow?'#e4e6e2':A.grass[1]; g.fillRect(x,y+ph*.86,pw,ph*.14);
+    const sc=(ph*.76)/(plantArtTop(P)||80);
+    g.translate(x+pw/2,y+ph*.9); g.scale(sc,sc); drawPlant(g,0,0,k,1,s,4410,0,undefined,1); g.restore(); });
+  g.fillStyle='rgba(20,14,11,.55)'; g.fillRect(pw-1,0,2,h); g.fillRect(0,ph-1,w,2);
+}
+function paintMenuPlanArt(){
+  const c=$('menuArtDaily'); if (!c || !c.getContext) return;
+  const g=c.getContext('2d'), w=c.width, h=c.height;
+  g.setTransform(1,0,0,1,0,0);
+  g.fillStyle='#efe6d3'; g.fillRect(0,0,w,h);
+  g.strokeStyle='rgba(70,52,40,.10)'; g.lineWidth=1;
+  for (let i=1;i<8;i++){ g.beginPath(); g.moveTo(i*w/8+.5,0); g.lineTo(i*w/8+.5,h); g.moveTo(0,i*h/8+.5); g.lineTo(w,i*h/8+.5); g.stroke(); }
+  const path=()=>{ g.beginPath(); g.moveTo(-6,h*.74); g.bezierCurveTo(w*.3,h*.58,w*.5,h*.92,w+6,h*.50); };
+  path(); g.strokeStyle='#d9ccb0'; g.lineWidth=17; g.lineCap='round'; g.stroke();          // a gravel path through it
+  path(); g.strokeStyle='rgba(70,52,40,.22)'; g.lineWidth=1; g.setLineDash([3,3]); g.stroke(); g.setLineDash([]);
+  const blob=(x,y,rx,ry,seed)=>{
+    const r=mulberry(seed), n=9, pts=[];
+    for (let i=0;i<n;i++){ const a=i/n*6.283, m=.78+r()*.44; pts.push([x+Math.cos(a)*rx*m,y+Math.sin(a)*ry*m]); }
+    g.beginPath(); g.moveTo((pts[n-1][0]+pts[0][0])/2,(pts[n-1][1]+pts[0][1])/2);
+    for (let i=0;i<n;i++){ const p=pts[i], q=pts[(i+1)%n]; g.quadraticCurveTo(p[0],p[1],(p[0]+q[0])/2,(p[1]+q[1])/2); }
+    g.closePath();
+  };
+  const drifts=[[.26,.28,.20,.13,'#b8c79c',3],[.62,.22,.17,.12,'#cba7bd',9],[.86,.30,.11,.14,'#d8c070',14],
+    [.20,.50,.12,.08,'#c98f70',21],[.52,.46,.15,.10,'#a8bacb',27],[.30,.90,.20,.09,'#cba7bd',33],[.74,.84,.17,.10,'#b8c79c',39]];
+  for (const d of drifts){ blob(d[0]*w,d[1]*h,d[2]*w,d[3]*h,d[5]); g.fillStyle=d[4]; g.fill();
+    g.strokeStyle=mixHex(d[4],'#3a2a20',.45); g.lineWidth=1.3; g.stroke(); }
+  g.setLineDash([4,3]); g.strokeStyle='rgba(58,42,32,.62)'; g.lineWidth=1.4;          // a tree's crown
+  g.beginPath(); g.arc(w*.83,h*.62,w*.105,0,6.3); g.stroke(); g.setLineDash([]);
+  g.fillStyle='rgba(58,42,32,.8)'; g.beginPath(); g.arc(w*.83,h*.62,2.6,0,6.3); g.fill();
+  g.strokeStyle='rgba(58,42,32,.85)'; g.lineWidth=1.6;                                 // north
+  g.beginPath(); g.moveTo(w*.09,h*.16); g.lineTo(w*.09,h*.05); g.moveTo(w*.06,h*.09); g.lineTo(w*.09,h*.05); g.lineTo(w*.12,h*.09); g.stroke();
+  g.strokeStyle='rgba(58,42,32,.7)'; g.lineWidth=2; g.strokeRect(1,1,w-2,h-2);
+}
+function paintMenuArt(){ paintMenuGardenArt(menuSeason); paintMenuLibraryArt(); paintMenuPlanArt(); }
+/* The Library and the guidebook are full-bleed plates over the menu canvas. A
+   border kept moving behind them is paint nobody can see, and their 4px
+   backdrop blur is recomposited for every frame of it. */
+function menuBackdropCovered(){ return screenOpen('libraryScreen') || screenOpen('guideScreen'); }
 
 /* ---------- main loop ---------- */
 const MENU_FRAME_MS=1000/30;
@@ -3469,9 +3977,12 @@ function frame(t){
     } else if (t-lastHudUpdate>=HUD_IDLE_MS){
       updateHUD(); lastHudUpdate=t;
     }
-  } else if (t-lastMenuRender>=MENU_FRAME_MS){
-    menuRender(t);
-    lastMenuRender=t;
+  } else if (!menuBackdropCovered()){
+    menuBorderWork(t,rawGap);
+    if (t-lastMenuRender>=MENU_FRAME_MS){
+      menuRender(t);
+      lastMenuRender=t;
+    }
   }
 }
 /* ---------- first run ----------
@@ -3538,6 +4049,8 @@ async function maybeOfferDemoGarden(){
     await loadPlantCollections();
   }
   updateFilterBtn();
+  buildMenuPips();
+  paintMenuArt();
   advanceMenuSeason();
   refreshMenuCards();
   syncUnitLabels();     // the unit words typed into index.html default to imperial
