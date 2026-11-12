@@ -2626,10 +2626,10 @@ function renderDiscoveryTrayInner(tray){
     txt.textContent=`Brief & finish · ${game.challenge.title||"today's prompt"}`;
     txt.onclick=openChallengeBrief;
     const free=document.createElement('button'); free.type='button'; free.className='discovery-challenge-clear';
-    free.textContent=game.challenge.paletteFree?'Use challenge palette':'Design freely';
-    free.title='Toggle the challenge palette while keeping your brief and progress';
+    free.textContent=game.challenge.paletteFree?'Use suggested plants':'Use all plants';
+    free.title='Change plant selection; your hardiness filter and brief stay the same';
     free.onclick=()=>{ game.challenge.paletteFree=!game.challenge.paletteFree; markModelChanged(); buildToolTray(); updateFilterBtn&&updateFilterBtn();
-      toast(game.challenge.paletteFree?'Challenge palette cleared — your brief is still saved.':'Challenge palette restored.'); };
+      toast(game.challenge.paletteFree?'All plants — current filters still apply.':'Suggested plants selected.'); };
     free.classList.toggle('hidden',!game.challenge.match&&!game.challenge.palette);
     ch.append(txt,free); tray.appendChild(ch);
   }

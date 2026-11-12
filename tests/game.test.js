@@ -10010,13 +10010,13 @@ test('late-season role comes from a fall bloom', () => {
 
 test('daily briefs follow the local calendar and have independent saved snapshots',()=>{
   const ids=new Set();
-  for(let day=1;day<=18;day++){
+  for(let day=1;day<=DAILY_THEMES.length;day++){
     const c=dailyChallengeFor(new Date(2026,8,day,0,1));
     assert(c&&c.goals.length===3&&DAILY_SITES[c.site],'complete brief for each day'); ids.add(c.id);
     assertEqual(c.id,dailyChallengeFor(new Date(2026,8,day,23,59)).id,'same local day');
     assertEqual(c.date,`2026-09-${String(day).padStart(2,'0')}`);
   }
-  assertEqual(ids.size,18);
+  assertEqual(ids.size,DAILY_THEMES.length);
   assertEqual(dailyChallengeFor(new Date(2026,2,8,0,1)).id,dailyChallengeFor(new Date(2026,2,8,23,59)).id,'DST day uses the calendar');
   const c=dailyChallengeFor(new Date(2026,8,26)), copy=normalizeDailyChallenge(c);
   copy.goals[0]='Changed'; copy.checked.push(0);
@@ -10026,46 +10026,58 @@ test('daily briefs follow the local calendar and have independent saved snapshot
     assertEqual(normalizeDailyChallenge(bad),null,'invalid snapshots are rejected');
 });
 
-test('54 distinct daily exercises each offer ten exact choices and feasible study constraints',()=>{
+test('60 distinct daily exercises offer suggested palettes without tracked constraints',()=>{
   setup(); const ids=new Set(), briefs=new Set();
-  for(let day=0;day<54;day++){
+  const cycle=DAILY_THEMES.length*3;assertEqual(cycle,60);
+  for(let day=0;day<cycle;day++){
     const c=dailyChallengeFor(new Date(2026,8,1+day));
     assert(c&&c.v===3); ids.add(c.id); briefs.add(c.brief);
     assertEqual(c.palette.length,10); assertEqual(new Set(c.palette.map(plantRefId)).size,10);
-    assertEqual(new Set(c.palette.map(dailySpeciesId)).size,10,'choices represent ten species: '+c.id);
     assert(c.palette.every(ref=>refDef(ref)&&!PLANTS[ref.s].hidden),'only valid selectable choices');
-    assert(c.rules.length===4&&!c.strict,'constraints are available but optional');
+    assert(!('rules' in c)&&!('strict' in c),'no tracked constraints');
     for(const nativeRegion of ['north-america','europe','asia','africa','south-america','australasia']){
       const refs=dailyEligiblePalette(c,{zone:null,nativeRegion});
-      assert(dailyFeasibility(c,refs).possible,'study is feasible with regional guidance: '+c.id+' '+nativeRegion);
+      assert(refs.length>0,'study has available plants with regional guidance: '+c.id+' '+nativeRegion);
     }
-    assertEqual(c.id,dailyChallengeFor(new Date(2026,8,55+day)).id,'rotation repeats only after 54 days');
+    assertEqual(c.id,dailyChallengeFor(new Date(2026,8,1+cycle+day)).id,'rotation repeats only after a full cycle');
   }
-  assertEqual(ids.size,54);assertEqual(briefs.size,54);
+  assertEqual(ids.size,cycle);assertEqual(briefs.size,cycle);
 });
 
-test('every feasible filtered brief has a planting that meets its complete rule set',()=>{
-  for(let day=0;day<54;day++)for(const zone of [2,3,6,9,11]){
-    setup();const c=dailyChallengeFor(new Date(2026,8,1+day));game.challenge=c;
-    const refs=dailyEligiblePalette(c,{zone,nativeRegion:'north-america'}), possible=dailyFeasibility(c,refs).possible;
-    if(!possible)continue;
-    const count=c.rules.find(r=>r.kind==='species').min, group=c.rules.find(r=>r.kind==='group');
-    const bySpecies=new Map();
-    const add=ref=>{if(bySpecies.size<count)bySpecies.set(dailySpeciesId(ref),ref);};
-    refs.filter(ref=>group.keys.includes(ref.s)).slice(0,group.min).forEach(add);
-    refs.forEach(add);
-    let i=0;
-    for(const ref of bySpecies.values())for(let n=0;n<3;n++){
-      const key=(i%15+1)+','+(Math.floor(i/15)+1);i++;
-      setTile(PLANTS[ref.s].type==='bulb'?'bulbs':'plants',key,{...ref,d:0,t:1});
-    }
-    const progress=dailyDesignProgress(c);
-    assert(progress.met,c.id+' zone '+zone+': '+JSON.stringify(progress.rules.filter(r=>!r.met)));
-  }
+test('an empty suggested palette can start with the full catalog without changing climate filters',()=>{
+  setup();const prior=[dailySelection,dailyResumeId,dailyCriteria,dailyReady];
+  try{
+    dailySelection=dailyChallengeFor();dailyResumeId=null;dailyReady=true;
+    dailyCriteria=normalizeFilters({zone:13,nativeRegion:'north-america'});
+    renderDailyEntry();assert($('btnDailyStart').disabled);
+    $('btnDailyPalette').onclick();
+    assert(dailySelection.paletteFree&&!$('btnDailyStart').disabled);
+    assertEqual(dailyCriteria.zone,13);assertEqual($('dailyAvailability').textContent,'');
+    $('btnDailyPalette').onclick();assert($('btnDailyStart').disabled,'curated scope is reversible');
+    dailyResumeId='saved-daily';renderDailyEntry();
+    assert(!$('btnDailyStart').disabled,'a saved garden can always resume');
+    assertEqual($('dailyAvailability').textContent,'','resume never asks for hidden start options');
+    dailyResumeId=null;
+    renderDailyEntry();assert(!$('btnDailyResolve').classList.contains('hidden'));
+    $('btnDailyResolve').onclick();assert(!$('btnDailyStart').disabled,'footer action resolves the hardiness mismatch');
+    assertEqual(dailyCriteria.zone,null);assertEqual(dailyCriteria.nativeRegion,'north-america');
+    assert($('btnDailyResolve').classList.contains('hidden'),'resolved warning clears');
+  }finally{[dailySelection,dailyResumeId,dailyCriteria,dailyReady]=prior;}
+});
+
+test('study palette removes only hardiness filtering and preserves other preferences',()=>{
+  setup();game.challenge=dailyChallengeFor();
+  game.filters=normalizeFilters({zone:6,nativeRegion:'europe',nativeMode:'regional',deer:true,rabbit:true,squirrel:true});
+  game.design=normalizeDesign(game.filters);
+  const expected={...game.filters,zone:null};
+  $('btnChallengeStudy').onclick();
+  assertEqual(JSON.stringify(game.filters),JSON.stringify(expected));
+  assertEqual(game.design.zone,null);assertEqual(game.design.nativeRegion,'europe');
+  assert(game.design.deer&&game.design.rabbit&&game.design.squirrel);
 });
 
 test('curated choices stay exact through catalog filters and cache changes',()=>{
-  setup();const c=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.id==='monochrome-1');
+  setup();const c=Array.from({length:DAILY_THEMES.length*3},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.id==='monochrome-1');
   game.challenge=c;
   assert(!challengeAllows('echinacea',null),'pink parent excluded');
   assert(challengeAllows('echinacea','whiteswan'),'white cultivar admitted');
@@ -10077,23 +10089,57 @@ test('curated choices stay exact through catalog filters and cache changes',()=>
   c.paletteFree=true; assert(challengeAllows('echinacea',null),'free exploration restores the wider catalog');
 });
 
-test('tracked rules ignore removals, off-plot plants and cultivar duplicates; bulbs count',()=>{
+test('daily headings split saved wording without rewriting old briefs',()=>{
+  renderDailyHeading('daily',{title:'View from the Patio: Frame the view'});
+  assertEqual($('dailyTheme').textContent,'View from the Patio');
+  assertEqual($('dailyTitle').textContent,'Frame the view');
+  renderDailyHeading('daily',{title:'Original saved brief'});
+  assertEqual($('dailyTitle').textContent,'Original saved brief');
+  assert($('dailyTheme').classList.contains('hidden'));
+});
+
+test('daily plant roles use existing exact plant roles without height assumptions',()=>{
+  assertEqual(dailyPlantRole({s:'dropseed',v:null},{}),'Connects planting groups');
+  assertEqual(dailyPlantRole({s:'christmasfern',v:null},{}),'Leaf texture');
+  assertEqual(dailyPlantRole({s:'boxwoodlow',v:null},{}),'Woody structure');
+  for(const theme of DAILY_THEMES)for(const ref of theme.palette)assert(dailyPlantRole(ref,{}).length>0);
+});
+
+test('daily plant details keep exact cultivars and refresh when measurement units change',()=>{
+  setup();const target=document.createElement('ul'),c={palette:[{s:'echinacea',v:'whiteswan'}],season:'Summer'};
+  // The lightweight DOM stub otherwise treats replaceChildren as a no-op.
+  target.replaceChildren=(...nodes)=>{target.children=nodes;};
+  let original,size;
+  withUnits('imperial',()=>{
+    renderDailyPalette(target,c,{zone:6});original=target.children[0];
+    const details=original.children[2];details.open=true;details.ontoggle();
+    const facts=details.children[3];size=facts.children[1].textContent;
+    assertEqual(size,matureSizeText(refDef(c.palette[0]),false));
+    assertEqual(original.children[1].children[0].textContent,plantRefDisplayName(c.palette[0]));
+    renderDailyPalette(target,c,{zone:null});assert(target.children[0]===original,'filters reuse artwork and open details');
+  });
+  withUnits('metric',()=>{
+    renderDailyPalette(target,c,{zone:6});assert(target.children[0]!==original,'unit changes rebuild detail facts');
+    const details=target.children[0].children[2];details.open=true;details.ontoggle();
+    const updated=details.children[3].children[1].textContent;
+    assert(updated!==size);assertEqual(updated,matureSizeText(refDef(c.palette[0]),false));
+  });
+});
+
+test('daily finish counts active additions including bulbs and plants outside the suggestions',()=>{
   setup(); const c=dailyChallengeFor(new Date(2026,8,26));game.challenge=c;
-  c.rules=[{kind:'species',min:2,max:2,label:'Two species'},{kind:'repeat',min:1,count:3,label:'Repeat one'},
-    {kind:'palette',label:'Use the palette'}];
-  c.palette=[{s:'echinacea',v:null},{s:'echinacea',v:'whiteswan'},{s:'allium',v:null}];
+  c.palette=[{s:'bluestem',v:null}];
   setTile('plants','1,1',{s:'echinacea',d:0,t:1});
   setTile('plants','2,1',{s:'echinacea',v:'whiteswan',d:0,t:1});
   setTile('plants','3,1',{s:'echinacea',d:0,t:1});
   setTile('bulbs','1,1',{s:'allium',d:0,t:1});
   setTile('plants','-1,-1',{s:'bluestem',d:0,t:1});
   setTile('plants','4,1',{s:'bluestem',d:0,t:1});clearTile('plants','4,1');
-  let p=dailyDesignProgress(c);assert(p.met);assertEqual(p.plants,4);assertEqual(p.rules[0].value,2);
-  clearTile('plants','3,1');p=dailyDesignProgress(c);assert(!p.rules[1].met,'removal updates repeat count');
-  assertEqual(dailySpeciesId({s:'boxwoodlow'}),dailySpeciesId({s:'boxwoodcone'}),'shape aliases share species identity');
+  assertEqual(dailyPlantCount(),4);
+  clearTile('plants','3,1');assertEqual(dailyPlantCount(),3);
 });
 
-test('v1 briefs retain their original wording and broad rules; v2 snapshots validate nested contracts',()=>{
+test('older briefs retain wording and palettes while retired constraints are discarded',()=>{
   const c=dailyChallengeFor(new Date(2026,8,26));
   const old={...c,v:1,site:'border',title:'Old cottage',match:{types:['forb']}};
   delete old.palette;delete old.rules;
@@ -10101,23 +10147,28 @@ test('v1 briefs retain their original wording and broad rules; v2 snapshots vali
   assertEqual(loaded.v,1);assertEqual(loaded.title,'Old cottage');assert(!loaded.palette&&!loaded.rules&&!loaded.strict);
   for(const bad of [
     {...c,palette:[...c.palette,c.palette[0]]}, {...c,palette:[{s:'unknown'}]},
-    {...c,palette:[{s:'echinacea',v:'unknown'}]}, {...c,rules:[{kind:'mystery',label:'Bad'}]},
-    {...c,rules:[{kind:'species',min:6,max:2,label:'Impossible'}]},
-    {...c,rules:[{kind:'palette',label:'A'},{kind:'palette',label:'B'}]},
-    {...c,rules:[{kind:'group',label:'Unknown group',min:1,keys:['unknown']},{kind:'palette',label:'Palette'}]},
+    {...c,palette:[{s:'echinacea',v:'unknown'}]},
   ])assertEqual(normalizeDailyChallenge(bad),null,'malformed nested contract is rejected');
-  const copy=normalizeDailyChallenge(c);copy.palette[0].s='changed';copy.rules[2].keys[0]='changed';
-  assert(c.palette[0].s!=='changed'&&c.rules[2].keys[0]!=='changed','snapshots own their nested arrays');
+  for(const v of [2,3]){
+    const retired={...c,v,site:v===2?'border':c.site,strict:true,checked:[1],completedAt:123,
+      rules:[{kind:'species',min:6,max:6,label:'Six species'},{kind:'palette',label:'Palette'}]};
+    const copy=normalizeDailyChallenge(retired);
+    assert(copy&&!('strict' in copy)&&!('rules' in copy));
+    assertEqual(copy.title,c.title);assertEqual(copy.checked[0],1);assertEqual(copy.completedAt,123);
+    assertEqual(JSON.stringify(copy.palette),JSON.stringify(c.palette));
+    copy.palette[0].s='changed';assert(c.palette[0].s!=='changed','snapshots own their nested arrays');
+  }
 });
 
-test('strict completion blocks unmet rules and switching it off preserves free completion',async()=>{
+test('finishing ignores legacy strict flags, plant quotas and unchecked self-review goals',async()=>{
   setup();game.challenge=dailyChallengeFor(new Date(2026,8,26));game.challenge.strict=true;
+  game.challenge.rules=[{kind:'species',min:6,max:6,label:'Six species'},{kind:'palette',label:'Palette'}];
   setTile('plants','1,1',{s:game.challenge.palette[0].s,d:0,t:1});
   const save=saveSolo,share=prepareDailyShare,portrait=captureGardenPortrait;let saves=0;
   try{
     saveSolo=async()=>{saves++;return true;};prepareDailyShare=async()=>{};captureGardenPortrait=()=>null;
-    await finishDailyDesign();assertEqual(saves,0);assert(!game.challenge.completedAt);
-    game.challenge.strict=false;await finishDailyDesign();assertEqual(saves,1);assert(game.challenge.completedAt);
+    await finishDailyDesign();assertEqual(saves,1);assert(game.challenge.completedAt);
+    assertEqual(game.challenge.checked.length,0,'self-review stays voluntary');
   }finally{saveSolo=save;prepareDailyShare=share;captureGardenPortrait=portrait;}
 });
 
@@ -10158,7 +10209,7 @@ test('daily starter snapshots are bounded, deeply independent and keep legacy br
 
 test('authored sites fit their briefs and leave connected routes and generous planting space',()=>{
   const kinds=new Set();
-  for(let day=0;day<54;day++){
+  for(let day=0;day<DAILY_THEMES.length*3;day++){
     const c=dailyChallengeFor(new Date(2026,8,1+day)),p=c.sitePlan;kinds.add(c.site);
     assertEqual(JSON.stringify(p),JSON.stringify(dailySitePlan(c.site)),'frozen layout matches its preview');
     assert(Object.values(p.terrain).filter(t=>t.k==='bed').length>=80,'space for repeated planting');
@@ -10230,16 +10281,14 @@ test('every daily route reads against the beds beside it',()=>{
   }
 });
 
-test('all 54 prepared briefs can satisfy strict rules through ordinary placement tools',()=>{
-  for(let day=0;day<54;day++){
+test('all prepared briefs accept suggested plants through ordinary placement tools',()=>{
+  for(let day=0;day<DAILY_THEMES.length*3;day++){
     const c=dailyChallengeFor(new Date(2026,8,1+day)),p=c.sitePlan;
     setup(p.gw,p.gh);game.challenge=c;game.dayOffset=SEASONS.indexOf(c.season)*DAYS_PER_SEASON;prepareDailySite(p);
-    const group=c.rules.find(r=>r.kind==='group'),count=c.rules.find(r=>r.kind==='species').min;
-    const refs=dailyEligiblePalette(c,game.filters),chosen=new Map();
-    const add=ref=>{if(chosen.size<count)chosen.set(dailySpeciesId(ref),ref);};
-    refs.filter(ref=>group.keys.includes(ref.s)).slice(0,group.min).forEach(add);refs.forEach(add);
+    const refs=dailyEligiblePalette(c,game.filters).slice(0,3);
+    assert(refs.length>0,c.id+' offers suitable plants');
     // Woody footprints go first; ordinary companions fill the remaining ground.
-    const ordered=[...chosen.values()].sort((a,b)=>Number(isWoodyDef(refDef(b)))-Number(isWoodyDef(refDef(a))));
+    const ordered=refs.sort((a,b)=>Number(isWoodyDef(refDef(b)))-Number(isWoodyDef(refDef(a))));
     for(const ref of ordered){
       game.tool=ref.s;game.toolVar=ref.v;let placed=0;
       for(const key of Object.keys(p.terrain)){
@@ -10249,12 +10298,12 @@ test('all 54 prepared briefs can satisfy strict rules through ordinary placement
       }
       assertEqual(placed,3,c.id+' has room for '+ref.s);
     }
-    const progress=dailyDesignProgress();assert(progress.met,c.id+' meets all rules on its actual site');
+    assertEqual(dailyPlantCount(),refs.length*3,c.id+' additions count on the actual site');
   }
 });
 
 test('woodland canopy is mature shade and only original context is exempt from counts',()=>{
-  const c=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site==='woodland'),p=c.sitePlan;
+  const c=Array.from({length:DAILY_THEMES.length*3},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site==='woodland'),p=c.sitePlan;
   setup(p.gw,p.gh);game.challenge=c;game.dayOffset=16;prepareDailySite(p);
   const tree=p.context[0],key=tree.x+','+tree.y,plant=game.plants[key];
   assertEqual(plantEstab(plant),1);assertEqual(dailyPlantCount(),0);
@@ -10265,7 +10314,7 @@ test('woodland canopy is mature shade and only original context is exempt from c
   assertEqual(dailyPlantCount(),0,'moved original stays exempt');
   selWrite([{x:8,y:9,plant:game.plants['8,9']}],()=>[9,9],false);
   assert(!game.plants['9,9'].dailySiteId,'copy receives no exemption');
-  assertEqual(dailyPlantCount(),1);assert(!dailyDesignProgress().met,'out-of-palette copy is counted');
+  assertEqual(dailyPlantCount(),1,'out-of-palette copy is counted');
   clearTile('plants','8,9');assertEqual(dailyPlantCount(),1,'removing original cannot exempt its copy');
   applySnapshot(snapshot);assertEqual(dailyPlantCount(),0,'undo restores the original identity');
   setTile('plants','9,9',{...plant});assertEqual(dailyPlantCount(),1,'duplicate imported tags never exempt multiple trees');
@@ -10273,7 +10322,7 @@ test('woodland canopy is mature shade and only original context is exempt from c
 });
 
 test('copying then moving or rotating a selected context tree cannot restore its exemption',()=>{
-  const c=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site==='woodland'),p=c.sitePlan;
+  const c=Array.from({length:DAILY_THEMES.length*3},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site==='woodland'),p=c.sitePlan;
   setup(p.gw,p.gh);game.challenge=c;prepareDailySite(p);
   game.sel={x0:7,y0:9,x1:7,y1:9};game.selItems=[{x:7,y:9,plant:game.plants['7,9']}];
   assert(commitSelectionOffset(1,0,true),'copy original');
@@ -10293,7 +10342,7 @@ test('site preview uses its saved blueprint without touching the live garden',()
 
 test('edited starter layers and tree identity survive save, reload and export without reseeding',async()=>{
   for(const kind of ['woodland','slope','hollow','corner']){
-    const c=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site===kind),p=c.sitePlan;
+    const c=Array.from({length:DAILY_THEMES.length*3},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site===kind),p=c.sitePlan;
     setup(p.gw,p.gh);game.worldId='starter-'+kind;game.challenge=c;game.pausedAt=Date.now();prepareDailySite(p);
     const key=Object.keys(p.terrain)[0];clearTile('terrain',key);
     if(kind==='woodland')selWrite([{x:7,y:9,plant:game.plants['7,9']}],()=>[8,9],true);
@@ -10469,7 +10518,7 @@ test('closing the brief during finish cannot recreate its share image after savi
 });
 
 test('new daily palette badges count exact choices',()=>{
-  for(let i=0;i<54;i++)assertEqual(challengePaletteSize(dailyChallengeFor(new Date(2026,8,1+i))),10);
+  for(let i=0;i<DAILY_THEMES.length*3;i++)assertEqual(challengePaletteSize(dailyChallengeFor(new Date(2026,8,1+i))),10);
   assertEqual(challengePaletteSize({}),speciesCount(),'legacy unrestricted brief retains full palette');
 });
 
@@ -10522,7 +10571,6 @@ test('the daily brief leads with the task and keeps its actions on screen',()=>{
   /* The exercise sentence was 13px muted text between two paragraphs of
      boilerplate in the same style; Start and the way back were two or three
      screens down on a phone; the goals heading was smaller than the goals; the
-     "hold me to these" box came before the rules it commits you to; and an
      unchecked goal was a white native square on the dark panel. */
   const html=readRepoFile('index.html'), css=readRepoFile('styles.css');
   const panel=id=>{const a=html.indexOf('id="'+id+'"');return html.slice(a,html.indexOf('\n</div>',a));};
@@ -10537,8 +10585,7 @@ test('the daily brief leads with the task and keeps its actions on screen',()=>{
     return ids.every(id=>{const i=f.indexOf(id);return i>0&&i<end;})&&f.slice(end).startsWith('\n    </div>\n  </div>');};
   assert(footer(daily,['id="dailyStatus"','data-back','id="btnDailyStart"']),'start screen: status, back and Start share the last-child footer');
   assert(footer(brief,['id="challengeStatus"','id="btnChallengeReturn"','id="btnChallengeFinish"']),'brief: status, return and Finish share the last-child footer');
-  for(const [s,rules,strict] of [[daily,'dailyRules','dailyStrict'],[brief,'challengeRules','challengeStrict']])
-    assert(s.indexOf('id="'+rules+'"')<s.indexOf('id="'+strict+'"'),'the rules are listed before the box that commits to them');
+  assert(!/dailyRules|challengeRules|dailyStrict|challengeStrict/.test(daily+brief),'retired constraint controls are absent');
   const rule=sel=>{const i=css.indexOf(sel+'{');assert(i>=0,'rule exists: '+sel);return css.slice(i,css.indexOf('}',i));};
   assert(/position:sticky/.test(rule('.daily-footer'))&&/bottom:0/.test(rule('.daily-footer')),'the footer sticks');
   assert(/var\(--panel-pad\)/.test(rule('.daily-footer')),'and bleeds by the panel\'s own padding');

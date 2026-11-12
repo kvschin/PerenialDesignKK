@@ -183,30 +183,34 @@ if ('serviceWorker' in navigator)
 <!-- DAILY DESIGN CHALLENGE -->
 <div class="screen hidden" id="dailyScreen">
   <div class="panel daily-panel">
-    <div id="dailyDate" style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--bronze);margin-bottom:6px">Today</div>
+    <div id="dailyDate" class="daily-date">Today</div>
+    <p id="dailyTheme" class="daily-theme"></p>
     <h2 id="dailyTitle">Challenge</h2>
+    <section id="dailyResume" class="daily-resume hidden" aria-label="Your saved design">
+      <p id="dailyResumeStatus" class="daily-resume-status"></p>
+      <div id="dailyResumePreview" class="daily-resume-preview" role="img" aria-label="Preview of your saved garden"></div>
+      <p class="note">Continue where you left off. You can keep editing or share your design.</p>
+    </section>
+    <details id="dailyBriefDetails" class="daily-details daily-entry-brief" open>
+    <summary id="dailyBriefSummary" class="hidden">View original brief</summary>
     <p class="daily-brief" id="dailyBrief"></p>
-    <p class="daily-intro">A small garden to make your own, with a new prompt each day at local midnight. Aim for a 15–20 minute design session, or take your time. No scores or deadline.</p>
-    <p class="note" id="dailySite"></p>
+    <p class="daily-intro">A new prompt each day. No scores or deadline.</p>
+    <p class="daily-site-summary" id="dailySiteSummary"></p>
     <figure class="daily-site-preview">
       <canvas id="dailySiteCanvas" width="560" height="320" role="img" aria-describedby="dailySiteCaption"></canvas>
       <figcaption id="dailySiteCaption"></figcaption>
       <div class="daily-site-legend" id="dailySiteLegend"></div>
     </figure>
-    <h3 class="daily-label">Design goals</h3>
+    <details class="daily-details"><summary>About this starting site</summary><p class="note" id="dailySite"></p></details>
+    <h3 class="daily-label">Ideas to try · optional</h3>
     <ol class="daily-goals" id="dailyGoals"></ol>
     <p class="note" id="dailyPlants"></p>
-    <div id="dailyPalette" style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);margin-top:12px"></div>
-    <details class="daily-details" id="dailyPaletteDetails"><summary>See the curated plants</summary><ul class="daily-plant-list" id="dailyPlantList"></ul></details>
+    <p id="dailyPalette" class="daily-palette-status"></p>
+    <details class="daily-details" id="dailyPaletteDetails"><summary>See suggested plants</summary><p class="note" id="dailyPreviewSeason"></p><ul class="daily-plant-list" id="dailyPlantList"></ul></details>
     <p class="note" id="dailyClimate"></p>
-    <details class="daily-details" id="dailyRulesOptions">
-      <summary>Optional constraints</summary>
-      <ul class="daily-rules" id="dailyRules"></ul>
-      <label class="daily-strict"><input type="checkbox" id="dailyStrict"> Meet these constraints to finish</label>
-      <p class="note">Counts are tracked automatically. Composition remains your choice. You can change this while designing.</p>
+    <button class="back-link" id="btnDailyStudy">Show all hardiness zones</button>
+    <button class="back-link" id="btnDailyPalette">Use all plants</button>
     </details>
-    <p class="note daily-availability" id="dailyAvailability" role="status"></p>
-    <button class="back-link" id="btnDailyStudy">Use study palette (any hardiness zone)</button>
     <h3 class="daily-label hidden" id="dailyHistoryHeading">Recent daily designs</h3>
     <div id="dailyHistory" class="daily-history"></div>
     <!-- Sticky, and last: the brief runs two or three screens on a phone, and
@@ -215,10 +219,12 @@ if ('serviceWorker' in navigator)
          under it. It has to be the LAST child, because it takes over the panel's
          bottom padding (see .daily-footer). -->
     <div class="daily-footer">
+      <p class="note daily-availability" id="dailyAvailability" role="status"></p>
+      <button class="back-link hidden" id="btnDailyResolve">Show all hardiness zones</button>
       <p class="note daily-status" id="dailyStatus" role="status"></p>
       <div class="daily-footer-actions">
         <button class="back-link" type="button" data-back>Back to menu</button>
-        <button class="btn primary" type="button" id="btnDailyStart">Start designing</button>
+        <button class="btn primary" type="button" id="btnDailyStart" aria-describedby="dailyAvailability dailyStatus">Start designing</button>
       </div>
     </div>
   </div>
@@ -227,32 +233,28 @@ if ('serviceWorker' in navigator)
 <div class="screen modal-screen hidden" id="challengeScreen" role="dialog" aria-modal="true" aria-labelledby="challengeTitle">
   <div class="panel daily-panel" tabindex="-1">
     <div class="settings-head">
-      <div><span class="eyebrow" id="challengeDate">Daily design</span><h2 id="challengeTitle">Your brief</h2></div>
+      <div><span class="eyebrow" id="challengeDate">Daily design</span><p id="challengeTheme" class="daily-theme"></p><h2 id="challengeTitle">Your brief</h2></div>
       <button id="btnChallengeClose" class="settings-x" type="button" aria-label="Close design brief"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
     </div>
     <p class="daily-brief" id="challengeBrief"></p>
-    <p class="note" id="challengeSite"></p>
+    <p class="daily-site-summary" id="challengeSiteSummary"></p>
     <details class="daily-details">
       <summary>Original starting site</summary>
+      <p class="note" id="challengeSite"></p>
       <figure class="daily-site-preview">
         <canvas id="challengeSiteCanvas" width="560" height="320" role="img" aria-describedby="challengeSiteCaption"></canvas>
         <figcaption id="challengeSiteCaption"></figcaption>
         <div class="daily-site-legend" id="challengeSiteLegend"></div>
       </figure>
     </details>
-    <h3 class="daily-label">Your design goals</h3>
-    <p class="note">Check off the goals as you review your design. These are prompts for your judgment, not a score. Your progress saves as you work.</p>
+    <h3 class="daily-label">Review your design · optional</h3>
+    <p class="note">Check off ideas you explored. Finish whenever you are happy with your design. Your progress saves as you work.</p>
     <ul class="daily-goals daily-checklist" id="challengeGoals"></ul>
     <p class="note" id="challengePlants"></p>
-    <details class="daily-details" id="challengePaletteDetails"><summary>Curated plant choices</summary><ul class="daily-plant-list" id="challengePlantList"></ul></details>
-    <details class="daily-details" id="challengeRulesOptions" open>
-      <summary>Tracked constraints</summary>
-      <ul class="daily-rules" id="challengeRules"></ul>
-      <label class="daily-strict"><input type="checkbox" id="challengeStrict"> Meet these constraints to finish</label>
-      <p class="note">Repetition counts separate placements, not visual groups. Cultivars of the same species count together.</p>
-    </details>
+    <p class="note" id="challengeClimate"></p>
+    <details class="daily-details" id="challengePaletteDetails"><summary>Suggested plants</summary><p class="note" id="challengePreviewSeason"></p><ul class="daily-plant-list" id="challengePlantList"></ul></details>
     <p class="note daily-availability" id="challengeAvailability" role="status"></p>
-    <button class="back-link hidden" id="btnChallengeStudy">Use study palette (any hardiness zone)</button>
+    <button class="back-link hidden" id="btnChallengeStudy">Show all hardiness zones</button>
     <div id="challengeShare" class="hidden">
       <h3 class="daily-label">Keep it. Share it.</h3>
       <div class="daily-share-options">

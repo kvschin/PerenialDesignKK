@@ -1329,7 +1329,11 @@ canvas.layer-eye{display:block}
    as small print. */
 .daily-brief{font-size:16px;line-height:1.5;color:var(--text-primary);margin:10px 0 0}
 .settings-head+.daily-brief{margin-top:0}
-.daily-intro{font-size:12px;line-height:1.5;color:var(--text-muted);margin:10px 0 0}
+.daily-intro{font-size:14px;line-height:1.5;color:var(--text-muted);margin:10px 0 0}
+.daily-date,.daily-panel .eyebrow{font-size:13px;line-height:1.5;letter-spacing:.04em;color:var(--text-secondary)}
+.daily-theme{font-size:14px;line-height:1.5;font-weight:600;color:var(--text-secondary);margin:12px 0 4px}
+.daily-site-summary,.daily-palette-status{font-size:14px;line-height:1.5;color:var(--text-secondary);margin:14px 0 8px}
+.daily-panel .note,.daily-panel .back-link,.daily-panel .daily-share-options label{font-size:14px;line-height:1.5}
 /* An empty status or availability line kept .note's margin: ~12px of nothing
    each, stacked into a visible gap above the study-palette link. Margin rather
    than display:none, because several are live regions and a region that is
@@ -1359,9 +1363,9 @@ canvas.layer-eye{display:block}
 .daily-footer-actions .back-link{margin:0;flex:0 0 auto}
 .daily-footer-actions .btn{flex:1 1 auto;min-height:48px;padding:12px 16px}
 .daily-site-preview{margin:16px 0 20px;border:1px solid var(--border-subtle);border-radius:10px;overflow:hidden}
-.daily-site-preview canvas{display:block;width:100%;height:auto;background:#f3efe4}
-.daily-site-preview figcaption{font-size:12px;line-height:1.5;padding:10px 12px 4px;color:var(--text-secondary)}
-.daily-site-legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 12px 12px;font-size:11px;color:var(--text-secondary)}
+.daily-site-preview canvas{display:block;width:100%;height:auto;max-height:180px;object-fit:contain;background:#f3efe4}
+.daily-site-preview figcaption{font-size:14px;line-height:1.5;padding:10px 12px 4px;color:var(--text-secondary)}
+.daily-site-legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 12px 12px;font-size:14px;color:var(--text-secondary)}
 .daily-site-legend span{display:inline-flex;align-items:center;gap:5px}
 .daily-site-swatch{display:inline-block;width:12px;height:12px;border:1px solid #756f5c;border-radius:2px;background:#ac9272}
 .daily-site-swatch.path{background:#d2c5aa}.daily-site-swatch.tree{background:#78916c;border-radius:50%}
@@ -1369,7 +1373,7 @@ canvas.layer-eye{display:block}
 /* At least the size of what it heads: at 12px "Design goals" was smaller than
    the 14px goals under it. */
 .daily-label{display:block;font-size:15px;font-weight:600;letter-spacing:.01em;margin:20px 0 10px;color:var(--text-primary)}
-.daily-goals{padding-left:22px;margin:10px 0 18px;font-size:14px;line-height:1.55}
+.daily-goals{padding-left:22px;margin:10px 0 18px;font-size:15px;line-height:1.55}
 .daily-goals li+li{margin-top:9px}
 .daily-checklist{padding:0;list-style:none}
 .daily-checklist label{display:flex;gap:12px;align-items:flex-start;min-height:44px;cursor:pointer;padding:8px 0}
@@ -1379,16 +1383,27 @@ canvas.layer-eye{display:block}
 .daily-actions .btn{min-height:44px}
 .daily-history{display:grid;gap:8px}
 .daily-details{border-top:1px solid var(--border-subtle);margin-top:12px;padding:8px 0}
-.daily-details summary{font-size:13px;line-height:1.5;cursor:pointer;padding:8px 0;min-height:44px;box-sizing:border-box}
-.daily-plant-list{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;font-size:13px;line-height:1.4}
-.daily-plant-list li{padding:8px;border:1px solid var(--border-subtle);border-radius:8px;overflow-wrap:anywhere}
-.daily-plant-list small,.daily-rules small{display:block;color:var(--text-muted);font-size:11px;line-height:1.5;margin-top:4px}
+.daily-details summary{font-size:14px;line-height:1.5;cursor:pointer;padding:8px 0;min-height:44px;box-sizing:border-box}
+.daily-entry-brief:not(.is-resuming){border:0;padding:0;margin:0}
+.daily-entry-brief.is-resuming .daily-intro{display:none}
+.daily-resume-status{font-size:16px;font-weight:600;margin:14px 0 10px}
+.daily-resume-preview{aspect-ratio:4/3;max-width:360px;margin:0 auto;background:var(--surface-control);border:1px solid var(--border-subtle);border-radius:10px;overflow:hidden}
+.daily-resume-preview canvas,.daily-resume-preview img{display:block;width:100%;height:100%;object-fit:contain}
+.daily-footer .daily-availability:not(:empty){font-size:14px;margin:0;padding:0;border:0}
+#btnDailyResolve{margin:0 0 6px;font-size:14px;min-height:44px}
+.daily-plant-list{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px;font-size:14px;line-height:1.5}
+.daily-plant-list>li{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;padding:10px;border:1px solid var(--border-subtle);border-radius:8px;overflow-wrap:anywhere}
+.daily-plant-copy strong{display:block;font-size:15px;line-height:1.4}
+.daily-plant-role,.daily-plant-list small{display:block;color:var(--text-secondary);font-size:14px;line-height:1.5;margin-top:4px}
+.daily-plant-list>li>details{grid-column:1/-1;min-width:0}
+.daily-plant-list details p{margin:8px 0}
+.daily-plant-list dl{margin:12px 0}
+.daily-plant-list dt{font-weight:600;margin-top:8px}
+.daily-plant-list dd{margin:0}
+.daily-plant-latin{font-style:italic}
+.daily-panel .plant-guidance,.daily-panel .plant-guidance-source{font-size:14px}
+@media(max-width:480px){.daily-plant-list{grid-template-columns:1fr}}
 .daily-plant-unavailable{border-style:dashed!important}
-.daily-strict{display:flex;align-items:center;gap:10px;min-height:44px;font-size:13px;line-height:1.5;cursor:pointer}
-.daily-strict input{width:20px;height:20px;flex:0 0 auto;accent-color:var(--bronze)}
-.daily-rules{padding-left:20px;margin:8px 0;font-size:13px;line-height:1.5}
-.daily-rules li{margin-bottom:12px}
-.daily-rule-met>span{font-weight:600}
 .daily-availability:not(:empty){padding:10px;border-left:3px solid var(--bronze);margin:10px 0}
 .daily-history-item{background:var(--surface-control);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:8px;padding:12px;text-align:left;line-height:1.5;cursor:pointer;min-height:44px}
 .daily-history-item:hover{background:var(--surface-control-hover)}

@@ -133,13 +133,37 @@ async function check(browser,url,name,viewport,isMobile){
     await page.locator('#btnDaily').click();
     await page.waitForFunction(()=>dailyReady);
     assert(await page.locator('#btnDailyStart').isDisabled(),'empty climate palette explains why start is unavailable');
-    assert.match(await page.locator('#dailyAvailability').textContent(),/cannot meet/);
-    await page.locator('#btnDailyStudy').click();
+    assert.match(await page.locator('#dailyAvailability').textContent(),/No suggested plants/);
+    for(const selector of ['#dailyAvailability','#btnDailyResolve','#btnDailyStart']){
+      const box=await page.locator(selector).boundingBox();
+      assert(box&&box.y>=0&&box.y+box.height<=viewport.height,selector+' is visible without scrolling');
+    }
+    await page.screenshot({path:path.join(output,name+'-blocked-start.png')});
+    await page.locator('#dailyPaletteDetails > summary').click();
+    assert.equal(await page.locator('#dailyPlantList > li canvas').count(),10);
+    await page.evaluate(()=>{window.__dailyArt=document.querySelector('#dailyPlantList canvas');});
+    const plantDetails=page.locator('#dailyPlantList > li > details').first();
+    await plantDetails.locator(':scope > summary').click();
+    await plantDetails.locator(':scope > dl').waitFor({state:'visible'});
+    assert.match(await plantDetails.textContent(),/Mature size.*Spacing.*Hardiness/s);
+    assert(await page.locator('#dailyScreen').isVisible(),'plant details stay inside the brief');
+    await page.screenshot({path:path.join(output,name+'-plant-details.png')});
+    await plantDetails.locator(':scope > summary').click();
+    await page.locator('#dailyPaletteDetails > summary').click();
+    assert.equal(await page.locator('#btnDailyPalette').textContent(),'Use all plants');
+    await page.locator('#btnDailyPalette').click();
+    assert(await page.evaluate(()=>window.__dailyArt===document.querySelector('#dailyPlantList canvas')),'filter changes reuse plant artwork');
+    assert(!(await page.locator('#btnDailyStart').isDisabled()),'full catalog unblocks an empty suggested palette');
+    assert.equal(await page.evaluate(()=>dailyCriteria.zone),13,'full catalog keeps climate guidance');
+    await page.locator('#btnDailyPalette').click();
+    assert(await page.locator('#btnDailyStart').isDisabled(),'returning to suggestions restores their availability check');
+    await page.locator('#btnDailyResolve').click();
     await page.waitForFunction(()=>!document.getElementById('btnDailyStart').disabled);
     assert.equal(await page.locator('#dailyPlantList li').count(),10);
-    await page.locator('#dailyRulesOptions summary').click();await page.locator('#dailyStrict').check();
+    assert.equal(await page.locator('#dailyRulesOptions, #dailyStrict').count(),0);
     assert.equal(await page.locator('#dailyGoals li').count(),3);
-    const brief=await page.locator('#dailyTitle').textContent();
+    const brief=await page.evaluate(()=>dailySelection.title);
+    assert.equal(await page.locator('#dailyTitle').textContent(),brief.split(': ').slice(1).join(': ')||brief);
     await page.screenshot({path:path.join(output,name+'-brief.png')});
     // Crossing midnight after reading the prompt must not swap the brief.
     await page.evaluate(()=>{window.__today=todaysChallenge;todaysChallenge=()=>dailyChallengeFor(new Date(Date.now()+864e5));});
@@ -151,7 +175,7 @@ async function check(browser,url,name,viewport,isMobile){
       return {id:game.worldId,challenge:game.challenge,terrain:Object.values(game.terrain).map(p=>p.k),plants:Object.keys(game.plants).length,houses:game.houses.length,gw:GW,gh:GH};
     });
     assert.equal(initial.challenge.title,brief); assert.equal(initial.plants,initial.challenge.sitePlan.context.length); assert.equal(initial.houses,0);
-    assert(initial.challenge.strict&&initial.challenge.palette.length===10);
+    assert(!('strict' in initial.challenge)&&!('rules' in initial.challenge)&&initial.challenge.palette.length===10);
     assert.equal(await page.evaluate(()=>discoveryRefsFor({source:'all'}).length),10,'only ten exact plant choices enter the catalog');
     assert(initial.terrain.includes('bed')&&initial.terrain.includes('path')); assert(initial.gw<=20&&initial.gh<=16);
     await page.locator('#btnMenu').click(); await page.locator('#btnChallenge').click();
@@ -161,32 +185,45 @@ async function check(browser,url,name,viewport,isMobile){
     await page.keyboard.press('Escape');
     assert(await page.locator('#challengeScreen').evaluate(el=>el.classList.contains('hidden')));
     assert.equal(await page.evaluate(()=>document.activeElement.id),'btnMenu');
-    // One species is insufficient when the gardener opts into constraints.
+    // Returning before finishing leads with the saved garden, not the setup.
+    await page.locator('#btnMenu').click();await page.locator('#btnQuit').click();
+    await page.locator('#btnDaily').click();await page.waitForFunction(()=>dailyReady);
+    assert(await page.locator('#dailyResume').isVisible());
+    assert.match(await page.locator('#dailyResumeStatus').textContent(),/In progress/);
+    assert.equal(await page.locator('#dailyBriefDetails').evaluate(el=>el.open),false);
+    assert.equal(await page.locator('#dailyResumePreview canvas, #dailyResumePreview img').count(),1);
+    await page.screenshot({path:path.join(output,name+'-resume-progress.png')});
+    await page.locator('#dailyBriefSummary').click();assert(await page.locator('#dailyBrief').isVisible());
+    await page.locator('#dailyBriefSummary').click();
+    await page.locator('#btnDailyStart').click();await page.locator('#dailyScreen').waitFor({state:'hidden'});
+    await page.locator('#gardenOpening').waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(()=>game.worldId),initial.id);
+    // Even an old strict flag cannot block a design with one added plant.
     await page.evaluate(()=>{
+      game.challenge.strict=true;
+      game.challenge.rules=[{kind:'species',min:6,max:6,label:'Six species'},{kind:'palette',label:'Palette'}];
       const ref=game.challenge.palette[0];setTile(PLANTS[ref.s].type==='bulb'?'bulbs':'plants','2,2',{...ref,d:0,t:Date.now()});
     });
     await page.locator('#btnMenu').click();await page.locator('#btnChallenge').click();
     await page.locator('#btnChallengeFinish').click();
-    assert.match(await page.locator('#challengeStatus').textContent(),/constraints still need attention/);
-    assert.equal(await page.evaluate(()=>game.challenge.completedAt),null);
+    await page.waitForFunction(()=>!dailyFinishing);
+    assert.match(await page.locator('#challengeStatus').textContent(),/Finished and saved/);
+    assert(await page.evaluate(()=>game.challenge.completedAt));
     await page.locator('#btnChallengeReturn').click();
-    // A fixture built from eligible exact references must meet every rule.
+    // Keep editing and update the finished image with a fuller planting.
     await page.evaluate(()=>{
       for(const layer of ['plants','bulbs'])for(const key of Object.keys(game[layer]))if(!game[layer][key].dailySiteId)clearTile(layer,key);
-      const c=game.challenge, refs=dailyEligiblePalette(c,activeFilters()), group=c.rules.find(r=>r.kind==='group');
-      const count=c.rules.find(r=>r.kind==='species').min, chosen=new Map();
-      const add=ref=>{if(chosen.size<count)chosen.set(dailySpeciesId(ref),ref);};
-      refs.filter(ref=>group.keys.includes(ref.s)).slice(0,group.min).forEach(add);refs.forEach(add);
+      const refs=dailyEligiblePalette(game.challenge,activeFilters()).slice(0,4);
       const beds=Object.keys(game.terrain).filter(k=>game.terrain[k].k==='bed'&&!game.plants[k]?.dailySiteId);
       let i=0;
-      for(const ref of chosen.values())for(let n=0;n<3;n++){
+      for(const ref of refs)for(let n=0;n<3;n++){
         setTile(PLANTS[ref.s].type==='bulb'?'bulbs':'plants',beds[i++],{...ref,d:0,t:Date.now()});
       }
     });
     await page.screenshot({path:path.join(output,name+'-garden.png')});
     await page.locator('#btnMenu').click(); await page.locator('#btnChallenge').click();
     assert(await page.locator('#challengeGoals input').first().isChecked());
-    assert.equal(await page.locator('#challengeRules .daily-rule-met').count(),4,'live placement data meets every tracked rule');
+    assert.equal(await page.locator('#challengeRulesOptions, #challengeStrict').count(),0);
     await page.locator('#btnChallengeFinish').click();
     await page.locator('#challengeShare').waitFor({state:'visible'});
     assert.match(await page.locator('#challengeStatus').textContent(),/Finished and saved/);
@@ -204,11 +241,14 @@ async function check(browser,url,name,viewport,isMobile){
     await page.locator('#btnChallengeClose').click(); await page.locator('#btnMenu').click(); await page.locator('#btnQuit').click();
     await page.locator('#btnDaily').click(); await page.waitForFunction(()=>!document.getElementById('btnDailyStart').disabled);
     assert.match(await page.locator('#btnDailyStart').textContent(),/Continue/);
+    assert.match(await page.locator('#dailyResumeStatus').textContent(),/Finished/);
+    assert.equal(await page.locator('#dailyBriefDetails').evaluate(el=>el.open),false);
+    await page.screenshot({path:path.join(output,name+'-resume-finished.png')});
     await page.locator('#btnDailyStart').click(); await page.waitForFunction(id=>game.inGarden&&game.worldId===id,initial.id); await page.locator('#gardenOpening').waitFor({state:'hidden'});
     assert.equal(await page.evaluate(()=>game.worldId),initial.id);
     const saved=await page.evaluate(async()=>{await pendingSaves();return sGet('hortus:world:'+game.worldId);});
     assert.equal(saved.challenge.title,brief); assert(saved.challenge.completedAt); assert.deepEqual(saved.challenge.checked,[0]);
-    assert(saved.challenge.strict&&saved.challenge.v===3);assert.deepEqual(saved.challenge.palette,initial.challenge.palette);
+    assert(!('strict' in saved.challenge)&&!('rules' in saved.challenge)&&saved.challenge.v===3);assert.deepEqual(saved.challenge.palette,initial.challenge.palette);
     assert.deepEqual(saved.challenge.share,{format:'story',season:'Winter'});
     assert(Object.keys(saved.plants).length>0);
     // A full reload exercises the actual IndexedDB resume path.
@@ -230,10 +270,40 @@ async function check(browser,url,name,viewport,isMobile){
     await page.locator('#btnDaily').click();await page.waitForFunction(()=>dailyReady);
     assert.equal(await page.locator('#dailyTitle').textContent(),'Original saved brief');
     assert.match(await page.locator('#btnDailyStart').textContent(),/Continue/);
-    assert(await page.locator('#dailyRulesOptions').evaluate(el=>el.classList.contains('hidden')));
+    assert.equal(await page.locator('#dailyRulesOptions').count(),0);
     await page.locator('#btnDailyStart').click();await page.waitForFunction(id=>game.inGarden&&game.worldId===id,initial.id);
     assert.equal(await page.evaluate(()=>game.challenge.v),1);
-    assert.deepEqual(errors,[]); console.log(name+' curated palette, climate fallback, strict progress, finish, PNG and reload PASS');
+    assert.deepEqual(errors,[]); console.log(name+' suggested palette, climate fallback, free completion, PNG and reload PASS');
+  }finally{await context.close();}
+}
+async function checkNewBriefs(browser,url){
+  const context=await browser.newContext({viewport:{width:320,height:640},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+  try{
+    await context.addInitScript(()=>localStorage.setItem('hortus:welcomed','1'));
+    const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(url,{waitUntil:'load'});await page.evaluate(()=>document.fonts.ready);
+    for(const id of ['patio-view-1','entrance-3']){
+      await page.evaluate(id=>{
+        dailySelection=Array.from({length:DAILY_THEMES.length*3},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.id===id);
+        dailyResumeId=null;dailyReady=true;dailyCriteria=normalizeFilters({zone:11});renderDailyEntry();show('dailyScreen');
+        document.querySelector('#dailyScreen .panel').scrollTop=0;
+      },id);
+      assert(await page.locator('#btnDailyStart').isDisabled());
+      const geometry=await page.locator('#dailyScreen .panel').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth}));
+      assert(geometry.scroll<=geometry.width+1,'new brief fits the small phone');
+      await page.screenshot({path:path.join(output,'new-'+id+'-brief.png')});
+      await page.locator('#btnDailyPalette').click();
+      await page.locator('#btnDailyStart').click();await page.locator('#gardenOpening').waitFor({state:'hidden'});
+      const state=await page.evaluate(async()=>{
+        await pendingSaves();return {inGarden:game.inGarden,id:game.challenge.id,zone:game.filters.zone,
+          free:game.challenge.paletteFree,saved:(await sGet('hortus:world:'+game.worldId)).challenge.paletteFree,
+          choices:discoveryRefsFor({source:'all'}).length};
+      });
+      assert(state.inGarden&&state.free&&state.saved,'full catalog really starts and saves');
+      assert.equal(state.id,id);assert.equal(state.zone,11);assert(state.choices>10,'wider catalog retains suitable plants');
+      await page.locator('#btnMenu').click();await page.locator('#btnQuit').click();
+    }
+    assert.deepEqual(errors,[]);console.log('new briefs and full-catalog starts on small phone PASS');
   }finally{await context.close();}
 }
 async function checkSites(browser,url,viewport,isMobile){
@@ -244,7 +314,7 @@ async function checkSites(browser,url,viewport,isMobile){
     await page.goto(url,{waitUntil:'load'});await page.evaluate(()=>document.fonts.ready);
     for(const kind of ['woodland','narrow','patio','slope','hollow','gravel','corner']){
       const frozen=await page.evaluate(kind=>{
-        dailySelection=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site===kind);
+        dailySelection=Array.from({length:DAILY_THEMES.length*3},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site===kind);
         dailyResumeId=null;dailyReady=true;dailyCriteria=normalizeFilters({zone:null});renderDailyEntry();show('dailyScreen');
         document.querySelector('#dailyScreen .panel').scrollTop=0;
         return JSON.stringify(dailySelection.sitePlan);
@@ -304,6 +374,7 @@ async function checkSites(browser,url,viewport,isMobile){
     await check(browser,url,'desktop',{width:1440,height:900},false);
     await check(browser,url,'phone',{width:390,height:844},true);
     await check(browser,url,'small-phone',{width:320,height:640},true);
+    await checkNewBriefs(browser,url);
     await checkSites(browser,url,{width:1440,height:900},false);
     await checkSites(browser,url,{width:320,height:640},true);
     console.log('Artifacts: '+output);

@@ -14,18 +14,37 @@ same unfiltered list), **Plant Library** (`btnLibrary` — browse every
 species: list + seasonal images + facts + cultivars), and **Daily design
 challenge** (`btnDaily` — an unscored daily brief with three design goals,
 a small prepared site, saved progress and an optional finish/share image).
-`DAILY_THEMES` defines 18 themes with three distinct composition exercises each,
-forming a 54-day rotation. Each theme owns ten exact species/cultivar references,
-three self-review goals and an authored plant group. The user's
+`DAILY_THEMES` defines 20 themes with three distinct composition exercises each,
+forming a 60-day rotation. Each theme owns ten exact species/cultivar suggestions
+and three self-review goals. View from the Patio and Welcoming Entrance add
+viewpoint, layering, arrival and reveal exercises to the planting-style themes. The user's
 local calendar date determines the prompt and the start screen freezes it
 across midnight. `openDaily` checks saved attempts before enabling Start,
 offers Continue for today's attempt and six recent designs. Every attempt
+with saved progress opens a compact resume view: saved status and a current
+saved-garden thumbnail above an initially collapsed original brief. The thumbnail
+uses `drawWorldThumb` on the saved blob, upgrading to a valid same-day saved
+portrait after decoding; no live garden is loaded or rendered. Late image loads
+are guarded by the open request and garden ID. New attempts show the full brief.
+Both daily headings split the saved `Theme: Exercise` wording into a small theme
+label and short exercise title, with unsplit legacy titles retained. A compact
+site preview and size summary lead; site descriptions are expandable. Review
+prompts are explicitly optional, with existing saved checks retained. Essential
+supporting text is at least 14px (date metadata 13px). Suggested plants use exact
+reference `libCanvas` previews in the labelled challenge season, plain-language
+roles derived from existing plant roles, and inline plant details built on demand
+from shared data/formatters/guidance. Cards use one column on phones. Filter
+changes update availability without recreating their artwork or expanded details;
+no new work runs in the frame loop or changes the live garden.
+Every attempt
 stores a bounded version-3 `challenge` snapshot through `normalizeDailyChallenge`
 in the existing version-2 garden blob: ID/date, wording, goals/checks,
-site/season, exact palette, objective rules, optional `strict` setting, palette
+site/season, exact palette, palette
 free choice, completion timestamp and an original `sitePlan` blueprint. Version-1
-snapshots retain their original wording and broad match rules without acquiring
-new constraints; version-2 snapshots keep their original palettes and rules. Resume matches
+snapshots retain their original wording and broad catalog match; version-2
+snapshots keep their original palettes. Retired `rules` and `strict` fields are
+discarded during normalization for every version: old attempts finish freely
+without losing their brief, goal checks or completion timestamp. Resume matches
 the saved calendar date, so changed template IDs cannot duplicate an older
 attempt on that day. Older untagged
 gardens remain ordinary planners. Metadata survives imports, exports, menu
@@ -60,23 +79,28 @@ remain plantable; hollow beds use soil at grade -1, not water. The terraced slop
 uses grade +1/+2 and dry-stone edges beside a level route. The woodland starts
 with a mature serviceberry, placed via `matureWoodyDraft` after the season is set,
 so it contributes real canopy shade. Its `dailySiteId` matches the saved context
-descriptor and excludes that one original from every daily plant count, including
-empty-finish and palette checks. Moves, undo and saved schemes preserve identity;
+descriptor and excludes that one original from the empty-finish plant count.
+Moves, undo and saved schemes preserve identity;
 selection copies strip it, and ordinary new plantings never receive it. Duplicate
 imported tags exempt at most one matching tree. Context remains editable/removable.
 Sites open in the brief's suggested season with the normal paused planner.
 `#challengeScreen` reopens the brief from the plant catalog or garden menu,
 saves self-reviewed goal checks, and allows unscored completion after adding
-plants. Optional constraints require the tracked species range, repeated species
-(three separate placements, not inferred visual groups), selected plant-group
-minimum and exact curated palette. Counts read the active plant and bulb layers
-when reviewing/finishing; tombstones and off-plot records do not count. Cultivars
-and renderer shape aliases share their base botanical identity. No new scan runs
-in the frame loop. Constraint toggles save with the garden and can be turned off
-to finish freely. Start previews the palette under the retained zone and regional
-guidance, reports unavailable choices and infeasible rules, and offers an explicit
-study-palette action to remove the zone limit. It never silently weakens a rule;
-regional invasive filtering still applies. Exact cultivar membership is enforced
+plants. There are no tracked constraints, quotas or required goal checkboxes.
+`dailyPlantCount` reads active plant and bulb layers only when finishing;
+tombstones, off-plot records and original context trees do not count. Plants
+outside the suggestions count normally. No new scan runs in the frame loop.
+Start previews the palette under the retained zone and regional guidance,
+reports unavailable choices, and offers explicit choices to remove the zone
+limit (study palette) or use the full catalog with the current filters.
+An empty suggested palette blocks a new start only while that palette is active;
+resuming is always allowed. The any-zone action changes only the zone filter;
+the UI calls this action **Show all hardiness zones**. Plant-selection controls
+consistently say **Use suggested plants** / **Use all plants**, separately from
+the hardiness filter. A blocked Start has its reason and a corrective action
+beside it in the sticky footer: remove the zone limit, or select All plants if
+the zone is already unrestricted. Resolving it focuses the enabled Start button.
+Regional invasive filtering still applies. Exact cultivar membership is enforced
 through the shared catalog eligibility pipeline, including saved collections;
 palette edits/free choice are in both catalog and tray cache keys. Finish only
 reports saved completion after a successful save. Both daily panels lead with
