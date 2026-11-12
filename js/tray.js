@@ -2623,7 +2623,7 @@ function renderDiscoveryTrayInner(tray){
   if (game.challenge){
     const ch=document.createElement('div'); ch.className='discovery-challenge';
     const txt=document.createElement('button'); txt.type='button'; txt.className='discovery-challenge-clear';
-    txt.textContent=`Brief & finish · ${game.challenge.title||"today's prompt"}`;
+    txt.textContent='View brief';txt.title=game.challenge.title||"Today's prompt";
     txt.onclick=openChallengeBrief;
     const free=document.createElement('button'); free.type='button'; free.className='discovery-challenge-clear';
     free.textContent=game.challenge.paletteFree?'Use suggested plants':'Use all plants';
@@ -2631,7 +2631,10 @@ function renderDiscoveryTrayInner(tray){
     free.onclick=()=>{ game.challenge.paletteFree=!game.challenge.paletteFree; markModelChanged(); buildToolTray(); updateFilterBtn&&updateFilterBtn();
       toast(game.challenge.paletteFree?'All plants — current filters still apply.':'Suggested plants selected.'); };
     free.classList.toggle('hidden',!game.challenge.match&&!game.challenge.palette);
-    ch.append(txt,free); tray.appendChild(ch);
+    const finish=document.createElement('button');finish.type='button';finish.className='discovery-challenge-clear discovery-challenge-finish';
+    finish.textContent=game.challenge.completedAt?'Save & share design':'Finish design';
+    finish.onclick=finishDailyDesign;
+    ch.append(txt,finish,free); tray.appendChild(ch);
   }
   if (!refs.length){
     discoveryOpenSpecies=null;

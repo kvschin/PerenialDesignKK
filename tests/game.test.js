@@ -10507,14 +10507,25 @@ test('sharing formats fit the complete garden and keep image text within the car
   }finally{renderGardenPortrait=render;}
 });
 
-test('closing the brief during finish cannot recreate its share image after saving',async()=>{
+test('closing the result during finish cannot recreate its share image after saving',async()=>{
   setup();game.challenge=dailyChallengeFor();setTile('plants','1,1',{s:game.challenge.palette[0].s,d:0,t:1});
   const save=saveSolo,share=prepareDailyShare,portrait=captureGardenPortrait;let generated=0;
   try{
     captureGardenPortrait=()=>null;prepareDailyShare=async()=>{generated++;};
-    saveSolo=async()=>{closeOverlay('challengeScreen');return true;};
+    saveSolo=async()=>{closeOverlay('challengeFinishScreen');return true;};
     await finishDailyDesign();assertEqual(generated,0);assert(game.challenge.completedAt,'completion still saves');
   }finally{saveSolo=save;prepareDailyShare=share;captureGardenPortrait=portrait;}
+});
+
+test('reading a finished daily brief neither saves completion nor generates an image',()=>{
+  setup();game.challenge=dailyChallengeFor();game.challenge.completedAt=123;
+  const save=saveSolo,share=prepareDailyShare;let saves=0,images=0;
+  try{
+    saveSolo=async()=>{saves++;return true;};prepareDailyShare=async()=>{images++;};
+    openChallengeBrief();
+    assertEqual(game.challenge.completedAt,123);assertEqual(saves,0);assertEqual(images,0);
+    assert($('challengeFinishScreen').classList.contains('hidden'));
+  }finally{saveSolo=save;prepareDailyShare=share;closeOverlay('challengeScreen');}
 });
 
 test('new daily palette badges count exact choices',()=>{
@@ -10574,7 +10585,7 @@ test('the daily brief leads with the task and keeps its actions on screen',()=>{
      unchecked goal was a white native square on the dark panel. */
   const html=readRepoFile('index.html'), css=readRepoFile('styles.css');
   const panel=id=>{const a=html.indexOf('id="'+id+'"');return html.slice(a,html.indexOf('\n</div>',a));};
-  const daily=panel('dailyScreen'), brief=panel('challengeScreen');
+  const daily=panel('dailyScreen'), brief=panel('challengeScreen'), finishScreen=panel('challengeFinishScreen');
   assert(/class="daily-brief" id="dailyBrief"/.test(daily)&&/class="daily-brief" id="challengeBrief"/.test(brief),
     'both briefs carry the lead style');
   assert(daily.indexOf('id="dailyBrief"')<daily.indexOf('daily-intro'),'the task comes before the boilerplate');
@@ -10584,7 +10595,9 @@ test('the daily brief leads with the task and keeps its actions on screen',()=>{
   const footer=(s,ids)=>{const f=s.slice(s.indexOf('class="daily-footer"')), end=f.indexOf('\n    </div>\n');
     return ids.every(id=>{const i=f.indexOf(id);return i>0&&i<end;})&&f.slice(end).startsWith('\n    </div>\n  </div>');};
   assert(footer(daily,['id="dailyStatus"','data-back','id="btnDailyStart"']),'start screen: status, back and Start share the last-child footer');
-  assert(footer(brief,['id="challengeStatus"','id="btnChallengeReturn"','id="btnChallengeFinish"']),'brief: status, return and Finish share the last-child footer');
+  assert(footer(brief,['id="btnChallengeReturn"']),'brief ends with a return action');
+  assert(!brief.includes('id="challengeShare"')&&!brief.includes('id="btnChallengeFinish"'),'reading the brief cannot finish or share');
+  assert(footer(finishScreen,['id="challengeStatus"','id="btnChallengeFinishReturn"','id="btnChallengeSaveRetry"']),'result ends with save status and return/retry actions');
   assert(!/dailyRules|challengeRules|dailyStrict|challengeStrict/.test(daily+brief),'retired constraint controls are absent');
   const rule=sel=>{const i=css.indexOf(sel+'{');assert(i>=0,'rule exists: '+sel);return css.slice(i,css.indexOf('}',i));};
   assert(/position:sticky/.test(rule('.daily-footer'))&&/bottom:0/.test(rule('.daily-footer')),'the footer sticks');
@@ -10600,7 +10613,7 @@ test('the daily brief leads with the task and keeps its actions on screen',()=>{
   // above the footer: the footer's button stops competing with it.
   const finish=$('btnChallengeFinish');
   syncChallengeFinishButton(true);
-  assert(!finish.classList.contains('primary')&&/Update/.test(finish.textContent),'a finished design demotes Finish');
+  assert(!finish.classList.contains('primary')&&/Save & share/.test(finish.textContent),'finished designs can save and share further edits');
   syncChallengeFinishButton(false);
   assert(finish.classList.contains('primary')&&finish.textContent==='Finish design','and an unfinished one restores it');
 });

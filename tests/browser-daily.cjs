@@ -46,7 +46,7 @@ async function checkShareOptions(page,name){
     const download=await event;await download.saveAs(path.join(output,name+'-'+format+'-'+season+'.png'));
     await page.locator('#challengeShareFormat').scrollIntoViewIfNeeded();
     await page.screenshot({path:path.join(output,name+'-'+format+'-'+season+'-controls.png')});
-    const geometry=await page.locator('#challengeScreen .panel').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth}));
+    const geometry=await page.locator('#challengeFinishScreen .panel').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth}));
     assert(geometry.scroll<=geometry.width+1,'sharing options fit the phone panel');
   }
   assert.equal(seasons.size,4,'four distinct seasonal images');
@@ -106,12 +106,12 @@ async function checkShareOptions(page,name){
   await page.evaluate(async()=>{const jobs=window.__encoders.splice(0);await jobs[1]();await jobs[0]();});
   await ready();assert.equal(await page.evaluate(()=>dailyShareImage.season),'Winter');
   assert.equal(await page.evaluate(()=>window.__liveShareURLs.size),1,'only the newest result has a live URL');
-  await page.locator('#challengeShareFormat').selectOption('story');await page.locator('#btnChallengeClose').click();
+  await page.locator('#challengeShareFormat').selectOption('story');await page.locator('#btnChallengeFinishClose').click();
   await page.evaluate(async()=>{
     await window.__encoders.shift()();HTMLCanvasElement.prototype.toBlob=window.__realEncode;
   });
   assert.equal(await page.evaluate(()=>dailyShareImage),null);assert.equal(await page.evaluate(()=>window.__liveShareURLs.size),0);
-  await page.evaluate(()=>{URL.createObjectURL=window.__makeURL;URL.revokeObjectURL=window.__dropURL;openChallengeBrief();});await ready();
+  await page.evaluate(()=>{URL.createObjectURL=window.__makeURL;URL.revokeObjectURL=window.__dropURL;openChallengeFinish();prepareDailyShare();});await ready();
   assert.equal(await page.locator('#challengeShareFormat').inputValue(),'story');assert.equal(await page.locator('#challengeShareSeason').inputValue(),'Winter');
   assert.equal(await state(),before,'all error and cancellation paths preserve the garden');
   console.log(name+' sharing formats, seasons, capabilities, cancellation, retry and stale-result cleanup PASS');
@@ -179,11 +179,15 @@ async function check(browser,url,name,viewport,isMobile){
     assert.equal(await page.evaluate(()=>discoveryRefsFor({source:'all'}).length),10,'only ten exact plant choices enter the catalog');
     assert(initial.terrain.includes('bed')&&initial.terrain.includes('path')); assert(initial.gw<=20&&initial.gh<=16);
     await page.locator('#btnMenu').click(); await page.locator('#btnChallenge').click();
-    await page.locator('#btnChallengeFinish').click();
-    assert.match(await page.locator('#challengeStatus').textContent(),/Add some plants/);
+    assert.equal(await page.locator('#challengeScreen #btnChallengeFinish, #challengeScreen #challengeShare').count(),0,'brief is independent of finishing');
     await page.locator('#challengeGoals input').first().check();
     await page.keyboard.press('Escape');
     assert(await page.locator('#challengeScreen').evaluate(el=>el.classList.contains('hidden')));
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'btnMenu');
+    await page.locator('#btnMenu').click();await page.locator('#btnChallengeFinish').click();
+    assert.match(await page.locator('#challengeStatus').textContent(),/Add some plants/);
+    await page.keyboard.press('Escape');
+    assert(await page.locator('#challengeFinishScreen').isHidden());
     assert.equal(await page.evaluate(()=>document.activeElement.id),'btnMenu');
     // Returning before finishing leads with the saved garden, not the setup.
     await page.locator('#btnMenu').click();await page.locator('#btnQuit').click();
@@ -204,12 +208,12 @@ async function check(browser,url,name,viewport,isMobile){
       game.challenge.rules=[{kind:'species',min:6,max:6,label:'Six species'},{kind:'palette',label:'Palette'}];
       const ref=game.challenge.palette[0];setTile(PLANTS[ref.s].type==='bulb'?'bulbs':'plants','2,2',{...ref,d:0,t:Date.now()});
     });
-    await page.locator('#btnMenu').click();await page.locator('#btnChallenge').click();
+    await page.locator('#btnMenu').click();
     await page.locator('#btnChallengeFinish').click();
     await page.waitForFunction(()=>!dailyFinishing);
     assert.match(await page.locator('#challengeStatus').textContent(),/Finished and saved/);
     assert(await page.evaluate(()=>game.challenge.completedAt));
-    await page.locator('#btnChallengeReturn').click();
+    await page.locator('#btnChallengeFinishReturn').click();
     // Keep editing and update the finished image with a fuller planting.
     await page.evaluate(()=>{
       for(const layer of ['plants','bulbs'])for(const key of Object.keys(game[layer]))if(!game[layer][key].dailySiteId)clearTile(layer,key);
@@ -224,12 +228,15 @@ async function check(browser,url,name,viewport,isMobile){
     await page.locator('#btnMenu').click(); await page.locator('#btnChallenge').click();
     assert(await page.locator('#challengeGoals input').first().isChecked());
     assert.equal(await page.locator('#challengeRulesOptions, #challengeStrict').count(),0);
+    await page.locator('#btnChallengeReturn').click();await page.locator('#btnMenu').click();
     await page.locator('#btnChallengeFinish').click();
     await page.locator('#challengeShare').waitFor({state:'visible'});
     assert.match(await page.locator('#challengeStatus').textContent(),/Finished and saved/);
-    const geometry=await page.locator('#challengeScreen .panel').evaluate(el=>({scroll:el.scrollWidth,width:el.clientWidth,top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom}));
+    assert.equal(await page.locator('#challengeFinishTitle').textContent(),'Design saved');
+    const geometry=await page.locator('#challengeFinishScreen .panel').evaluate(el=>({scroll:el.scrollWidth,width:el.clientWidth,top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom}));
     assert(geometry.scroll<=geometry.width+1,'no horizontal overflow'); assert(geometry.top>=0&&geometry.bottom<=viewport.height,'dialog fits viewport');
-    await page.locator('#challengeImage').scrollIntoViewIfNeeded();
+    await page.waitForFunction(()=>dailyShareImage&&!dailyFinishing&&document.getElementById('challengeImage').naturalWidth>0);
+    await page.locator('#challengeFinishScreen .panel').evaluate(el=>{el.scrollTop=0;});
     await page.screenshot({path:path.join(output,name+'-finish.png')});
     const downloaded=page.waitForEvent('download'); await page.locator('#btnChallengeDownload').click();
     const download=await downloaded, file=path.join(output,name+'-share.png'); await download.saveAs(file);
@@ -238,7 +245,7 @@ async function check(browser,url,name,viewport,isMobile){
     const shared=await page.evaluate(()=>window.__sharedFile); assert.equal(shared.name,download.suggestedFilename()); assert(shared.size>1000);
     assert.match(await page.locator('#challengeStatus').textContent(),/Finished and saved/,'cancelling the native share dialog is harmless');
     await checkShareOptions(page,name);
-    await page.locator('#btnChallengeClose').click(); await page.locator('#btnMenu').click(); await page.locator('#btnQuit').click();
+    await page.locator('#btnChallengeFinishClose').click(); await page.locator('#btnMenu').click(); await page.locator('#btnQuit').click();
     await page.locator('#btnDaily').click(); await page.waitForFunction(()=>!document.getElementById('btnDailyStart').disabled);
     assert.match(await page.locator('#btnDailyStart').textContent(),/Continue/);
     assert.match(await page.locator('#dailyResumeStatus').textContent(),/Finished/);
@@ -274,6 +281,32 @@ async function check(browser,url,name,viewport,isMobile){
     await page.locator('#btnDailyStart').click();await page.waitForFunction(id=>game.inGarden&&game.worldId===id,initial.id);
     assert.equal(await page.evaluate(()=>game.challenge.v),1);
     assert.deepEqual(errors,[]); console.log(name+' suggested palette, climate fallback, free completion, PNG and reload PASS');
+  }finally{await context.close();}
+}
+async function checkHardinessPreference(browser,url){
+  const context=await browser.newContext({serviceWorkers:'block'});
+  try{
+    await context.addInitScript(()=>localStorage.setItem('hortus:welcomed','1'));
+    const page=await context.newPage();await page.goto(url,{waitUntil:'load'});
+    await page.locator('#btnDaily').click();await page.waitForFunction(()=>dailyReady);
+    assert.equal(await page.evaluate(()=>dailyCriteria.zone),null,'first visit has no assumed zone');
+    await page.locator('#dailyScreen [data-back]').click();
+    await page.evaluate(async()=>{applyGardenCriteria({zone:5,nativeRegion:'europe'},{refresh:false,announce:false});await sSet('hortus:filters',game.filters);});
+    await page.reload({waitUntil:'load'});await page.waitForFunction(()=>game.filters.zone===5);
+    await page.locator('#btnDaily').click();await page.waitForFunction(()=>dailyReady);
+    assert.equal(await page.evaluate(()=>dailyCriteria.zone),5,'explicit numbered zone survives reload');
+    await page.locator('#btnDailyStudy').click();
+    await page.waitForFunction(async()=>{const f=await sGet('hortus:filters');return f&&f.zone===null;});
+    assert.equal(await page.evaluate(()=>dailySelection.paletteFree),false,'zone choice does not change suggested plants');
+    await page.reload({waitUntil:'load'});await page.locator('#btnDaily').click();await page.waitForFunction(()=>dailyReady);
+    const criteria=await page.evaluate(()=>dailyCriteria);
+    assert.equal(criteria.zone,null,'all zones survives leaving before starting and a reload');
+    assert.equal(criteria.nativeRegion,'europe','regional guidance is retained');
+    await page.locator('#dailyScreen [data-back]').click();
+    await page.evaluate(()=>{game.filters=normalizeFilters({zone:5,nativeRegion:'north-america'});});
+    await page.locator('#btnDaily').click();await page.waitForFunction(()=>dailyReady);
+    assert.equal(await page.evaluate(()=>dailyCriteria.zone),null,'an older garden cannot replace the preference for new challenges');
+    console.log('first-visit, numbered-zone and all-zone preferences PASS');
   }finally{await context.close();}
 }
 async function checkNewBriefs(browser,url){
@@ -341,9 +374,9 @@ async function checkSites(browser,url,viewport,isMobile){
       if(kind==='hollow')assert(initial.heights.every(h=>h===-1));
       if(kind==='corner')assert(initial.shape&&initial.shape.length===4);
       await page.screenshot({path:path.join(output,prefix+'-garden.png')});
-      await page.locator('#btnMenu').click();await page.locator('#btnChallenge').click();
+      await page.locator('#btnMenu').click();
       await page.locator('#btnChallengeFinish').click();assert.match(await page.locator('#challengeStatus').textContent(),/Add some plants/);
-      await page.locator('#btnChallengeReturn').click();
+      await page.locator('#btnChallengeFinishReturn').click();
       // Edits travel through real tools, storage and reopening, never the generator.
       const edited=await page.evaluate(async()=>{
         const key=Object.keys(game.terrain).find(k=>game.terrain[k].k==='bed'&&!game.plants[k]),[x,y]=key.split(',').map(Number);
@@ -371,6 +404,7 @@ async function checkSites(browser,url,viewport,isMobile){
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     browser=await playwright().chromium.launch({executablePath,headless:true});
     const url='http://127.0.0.1:'+server.address().port;
+    await checkHardinessPreference(browser,url);
     await check(browser,url,'desktop',{width:1440,height:900},false);
     await check(browser,url,'phone',{width:390,height:844},true);
     await check(browser,url,'small-phone',{width:320,height:640},true);

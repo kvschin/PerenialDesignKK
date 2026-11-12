@@ -84,14 +84,27 @@ Moves, undo and saved schemes preserve identity;
 selection copies strip it, and ordinary new plantings never receive it. Duplicate
 imported tags exempt at most one matching tree. Context remains editable/removable.
 Sites open in the brief's suggested season with the normal paused planner.
-`#challengeScreen` reopens the brief from the plant catalog or garden menu,
-saves self-reviewed goal checks, and allows unscored completion after adding
-plants. There are no tracked constraints, quotas or required goal checkboxes.
+`#challengeScreen` reopens the brief from the separate **View brief** action in
+the plant catalog or garden menu and saves self-reviewed goal checks. It never
+marks completion or generates sharing images. **Finish design** opens
+`#challengeFinishScreen`, saves completion after adding plants, then leads with
+**Design saved** and image/download/share controls. Finished gardens offer
+**Save & share design** to capture subsequent edits. The result screen has its
+own close/Keep designing actions and a retry for failed saves; it participates
+in keyboard focus trapping, Escape, viewport sizing, and garden-exit cleanup.
+Closing it invalidates pending image work. There are no tracked constraints,
+quotas or required goal checkboxes.
 `dailyPlantCount` reads active plant and bulb layers only when finishing;
 tombstones, off-plot records and original context trees do not count. Plants
 outside the suggestions count normally. No new scan runs in the frame loop.
 Start previews the palette under the retained zone and regional guidance,
-reports unavailable choices, and offers explicit choices to remove the zone
+preserving a null zone as **all zones**, including on the first visit. Choosing
+all zones explicitly writes the existing `hortus:filters` preference even before
+starting a garden; the in-garden action uses `applyGardenCriteria` to persist the
+same preference and preserve other criteria. New attempts read that stored
+preference rather than inheriting an older garden's filters; saved attempts keep
+their own criteria. No zone-6 fallback is applied.
+Start reports unavailable choices, and offers explicit choices to remove the zone
 limit (study palette) or use the full catalog with the current filters.
 An empty suggested palette blocks a new start only while that palette is active;
 resuming is always allowed. The any-zone action changes only the zone filter;
@@ -103,14 +116,15 @@ the zone is already unrestricted. Resolving it focuses the enabled Start button.
 Regional invasive filtering still applies. Exact cultivar membership is enforced
 through the shared catalog eligibility pipeline, including saved collections;
 palette edits/free choice are in both catalog and tray cache keys. Finish only
-reports saved completion after a successful save. Both daily panels lead with
+reports saved completion after a successful save. Daily panels lead with
 the brief as 16px `.daily-brief` text and end in a sticky `.daily-footer`
 (status, the way back, the primary action) that **must stay the panel's last
 child**: a sticky box sticks inside its scroller's padding, so the footer owns
 the panel's bottom padding (`.panel.daily-panel{padding-bottom:0}`), bleeds by
 `--panel-pad`, and lays the surface twice to be opaque. Status copy there is
-kept to a line. Once finished, the footer's button drops to secondary so the
-share section's Download is the only primary. Dates display through
+kept to a line. The result screen leads with the image and Download/Share, with
+format and season controls below; its footer offers Keep designing and a save
+retry only when needed. Dates display through
 `dailyDateLabel` (the ISO key stays the storage key and file name); site sizes
 through `dailySiteText`/`fmtFeet`, because saved snapshots keep their authored
 imperial text. Images
@@ -132,7 +146,7 @@ from the click, with no preceding encoding await; only one device share can be
 pending. Cancellation keeps the download available, and failure explains that
 fallback. Sharing never implies a post was published. Image changes disable
 stale actions; request tokens discard out-of-order encodes, and closing the
-brief invalidates pending work and revokes its object URL. The gardener chooses
+result screen invalidates pending work and revokes its object URL. The gardener chooses
 whether and where to post. Physical-phone/Instagram acceptance is recorded
 separately from the mocked browser handoff checks in `docs/browser-release-checks.md`. Top
 right is a `.menu-corner` flex row of two labelled pills —

@@ -477,7 +477,9 @@ function renderDailyEntry(){
   $('btnDailyResolve').classList.toggle('hidden',!blocked);
   $('btnDailyResolve').textContent=dailyCriteria.zone?'Show all hardiness zones':'Use all plants';
   $('btnDailyStudy').classList.toggle('hidden',!!dailyResumeId||!dailyCriteria.zone);
+  $('btnDailyStudy').disabled=!dailyReady;
   $('btnDailyPalette').classList.toggle('hidden',!!dailyResumeId||!c.palette);
+  $('btnDailyPalette').disabled=!dailyReady;
   $('btnDailyPalette').textContent=c.paletteFree?'Use suggested plants':'Use all plants';
   $('btnDailyStart').disabled=!dailyReady||(!dailyResumeId&&c.palette&&!c.paletteFree&&!available.length);
 }
@@ -553,7 +555,7 @@ async function openDaily(){
   $('dailyBriefDetails').open=true;
   $('dailyResumePreview').replaceChildren();
   const prior=normalizeFilters(game.filters);
-  dailyCriteria=normalizeFilters({zone:prior.zone||6,nativeRegion:prior.nativeRegion,invasive:prior.invasive});
+  dailyCriteria=normalizeFilters({zone:prior.zone,nativeRegion:prior.nativeRegion,invasive:prior.invasive});
   $('dailyDate').textContent=dailyDateLabel(c.date);
   $('btnDailyStart').textContent='Checking saved designs…'; $('btnDailyStart').disabled=true;
   $('dailyHistory').replaceChildren();
@@ -565,7 +567,9 @@ async function openDaily(){
   show('dailyScreen');
   try{
     await pendingSaves(); await worldsIndexChain;
-    const idx=hasStorage?await migrateLegacyWorld():[];
+    const [idx,storedCriteria]=await Promise.all([
+      hasStorage?migrateLegacyWorld():[],hasStorage?sGet('hortus:filters'):null
+    ]);
     const saved=await Promise.all(idx.map(async row=>{
       const blob=await sGet('hortus:world:'+row.id), challenge=normalizeDailyChallenge(blob&&blob.challenge);
       return challenge?{...row,challenge,criteria:normalizeFilters(blob.design),blob}:null;
@@ -583,7 +587,13 @@ async function openDaily(){
       renderDailyResume(today.blob,request,today.id);
       // Short: this rides the sticky footer, beside a button that already says "Continue".
       $('dailyStatus').textContent=today.challenge.completedAt?'Finished. Reopen it to edit or share it.':'Your design is saved.';
-    } else if(!hasStorage) $('dailyStatus').textContent='Storage is unavailable. This design will last for this session; export the garden file to keep it.';
+    } else {
+      // Loading an older garden must not replace the user's preference for
+      // future challenges. Existing attempts still keep their own criteria.
+      const preferred=normalizeFilters(storedCriteria||prior);
+      dailyCriteria=normalizeFilters({zone:preferred.zone,nativeRegion:preferred.nativeRegion,invasive:preferred.invasive});
+      if(!hasStorage)$('dailyStatus').textContent='Storage is unavailable. This design will last for this session; export the garden file to keep it.';
+    }
     for(const row of designs.filter(row=>row.id!==dailyResumeId).slice(0,6)){
       const b=document.createElement('button'); b.className='daily-history-item'; b.type='button';
       b.textContent=`${row.challenge.completedAt?'Finished':'In progress'} · ${row.challenge.title} · ${dailyDateLabel(row.challenge.date)}`;
@@ -675,26 +685,33 @@ $('btnDailyPalette').onclick=()=>{
   if(!dailySelection||dailyResumeId)return;
   dailySelection.paletteFree=!dailySelection.paletteFree; renderDailyEntry();
 };
-$('btnDailyStudy').onclick=()=>{dailyCriteria={...dailyCriteria,zone:null};renderDailyEntry();};
+function useDailyAnyZone(){
+  dailyCriteria={...dailyCriteria,zone:null};
+  // This is an explicit preference, even if the gardener leaves before starting.
+  game.filters=normalizeFilters({...game.filters,zone:null,
+    nativeRegion:dailyCriteria.nativeRegion,invasive:dailyCriteria.invasive});
+  sSet('hortus:filters',game.filters);
+  renderDailyEntry();
+}
+$('btnDailyStudy').onclick=useDailyAnyZone;
 $('btnDailyResolve').onclick=()=>{
   if(!dailySelection||dailyResumeId)return;
-  if(dailyCriteria.zone)dailyCriteria={...dailyCriteria,zone:null};
+  if(dailyCriteria.zone)useDailyAnyZone();
   else dailySelection.paletteFree=true;
   renderDailyEntry();
   if(!$('btnDailyStart').disabled)$('btnDailyStart').focus();
 };
-/* Once a design is finished, Download in the share section is the thing to do
-   next, and the sticky footer sits directly under it: two bronze buttons one
-   above the other. Finishing again drops to secondary. */
+/* Both entry points lead to the saved-image screen; reading the brief never
+   saves a completion timestamp or prepares an image. */
 function syncChallengeFinishButton(done){
   const b=$('btnChallengeFinish');
-  b.textContent=done?'Update finished design':'Finish design';
+  b.textContent=done?'Save & share design':'Finish design';
   b.classList.toggle('primary',!done);
+  document.querySelectorAll('.discovery-challenge-finish').forEach(el=>{el.textContent=b.textContent;});
 }
 $('btnChallengeStudy').onclick=()=>{
-  game.filters=normalizeFilters({...game.filters,zone:null});
-  game.design=normalizeDesign({...game.design,...game.filters});
-  markModelChanged(); updateFilterBtn(); buildToolTray(); refreshChallengePalette();
+  applyGardenCriteria({...game.filters,zone:null},{announce:false});
+  markModelChanged(); refreshChallengePalette();
 };
 const DAILY_SHARE_FORMATS={
   portrait:{label:'Portrait',width:1080,height:1350},
@@ -721,7 +738,7 @@ function clearDailyShare(hide=true){
 }
 function openChallengeBrief(){
   const c=game.challenge; if(!normalizeDailyChallenge(c))return;
-  closeOverlay('gardenMenu',false); clearDailyShare();
+  closeOverlay('gardenMenu',false); closeOverlay('challengeFinishScreen',false);
   renderDailyHeading('challenge',c);
   $('challengeDate').textContent='Daily design · '+dailyDateLabel(c.date);
   $('challengeBrief').textContent=c.brief;
@@ -729,23 +746,31 @@ function openChallengeBrief(){
   $('challengePlants').textContent=c.plants;
   renderDailyGoals($('challengeGoals'),c,true);
   refreshChallengePalette();
-  // The status is in the sticky footer; the not-yet-finished guidance moved to
-  // the goals note, so the footer carries only something worth reading.
-  $('challengeStatus').textContent=c.completedAt?'Finished. Keep editing and update the image any time.':'';
-  syncChallengeFinishButton(!!c.completedAt);
-  $('btnChallengeFinish').disabled=dailyFinishing;
   const overlay=openOverlay('challengeScreen','#btnChallengeClose');
   // The menu row is hidden once the modal opens; return to its visible owner.
   if(overlay)overlay._returnFocus=$('btnMenu');
-  if(c.completedAt)prepareDailyShare();
+}
+function openChallengeFinish(){
+  const c=game.challenge;if(!c)return;
+  closeOverlay('gardenMenu',false);closeOverlay('challengeScreen',false);clearDailyShare();
+  $('challengeFinishTitle').textContent=c.completedAt?'Design saved':'Finish design';
+  $('challengeFinishName').textContent=c.title;
+  $('challengeStatus').textContent='';
+  $('btnChallengeSaveRetry').classList.add('hidden');
+  const overlay=openOverlay('challengeFinishScreen','#btnChallengeFinishClose');
+  if(overlay)overlay._returnFocus=$('btnMenu');
+  $('challengeFinishScreen').querySelector('.panel').scrollTop=0;
 }
 async function finishDailyDesign(){
   if(dailyFinishing||!game.challenge)return;
+  openChallengeFinish();
   if(!dailyPlantCount()){
+    $('challengeFinishTitle').textContent='Finish design';
     $('challengeStatus').textContent='Add some plants before finishing your design. The prepared site is your starting point.'; return;
   }
   const c=game.challenge, id=game.worldId, prior=c.completedAt,shareRequest=dailyShareRequest;
-  dailyFinishing=true; $('btnChallengeFinish').disabled=true;
+  dailyFinishing=true; $('btnChallengeFinish').disabled=true;$('btnChallengeSaveRetry').disabled=true;
+  $('challengeFinishTitle').textContent='Saving design…';
   try{
     c.completedAt=Date.now(); markModelChanged();
     try{ rememberGardenPortrait(captureGardenPortrait()); }catch(e){ noteError(e,'daily-portrait'); }
@@ -753,20 +778,18 @@ async function finishDailyDesign(){
     if(game.worldId!==id||game.challenge!==c)return;
     if(!saved){
       c.completedAt=prior; markModelChanged();
+      $('challengeFinishTitle').textContent='Design not saved';
+      $('btnChallengeSaveRetry').classList.remove('hidden');
       $('challengeStatus').textContent='The finished design could not be saved. Download the image now, and export the garden file from the menu to keep your work.';
     }else{
-      // One line: it rides the sticky footer, over the share section.
+      $('challengeFinishTitle').textContent='Design saved';
       $('challengeStatus').textContent='Finished and saved to Your gardens.';
       syncChallengeFinishButton(true);
     }
     if(shareRequest===dailyShareRequest){
       await prepareDailyShare();
-      if(dailyShareImage&&game.challenge===c&&!$('challengeScreen').classList.contains('hidden')){
-        $('challengeShare').scrollIntoView({block:'start',behavior:'auto'});
-        $('challengeShareFormat').focus({preventScroll:true});
-      }
     }
-  } finally { dailyFinishing=false; $('btnChallengeFinish').disabled=false; }
+  } finally { dailyFinishing=false; $('btnChallengeFinish').disabled=false;$('btnChallengeSaveRetry').disabled=false; }
 }
 function dailyShareMoment(options){
   const current=absDay(),s=SEASONS.indexOf(options.season);
@@ -853,10 +876,9 @@ $('challengeShareFormat').onchange=$('challengeShareSeason').onchange=()=>{
 };
 $('btnChallengeShareRetry').onclick=()=>prepareDailyShare();
 $('btnChallenge').onclick=openChallengeBrief;
-// The share section's own "Back to garden" went: the footer's Keep designing
-// sits directly under it now, and two ways out side by side read as two things.
 $('btnChallengeClose').onclick=$('btnChallengeReturn').onclick=()=>closeOverlay('challengeScreen');
-$('btnChallengeFinish').onclick=finishDailyDesign;
+$('btnChallengeFinishClose').onclick=$('btnChallengeFinishReturn').onclick=()=>closeOverlay('challengeFinishScreen');
+$('btnChallengeFinish').onclick=$('btnChallengeSaveRetry').onclick=finishDailyDesign;
 $('btnChallengeDownload').onclick=()=>{
   if(!dailyShareImage||dailyShareImage.worldId!==game.worldId)return;
   const a=document.createElement('a'); a.href=dailyShareImage.url; a.download=dailyShareImage.name;
@@ -1304,7 +1326,7 @@ if ($('importFile')) $('importFile').onchange=e=>{ importWorldFile(e.target.file
 document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{ show('menuScreen'); });
 
 function enterGarden(){
-  clearDailyShare(); closeOverlay('challengeScreen',false);
+  closeOverlay('challengeFinishScreen',false); closeOverlay('challengeScreen',false);
   beginGardenOpen(); // viewport setup can request a draw before the garden is ready
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
@@ -1360,6 +1382,8 @@ function enterGarden(){
   updateCompass();
   $('worldLabel').textContent = game.worldName||'My garden';
   $('btnChallenge').classList.toggle('hidden',!game.challenge);
+  $('btnChallengeFinish').classList.toggle('hidden',!game.challenge);
+  syncChallengeFinishButton(!!game.challenge?.completedAt);
   gardenOpening.ready=true;
   if (game.challenge)
     setTimeout(()=>{ if (game.challenge){
@@ -1952,7 +1976,7 @@ function openDesignSetup(){
   show('designScreen');
 }
 function quitToMenu(){
-  clearDailyShare(); closeOverlay('challengeScreen',false);
+  closeOverlay('challengeFinishScreen',false); closeOverlay('challengeScreen',false);
   finishGardenOpen();
   if (game.photoEditing) closeSitePhotoEdit(false);
   landSkipNow();                 // a Skip still preparing is still a Skip
@@ -3213,7 +3237,7 @@ function screenOpen(id){
 }
 function fullScreenRenderBlocked(){
   return screenOpen('libraryScreen') || screenOpen('guideScreen') ||
-    screenOpen('planScreen') || screenOpen('bloomScreen') || screenOpen('exportScreen') || screenOpen('challengeScreen');
+    screenOpen('planScreen') || screenOpen('bloomScreen') || screenOpen('exportScreen') || screenOpen('challengeScreen') || screenOpen('challengeFinishScreen');
 }
 function layerVisibilitySig(){
   const vis=game.layerVis||{};

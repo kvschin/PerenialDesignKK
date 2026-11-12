@@ -255,8 +255,30 @@ if ('serviceWorker' in navigator)
     <details class="daily-details" id="challengePaletteDetails"><summary>Suggested plants</summary><p class="note" id="challengePreviewSeason"></p><ul class="daily-plant-list" id="challengePlantList"></ul></details>
     <p class="note daily-availability" id="challengeAvailability" role="status"></p>
     <button class="back-link hidden" id="btnChallengeStudy">Show all hardiness zones</button>
+    <div class="daily-footer">
+      <div class="daily-footer-actions">
+        <button class="btn" type="button" id="btnChallengeReturn">Back to garden</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="screen modal-screen hidden" id="challengeFinishScreen" role="dialog" aria-modal="true" aria-labelledby="challengeFinishTitle">
+  <div class="panel daily-panel" tabindex="-1">
+    <div class="settings-head">
+      <div><span class="eyebrow">Daily design</span><h2 id="challengeFinishTitle">Finish design</h2></div>
+      <button id="btnChallengeFinishClose" class="settings-x" type="button" aria-label="Close saved design"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
+    </div>
+    <p class="note" id="challengeFinishName"></p>
+    <p class="note">You can return to editing any time. Download or share an image when you are ready.</p>
     <div id="challengeShare" class="hidden">
-      <h3 class="daily-label">Keep it. Share it.</h3>
+      <p class="note daily-status" id="challengeShareStatus" role="status" aria-live="polite"></p>
+      <div id="challengeImageFrame" class="daily-share-frame"><img id="challengeImage" class="daily-share-image" alt="Your daily garden design share image"></div>
+      <button class="btn hidden" id="btnChallengeShareRetry">Try preparing image again</button>
+      <div class="row daily-actions">
+        <button class="btn primary" id="btnChallengeDownload">Download image</button>
+        <button class="btn hidden" id="btnChallengeShare">Share image</button>
+      </div>
       <div class="daily-share-options">
         <label for="challengeShareFormat">Image format
           <select id="challengeShareFormat"><option value="portrait">Portrait · 4:5</option><option value="square">Square · 1:1</option><option value="story">Story · 9:16</option></select>
@@ -266,13 +288,6 @@ if ('serviceWorker' in navigator)
         </label>
       </div>
       <p class="note" id="challengeShareSeasonHint">Season previews show established plants. Your garden’s date and editing view stay as they are.</p>
-      <div id="challengeImageFrame" class="daily-share-frame"><img id="challengeImage" class="daily-share-image" alt="Your daily garden design share image"></div>
-      <p class="note daily-status" id="challengeShareStatus" role="status" aria-live="polite"></p>
-      <button class="btn hidden" id="btnChallengeShareRetry">Try preparing image again</button>
-      <div class="row daily-actions">
-        <button class="btn primary" id="btnChallengeDownload">Download image</button>
-        <button class="btn hidden" id="btnChallengeShare">Share image</button>
-      </div>
       <p class="note">Share opens your device’s app chooser. If Instagram isn’t offered, download the image and choose it when creating a post or story. Copy and paste the caption separately.</p>
       <label class="daily-label" for="challengeCaption">Suggested caption</label>
       <textarea id="challengeCaption" class="daily-caption" readonly rows="3"></textarea>
@@ -281,8 +296,8 @@ if ('serviceWorker' in navigator)
     <div class="daily-footer">
       <p class="note daily-status" id="challengeStatus" role="status" aria-live="polite"></p>
       <div class="daily-footer-actions">
-        <button class="back-link" type="button" id="btnChallengeReturn">Keep designing</button>
-        <button class="btn primary" type="button" id="btnChallengeFinish">Finish design</button>
+        <button class="back-link" type="button" id="btnChallengeFinishReturn">Keep designing</button>
+        <button class="btn hidden" type="button" id="btnChallengeSaveRetry">Try saving again</button>
       </div>
     </div>
   </div>
@@ -451,7 +466,8 @@ if ('serviceWorker' in navigator)
     <h2 id="worldLabel">My garden</h2>
     <p class="sub">Take something out of your garden — or head back.</p>
     <div class="pause-actions">
-      <button class="btn hidden" id="btnChallenge" aria-haspopup="dialog" aria-controls="challengeScreen">Daily brief &amp; finish</button>
+      <button class="btn hidden" id="btnChallenge" aria-haspopup="dialog" aria-controls="challengeScreen">View brief</button>
+      <button class="btn hidden" id="btnChallengeFinish" aria-haspopup="dialog" aria-controls="challengeFinishScreen">Finish design</button>
       <button class="btn" id="btnFilters">Plant filters &middot; <span id="filterLbl">Any</span></button>
       <button class="btn" id="btnSchemes">Planting schemes &middot; <span id="schemeLbl">1</span></button>
       <button class="btn" id="btnExport">Planting list</button>
