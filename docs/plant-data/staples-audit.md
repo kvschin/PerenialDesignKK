@@ -70,11 +70,34 @@ the catalog's range (wild bergamot is 0.63 ms a bake). Paid once per sprite
 bake, never per frame. 1,824 sprites and 608 library and tray previews checked
 in both renderers, none touching an edge.
 
+## Real heights and 'Kobold' (0.9.102)
+
+The stonecrops now carry a sourced `heightIn`, and their drawn `h` was set to
+match it (a forb's px is about an inch), with heads and leaves shrunk in step:
+'Autumn Joy' and 'Matrona' had been drawn 8 in too tall and 'Purple Emperor' 5.
+Spreads follow the same source. Walters Gardens (perennials.com) for all five:
+
+| Choice | Height | Spread | Source range |
+| --- | --- | --- | --- |
+| 'Autumn Joy' | 20 in | 20 in | 12-23 in tall, 18-23 in wide |
+| 'Matrona' | 22 in | 20 in | 16-20 in tall (NC State 18-30 in, RHS 50-100 cm), 18-23 in wide |
+| 'Autumn Fire' | 22 in | 20 in | 18-23 in tall, 18-23 in wide |
+| 'Purple Emperor' | 15 in | 20 in | 12-16 in tall, 18-23 in wide |
+| 'Autumn Charm' | 15 in | 20 in | 14-16 in tall, 18-23 in wide |
+
+'Matrona' takes 22 in between Walters and the taller NC State and RHS figures.
+Zones were left at 3-9: Walters gives 2-9 for three of them.
+
+`liatrisspicata.cv.kobold`, *Liatris spicata* 'Kobold': compact and upright,
+20 in tall and 15 in wide (Walters: 18-23 in, 12-18 in), dense bright
+magenta-purple spikes, more of them on a tighter clump than the species. It
+keeps the species' zones (3-8; Walters says 2-9) and July-August bloom (Walters:
+midsummer to early fall).
+
 ## Noticed, not changed
 
 - Pretty garlic and nodding onion keep their hanging bells: those were right.
-- The stonecrops carry no `heightIn`; their cards still quote the drawn height.
 - 'Autumn Joy' is drawn with opposite-to-spiral leaves; Wikipedia's page for
   *H. spectabile* gives both alternate and opposite-or-in-threes.
-- Liatris cultivars beyond 'Alba' ('Kobold', the dwarf dense blazing star) are
-  absent.
+- Dense blazing star itself still has no `heightIn` (the Prairie Moon page
+  404'd); its card quotes the drawn height.

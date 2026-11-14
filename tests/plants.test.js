@@ -114,7 +114,7 @@ test('a record that states its own native range keeps it through the migration',
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
   assertEqual(PLANT_KEYS.length,756,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),554,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),555,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -1293,6 +1293,15 @@ test('liatris species have distinct spike habits', () => {
   assertEqual(PLANTS.liatris.look.leaves, 0, 'dotted blazing star is a clump of leafy stems with no basal tuft');
   assertEqual(PLANTS.persicaria.look.spikeStyle, 'liatris', 'mountain fleece keeps its own beaded wands');
   assertEqual(PLANTS.liatrisspicata.cv.alba.sea.Summer.bloom, '#f0ede8', 'dense blazing star keeps an alba cultivar');
+  const kobold=PLANTS.liatrisspicata.cv.kobold;
+  assertEqual(kobold.heightIn, 20, "'Kobold' quotes its own height (Walters: 18-23 in), not the species'");
+  assert(kobold.h < PLANTS.liatrisspicata.h, "'Kobold' is drawn as the compact selection it is");
+  assert(!kobold.look.spikeStyle, "'Kobold' inherits the species' feathery spike rather than restating it");
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='hylotelephium')){
+    const P=PLANTS[k];
+    assert(P.heightIn>=12 && P.heightIn<=24, `${k}: a sourced stonecrop height (${P.heightIn} in)`);
+    assertEqual(P.h, P.heightIn, `${k}: drawn at its real height, px being about an inch for a forb`);
+  }
 });
 
 test('grouped species share one groupLabel per group', () => {

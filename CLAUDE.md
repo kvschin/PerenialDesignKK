@@ -7088,7 +7088,9 @@ firework), an egg of small bells for the drumstick and 'Red Mohican' (`floretSha
 (`drawAlliumBud`), and in seed a head is pedicels tipped with capsules. Nodding and prairie onion
 stand stems only in flower and seed and are `dormantWhenBare`, or winter snow hung over an empty
 tile. Bakes cost 0.14-0.44 ms, inside the catalog's range. Record:
-`docs/plant-data/staples-audit.md`; `dev/staples-review.html`.
+`docs/plant-data/staples-audit.md`; `dev/staples-review.html`. In 0.9.102 the stonecrops took
+sourced `heightIn` with `h` set equal to it (a test holds the pair), and dense blazing star
+gained 'Kobold'.
 
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
