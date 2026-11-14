@@ -345,13 +345,15 @@ function drawParasolFoliage(ctx,P,L,S,H,fn,sway,rnd){
    stalk to the tip, which is what tells a hosta from every other broad leaf. */
 const HOSTA_OUT=[[0,0],[-0.05,0.34],[0.02,0.66],[0.14,0.92],[0.3,1],[0.48,0.93],[0.66,0.72],[0.8,0.47],[0.92,0.2],[1,0]];
 const HOSTA_LANCE=[[0,0],[0.04,0.3],[0.12,0.62],[0.26,0.9],[0.42,1],[0.58,0.93],[0.72,0.72],[0.85,0.45],[0.94,0.18],[1,0]];
+// a bergenia's leaf: round-ended and broad nearly to the tip (0.9.105)
+const HOSTA_ROUND=[[0,0],[-0.03,0.42],[0.05,0.76],[0.18,0.95],[0.38,1],[0.58,0.98],[0.75,0.88],[0.88,0.66],[0.97,0.34],[1,0]];
 const _hoX=new Float64Array(22), _hoY=new Float64Array(22);
 function hostaLeafWidthAt(tab,u){
   for(let i=1;i<tab.length;i++) if(tab[i][0]>=u){ const a=tab[i-1], b=tab[i], f=(u-a[0])/Math.max(1e-6,b[0]-a[0]); return a[1]+(b[1]-a[1])*f; }
   return 0;
 }
 function drawHostaLeaves(ctx,P,L,S,H,n,sway,rnd){
-  const tilt=0.5, tab=L.leafShape==='lance'?HOSTA_LANCE:HOSTA_OUT;
+  const tilt=0.5, tab=L.leafShape==='lance'?HOSTA_LANCE:L.leafShape==='round'?HOSTA_ROUND:HOSTA_OUT;
   const bl0=H*(L.leafLen||0.46), wr=L.leafWR||0.62, cup=L.cup===undefined?0.16:L.cup;
   const reach=L.leafSpread===undefined?1:L.leafSpread, rise=L.leafRise===undefined?0.6:L.leafRise;
   const stalkCol=L.stalkCol||shade(S.fol,10), under=mixHex(S.fol,'#dfe4cf',0.35);
@@ -714,6 +716,23 @@ function drawPitcher(ctx,bx,by,qx,qy,tx,ty,w,col,vein,side){
   ctx.fillStyle=shade(col,12);ctx.beginPath();
   ctx.ellipse(tx+side*w*0.62,ty-w*0.55,w*0.68,w*0.56,side*0.4,0,7);ctx.fill();
   ctx.fillStyle=shade(vein,-42);ctx.beginPath();ctx.ellipse(tx,ty,w*0.8,w*0.38,side*-0.2,0,7);ctx.fill();
+}
+
+/* A jack-in-the-pulpit (0.9.105): the spathe is a striped tube standing on its stalk
+   with a hood folded over the top, which is a pitcher's tube and hood stood upright,
+   so it borrows that painter. In late summer the hood has withered and a club of red
+   berries stands in its place (`seedStyle:'berries'`). */
+function drawJackSpathe(ctx,cx,cy,sc,L,S){
+  const w=(L.spatheW||2.2)*sc, h=(L.spatheH||9)*sc, side=L.spatheSide||1;
+  drawPitcher(ctx,cx,cy+h*0.42,cx+side*w*0.3,cy,cx+side*w*0.15,cy-h*0.48,w,S.bloom,S.eye||shade(S.bloom,-40),side);
+}
+function drawBerryClub(ctx,cx,cy,sc,L,col){
+  const n=Math.max(5,Math.min(24,Math.round(L.berries||14))), h=(L.spatheH||9)*sc*0.6, r=(L.berryR||1.1)*sc;
+  for(let i=0;i<n;i++){
+    const u=i/(n-1), a=i*2.39996, rr=r*(1.1-0.5*u);
+    fcPush(cx+Math.cos(a)*rr*0.9,cy-h*u+h*0.3+Math.sin(a)*rr*0.4,rr,1);
+  }
+  fcDraw(ctx,col,26,-18);
 }
 
 function drawMilkweedPods(ctx,x,y,L,S,season,index,snowAnchors){
@@ -7249,6 +7268,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const dw=(L.discW||3.2)*sc, dh=(L.discH||3.6)*sc, dy=(L.discY===undefined?-1:L.discY)*sc;
           const rw=(L.rayW||2.2)*sc;
           if (L.flowerStyle==='hypericum'){ drawHypericumFlower(ctx,cx,cy,sc,L,S,rnd); return; }
+          if (L.flowerStyle==='spathe'){ drawJackSpathe(ctx,cx,cy,sc,L,S); return; }
           if (L.flowerStyle==='decorativeDouble' || L.flowerStyle==='peonySemiDouble' || L.flowerStyle==='ball'){
             drawDahliaHead(ctx,cx,cy,sc,S.bloom,S.eye,L); return;
           }
@@ -7387,6 +7407,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           // it gets the same lit, bristly dome — that bristle rim IS the thing
           // that catches frost.
           if (L.seedStyle==='capsule'){ drawHypericumCapsule(ctx,cx,cy,sc,L,S.seed); return; }
+          if (L.seedStyle==='berries'){ drawBerryClub(ctx,cx,cy,sc,L,S.seed); return; }
           if (art2On(L)){
             drawConeDome(ctx,cx,cy,(L.seedW||3)*sc,(L.seedH||3.8)*sc,S.seed,rnd);
             return;
@@ -8473,6 +8494,13 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'archbell'){ // arched stems with Solomon's seal bells or bleeding-heart flowers
     const L=P.look||{}, sn=stemFor(L.stems||4);
+    // A fringed bleeding heart is a mound of fern-cut leaves under its flower
+    // stalks, so its foliage is a low clump of fern blades (0.9.105).
+    if (L.fernBase && S.fol){
+      const fb=Object.assign({frondStyle:'blade',fronds:10,spread:2.3,arch:0.9,reach:1,frondLen:0.6,frondVar:0.2,bow:0.4,bowY:0.75,
+        pairs:8,bladeShape:'deltoid',bladeW:0.34,stalk:0.25,gap:0.25,cut:2},L.fernBase);
+      drawFernFronds(ctx,fb,S,H*(fb.h||0.55),sway,rnd,stemFor(fb.fronds),season,mature,growth);
+    }
     for (let i=0;i<sn;i++){
       const ox=(i/(sn-1)-0.5)*12+(rnd()-0.5)*2;
       const len=H*(0.72+rnd()*0.18), tip=ox+12+sway*len*0.04;
@@ -8486,15 +8514,30 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         return [u*u*ox+2*u*f*ctrlX+f*f*tip, 2*u*f*ctrlY+f*f*(-len*0.55)];
       };
       if (S.fol){
-        const leaves=L.leaves||8;
+        const leaves=L.leaves===undefined?8:L.leaves;
         for (let j=0;j<leaves;j++){
           const f=0.12+j/(leaves+1)*0.74, side=j%2?-1:1, p=bez(f);
+          // a variegated leaf (`leafEdge`): the season's edge colour round a smaller green leaf
+          if (L.leafEdge && S.edge){ ctx.fillStyle=S.edge; ctx.beginPath();
+            ctx.ellipse(p[0]+side*4, p[1]+1.5, 5.3, 1.9, side*0.45, 0, 7); ctx.fill(); }
           ctx.fillStyle=shade(S.fol,(rnd()-0.5)*22);
           ctx.beginPath();
-          ctx.ellipse(p[0]+side*4, p[1]+1.5, 5.2, 1.8, side*0.45, 0, 7); ctx.fill();
+          if (L.leafEdge && S.edge) ctx.ellipse(p[0]+side*4, p[1]+1.5, 4.9, 1.45, side*0.45, 0, 7);
+          else ctx.ellipse(p[0]+side*4, p[1]+1.5, 5.2, 1.8, side*0.45, 0, 7);
+          ctx.fill();
         }
       }
-      if (mature && ((blooming&&S.bloom)||S.seed)){
+      if (mature && ((blooming&&S.bloom)||S.seed) && L.archStyle==='plume'){
+        // false Solomon's seal: a fluffy plume at the tip of the arch, then red berries there
+        const headOn = blooming && i < Math.max(1, Math.ceil(sn*blv));
+        const col=(headOn?S.bloom:null)||S.seed, n=headOn?(L.plumeN||16):Math.round((L.plumeN||16)*0.6);
+        if (col) for (let b=0;b<n;b++){
+          const p=bez(0.8+0.2*b/Math.max(1,n-1));
+          fcPush(p[0]+(rnd()-0.5)*(headOn?4.6:2.6), p[1]+(rnd()-0.5)*(headOn?3.4:2.2)-1, headOn?1.15:1.0, 1);
+        }
+        if (col) fcDraw(ctx,col,22,-14);
+      }
+      else if (mature && ((blooming&&S.bloom)||S.seed)){
         const headOn = blooming && i < Math.max(1, Math.ceil(sn*blv));
         const bells=headOn ? Math.max(2,Math.ceil((L.bells||5)*blv)) : (S.seed?Math.min(4,L.bells||5):0);
         ctx.fillStyle=(headOn?S.bloom:null)||S.seed;

@@ -116,7 +116,20 @@ family cards**, three of them really sun plants that tolerate shade (false aloe,
 Texas beargrass, woodland sunflower), against 47 woodland and 31 moist-shade cards;
 dry shade under trees is the commonest shade problem there is.
 
-**Add first** (the staples, each with a grammar to start from):
+**Add first** (the staples, each with a grammar to start from). **Added in 0.9.105**:
+all 21 species below, plus bloodroot 'Multiplex', bugbane 'Brunette' and 'Hillside
+Black Beauty', and creeping Jacob's ladder 'Stairway to Heaven'. Sources and the
+reasoning behind each planning value are in `shade-sources.json`. Four join existing
+cards: wild ginger (Canadian, European), Solomon's seal (great, variegated), bleeding
+heart (old-fashioned, fringed) and Jacob's ladder (European, creeping); the asters and
+zigzag goldenrod join theirs. Three small drawing options came with them, all opt-in
+(every existing plant draws call for call as before): `flowerStyle:'spathe'` with
+`seedStyle:'berries'` on the cone form (jack-in-the-pulpit's hood, then its berries),
+`leafShape:'round'` on the hosta leaf (bergenia), and on the arching-stem form
+`archStyle:'plume'` (false Solomon's seal), `leafEdge` (a cream leaf rim) and
+`fernBase` (fringed bleeding heart's mound of fern blades). A painter first named
+`drawSpathe` collided with the water arums' painter of that name and drew nothing; a
+test now refuses any top-level function declared twice across the modules.
 
 | Plant | Why | Draws from |
 | --- | --- | --- |

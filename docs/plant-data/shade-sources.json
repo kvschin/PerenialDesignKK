@@ -1,0 +1,863 @@
+{
+ "reviewed": "2026-11-14",
+ "note": "The shade audit's 'Add first' table (docs/plant-data/shade-audit.md): the staples the Shade Perennials tab had no genus of. Natives read against the Wildflower Center and New Moon or the Missouri Botanical Garden Plant Finder; the rest against the Plant Finder. Where sources disagree, estimates says which value was taken and why.",
+ "plants": [
+  {
+   "suggestedKey": "wildginger",
+   "proposed": {
+    "name": "Canadian Wild Ginger",
+    "latin": "Asarum canadense",
+    "type": "forb",
+    "form": "leafmound",
+    "heightIn": 8,
+    "spread": 18,
+    "space": 12,
+    "zones": [
+     3,
+     8
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=ASCA",
+    "https://newmoonnursery.com/plant/Asarum-canadense"
+   ],
+   "estimates": {
+    "heightIn": "Wildflower Center up to 8 in, New Moon 6-12 in. 8 in.",
+    "spread": "New Moon 12-18 in; it runs by rhizomes into a carpet. 18 in.",
+    "zones": "Wildflower Center 3-7, New Moon 4-8; it ranges north to Quebec and Manitoba. 3-8.",
+    "bloomMonths": "New Moon April and May; Wildflower Center April to June. Flowers sit at the soil and are not drawn.",
+    "moist": "Wildflower Center moist; New Moon moist to wet but tolerant of dry. Medium: rich woods."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "europeanginger",
+   "proposed": {
+    "name": "European Wild Ginger",
+    "latin": "Asarum europaeum",
+    "type": "forb",
+    "form": "leafmound",
+    "heightIn": 4,
+    "spread": 15,
+    "space": 12,
+    "zones": [
+     4,
+     7
+    ],
+    "nativeTo": [
+     "europe"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=276759",
+    "https://en.wikipedia.org/wiki/Asarum_europaeum"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden about 4 in.",
+    "spread": "Missouri Botanical Garden 15 in and more.",
+    "zones": "Missouri Botanical Garden 4-7; it does poorly in hot, humid summers.",
+    "bloomMonths": "Not given by the Plant Finder; it flowers with the Canadian ginger in spring, hidden under the leaves. April and May is an estimate."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "trillium",
+   "proposed": {
+    "name": "Large-flowered Trillium",
+    "latin": "Trillium grandiflorum",
+    "type": "forb",
+    "form": "cone",
+    "heightIn": 15,
+    "spread": 10,
+    "space": 10,
+    "zones": [
+     4,
+     8
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=TRGR4",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=f317"
+   ],
+   "estimates": {
+    "heightIn": "Wildflower Center up to 15 in, Missouri Botanical Garden 12-18 in. 15 in.",
+    "spread": "Missouri Botanical Garden 9-12 in. 10 in.",
+    "zones": "Missouri Botanical Garden 4-8.",
+    "bloomMonths": "Missouri Botanical Garden April to June, Wildflower Center May and June; April and May is the zone 5-7 window.",
+    "moist": "Missouri Botanical Garden medium water, Wildflower Center moist. Medium."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "bloodroot",
+   "proposed": {
+    "name": "Bloodroot",
+    "latin": "Sanguinaria canadensis",
+    "type": "forb",
+    "form": "cone",
+    "heightIn": 8,
+    "spread": 9,
+    "space": 9,
+    "zones": [
+     3,
+     8
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     3,
+     4
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=SACA13",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=m290"
+   ],
+   "estimates": {
+    "heightIn": "Flower 6-10 in (Wildflower Center); the leaf grows on after flowering. 8 in.",
+    "spread": "A single leaf and flower per bud, spreading into a colony. 9 in is a planning value.",
+    "zones": "Missouri Botanical Garden 3-8.",
+    "bloomMonths": "Wildflower Center March and April.",
+    "moist": "Wildflower Center moist or wet; a plant of rich woods. Medium."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "mayapple",
+   "proposed": {
+    "name": "Mayapple",
+    "latin": "Podophyllum peltatum",
+    "type": "forb",
+    "form": "cone",
+    "heightIn": 15,
+    "spread": 12,
+    "space": 12,
+    "zones": [
+     3,
+     8
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=POPE",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=277777"
+   ],
+   "estimates": {
+    "heightIn": "Both 12-18 in. 15 in.",
+    "spread": "A colony from rhizomes; 12 in per stem is a planning value.",
+    "zones": "Missouri Botanical Garden 3-8.",
+    "bloomMonths": "Wildflower Center March to May, Missouri Botanical Garden April. April and May.",
+    "dormancy": "Missouri Botanical Garden: dormant in summer."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "jackinthepulpit",
+   "proposed": {
+    "name": "Jack-in-the-pulpit",
+    "latin": "Arisaema triphyllum",
+    "type": "forb",
+    "form": "cone",
+    "heightIn": 18,
+    "spread": 12,
+    "space": 12,
+    "zones": [
+     4,
+     9
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "moist",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=ARTR",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=276310"
+   ],
+   "estimates": {
+    "heightIn": "Both 1-2 ft. 18 in.",
+    "spread": "12 in is a planning value.",
+    "zones": "Missouri Botanical Garden 4-9.",
+    "bloomMonths": "Missouri Botanical Garden April and May.",
+    "moist": "Missouri Botanical Garden medium to wet, Wildflower Center moist or wet. Moist.",
+    "fruit": "Red berries mid to late summer (Missouri Botanical Garden)."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "toadlily",
+   "proposed": {
+    "name": "Toad Lily",
+    "latin": "Tricyrtis hirta",
+    "type": "forb",
+    "form": "cone",
+    "heightIn": 30,
+    "spread": 24,
+    "space": 18,
+    "zones": [
+     4,
+     8
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "moist",
+    "phen": "warm",
+    "bloomMonths": [
+     8,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=j100",
+    "https://en.wikipedia.org/wiki/Tricyrtis_hirta"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in.",
+    "spread": "Not given; 24 in is a planning value for a clump of arching stems.",
+    "zones": "Missouri Botanical Garden 4-8.",
+    "bloomMonths": "Missouri Botanical Garden August to September.",
+    "moist": "Missouri Botanical Garden medium to wet. Moist."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "variegatedsolomonsseal",
+   "proposed": {
+    "name": "Variegated Solomon's Seal",
+    "latin": "Polygonatum odoratum var. pluriflorum 'Variegatum'",
+    "type": "forb",
+    "form": "archbell",
+    "heightIn": 24,
+    "spread": 12,
+    "space": 12,
+    "zones": [
+     3,
+     8
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "selection",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=l820",
+    "https://www.purdue.edu/hla/sites/yardandgarden/variegated-solomons-seal-named-2013-perennial-plant-of-the-year/"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft in the entry, 1-2 ft in its own heavy-shade guide. 24 in.",
+    "spread": "Missouri Botanical Garden 9-12 in; spreads slowly. 12 in.",
+    "zones": "Missouri Botanical Garden 3-8.",
+    "bloomMonths": "Missouri Botanical Garden April and May.",
+    "nativeTo": "A selection of var. pluriflorum, an East Asian plant."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "fringedbleedingheart",
+   "proposed": {
+    "name": "Fringed Bleeding Heart",
+    "latin": "Dicentra eximia",
+    "type": "forb",
+    "form": "archbell",
+    "heightIn": 15,
+    "spread": 18,
+    "space": 15,
+    "zones": [
+     3,
+     9
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5,
+     6,
+     7,
+     8,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=DIEX",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=h700"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in; Wildflower Center 9-12 in, up to 2 ft. 15 in.",
+    "spread": "Missouri Botanical Garden 12-18 in. 18 in.",
+    "zones": "Missouri Botanical Garden 3-9.",
+    "bloomMonths": "Missouri Botanical Garden April to July; Wildflower Center early spring to frost. April to September, the long run it is grown for in cool shade."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "celandinepoppy",
+   "proposed": {
+    "name": "Celandine Poppy",
+    "latin": "Stylophorum diphyllum",
+    "type": "forb",
+    "form": "cone",
+    "heightIn": 18,
+    "spread": 12,
+    "space": 12,
+    "zones": [
+     4,
+     9
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "moist",
+    "phen": "cool",
+    "bloomMonths": [
+     3,
+     4
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=STDI3",
+    "https://newmoonnursery.com/plant/Stylophorum-diphyllum"
+   ],
+   "estimates": {
+    "heightIn": "Wildflower Center 12-20 in, New Moon 1-2 ft. 18 in.",
+    "spread": "New Moon text 1 ft (its spec block says 1 in, a slip). 12 in.",
+    "zones": "New Moon 4-9.",
+    "bloomMonths": "Wildflower Center March and April, New Moon April.",
+    "moist": "Both moist."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "falsesolomonsseal",
+   "proposed": {
+    "name": "False Solomon's Seal",
+    "latin": "Maianthemum racemosum",
+    "type": "forb",
+    "form": "archbell",
+    "heightIn": 30,
+    "spread": 24,
+    "space": 18,
+    "zones": [
+     3,
+     8
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=MARA7",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=m390"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft; Wildflower Center up to 4 ft, often shorter. 30 in.",
+    "spread": "A slow colony; 24 in is a planning value.",
+    "zones": "Missouri Botanical Garden 3-8.",
+    "bloomMonths": "Missouri Botanical Garden April and May, Wildflower Center April."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "bugbane",
+   "proposed": {
+    "name": "Bugbane",
+    "latin": "Actaea simplex",
+    "type": "forb",
+    "form": "spike",
+    "heightIn": 60,
+    "spread": 30,
+    "space": 24,
+    "zones": [
+     4,
+     8
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "moist",
+    "phen": "warm",
+    "bloomMonths": [
+     9,
+     10
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=257978",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=258346",
+    "https://en.wikipedia.org/wiki/Actaea_simplex"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: 'Brunette' 3-4 ft, 'Hillside Black Beauty' a 2.5 ft clump with spikes to 4-6 ft. 60 in for the species in flower.",
+    "spread": "Missouri Botanical Garden 2-3 ft and 2-4 ft. 30 in.",
+    "zones": "Missouri Botanical Garden 4-8 for the Atropurpurea Group selections.",
+    "bloomMonths": "Missouri Botanical Garden August to September ('Brunette'), September to October ('Hillside Black Beauty'). September and October.",
+    "moist": "Both pages: consistent moisture or the leaves scorch. Moist."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "alleghenyspurge",
+   "proposed": {
+    "name": "Allegheny Spurge",
+    "latin": "Pachysandra procumbens",
+    "type": "forb",
+    "form": "spike",
+    "heightIn": 10,
+    "spread": 12,
+    "space": 12,
+    "zones": [
+     5,
+     9
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     3,
+     4
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=e692",
+    "https://en.wikipedia.org/wiki/Pachysandra_procumbens"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 8-12 in. 10 in.",
+    "spread": "Spreads by rhizomes; 12 in is a planning value.",
+    "zones": "Missouri Botanical Garden 5-9.",
+    "bloomMonths": "Missouri Botanical Garden: early spring, before the new leaves. March and April.",
+    "winter": "Semi-evergreen in zones 7-9, deciduous in 5-6 (Missouri Botanical Garden)."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "sweetwoodruff",
+   "proposed": {
+    "name": "Sweet Woodruff",
+    "latin": "Galium odoratum",
+    "type": "forb",
+    "form": "umbel",
+    "heightIn": 8,
+    "spread": 18,
+    "space": 12,
+    "zones": [
+     4,
+     8
+    ],
+    "nativeTo": [
+     "europe",
+     "asia",
+     "africa"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=c820",
+    "https://en.wikipedia.org/wiki/Galium_odoratum"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-12 in. 8 in.",
+    "spread": "Missouri Botanical Garden 9-18 in. 18 in.",
+    "zones": "Missouri Botanical Garden 4-8.",
+    "bloomMonths": "Missouri Botanical Garden April and May.",
+    "spreading": "Missouri Botanical Garden: can be somewhat aggressive in good conditions."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "bergenia",
+   "proposed": {
+    "name": "Heartleaf Bergenia",
+    "latin": "Bergenia cordifolia",
+    "type": "forb",
+    "form": "leafmound",
+    "heightIn": 15,
+    "spread": 18,
+    "space": 15,
+    "zones": [
+     3,
+     8
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=b710",
+    "https://en.wikipedia.org/wiki/Bergenia_crassifolia"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1-1.5 ft. 15 in.",
+    "spread": "Not given; 18 in is a planning value.",
+    "zones": "Missouri Botanical Garden 3-8.",
+    "bloomMonths": "Missouri Botanical Garden April and May.",
+    "name": "Wikipedia treats B. cordifolia as B. crassifolia; the garden name is kept and the other searchable."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "creepingjacobsladder",
+   "proposed": {
+    "name": "Creeping Jacob's Ladder",
+    "latin": "Polemonium reptans",
+    "type": "forb",
+    "form": "umbel",
+    "heightIn": 15,
+    "spread": 15,
+    "space": 12,
+    "zones": [
+     4,
+     8
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "moist",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=PORE2",
+    "https://newmoonnursery.com/plant/Polemonium-reptans"
+   ],
+   "estimates": {
+    "heightIn": "New Moon 12-18 in, Wildflower Center 10-20 in. 15 in.",
+    "spread": "New Moon 12-18 in. 15 in.",
+    "zones": "New Moon 4-8.",
+    "bloomMonths": "Wildflower Center April and May, New Moon May.",
+    "moist": "Both moist; it goes dormant in drought."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "bluewoodaster",
+   "proposed": {
+    "name": "Blue Wood Aster",
+    "latin": "Symphyotrichum cordifolium",
+    "type": "forb",
+    "form": "shrub",
+    "heightIn": 36,
+    "spread": 24,
+    "space": 18,
+    "zones": [
+     3,
+     8
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "dry",
+    "phen": "mid",
+    "bloomMonths": [
+     8,
+     9,
+     10
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=SYCO4",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=a788"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-5 ft, Wildflower Center to 4 ft. 36 in.",
+    "spread": "Missouri Botanical Garden 1.5-2 ft. 24 in.",
+    "zones": "Missouri Botanical Garden 3-8.",
+    "bloomMonths": "Missouri Botanical Garden August and September; Wildflower Center into November. August to October.",
+    "moist": "Missouri Botanical Garden dry to medium, Wildflower Center low water use. Dry."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "bigleafaster",
+   "proposed": {
+    "name": "Big-leaved Aster",
+    "latin": "Eurybia macrophylla",
+    "type": "forb",
+    "form": "cone",
+    "heightIn": 24,
+    "spread": 24,
+    "space": 18,
+    "zones": [
+     3,
+     8
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "dry",
+    "phen": "mid",
+    "bloomMonths": [
+     8,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=EUMA27",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?kempercode=b918"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-4 ft; Wildflower Center 1-3.5 ft, often much shorter. 24 in.",
+    "spread": "Missouri Botanical Garden 2-4 ft; a colony. 24 in.",
+    "zones": "Missouri Botanical Garden 3-8.",
+    "bloomMonths": "Missouri Botanical Garden August to October, Wildflower Center July to October. August and September.",
+    "moist": "Wildflower Center dry or moist; a dry-shade groundcover. Dry."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "zigzaggoldenrod",
+   "proposed": {
+    "name": "Zigzag Goldenrod",
+    "latin": "Solidago flexicaulis",
+    "type": "forb",
+    "form": "spike",
+    "heightIn": 30,
+    "spread": 18,
+    "space": 15,
+    "zones": [
+     3,
+     9
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "medium",
+    "phen": "mid",
+    "bloomMonths": [
+     8,
+     9,
+     10
+    ]
+   },
+   "sources": [
+    "https://www.wildflower.org/plants/result.php?id_plant=SOFL2",
+    "https://newmoonnursery.com/plant/Solidago-flexicaulis"
+   ],
+   "estimates": {
+    "heightIn": "Wildflower Center normally 2-4 ft, New Moon 3 ft. 30 in.",
+    "spread": "New Moon text 1-1.5 ft (its spec block says 1-2 in, a slip). 18 in.",
+    "zones": "New Moon 2-9; 3-9 here.",
+    "bloomMonths": "New Moon August to October, Wildflower Center July to October.",
+    "moist": "New Moon mesic or dry, Wildflower Center moist. Medium."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "mrsrobbsbonnet",
+   "proposed": {
+    "name": "Mrs. Robb's Bonnet",
+    "latin": "Euphorbia amygdaloides subsp. robbiae",
+    "type": "forb",
+    "form": "umbel",
+    "heightIn": 20,
+    "spread": 18,
+    "space": 15,
+    "zones": [
+     6,
+     8
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "dry",
+    "phen": "cool",
+    "bloomMonths": [
+     4,
+     5,
+     6
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=292644",
+    "https://en.wikipedia.org/wiki/Euphorbia_amygdaloides"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-2 ft. 20 in.",
+    "spread": "Missouri Botanical Garden 0.75-1.5 ft, but it runs. 18 in.",
+    "zones": "Missouri Botanical Garden 6-8.",
+    "bloomMonths": "Missouri Botanical Garden April to June.",
+    "moist": "Missouri Botanical Garden dry to medium, and wet winter soil kills it. Dry.",
+    "nativeTo": "Collected near Istanbul; the subspecies is Anatolian."
+   },
+   "batch": "add-first"
+  },
+  {
+   "suggestedKey": "yellowwaxbells",
+   "proposed": {
+    "name": "Yellow Wax Bells",
+    "latin": "Kirengeshoma palmata",
+    "type": "forb",
+    "form": "spike",
+    "heightIn": 42,
+    "spread": 42,
+    "space": 30,
+    "zones": [
+     5,
+     8
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "species",
+    "sun": "part",
+    "moist": "moist",
+    "phen": "warm",
+    "bloomMonths": [
+     8,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286949",
+    "https://en.wikipedia.org/wiki/Kirengeshoma_palmata"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 3-4 ft. 42 in.",
+    "spread": "Missouri Botanical Garden 3-4 ft. 42 in.",
+    "zones": "Missouri Botanical Garden 5-8.",
+    "bloomMonths": "Missouri Botanical Garden lists June to July in its summary and late summer to early autumn in its text; it flowers in August and September in gardens. August and September."
+   },
+   "batch": "add-first"
+  }
+ ],
+ "cultivars": [
+  {
+   "ref": "bloodroot|multiplex",
+   "latin": "Sanguinaria canadensis 'Multiplex'",
+   "sources": [
+    "https://missouribotanicalgarden.org/PlantFinder/PlantFinderProfileResults.aspx?basic=Sanguinaria+canadensis"
+   ]
+  },
+  {
+   "ref": "bugbane|brunette",
+   "latin": "Actaea simplex (Atropurpurea Group) 'Brunette'",
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=257978"
+   ]
+  },
+  {
+   "ref": "bugbane|hillsideblackbeauty",
+   "latin": "Actaea simplex (Atropurpurea Group) 'Hillside Black Beauty'",
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=258346"
+   ]
+  },
+  {
+   "ref": "creepingjacobsladder|stairwaytoheaven",
+   "latin": "Polemonium reptans 'Stairway to Heaven'",
+   "sources": [
+    "http://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=358477&isprofile=1&basic=Polemonium_reptans"
+   ]
+  }
+ ]
+}

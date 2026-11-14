@@ -937,6 +937,8 @@ const BROWSE_RESIST_KEYS=new Set([
   // tough and leathery to be worth browsing
   'periwinkle','bugle','deadnettle','candytuft','thrift','rockrose','londonpride',
   'woodanemone','hepatica','comfrey','yellowcorydalis','marshmarigold','yellowflag',
+  // the shade audit's first batch, where a source read says deer and rabbits pass it by
+  'wildginger','celandinepoppy','creepingjacobsladder','bergenia',
   // pond plants NC State records as poisonous: calcium oxalate in the arums,
   // irritant rhizomes in the irises
   'taro','callalily','arrowarum','goldenclub','japaneseiris','rabbitiris','louisianairis',

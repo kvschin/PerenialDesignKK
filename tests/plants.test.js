@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,756,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,777,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),555,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),559,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -277,6 +277,47 @@ test("the grass audit's missing species are in, as reviewed, with their sources"
   assert(['bottlebrushgrass','beakgrass','wavyhairgrass','californiafescue'].every(k=>PLANTS[k].sun==='part'),'four take shade');
   assert(['bushybluestem','sandcordgrass','prairiecordgrass','easterngamagrass'].every(k=>PLANTS[k].moist==='moist'),'four take wet ground');
   assertEqual(PLANTS.sandcordgrass.zones[1],11,'sand cordgrass reaches south Florida');
+});
+
+test("the shade audit's first batch is in, as reviewed, with its sources", () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/shade-sources.json')), rows=doc.plants;
+  assertEqual(rows.length,21,"the audit's 'Add first' table is twenty-one species");
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], R=row.proposed;
+    assert(P,row.suggestedKey+': missing species');
+    for(const f of ['name','latin','type','form','heightIn','spread','space','sun','moist','phen','provenance'])
+      assertEqual(P[f],R[f],row.suggestedKey+': reviewed '+f);
+    assertEqual(P.zones.join(','),R.zones.join(','),row.suggestedKey+': reviewed zones');
+    assertEqual(P.nativeTo.join(','),R.nativeTo.join(','),row.suggestedKey+': reviewed range');
+    assertEqual(P.bloomMonths.join(','),R.bloomMonths.join(','),row.suggestedKey+': reviewed bloom months');
+    assert(row.sources.length>=2,row.suggestedKey+': read against two sources at least');
+    row.sources.forEach(u=>assert(/^https?:\/\//.test(u),row.suggestedKey+': source is a URL'));
+    assert(row.estimates&&row.estimates.heightIn&&row.estimates.spread,row.suggestedKey+': says how its size was chosen');
+    assertEqual(P.sun,'part',row.suggestedKey+': a shade plant');
+    assertEqual(P.type,'forb',row.suggestedKey+': on the Shade Perennials tab');
+    assert(P.blurb&&P.blurb.length>60,row.suggestedKey+': says something');
+  }
+  assertEqual(doc.cultivars.length,4,'four cultivars came with them');
+  for(const c of doc.cultivars){ const [k,v]=c.ref.split('|'); assert(PLANTS[k].cv&&PLANTS[k].cv[v],c.ref+': cultivar exists');
+    assertEqual(PLANTS[k].cv[v].latin,c.latin,c.ref+': reviewed name'); }
+  // the new species join their relatives' cards, and the old ones keep their names
+  const members=g=>keys.filter(k=>PLANTS[k].group===g).sort().join(',');
+  assertEqual(members('wildginger'),'europeanginger,wildginger','wild ginger: Canadian and European');
+  assertEqual(members('solomonsseal'),'solomonsseal,variegatedsolomonsseal',"Solomon's seal: great and variegated");
+  assertEqual(members('bleedingheart'),'bleedingheart,fringedbleedingheart','bleeding heart: old-fashioned and fringed');
+  assertEqual(members('jacobsladder'),'creepingjacobsladder,jacobsladder',"Jacob's ladder: European and creeping");
+  for (const k of ['bluewoodaster','bigleafaster']) assertEqual(PLANTS[k].group,'aster',k+': with the asters');
+  assertEqual(PLANTS.zigzaggoldenrod.group,'goldenrod','zigzag goldenrod with the goldenrods');
+  // the gaps the audit named: dry shade, native woodland flowers, and something after August
+  const dry=keys.filter(k=>PLANTS[k].type==='forb'&&PLANTS[k].sun==='part'&&PLANTS[k].moist==='dry').length;
+  assert(dry>=12,`dry shade has ${dry} plants, from nine`);
+  const nat=rows.filter(r=>PLANTS[r.suggestedKey].nativeTo.includes('north-america')).length;
+  assertEqual(nat,13,'thirteen are North American natives');
+  for (const k of ['toadlily','bugbane','yellowwaxbells','bluewoodaster','bigleafaster','zigzaggoldenrod'])
+    assert(Math.max(...PLANTS[k].bloomMonths)>=9,k+': flowers into September or later');
+  // a selection keeps its species' wild range; the variegated Solomon's seal is a selection of an Asian plant
+  assertEqual(PLANTS.variegatedsolomonsseal.provenance,'selection',"'Variegatum' is a selection");
+  assert(PLANTS.bergenia.synonyms.includes('Bergenia crassifolia'),'bergenia is findable under the name Wikipedia uses');
 });
 
 test('wet-ground plants are planted in soil, and only claim the range their source gives', () => {

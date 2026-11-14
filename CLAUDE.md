@@ -7123,6 +7123,16 @@ preview). **The tab lists by site** (0.9.104; `SHADE_SITES`, `shadeSiteOf`, `sit
 Dry shade, Woodland, Moist shade, the same ids and words as the shade half of the sedge and grass
 tabs (a test holds them equal), filed by `moist` alone since every plant there takes part shade.
 Ferns are filed with the plants of their site, not under a heading of their own.
+**The audit's first batch (0.9.105)** added the 21 shade staples the tab had no genus of (wild
+gingers, trillium, bloodroot, mayapple, jack-in-the-pulpit, toad lily, variegated and false
+Solomon's seal, fringed bleeding heart, celandine poppy, bugbane, Allegheny spurge, sweet woodruff,
+bergenia, creeping Jacob's ladder, blue wood and big-leaved aster, zigzag goldenrod, Mrs. Robb's
+bonnet, yellow wax bells) and four cultivars, sourced in `docs/plant-data/shade-sources.json`. Opt-in
+drawing: `flowerStyle:'spathe'`/`seedStyle:'berries'` (cone), `leafShape:'round'` (hosta leaf),
+`archStyle:'plume'`, `leafEdge` and `fernBase` (archbell). **The modules share one scope, so a
+top-level function name must be unique across them**: the jack's painter was first called
+`drawSpathe`, the water arums' painter already had that name, the later one won and the jack drew
+nothing. A test now refuses a duplicate.
 
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to

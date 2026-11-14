@@ -482,6 +482,19 @@ function shadeOps(key,season,variant=null,seed=101,growth=1){
   drawPlant(ctx,0,0,key,growth,season,seed,0,variant,1);
   return ops;
 }
+test('no function is declared twice across the modules', () => {
+  // The modules share one global scope, so a second `function name` anywhere
+  // silently replaces the first for every caller. A new jack-in-the-pulpit painter
+  // was first called drawSpathe, the name the water arums' painter already had
+  // (0.9.105); the earlier one won by file order and the jack drew nothing.
+  const mods=['plants','core','draw','world','view','renderer','commands','input','io','collections','ui','tray','photos','library','guide','screens'];
+  const seen=new Map(), dup=[];
+  for (const m of mods) for (const x of readRepoFile('js/'+m+'.js').matchAll(/^function\s+([A-Za-z0-9_$]+)\s*\(/gm)){
+    if (seen.has(x[1])) dup.push(`${x[1]} (${seen.get(x[1])}, ${m})`); else seen.set(x[1],m);
+  }
+  assertEqual(dup.join(', '),'','each top-level function has one definition');
+});
+
 test('a fern frond is a filled blade of many leaflets, not a fishbone', () => {
   const before=ART2.on;
   try {for(const mode of [false,true]){
@@ -525,6 +538,26 @@ test('a fern carries its fertile parts where and when the plant does', () => {
     assertEqual(sticks.length,0,`${key}: no fertile stick in the middle`);
   }
 });
+test('the first shade batch draws its own organs: a hood, a plume, a fern mound, a white leaf rim', () => {
+  const ell=(key,season,fill)=>shadeOps(key,season).filter(o=>o.op==='ellipse'&&(fill===undefined||o.fill===fill)).length;
+  // jack-in-the-pulpit: the hood is filled in its purple stripe colour; in fall a club of berries
+  assert(ell('jackinthepulpit','Spring',PLANTS.jackinthepulpit.sea.Spring.eye)>=1,'jack: a purple hood over the spathe');
+  assert(ell('jackinthepulpit','Fall')>=PLANTS.jackinthepulpit.look.berries,'jack: a club of berries in fall');
+  // false Solomon's seal ends each arch in a plume of florets, then berries there
+  assert(ell('falsesolomonsseal','Spring')>=PLANTS.falsesolomonsseal.look.plumeN*3,"false Solomon's seal: a plume at every tip");
+  assert(ell('falsesolomonsseal','Fall')>=PLANTS.falsesolomonsseal.look.plumeN,'and berries in fall');
+  // fringed bleeding heart: fern blades under the hearts
+  const fern=shadeOps('fringedbleedingheart','Summer').filter(o=>o.op==='fill').length;
+  assert(fern>=PLANTS.fringedbleedingheart.look.fernBase.fronds*2,'fringed bleeding heart: a mound of fern-cut leaves');
+  // variegated Solomon's seal: every leaf carries a pale rim
+  const L=PLANTS.variegatedsolomonsseal.look;
+  assert(ell('variegatedsolomonsseal','Summer',PLANTS.variegatedsolomonsseal.sea.Summer.edge)>=L.leaves*3,'every leaf rimmed in cream');
+  assertEqual(ell('solomonsseal','Summer',PLANTS.variegatedsolomonsseal.sea.Summer.edge),0,'and the green one is not');
+  // the dormant spring flowers draw nothing in winter
+  for (const k of ['trillium','bloodroot','mayapple','jackinthepulpit','celandinepoppy'])
+    assertEqual(shadeOps(k,'Winter').length,0,k+': dormant in winter');
+});
+
 test('the maidenhair holds flat fans of fingers on dark wires', () => {
   const L=PLANTS.maidenhairfern.look, ops=shadeOps('maidenhairfern','Summer');
   const wires=ops.filter(o=>o.op==='stroke' && o.stroke===L.stipe).length;
