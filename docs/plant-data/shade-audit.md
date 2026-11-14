@@ -187,17 +187,17 @@ of North America; leave them out or add them with cautions.
 | Golden ragwort | species | round-leaf ragwort, *Packera obovata* (species, dry shade) |
 | Periwinkle | species | 'Bowles' Variety', 'Illumination' (already flagged invasive in North America) |
 
-## Sub-labels for the Shade Perennials tab
+## Sub-labels for the Shade Perennials tab (added in 0.9.104)
 
 Grasses and sedges list their plants under site headings (`SITE_LAYOUTS`). The
-same three shade headings would file this tab as **Dry shade 9 · Woodland 47 ·
-Moist shade 31** family cards (by `moist`). Recommended, with the same headings
-and the same rule as the sedge and grass tabs' shade sections, so a gardener who
-learns "Dry shade" on one tab meets the same words on the next. The thin Dry shade
-heading is honest about a real gap, and the plants listed above fill it. Ferns
-could instead become a tab of their own (19 species, 30 choices); they are a kind
-of plant, where the headings are a site, and mixing the two in one list would muddle
-both.
+Shade Perennials tab now does too, under the same three shade headings, with the
+same ids and words, so a gardener who learns "Dry shade" on one tab meets it on the
+next: **Dry shade 9 · Woodland 47 · Moist shade 31** family cards over the whole
+catalog (46 woodland in a North American garden), filed by `moist` alone because
+every plant on the tab takes part shade (`shadeSiteOf`). The thin Dry shade heading
+is honest about a real gap, and the plants listed above fill it. Ferns stay with the
+plants of their site: a heading is a site, and a Ferns heading among them would mix
+a kind of plant into a list of places. A search still draws one flat list.
 
 ## Noticed, not changed
 

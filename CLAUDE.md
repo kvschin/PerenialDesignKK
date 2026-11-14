@@ -7117,9 +7117,12 @@ monkshood; `leafStyle:'pinnate'` for Jacob's ladder; `rosette` with `mottle` for
 astilbe, goat's beard, black cohosh and foamflower the rodgersia `plume`. A **mat** must not draw its
 flower stalks over itself: `flowerLen` keeps them in the mat, or `matHeadRise` ends them at a flower.
 Bakes 0.4-0.95 ms (maidenhair the worst); 23 records carry a measured `sideScale` so the previews
-fit. Record, including the missing species and cultivars and the case for site headings on this
-tab: `docs/plant-data/shade-audit.md`; `dev/shade-review.html` (`?measure` reports each drawing's
-real reach against its sprite box and preview).
+fit. Record, including the missing species and cultivars: `docs/plant-data/shade-audit.md`;
+`dev/shade-review.html` (`?measure` reports each drawing's real reach against its sprite box and
+preview). **The tab lists by site** (0.9.104; `SHADE_SITES`, `shadeSiteOf`, `sites:'shade'`):
+Dry shade, Woodland, Moist shade, the same ids and words as the shade half of the sedge and grass
+tabs (a test holds them equal), filed by `moist` alone since every plant there takes part shade.
+Ferns are filed with the plants of their site, not under a heading of their own.
 
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to

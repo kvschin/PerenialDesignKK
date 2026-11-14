@@ -1548,7 +1548,17 @@ function grassSiteOf(P){
   if (open) return P.moist==='dry'?'drymeadow':'meadow';
   return P.moist==='dry'?'dryshade':'woodland';
 }
-const SITE_LAYOUTS={sedge:[SEDGE_SITES,sedgeSiteOf], grass:[GRASS_SITES,grassSiteOf]};
+/* Shade perennials the same way (0.9.104), under the three shade headings the sedge and
+   grass tabs already use, so "Dry shade" means one thing on every tab a gardener visits.
+   Every plant on the tab takes part shade, so moisture alone files it: about 9 family
+   cards in dry shade, 47 in woodland and 31 in moist shade. Ferns stay among the plants of
+   their site rather than under a heading of their own; a heading is a site, not a kind. */
+const SHADE_SITES=[['dryshade','Dry shade'],['woodland','Woodland'],['moistshade','Moist shade']];
+function shadeSiteOf(P){
+  if (P.moist==='moist') return 'moistshade';
+  return P.moist==='dry'?'dryshade':'woodland';
+}
+const SITE_LAYOUTS={sedge:[SEDGE_SITES,sedgeSiteOf], grass:[GRASS_SITES,grassSiteOf], shade:[SHADE_SITES,shadeSiteOf]};
 /* A family whose choices grow in different places is filed under each of them, with only
    the choices that grow there. Filed by its first member, the moor grass card put Nest and
    Silver Moor Grass, both for dry sun, under Dry shade with Autumn Moor Grass. A family that

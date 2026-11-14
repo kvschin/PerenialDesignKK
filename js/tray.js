@@ -6,7 +6,7 @@ const TRAY_CATS=[
   {id:'grasses',  label:'Grasses',          types:['grass'], sites:'grass'},
   {id:'sedges',   label:'Sedges',           types:['sedge'], sites:'sedge'},
   {id:'sunper',   label:'Sun Perennials',   types:['forb'], sunFilter:'full'},
-  {id:'shadeper', label:'Shade Perennials', types:['forb'], sunFilter:'part'},
+  {id:'shadeper', label:'Shade Perennials', types:['forb'], sunFilter:'part', sites:'shade'},
   {id:'bulbs',    label:'Bulbs',            types:['bulb']},
   {id:'waterplants',label:'Water Plants',   types:['water']},
   {id:'climbers', label:'Climbers',         types:['vine']},

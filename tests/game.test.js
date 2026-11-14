@@ -1899,6 +1899,36 @@ test('the Sedges tab draws a heading over each site, and other tabs stay one lis
   assert(!String(buildToolTrayInner).includes('sedgeSections'),'the old unreachable copy of the split stays gone');
 });
 
+test('the Shade Perennials tab is laid out by site, under the shade headings the other tabs use', () => {
+  setup(21,21);
+  const saved=[game.design,game.filters,game.discovery];
+  try {
+    game.design=null; game.filters=normalizeFilters({nativeRegion:'north-america',nativeMode:'any'});
+    const d=normalizeDiscovery({source:'all',category:'shadeper'}), groups=groupDiscoveryRefs(discoveryRefsFor(d));
+    const sites=discoverySiteSections(groups,d);
+    assertEqual(sites.map(s=>s.label).join('|'),'Dry shade|Woodland|Moist shade','dry to wet');
+    // the same words, in the same order, as the shade half of the sedge and grass tabs
+    assertEqual(SHADE_SITES.map(s=>s.join(':')).join(),SEDGE_SITES.slice(2).map(s=>s.join(':')).join(),'Dry shade means one thing on every tab');
+    assertEqual(SHADE_SITES.map(s=>s.join(':')).join(),GRASS_SITES.slice(3).map(s=>s.join(':')).join(),'on the grasses too');
+    // every exact choice is listed, once
+    const key=r=>r.s+'|'+(r.v||''), all=groups.flatMap(g=>g.refs.map(key)), listed=sites.flatMap(s=>s.groups.flatMap(g=>g.refs.map(key)));
+    assertEqual(listed.length,all.length,'every choice is listed');
+    assertEqual(new Set(listed).size,all.length,'and only once');
+    const siteOf=k=>sites.filter(s=>s.groups.some(g=>g.refs.some(r=>r.s===k))).map(s=>s.label).join('|');
+    assertEqual(siteOf('barrenwort'),'Dry shade'); assertEqual(siteOf('hayscentedfern'),'Dry shade');
+    assertEqual(siteOf('hosta'),'Woodland'); assertEqual(siteOf('christmasfern'),'Woodland');
+    assertEqual(siteOf('astilbe'),'Moist shade'); assertEqual(siteOf('ostrichfern'),'Moist shade');
+    // a record with odd data still lands somewhere, rather than falling out of the list
+    assert(SHADE_SITES.some(([id])=>id===shadeSiteOf({})),'a record with no site data is still filed');
+    // the headings draw, and a search still flattens the list
+    game.discovery=d;
+    const tray=document.createElement('div'); renderDiscoveryTray(tray);
+    assertEqual(tray.children.filter(c=>c.className==='discovery-site-head').length,3,'a heading per site');
+    assertEqual(discoverySiteSections(groups,normalizeDiscovery({source:'all',category:'shadeper',query:'fern'})),null,'a search is one list');
+    resetDiscoveryArt();
+  } finally { [game.design,game.filters,game.discovery]=saved; }
+});
+
 test('the Grasses tab is laid out by site, and a family that grows in two places is filed in both', () => {
   setup(21,21);
   const saved=[game.design,game.filters,game.discovery,discoveryOpenSpecies];
