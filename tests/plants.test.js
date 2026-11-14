@@ -1905,17 +1905,24 @@ test('the fern cabinet is data-driven, not one plant in many colours', () => {
   // copying another and changing the colour, which is the thing this replaced.
   const sig = new Map();
   for (const k of ferns){
-    const L = P => [P.frondStyle||'pinnate',P.fronds||9,P.spread||1.9,P.arch||0.55,
-                    P.reach||0.8,P.pinnaN||6,P.pinnaLen||4.2,P.pinnaW||1.1].join('/');
+    const L = P => [P.frondStyle||'pinnate',P.fronds||9,P.spread||1.9,P.arch||0.55,P.reach||0.8,
+                    P.pairs||16,P.bladeShape||'lance',P.bladeW||0.2,P.cut||0,P.gap||0.2,P.pinnaW||1.1].join('/');
     const s = L(PLANTS[k].look);
     assert(!sig.has(s),`${k}: identical frond geometry to ${sig.get(s)}`);
     sig.set(s,k);
   }
   // Architecture the knobs exist to express, pinned by the species that need it.
   assertEqual(PLANTS.hartstonguefern.look.frondStyle,'strap',"hart's tongue is undivided");
-  assertEqual(PLANTS.newyorkfern.look.taper,'both','New York fern tapers at both ends');
-  assert(PLANTS.maidenhairfern.look.arch > 1 && PLANTS.maidenhairfern.look.stipe,
+  assertEqual(PLANTS.newyorkfern.look.bladeShape,'both','New York fern tapers at both ends');
+  assertEqual(PLANTS.ostrichfern.look.bladeShape,'oblance','an ostrich fern frond is widest near its top');
+  assertEqual(PLANTS.sensitivefern.look.bladeShape,'deltoid','a sensitive fern frond is a triangle');
+  assert(PLANTS.maidenhairfern.look.frondStyle==='pedate' && PLANTS.maidenhairfern.look.stipe,
     'maidenhair is a flat fan on a dark wiry stipe');
+  // Every fern but the undivided hart's tongue draws a leafy blade (0.9.103): the
+  // ellipse pairs on a stick it replaced read as a fishbone in every species.
+  for (const k of ferns)
+    assert(['blade','pedate','strap'].includes(PLANTS[k].look.frondStyle),
+      `${k}: draws its fronds as blades, a horseshoe or straps, not the old fishbone`);
   assertEqual(PLANTS.cinnamonfern.look.fertileStyle,'spike','cinnamon fern has its cinnamon clubs');
   assertEqual(PLANTS.sensitivefern.look.fertileStyle,'bead','sensitive fern keeps its bead sticks');
   // A fertile treatment draws from sea.seed, so authoring one without a seed
@@ -1930,16 +1937,27 @@ test('the fern cabinet is data-driven, not one plant in many colours', () => {
 });
 
 test('evergreen ferns hold winter foliage and deciduous ones hold structure', () => {
-  // Winter must show something. For a fern that means either evergreen fronds
-  // or the persistent fertile stalk — a fern with neither is a bare tile.
+  // Winter must show what the plant really holds. For a fern that means either
+  // evergreen fronds or the persistent fertile fronds of the two species that
+  // keep them through winter.
   const evergreen = ['christmasfern','marginalwoodfern','autumnfern','malefern',
                      'softshieldfern','hartstonguefern','hollyfern'];
   for (const k of evergreen)
     assert(PLANTS[k].sea.Winter && PLANTS[k].sea.Winter.fol,`${k}: evergreen fern needs winter foliage`);
-  const structural = ['ostrichfern','cinnamonfern','royalfern','interruptedfern','sensitivefern'];
+  const structural = ['ostrichfern','sensitivefern'];
   for (const k of structural){
     assert(PLANTS[k].sea.Winter && PLANTS[k].sea.Winter.seed,`${k}: needs its winter fertile structure`);
     assert(PLANTS[k].look.fertileStyle,`${k}: and a treatment to draw it with`);
+  }
+  // The Osmundas carry their fertile parts in spring and early summer and they
+  // wither: cinnamon fern's clubs, royal fern's tassels, interrupted fern's
+  // middle leaflets. Drawn standing in winter they were a plant that is not there
+  // (0.9.103), so each dies down and draws nothing.
+  for (const k of ['cinnamonfern','royalfern','interruptedfern']){
+    const S = PLANTS[k].sea;
+    assert(S.Spring.seed, `${k}: fertile in spring`);
+    assert(!S.Fall.seed && !(S.Winter && (S.Winter.seed || S.Winter.fol)), `${k}: nothing fertile stands in fall or winter`);
+    assert(PLANTS[k].look.dormantWhenBare, `${k}: and an empty winter draws nothing`);
   }
 });
 test('every species blooming in the calendar also blooms in a season slot', () => {

@@ -7092,6 +7092,35 @@ tile. Bakes cost 0.14-0.44 ms, inside the catalog's range. Record:
 sourced `heightIn` with `h` set equal to it (a test holds the pair), and dense blazing star
 gained 'Kobold'.
 
+**The shade audit (0.9.103)**: 52 records (77 choices) on the Shade Perennials tab, four drawings
+that carried most of it, all opt-in (old data through old and new draw.js: identical streams over
+20,976 draws; with the new data exactly the 77 edited choices differ). **Ferns** were a bare stick
+with ellipse pairs, a fishbone; `frondStyle:'blade'` (`drawFernFronds`) draws each frond as a filled
+outline of 15-30 leaflet pairs with its lit side, shaped by `bladeShape` ('oblance' ostrich,
+'lance', 'both' New York, 'ovate', 'deltoid' sensitive, 'linear' Christmas and sword) and tuned by
+`pairs`, `bladeW`, `stalk`, `gap`, `sweep`, `pinnaWide`, `cut`, `pinnaEnd:'round'`; `'pedate'`
+(`drawPedateFronds`) is the maidenhair's level horseshoe of fingers on a wire. The fertile parts sit
+where the plant has them: `fertileStyle:'plume'` (ostrich, through winter), `'tassel'` (royal fern's
+frond tips), `'interrupt'` (interrupted fern's middle leaflets); a blade fern draws no fertile part
+it does not name, since a wood fern's `seed` is its spores. **Cinnamon, royal and interrupted fern
+no longer stand fertile parts in winter**: theirs wither by early summer, so they are
+`dormantWhenBare` and a test says so; ostrich and sensitive fern keep theirs. **Foliage mounds** were
+one fan of folded-paper blades with a bead ball for a flower: `leafStyle:'hosta'`
+(`drawHostaLeaves`) builds stalked, cupped, veined leaves in the round (lance and spotted for the
+lungworts, `margin` for variegated cultivars), and `leafStyle:'parasol'` now works in a leaf mound
+too (`drawParasolFoliage`, lifted out unchanged), with a `sinus` notch and `tipPt` for the
+heart-based leaves of heuchera, brunnera, foamflower, lady's mantle and the geraniums. A mound's
+`scapeStyle` is 'raceme' (hosta funnels), 'spray' (heuchera, brunnera, epimedium), 'cyme'
+(lungwort) or 'nodding' (hellebore cups). **The tall shade perennials** stood on the default grass
+tuft; each now carries its own basal leaf (deep-cut parasols for astilbe, cohosh, goat's beard,
+monkshood; `leafStyle:'pinnate'` for Jacob's ladder; `rosette` with `mottle` for deadnettle) and
+astilbe, goat's beard, black cohosh and foamflower the rodgersia `plume`. A **mat** must not draw its
+flower stalks over itself: `flowerLen` keeps them in the mat, or `matHeadRise` ends them at a flower.
+Bakes 0.4-0.95 ms (maidenhair the worst); 23 records carry a measured `sideScale` so the previews
+fit. Record, including the missing species and cultivars and the case for site headings on this
+tab: `docs/plant-data/shade-audit.md`; `dev/shade-review.html` (`?measure` reports each drawing's
+real reach against its sprite box and preview).
+
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
 separate carpet, meadow, broad woodland, wet upright, and arching sedges; shared

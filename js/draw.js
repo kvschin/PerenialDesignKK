@@ -248,33 +248,434 @@ function basalFoliageOnly(L){
    is nearly separate leaflets) and `cut` the shape of the cut: 1 leaves pointed
    lobes with wide bays, 3 broad leaflets with narrow slits. The copy under it is
    the leaf's edge, in `under` where the back of the leaf is a different colour. */
-function parasolPath(ctx,cx,cy,r,flat,tilt,rot,lobes,depth,cut){
-  const n=lobes>1?Math.min(72,lobes*8):20, c=Math.cos(tilt), s=Math.sin(tilt);
+/* `sinus` (0.9.103) cuts the notch where a stalk joins a leaf that is NOT peltate:
+   heuchera, brunnera, foamflower, lady's mantle and the geraniums all carry the
+   stalk at a notch in the rim, so a round leaf with no notch read as a lily pad.
+   `sa` is the angle, in the leaf's own frame, that points back at the crown, and
+   `tipPt` draws the rim out opposite it into the point of a heart-shaped leaf.
+   With no sinus the path is the one every wet-ground plant has always drawn. */
+function parasolPath(ctx,cx,cy,r,flat,tilt,rot,lobes,depth,cut,sinus,sa,tipPt){
+  const n=lobes>1?Math.min(72,lobes*8):(sinus?28:20), c=Math.cos(tilt), s=Math.sin(tilt);
   ctx.beginPath();
   for(let i=0;i<n;i++){
     const a=i/n*Math.PI*2+rot, w=lobes>1?Math.pow(0.5-0.5*Math.cos(lobes*(a-rot)),cut):0;
-    const rr=r*(1-depth*w), lx=Math.cos(a)*rr, ly=Math.sin(a)*rr*flat;
+    let rr=r*(1-depth*w);
+    if(sinus){
+      let d=a-sa; d=Math.atan2(Math.sin(d),Math.cos(d));
+      rr*=1-sinus*Math.exp(-d*d/0.045);
+      if(tipPt){ const e=Math.PI-Math.abs(d); rr*=1+tipPt*Math.exp(-e*e/0.3); }
+    }
+    const lx=Math.cos(a)*rr, ly=Math.sin(a)*rr*flat;
     const px=cx+lx*c-ly*s, py=cy+lx*s+ly*c;
     if(i)ctx.lineTo(px,py); else ctx.moveTo(px,py);
   }
   ctx.closePath();
 }
-function drawParasolLeaf(ctx,cx,cy,r,flat,tilt,rot,col,under,L){
+function drawParasolLeaf(ctx,cx,cy,r,flat,tilt,rot,col,under,L,sa){
   const lobes=Math.max(1,Math.round(L.lobes||1)), depth=L.lobeDepth||0, cut=L.lobeCut||2;
-  parasolPath(ctx,cx,cy+Math.max(1,r*0.09),r,flat,tilt,rot,lobes,depth,cut);
+  const sin=sa===undefined?0:(L.sinus||0), tp=sin?(L.tipPt||0):0;
+  parasolPath(ctx,cx,cy+Math.max(1,r*0.09),r,flat,tilt,rot,lobes,depth,cut,sin,sa,tp);
   ctx.fillStyle=under;ctx.fill();
-  parasolPath(ctx,cx,cy,r,flat,tilt,rot,lobes,depth,cut);
+  parasolPath(ctx,cx,cy,r,flat,tilt,rot,lobes,depth,cut,sin,sa,tp);
   litFill(ctx,cx,cy,r,col,16,-14);
+  if(sin && L.edgeCol){                     // a pale or dark rim inside the margin: 'Jack Frost', painted heucheras
+    parasolPath(ctx,cx,cy,r*(1-(L.edgeW||0.22)),flat,tilt,rot,lobes,depth,cut,sin,sa,tp);
+    ctx.fillStyle=L.edgeCol; ctx.fill();
+  }
   if(r<4||L.leafRib===false)return;
-  // the veins run out to the lobe tips from where the stalk meets the leaf
-  const veins=lobes>1?lobes:7, c=Math.cos(tilt), s=Math.sin(tilt);
-  ctx.save();ctx.globalAlpha=0.4;ctx.strokeStyle=shade(col,-30);ctx.lineWidth=Math.max(0.45,r*0.022);
+  const c=Math.cos(tilt), s=Math.sin(tilt);
+  ctx.save();ctx.globalAlpha=sin&&L.veinAlpha?L.veinAlpha:0.4;ctx.strokeStyle=sin&&L.veinCol?L.veinCol:shade(col,-30);ctx.lineWidth=Math.max(0.45,r*0.022);
   ctx.beginPath();
-  for(let v=0;v<veins;v++){
-    const a=v/veins*Math.PI*2+rot, lx=Math.cos(a)*r*0.86, ly=Math.sin(a)*r*0.86*flat;
-    ctx.moveTo(cx,cy);ctx.lineTo(cx+lx*c-ly*s,cy+lx*s+ly*c);
+  if(sin){
+    // a notched leaf is veined from the notch, fanning out over the blade
+    const veins=lobes>1?lobes:5, o=r*(1-sin)*0.9, ox=Math.cos(sa)*o, oy=Math.sin(sa)*o*flat;
+    const x0=cx+ox*c-oy*s, y0=cy+ox*s+oy*c;
+    for(let v=0;v<veins;v++){
+      const a=sa+Math.PI+(v/Math.max(1,veins-1)-0.5)*4.2, lx=Math.cos(a)*r*0.8, ly=Math.sin(a)*r*0.8*flat;
+      ctx.moveTo(x0,y0);ctx.lineTo(cx+lx*c-ly*s,cy+lx*s+ly*c);
+    }
+  } else {
+    // the veins run out to the lobe tips from where the stalk meets the leaf
+    const veins=lobes>1?lobes:7;
+    for(let v=0;v<veins;v++){
+      const a=v/veins*Math.PI*2+rot, lx=Math.cos(a)*r*0.86, ly=Math.sin(a)*r*0.86*flat;
+      ctx.moveTo(cx,cy);ctx.lineTo(cx+lx*c-ly*s,cy+lx*s+ly*c);
+    }
   }
   ctx.stroke();ctx.restore();
+}
+/* Big leaves held out on stalks, sited on a spiral over the crown and painted far
+   to near. The far ones stand higher, as they do on a real clump, so the near ones
+   do not hide them. The stalk's colour is the plant's own stem: rust on a Darmera,
+   dark on a Ligularia. Shared by the stemmed forms and the leaf mounds (0.9.103),
+   so heuchera, brunnera and lenten rose draw the same leaf as the bog plants. */
+function drawParasolFoliage(ctx,P,L,S,H,fn,sway,rnd){
+  const lr=H*(L.parasolR||0.2), flat=L.parasolFlat||0.46, pet=L.petioles||0.5, reach=H*(L.leafSpread||0.5);
+  const stalk=P.stem||shade(S.fol,-24), under=S.edge, leaves=[];
+  for(let i=0;i<fn;i++){
+    const a=i*2.39996+rnd()*0.5, rr=Math.sqrt((i+0.5)/fn);
+    leaves.push({x:Math.cos(a)*rr,z:Math.sin(a)*rr,k:0.82+rnd()*0.34,h:rnd(),rot:rnd()*6.283,tone:(rnd()-0.5)*20});
+  }
+  leaves.sort((p,q)=>p.z-q.z);
+  for(const o of leaves){
+    // A near leaf stands at half the height of a far one and tips toward the
+    // viewer, so the clump reads as a mound of separate leaves. At one height
+    // they merge into a single flat table on a stem, which looks like a tree.
+    const back=(1-o.z)/2, px=o.x*reach+sway, py=-H*pet*(0.44+0.46*back+o.h*0.1), lean=o.x*0.42;
+    ctx.strokeStyle=stalk;ctx.lineWidth=Math.max(0.8,L.stalkW||lr*0.055);ctx.beginPath();
+    ctx.moveTo(o.x*H*0.06,0);ctx.quadraticCurveTo(px*0.3,py*0.62,px,py);ctx.stroke();
+    const col=shade(S.fol,o.tone+(1-back)*14-6), fl=flat*(1.18-0.36*back);
+    let sa;
+    if(L.sinus){
+      // the notch faces back down the stalk, in the leaf's own tilted, flattened frame
+      const dx=o.x*H*0.06-px, dy=-py, c=Math.cos(lean), s=Math.sin(lean);
+      sa=Math.atan2((-dx*s+dy*c)/fl, dx*c+dy*s);
+    }
+    drawParasolLeaf(ctx,px,py,lr*o.k,fl,lean,o.rot,col,under||shade(col,-34),L,sa);
+  }
+}
+
+/* ---------- hosta leaves (0.9.103) ----------
+   A hosta IS its leaves, and they are not a fan of blades: each is a broad, ribbed
+   blade on its own stalk, the inner ones held up, the outer ones arching out and
+   down, so the clump is a dome of overlapping tilted plates. Built in the round:
+   every leaf has an azimuth, a stalk and a blade lying in a plane, projected with a
+   slight look-down and painted far to near, the face lit by its own normal and the
+   pale underside showing where a leaf turns away. The veins run in arcs from the
+   stalk to the tip, which is what tells a hosta from every other broad leaf. */
+const HOSTA_OUT=[[0,0],[-0.05,0.34],[0.02,0.66],[0.14,0.92],[0.3,1],[0.48,0.93],[0.66,0.72],[0.8,0.47],[0.92,0.2],[1,0]];
+const HOSTA_LANCE=[[0,0],[0.04,0.3],[0.12,0.62],[0.26,0.9],[0.42,1],[0.58,0.93],[0.72,0.72],[0.85,0.45],[0.94,0.18],[1,0]];
+const _hoX=new Float64Array(22), _hoY=new Float64Array(22);
+function hostaLeafWidthAt(tab,u){
+  for(let i=1;i<tab.length;i++) if(tab[i][0]>=u){ const a=tab[i-1], b=tab[i], f=(u-a[0])/Math.max(1e-6,b[0]-a[0]); return a[1]+(b[1]-a[1])*f; }
+  return 0;
+}
+function drawHostaLeaves(ctx,P,L,S,H,n,sway,rnd){
+  const tilt=0.5, tab=L.leafShape==='lance'?HOSTA_LANCE:HOSTA_OUT;
+  const bl0=H*(L.leafLen||0.46), wr=L.leafWR||0.62, cup=L.cup===undefined?0.16:L.cup;
+  const reach=L.leafSpread===undefined?1:L.leafSpread, rise=L.leafRise===undefined?0.6:L.leafRise;
+  const stalkCol=L.stalkCol||shade(S.fol,10), under=mixHex(S.fol,'#dfe4cf',0.35);
+  const margin=L.margin&&S.edge?L.margin:0, veins=Math.max(2,Math.min(7,Math.round(L.veins||4)));
+  const list=[];
+  for(let i=0;i<n;i++){
+    const az=i*2.39996+rnd()*0.5, rr=Math.sqrt((i+0.5)/n);          // 0 = centre of the clump, 1 = its rim
+    const bl=bl0*(0.8+rnd()*0.28)*(1.08-0.16*rr);
+    const el=rise*(1-1.45*rr)+(rnd()-0.5)*0.22;                       // blade elevation: inner up, outer down
+    const pe=1.15-0.75*rr, pl=bl*(L.petioleLen||0.55)*(0.85+0.3*rr);  // stalk climbs steep at the centre
+    const ca=Math.cos(az), sa=Math.sin(az);
+    const p1x=ca*Math.cos(pe)*pl*reach, p1y=sa*Math.cos(pe)*pl*reach, p1z=Math.sin(pe)*pl;
+    const dx=ca*Math.cos(el), dy=sa*Math.cos(el), dz=Math.sin(el);
+    list.push({p1x,p1y,p1z,dx,dy,dz,sx:-sa,sy:ca,nx:-ca*Math.sin(el),ny:-sa*Math.sin(el),nz:Math.cos(el),
+      bl,tone:(rnd()-0.5)*14,depth:p1y+dy*bl*0.5});
+  }
+  list.sort((p,q)=>p.depth-q.depth);
+  // light from the upper left and a little in front; the viewer looks from the front and above
+  const Lx=-0.5,Ly=0.42,Lz=0.76, Vy=0.89, Vz=0.45, N=tab.length;
+  // wind leans the clump: a point moves with its height, the shear the sprite blit applies
+  const sh=sway*0.03;
+  for(const o of list){
+    const bx=o.p1x+sh*o.p1z, by=-o.p1z+o.p1y*tilt;
+    ctx.strokeStyle=stalkCol; ctx.lineWidth=Math.max(0.7,o.bl*0.045); ctx.beginPath();
+    ctx.moveTo(0,0); ctx.quadraticCurveTo(bx*0.35,by*0.85,bx,by); ctx.stroke();
+    const face=o.ny*Vy+o.nz*Vz, lum=o.nx*Lx+o.ny*Ly+o.nz*Lz;
+    let col=face<0?under:shade(S.fol,o.tone+lum*30-8);
+    const hw=o.bl*wr*0.5;
+    // outline: up one side and back down the other, through the profile table
+    const outline=(shrink)=>{
+      let k=0;
+      for(let side=1;side>=-1;side-=2) for(let j=side>0?0:N-1; side>0?j<N:j>=0; j+=side>0?1:-1){
+        if(side<0&&(j===N-1)) continue;
+        const u=tab[j][0]*(1-shrink*0.4)+shrink*0.12, v=side*tab[j][1]*hw*(1-shrink);
+        const lift=cup*o.bl*(tab[j][1]*tab[j][1])*(1-shrink);
+        const wx=o.p1x+o.dx*u*o.bl+o.sx*v+o.nx*lift, wy=o.p1y+o.dy*u*o.bl+o.sy*v+o.ny*lift, wz=o.p1z+o.dz*u*o.bl+o.nz*lift;
+        _hoX[k]=wx+sh*wz; _hoY[k]=-wz+wy*tilt; k++;
+      }
+      ctx.beginPath(); ctx.moveTo(_hoX[0],_hoY[0]);
+      for(let i=1;i<k;i++){ const mx=(_hoX[i]+_hoX[(i+1)%k])/2, my=(_hoY[i]+_hoY[(i+1)%k])/2; ctx.quadraticCurveTo(_hoX[i],_hoY[i],mx,my); }
+      ctx.closePath();
+    };
+    const R=o.bl*0.6, cxm=bx+(o.dx*o.bl*0.45), cym=by-(o.dz*o.bl*0.45)+o.dy*o.bl*0.45*tilt;
+    if(margin && face>=0){ outline(0); ctx.fillStyle=shade(S.edge,lum*16); ctx.fill(); outline(margin); }
+    else outline(0);
+    litFill(ctx,cxm,cym,R,col,14,-12);
+    if(L.spots && S.edge && face>=0){
+      // a lungwort's silver spots, scattered over the face of the blade
+      ctx.fillStyle=S.edge; ctx.beginPath();
+      const k=Math.max(1,Math.round(L.spots));
+      for(let s=0;s<k;s++){
+        const u=0.15+rnd()*0.7, v=(rnd()*2-1)*0.7*hostaLeafWidthAt(tab,u)*hw, lift=cup*o.bl*0.3;
+        const wx=o.p1x+o.dx*u*o.bl+o.sx*v+o.nx*lift, wy=o.p1y+o.dy*u*o.bl+o.sy*v+o.ny*lift, wz=o.p1z+o.dz*u*o.bl+o.nz*lift;
+        const r=hw*(L.spotR||0.13)*(0.7+rnd()*0.6), X=wx+sh*wz, Y=-wz+wy*tilt;
+        ctx.moveTo(X+r,Y); ctx.ellipse(X,Y,r,r*0.6,0,0,7);
+      }
+      ctx.fill();
+    }
+    if(o.bl<5) continue;
+    // arcing veins, then the midrib
+    ctx.save(); ctx.globalAlpha=face<0?0.25:0.42; ctx.strokeStyle=shade(col,-26); ctx.lineWidth=Math.max(0.35,o.bl*0.012); ctx.beginPath();
+    for(let side=-1;side<=1;side+=2) for(let k=1;k<=veins;k++){
+      const f=k/(veins+1);
+      for(let s=0;s<=6;s++){
+        const u=0.04+s/6*0.9, v=side*f*hostaLeafWidthAt(tab,u)*hw*0.92;
+        const lift=cup*o.bl*Math.pow(f*hostaLeafWidthAt(tab,u),2);
+        const wx=o.p1x+o.dx*u*o.bl+o.sx*v+o.nx*lift, wy=o.p1y+o.dy*u*o.bl+o.sy*v+o.ny*lift, wz=o.p1z+o.dz*u*o.bl+o.nz*lift;
+        const X=wx+sh*wz, Y=-wz+wy*tilt;
+        s ? ctx.lineTo(X,Y) : ctx.moveTo(X,Y);
+      }
+    }
+    ctx.stroke(); ctx.lineWidth*=1.7; ctx.beginPath(); ctx.moveTo(bx,by);
+    ctx.lineTo(o.p1x+o.dx*o.bl*0.92+sh*(o.p1z+o.dz*o.bl*0.92),-(o.p1z+o.dz*o.bl*0.92)+(o.p1y+o.dy*o.bl*0.92)*tilt);
+    ctx.stroke(); ctx.restore();
+  }
+}
+
+/* ---------- flower scapes over a leaf mound (0.9.103) ----------
+   The mound's own scapes ended in a stack of round beads, which read as a grape
+   hyacinth over every hosta, heuchera and hellebore. `scapeStyle` draws what each
+   actually carries: 'raceme' a hosta's one-sided funnels, 'spray' a heuchera's or
+   brunnera's airy panicle of tiny bells, 'cyme' a lungwort's nodding cluster, and
+   'nodding' a hellebore's big cups facing down. Each returns where snow would sit. */
+function drawMoundScapes(ctx,P,L,S,H,m,sway,rnd,blooming){
+  const style=L.scapeStyle, col=blooming?S.bloom:S.seed; if(!col) return;
+  const stemCol=L.scapeCol||P.stem||shade(S.fol||col,-20);
+  for(let i=0;i<m;i++){
+    const ox=(rnd()-0.5)*H*(L.scapeSpread||0.3), lean=(rnd()-0.5)*(L.scapeLean||0.25);
+    const len=H*(L.scapeH||1.05)*(0.86+rnd()*0.22), tx=ox+Math.sin(lean)*len+sway*2, ty=-len*Math.cos(lean);
+    const qx=ox*0.6+(tx-ox)*0.3, qy=-len*0.55;
+    ctx.strokeStyle=stemCol; ctx.lineWidth=style==='nodding'?1.2:style==='raceme'?1.0:0.6; ctx.beginPath();
+    ctx.moveTo(ox*0.3,0); ctx.quadraticCurveTo(qx,qy,tx,ty); ctx.stroke();
+    const span=L.racemeSpan||(style==='raceme'?0.36:style==='spray'?0.42:0.18), fl=Math.max(2,Math.round((L.florets||8)*(blooming?1:0.7)));
+    if(style==='raceme'){
+      // funnels hang out to one side down the top of the scape, buds closed at the tip
+      const side=rnd()<0.5?-1:1, fr=L.floretR||1.8;
+      for(let f=0;f<fl;f++){
+        const u=f/Math.max(1,fl-1), t=1-u*span, x=qBez(t,ox*0.3,qx,tx), y=qBez(t,0,qy,ty), s2=(f%3===2?-side:side);
+        if(blooming && u>0.18) drawBulbBell(ctx,x+s2*fr*0.9,y+fr*0.6,fr*0.9,fr*1.7,col,shade(col,22),-s2*(0.9+0.4*u));
+        else { fcPush(x+s2*fr*0.5,y,fr*0.42,1.6); }
+      }
+      fcDraw(ctx,blooming?shade(col,-6):col,16,-10);
+    } else if(style==='spray'||style==='cyme'){
+      // short side branches, each with a few tiny florets on fine pedicels
+      const branches=Math.max(2,Math.round(L.sprayBranches||(style==='cyme'?3:6))), reach=H*(L.sprayW||0.12), fr=L.floretR||0.9;
+      ctx.lineWidth=0.45; ctx.beginPath();
+      for(let b=0;b<branches;b++){
+        const u=(b+0.5)/branches, t=1-u*span, x=qBez(t,ox*0.3,qx,tx), y=qBez(t,0,qy,ty);
+        const side=b%2?-1:1, bl=reach*(0.45+0.55*(style==='cyme'?1-u:u))*(0.7+rnd()*0.6), ex=x+side*bl, ey=y-bl*(style==='cyme'?-0.25:0.45);
+        ctx.moveTo(x,y); ctx.lineTo(ex,ey);
+        const per=style==='cyme'?4:3;
+        for(let f=0;f<per;f++){ const g=(f+1)/per, px=x+(ex-x)*g+(rnd()-0.5)*fr*1.6, py=y+(ey-y)*g+(rnd()-0.5)*fr*1.4+(style==='cyme'?fr*0.8:0);
+          if(_fcN>FC_MAX-2){ ctx.stroke(); fcDraw(ctx,col,18,-12); ctx.beginPath(); }
+          fcPush(px,py,fr*(style==='cyme'?1.15:1)*(0.75+rnd()*0.4),style==='cyme'?1.35:1); }
+      }
+      ctx.stroke();
+      for(let f=0;f<3;f++) fcPush(tx+(rnd()-0.5)*fr*2,ty+(rnd()-0.5)*fr*1.5,fr*0.85,1);
+      fcDraw(ctx,col,18,-12);
+      if(blooming && S.bud){                     // lungwort opens pink and turns blue on one stem
+        for(let f=0;f<4;f++) fcPush(tx+(rnd()-0.5)*reach,ty+(rnd()-0.2)*reach*0.6,fr*0.95,1.3);
+        fcDraw(ctx,S.bud,16,-12);
+      }
+    } else if(style==='nodding'){
+      // a hellebore's branched stem carries two or three big cups facing down and out
+      const fr=L.floretR||3.2, k=Math.max(1,Math.min(3,Math.round(L.florets||2)));
+      for(let f=0;f<k;f++){
+        const side=f%2?-1:1, bx=tx+side*fr*(0.6+f*0.7), by=ty+f*fr*0.9;
+        if(f){ ctx.strokeStyle=stemCol; ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(tx,ty+fr*0.4); ctx.quadraticCurveTo(bx,ty-fr*0.3,bx,by); ctx.stroke(); }
+        if(blooming){
+          drawBulbBell(ctx,bx,by+fr*0.55,fr*1.05,fr*1.0,col,null,side*0.55);
+          ctx.fillStyle=S.eye||shade(col,-30); ctx.beginPath(); ctx.ellipse(bx+side*fr*0.35,by+fr*1.05,fr*0.42,fr*0.22,side*0.5,0,7); ctx.fill();
+        } else { ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(bx,by+fr*0.5,fr*0.55,fr*0.7,side*0.3,0,7); ctx.fill(); }
+      }
+    }
+  }
+}
+
+/* ---------- fern blades (0.9.103) ----------
+   A fern frond is a BLADE: a rachis carrying 12-30 pairs of leaflets so close they
+   read as one feather, lit on the side facing the light. The pinnate path above it
+   (five to twelve ellipse pairs on a bare stick) drew every fern in the catalog as a
+   fishbone. Opt-in by `frondStyle:'blade'`, or 'pedate' for the maidenhair's flat
+   horseshoe of fingers held on a black wire. The outline of the blade is a named
+   shape: a lady fern is widest in the middle, an ostrich fern near the top, a New
+   York fern tapers both ways, a sensitive fern is a triangle, a Christmas fern a
+   strap. Each leaflet is a lobe swept toward the tip; `gap` opens the rachis between
+   them, `pinnaWide` makes them broad, `cut` serrates a lacy one, and
+   `pinnaEnd:'round'` blunts them (royal, holly, Christmas fern). The fertile parts
+   are part of the frond where they are in life: a royal fern's brown tassel at the
+   top, an interrupted fern's brown leaflets in its middle, an ostrich fern's stiff
+   brown plumes in the centre of the vase. */
+const FERN_SHAPES={
+  lance:t=>Math.pow(1-t,0.85)*(0.42+0.58*Math.min(1,t/0.32)),
+  oblance:t=>Math.pow(1-t,0.55)*(0.1+0.9*Math.pow(Math.min(1,t/0.66),1.3)),
+  both:t=>Math.pow(Math.sin(Math.PI*t),0.8),
+  ovate:t=>Math.pow(1-t,0.95)*(0.62+0.38*Math.min(1,t/0.2)),
+  deltoid:t=>Math.pow(1-t,1.1),
+  linear:t=>Math.pow(1-t,0.3)*(0.62+0.38*Math.min(1,t/0.12)),
+};
+const _fernMax={};
+function fernShape(name,t){
+  const f=FERN_SHAPES[name]||FERN_SHAPES.lance;
+  if(_fernMax[name]===undefined){ let m=0; for(let i=0;i<=40;i++) m=Math.max(m,f(i/40)); _fernMax[name]=m||1; }
+  return Math.max(0,f(Math.min(1,Math.max(0,t))))/_fernMax[name];
+}
+// the fertile styles the blade draws itself; the old stick, spike and bead still run after it
+const FERN_OWN_FERTILE={plume:1,tassel:1,interrupt:1};
+function fernBladeOn(L){ return !!L && (L.frondStyle==='blade'||L.frondStyle==='pedate'); }
+const _frP=new Float64Array(8);
+function frondAt(f,s,o){
+  const u=1-s;
+  o[0]=u*u*f.x0+2*u*s*f.cx+s*s*f.x1; o[1]=u*u*f.y0+2*u*s*f.cy+s*s*f.y1;
+  let tx=2*u*(f.cx-f.x0)+2*s*(f.x1-f.cx), ty=2*u*(f.cy-f.y0)+2*s*(f.y1-f.cy); const l=Math.sqrt(tx*tx+ty*ty)||1;
+  o[2]=tx/l; o[3]=ty/l;
+}
+/* Build one frond's outline. `only` 0 = both sides, +1/-1 = that side alone (for
+   the lit pass). `skip(t)` leaves a leaflet out (a fertile one drawn separately). */
+function fernBladePath(ctx,f,only,skip){
+  const P=f.pairs, s0=f.s0, ds=(1-s0)/P*0.5*(1-f.gap), cs=Math.cos(f.sweep), sn=Math.sin(f.sweep);
+  const o=_frP;
+  frondAt(f,s0,o); ctx.beginPath(); ctx.moveTo(o[0],o[1]);
+  const pinna=(j,sd,rev)=>{
+    let t=(j+0.5+(sd<0?0.32:0))/P; if(t>0.985) t=0.985;
+    if(skip&&skip(t)) return;
+    const s=s0+(1-s0)*t;
+    frondAt(f,s-ds,o); const ax=o[0], ay=o[1];
+    frondAt(f,s+ds,o); const bx=o[0], by=o[1];
+    frondAt(f,s,o); const mx=o[0], my=o[1], Tx=o[2], Ty=o[3];
+    let dx=sd*(-Ty)*cs+Tx*sn, dy=sd*Tx*cs+Ty*sn+f.droop; const dl=Math.sqrt(dx*dx+dy*dy)||1; dx/=dl; dy/=dl;
+    const Lp=f.W*fernShape(f.shape,t);
+    if(Lp<0.35){ ctx.lineTo(rev?bx:ax,rev?by:ay); return; }
+    const hw=Math.sqrt((bx-ax)*(bx-ax)+(by-ay)*(by-ay))*0.5*f.wide, qx=-dy, qy=dx;
+    const sg=((ax-mx)*qx+(ay-my)*qy)<0?-1:1;
+    const fx=rev?bx:ax, fy=rev?by:ay, lx=rev?ax:bx, ly=rev?ay:by, s1=rev?-sg:sg;
+    const tx=mx+dx*Lp, ty=my+dy*Lp;
+    ctx.lineTo(fx,fy);
+    if(f.round){
+      ctx.bezierCurveTo(fx+dx*Lp*0.5,fy+dy*Lp*0.5,tx+qx*s1*hw*1.05,ty+qy*s1*hw*1.05,tx,ty);
+      ctx.bezierCurveTo(tx-qx*s1*hw*1.05,ty-qy*s1*hw*1.05,lx+dx*Lp*0.5,ly+dy*Lp*0.5,lx,ly);
+    } else if(f.cut){
+      const m=f.cut*2+1, c1x=mx+dx*Lp*0.5+qx*s1*hw*1.15, c1y=my+dy*Lp*0.5+qy*s1*hw*1.15;
+      const c2x=mx+dx*Lp*0.5-qx*s1*hw*1.15, c2y=my+dy*Lp*0.5-qy*s1*hw*1.15, tooth=hw*0.5;
+      for(let k=1;k<=m;k++){ const u=k/m, p=k<m&&k%2; ctx.lineTo(qBez(u,fx,c1x,tx)+(p?qx*s1*tooth*(1-u*0.5):0),qBez(u,fy,c1y,ty)+(p?qy*s1*tooth*(1-u*0.5):0)); }
+      for(let k=1;k<=m;k++){ const u=k/m, p=k<m&&k%2; ctx.lineTo(qBez(u,tx,c2x,lx)-(p?qx*s1*tooth*u*0.9:0),qBez(u,ty,c2y,ly)-(p?qy*s1*tooth*u*0.9:0)); }
+    } else {
+      ctx.quadraticCurveTo(mx+dx*Lp*0.5+qx*s1*hw*1.2,my+dy*Lp*0.5+qy*s1*hw*1.2,tx,ty);
+      ctx.quadraticCurveTo(mx+dx*Lp*0.5-qx*s1*hw*1.2,my+dy*Lp*0.5-qy*s1*hw*1.2,lx,ly);
+    }
+  };
+  if(only>=0) for(let j=0;j<P;j++) pinna(j,1,false);
+  frondAt(f,1,o); ctx.lineTo(o[0],o[1]);
+  if(only<=0) for(let j=P-1;j>=0;j--) pinna(j,-1,true);
+  // a one-sided pass walks back down its own rachis rather than cutting across
+  if(only>0) for(let k=4;k>=0;k--){ frondAt(f,s0+(1-s0)*k/4,o); ctx.lineTo(o[0],o[1]); }
+  if(only<0){ frondAt(f,s0,o); ctx.lineTo(o[0],o[1]); for(let k=1;k<=4;k++){ frondAt(f,s0+(1-s0)*k/4,o); ctx.lineTo(o[0],o[1]); } }
+  ctx.closePath();
+}
+// the brown fertile leaflets: little clusters along where each leaflet would be
+function fernFertileClusters(ctx,f,from,to,col){
+  const o=_frP, P=f.pairs, s0=f.s0;
+  for(let j=0;j<P;j++) for(const sd of [1,-1]){
+    const t=(j+0.5+(sd<0?0.32:0))/P; if(t<from||t>to) continue;
+    const s=s0+(1-s0)*t; frondAt(f,s,o);
+    const Tx=o[2], Ty=o[3], dx=sd*(-Ty)*0.8+Tx*0.6, dy=sd*Tx*0.8+Ty*0.6, Lp=f.W*fernShape(f.shape,t)*0.7;
+    for(let k=0;k<3;k++){ if(_fcN>FC_MAX-2) fcDraw(ctx,col,14,-16); fcPush(o[0]+dx*Lp*(0.25+k*0.3),o[1]+dy*Lp*(0.25+k*0.3),Math.max(0.6,Lp*0.2),1); }
+  }
+  fcDraw(ctx,col,14,-16);
+}
+function drawFernFrond(ctx,f,col,stipe,stipeW,skip){
+  const o=_frP;
+  fernBladePath(ctx,f,0,skip); ctx.fillStyle=shade(col,-12); ctx.fill();
+  frondAt(f,0.5,o);
+  const lit=((-o[3])*LIT.x+o[2]*LIT.y)>0?1:-1;
+  fernBladePath(ctx,f,lit,skip); ctx.fillStyle=shade(col,13); ctx.fill();
+  ctx.strokeStyle=stipe||shade(col,-34); ctx.lineWidth=stipeW; ctx.beginPath();
+  ctx.moveTo(f.x0,f.y0); frondAt(f,0.98,o); ctx.quadraticCurveTo(f.cx,f.cy,o[0],o[1]); ctx.stroke();
+}
+function drawFernFronds(ctx,L,S,H,sway,rnd,n,season,mature,growth){
+  const fol=S.fol, snow=AMBIENCE[season].snow&&mature?[]:null;
+  const stipe=L.stipe||null, stipeW=(L.stipeW||1.0)*0.75, crown=H*(L.crownW||0.08);
+  const pairs=Math.max(5,Math.round((L.pairs||16)*(0.55+0.45*growth)));
+  const base={pairs, s0:L.stalk===undefined?0.12:L.stalk, gap:L.gap===undefined?0.2:L.gap, sweep:L.sweep===undefined?0.55:L.sweep,
+    wide:L.pinnaWide||1, cut:Math.max(0,Math.min(3,Math.round(L.cut||0))), round:L.pinnaEnd==='round', droop:L.pinnaDroop||0, shape:L.bladeShape||'lance'};
+  const fertile=L.fertileStyle, fN=Math.max(0,Math.round(L.fertileN||0));
+  // an ostrich fern's fertile plumes stand in the centre of the vase, behind the fronds
+  if(fertile==='plume' && S.seed && (mature||!fol)){
+    for(let i=0;i<fN;i++){
+      const a=(fN>1?(i/(fN-1)-0.5):0)*0.55+(rnd()-0.5)*0.15, len=H*(L.fertileLen||0.45)*(0.85+rnd()*0.3);
+      const x0=(rnd()-0.5)*crown*0.6, x1=x0+Math.sin(a)*len+sway*len*0.04, y1=-Math.cos(a)*len;
+      const fr=Object.assign({},base,{x0,y0:0,cx:x0+(x1-x0)*0.4,cy:y1*0.55,x1,y1,pairs:Math.max(6,Math.round(pairs*0.7)),
+        W:len*(L.fertileW||0.09),shape:'linear',gap:0.08,wide:1.3,sweep:1.0,s0:0.2,cut:0,round:true,droop:0});
+      drawFernFrond(ctx,fr,S.seed,shade(S.seed,-25),stipeW,null);
+      if(snow) snow.push([x1,y1+len*0.1,Math.max(2,H*0.04)]);
+    }
+  }
+  if(fol){
+    const fan=L.spread===undefined?1.9:L.spread, arch=L.arch===undefined?0.55:L.arch, reach=L.reach===undefined?0.8:L.reach;
+    const len0=L.frondLen===undefined?0.65:L.frondLen, vary=L.frondVar===undefined?0.4:L.frondVar;
+    const bowX=L.bow===undefined?0.35:L.bow, bowY=L.bowY===undefined?0.7:L.bowY, bw=L.bladeW||0.2;
+    const fronds=[];
+    for(let i=0;i<n;i++){
+      const a=(i/Math.max(1,n-1)-0.5)*fan+(rnd()-0.5)*0.2, len=H*(len0+rnd()*vary), z=rnd(), tone=(rnd()-0.5)*14;
+      const x0=(rnd()-0.5)*crown, y0=(z-0.5)*crown*0.45;
+      const x1=x0+Math.sin(a)*len*reach+sway*len*0.06, y1=y0-Math.cos(a*arch)*len;
+      fronds.push({i,a,len,z,tone,x0,y0,x1,y1,cx:x0+(x1-x0)*bowX,cy:y0+(y1-y0)*bowY});
+    }
+    // fertile fronds are the ones in the middle of the vase
+    const mid=(n-1)/2, isFertile=fr=>fN>0 && Math.abs(fr.i-mid)<fN/2;
+    fronds.sort((p,q)=>p.z-q.z);
+    for(const fr of fronds){
+      const f=Object.assign({},base,fr,{W:fr.len*bw});
+      const col=shade(fol,fr.tone+(fr.z-0.5)*12);
+      let skip=null;
+      if(isFertile(fr)){
+        if(fertile==='tassel'){ const from=L.fertileFrom||0.72; skip=t=>t>from;
+          drawFernFrond(ctx,f,col,stipe,stipeW,skip);
+          if(S.seed) fernFertileClusters(ctx,f,from,1,S.seed);
+          if(snow && fr.i%2===0){ frondAt(f,0.55,_frP); snow.push([_frP[0],_frP[1],Math.max(2.2,H*0.05)]); }
+          continue;
+        }
+        if(fertile==='interrupt'){ const a0=L.fertileFrom||0.3, a1=L.fertileTo||0.5; skip=t=>t>a0&&t<a1;
+          drawFernFrond(ctx,f,col,stipe,stipeW,skip);
+          if(S.seed) fernFertileClusters(ctx,f,a0,a1,S.seed);
+          continue;
+        }
+      }
+      drawFernFrond(ctx,f,col,stipe,stipeW,null);
+      if(snow && fr.i%2===0){ frondAt(f,0.55,_frP); snow.push([_frP[0],_frP[1],Math.max(2.2,H*0.05)]); }
+    }
+  }
+  return snow;
+}
+/* The maidenhair: each frond a near-black wire rising clear of the clump and opening
+   at the top into a flat horseshoe of fingers held level, seen a little from above.
+   Fingers are blades too, with round leaflets; the far side of each fan is painted
+   first so the near fingers lie over it. */
+function drawPedateFronds(ctx,L,S,H,sway,rnd,n,season,mature,growth){
+  const fol=S.fol; if(!fol) return null;
+  const snow=AMBIENCE[season].snow&&mature?[]:null, stipe=L.stipe||'#2c2426', stipeW=(L.stipeW||0.9)*0.8;
+  const K=Math.max(4,Math.min(10,Math.round(L.fingers||7))), arc=L.fanArc||3.7, tilt=L.fanTilt||0.42, reach=L.reach===undefined?1:L.reach;
+  const pairs=Math.max(4,Math.round((L.pairs||9)*(0.55+0.45*growth)));
+  const fr=[];
+  for(let i=0;i<n;i++){
+    const hs=H*(L.frondLen||0.78)*(0.72+rnd()*0.36), x0=(rnd()-0.5)*H*(L.crownW||0.3), lean=(i/Math.max(1,n-1)-0.5)*(L.spread||1.2)+(rnd()-0.5)*0.25;
+    fr.push({x0,hs,lean,th:rnd()*6.283,fl:H*(L.fingerLen||0.32)*(0.8+rnd()*0.3),tone:(rnd()-0.5)*14});
+  }
+  fr.sort((p,q)=>p.hs-q.hs);               // the tallest fans stand highest; paint the low ones first
+  for(const f of fr){
+    const tx=f.x0+Math.sin(f.lean)*f.hs*0.55*reach+sway*f.hs*0.05, ty=-f.hs*(0.9+0.1*Math.cos(f.lean));
+    ctx.strokeStyle=stipe; ctx.lineWidth=stipeW; ctx.beginPath(); ctx.moveTo(f.x0,0);
+    ctx.quadraticCurveTo(f.x0+(tx-f.x0)*0.2,ty*0.6,tx,ty); ctx.stroke();
+    const fingers=[];
+    for(let k=0;k<K;k++){ const th=f.th-arc/2+arc*k/(K-1), lk=f.fl*(0.55+0.45*Math.sin(Math.PI*(k+0.5)/K)); fingers.push({th,lk}); }
+    fingers.sort((p,q)=>Math.sin(p.th)-Math.sin(q.th));
+    for(const g of fingers){
+      const ex=tx+Math.cos(g.th)*g.lk, ey=ty+Math.sin(g.th)*g.lk*tilt+g.lk*0.1;
+      const col=shade(fol,f.tone+Math.sin(g.th)*10);
+      const fd={x0:tx,y0:ty,cx:tx+(ex-tx)*0.5,cy:ty+(ey-ty)*0.5-g.lk*0.08,x1:ex,y1:ey,pairs,s0:0.06,gap:L.gap===undefined?0.12:L.gap,sweep:L.sweep===undefined?0.25:L.sweep,
+        wide:L.pinnaWide||1.25,cut:0,round:true,droop:0.12,shape:L.bladeShape||'linear',W:g.lk*(L.bladeW||0.2)};
+      drawFernFrond(ctx,fd,col,stipe,stipeW*0.7,null);
+    }
+    if(snow) snow.push([tx,ty,Math.max(2.2,H*0.05)]);
+  }
+  return snow;
 }
 
 /* A rose mallow: five broad overlapping petals in a shallow funnel, a dark eye and
@@ -6578,31 +6979,26 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.strokeStyle=stalk; ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(bx,by); ctx.stroke();
           drawLeaf(ctx,bx,by,tx,ty,o.l*wr,shade(S.fol,o.tone+o.s*10),
             {shape:L.leafShape,teeth:L.leafTeeth,teethN:L.leafTeethN,bow:o.c*0.05,rib:true,flat:!art2On(L)});
+          // a deadnettle's silver blotch down the middle of the leaf (0.9.103)
+          if(L.mottle && S.edge) drawLeaf(ctx,bx,by,bx+(tx-bx)*0.78,by+(ty-by)*0.78,o.l*wr*0.48,S.edge,
+            {shape:L.leafShape,rib:false,bow:o.c*0.05,flat:!art2On(L)});
         }
       }
-      else if (L.leafStyle==='parasol'){
-        // Big leaves held out on stalks, sited on a spiral over the crown and
-        // painted far to near. The far ones stand higher, as they do on a real
-        // clump, so the near ones do not hide them. The stalk's colour is the
-        // plant's own stem: rust on a Darmera, dark on a Ligularia.
-        const lr=H*(L.parasolR||0.2), flat=L.parasolFlat||0.46, pet=L.petioles||0.5, reach=H*(L.leafSpread||0.5);
-        const stalk=P.stem||shade(S.fol,-24), under=S.edge, leaves=[];
+      else if (L.leafStyle==='pinnate'){
+        // A ground rosette of pinnate leaves, a ladder of leaflets each, leaving the
+        // crown in every direction and painted far to near (0.9.103): Jacob's ladder.
+        const reach=L.leafSpread||1, rise=L.leafRise===undefined?0.3:L.leafRise, list=[];
         for(let i=0;i<fn;i++){
-          const a=i*2.39996+rnd()*0.5, rr=Math.sqrt((i+0.5)/fn);
-          leaves.push({x:Math.cos(a)*rr,z:Math.sin(a)*rr,k:0.82+rnd()*0.34,h:rnd(),rot:rnd()*6.283,tone:(rnd()-0.5)*20});
+          const a=i*2.39996+rnd()*0.5, l=H*(L.leafLen||0.34)*(0.78+rnd()*0.34);
+          list.push({c:Math.cos(a),s:Math.sin(a),l,tone:(rnd()-0.5)*14});
         }
-        leaves.sort((p,q)=>p.z-q.z);
-        for(const o of leaves){
-          // A near leaf stands at half the height of a far one and tips toward the
-          // viewer, so the clump reads as a mound of separate leaves. At one height
-          // they merge into a single flat table on a stem, which looks like a tree.
-          const back=(1-o.z)/2, px=o.x*reach+sway, py=-H*pet*(0.44+0.46*back+o.h*0.1), lean=o.x*0.42;
-          ctx.strokeStyle=stalk;ctx.lineWidth=Math.max(0.8,L.stalkW||lr*0.055);ctx.beginPath();
-          ctx.moveTo(o.x*H*0.06,0);ctx.quadraticCurveTo(px*0.3,py*0.62,px,py);ctx.stroke();
-          const col=shade(S.fol,o.tone+(1-back)*14-6);
-          drawParasolLeaf(ctx,px,py,lr*o.k,flat*(1.18-0.36*back),lean,o.rot,col,under||shade(col,-34),L);
+        list.sort((p,q)=>p.s-q.s);
+        for(const o of list){
+          const tx=o.c*o.l*reach+sway*o.l*0.03, ty=o.s*o.l*0.42-o.l*rise*(0.7+0.3*(1-Math.abs(o.c)));
+          drawPinnateLeaf(ctx,0,0,tx,ty,o.l*(L.leafWR||0.07),shade(S.fol,o.tone+o.s*10),L);
         }
       }
+      else if (L.leafStyle==='parasol') drawParasolFoliage(ctx,P,L,S,H,fn,sway,rnd);
       else if (L.leafStyle==='pitcher'){
         // A rosette, so the leaves leave the crown in every direction, laid out on
         // the ground: those at the back run away up the screen, those in front come
@@ -8938,7 +9334,13 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       return out;
     };
-    if (S.fol && strap){
+    if (fernBladeOn(Lf)){
+      const sa=Lf.frondStyle==='pedate'
+        ? drawPedateFronds(ctx,Lf,S,H,sway,rnd,stemFor(fn),season,mature,growth)
+        : drawFernFronds(ctx,Lf,S,H,sway,rnd,stemFor(fn),season,mature,growth);
+      if (sa && sa.length) snowAnchors=sa;
+    }
+    else if (S.fol && strap){
       // Undivided straps: one tapering ribbon per frond, drawn back-to-front so
       // the near blades overlap rather than interleave.
       const rach=layout(stemFor(fn)).sort((p,q)=>q.py-p.py);
@@ -9001,7 +9403,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         }
       }
     }
-    if (S.seed && (mature||!S.fol)){ // ostrich fern's stiff fertile fronds hold all winter
+    // A blade fern draws only the fertile parts it names: a wood fern's seed colour
+    // is its spores, under the leaflets, and drew as a bare stick in the middle.
+    if (S.seed && (mature||!S.fol) && !(fernBladeOn(Lf) && (!Lf.fertileStyle || FERN_OWN_FERTILE[Lf.fertileStyle]))){ // ostrich fern's stiff fertile fronds hold all winter
       // Three treatments, because the fertile frond is the whole identity of
       // the ferns that carry one: cinnamon fern's woolly central clubs, the
       // sensitive fern's persistent bead-sticks, and the plain stiff spike.
@@ -9029,7 +9433,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const Lm=P.look||{};
     if (S.fol){
       const n=stemFor(Lm.leaves||11);
-      if (Lm.compoundLeaves){
+      if (Lm.leafStyle==='hosta') drawHostaLeaves(ctx,P,Lm,S,H,n,sway,rnd);
+      else if (Lm.leafStyle==='parasol') drawParasolFoliage(ctx,P,Lm,S,H,n,sway,rnd);
+      else if (Lm.compoundLeaves){
         const count=Math.min(16,n), hw=Math.max(0.12,Math.min(0.4,Lm.leafletHW||0.23));
         for (let i=0;i<count;i++){
           const a=(i/Math.max(1,count-1)-0.5)*2.7+(rnd()-0.5)*0.22;
@@ -9119,7 +9525,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const rawScapes=Lm.scapes===undefined?3:Lm.scapes;
       const scapeBase=Lm.floretStyle==='reflexed'?Math.max(0,Math.min(8,rawScapes)):rawScapes;
       const m=Math.max(0,Math.ceil(scapeBase*blv));
-      if (Lm.rosettes && S.fol){
+      if (Lm.scapeStyle) drawMoundScapes(ctx,P,Lm,S,H,m,sway,rnd,true);
+      else if (Lm.rosettes && S.fol){
         // Lamb's ear's spike is felted silver like the leaves, with small
         // pink-purple flowers tucked into whorls spaced down its top half: it
         // reads SILVER dotted with colour, not as a pink wand. Each rises from
@@ -10600,7 +11007,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // the rest of the year H is air, and big leaves on stalks light themselves.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
       && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look))
-      && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)){
+      && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)
+      && !(P.form==='fern' && fernBladeOn(P.look)) && !(P.look && P.look.leafStyle==='hosta')){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
     ctx.save(); ctx.globalAlpha=isTreeDef(P)?0.16:0.13;
     ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';

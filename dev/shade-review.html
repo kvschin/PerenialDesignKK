@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shade review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}header{padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}button,select{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:8px}main{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--card,560px),1fr));gap:10px;padding:12px}article{background:#30291f;padding:8px;border-radius:6px}h2{font-size:13px;margin:0 0 2px}.latin{font-size:11px;color:#c7b9a2}.seasons{display:flex;justify-content:space-around}figure{margin:0;text-align:center;min-width:0}canvas{display:block}figcaption{font-size:10px}#status{padding:0 16px;font-size:12px;color:#d6c094}.notes{margin:4px 0;font-size:11px}
+#scale{padding:0 12px 12px}#scale canvas{width:100%;height:auto;background:#5f7d58;border-radius:6px}
+#heads{padding:0 12px 12px}#heads canvas{width:100%;height:auto;background:#5f7d58;border-radius:6px}
+#drift{padding:0 12px 12px}#drift canvas{width:100%;height:auto;background:#4a3a2c;border-radius:6px}
+</style><body>
+<script>
+(function(){
+  window.__reviewResizeObserver=window.ResizeObserver;
+  window.ResizeObserver=class { observe(){} unobserve(){} disconnect(){} };
+  function noopCtx(){ return new Proxy({}, { get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p]; return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();},
+      getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p];
+        if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
+})();
+</script>
+<script src="../js/plants.js"></script>
+<script src="../js/core.js"></script>
+<script src="../js/draw.js"></script>
+<script src="../js/world.js"></script>
+<script src="../js/view.js"></script>
+<script src="../js/renderer.js"></script>
+<script src="../js/commands.js"></script>
+<script src="../js/input.js"></script>
+<script src="../js/io.js"></script>
+<script src="../js/collections.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/tray.js"></script>
+<script src="../js/photos.js"></script>
+<script src="../js/library.js"></script>
+<script>
+window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
+window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
+</script>
+<header><h1>Shade perennials</h1><label>Group <select id="batch"></select></label><label>Renderer <select id="art"><option value="1">ART2</option><option value="0">Classic</option></select></label><button id="check">Check sprite edges</button></header>
+<p id="status">Loading…</p><main id="plants"></main>
+<div id="heads"></div>
+<div id="drift"></div>
+<div id="scale"></div>
+<script>
+/* Every plant on the Shade Perennials tab (a forb that takes part shade),
+   grouped by what it is for, so look-alikes sit beside each other. Groups
+   are filled from the catalog, so a plant added later lands in 'other'
+   until it is placed. ?batch=<group>, ?only=key,key:cv, ?seasons=Spring,Fall,
+   ?card=<px> (preview width), ?ov= to try a change, ?check, ?bench=1. */
+const FAMILIES={
+  ferns:[],
+  foliage:['hosta','heuchera','brunnera','dianaclarelungwort','blueensignlungwort','sissinghurstlungwort','lentenrose','barrenwort','insideoutflower','ladysmantle','slendersweetflag'],
+  bigleaf:['bigleafligularia','rocketligularia','featherrodgersia','chestnutrodgersia','fingerleafrodgersia','umbrellaplant','giantrhubarb','bearsbreeches'],
+  groundcover:['bugle','periwinkle','deadnettle','londonpride','trailingbellflower','blueeyedmary','creepingphlox','bigrootgeranium','greenandgold','forgetmenot','yellowcorydalis'],
+  spring:['hepatica','wildgeranium','woollygeranium','woodlandphlox','columbine','coloradobluecolumbine','bluebells','solomonsseal','bleedingheart','shootingstar','goldenragwort','dwarfcrestediris','foamflower','jacobsladder','wateravens','cuckooflower','heartleafskullcap','indianpink','globeflower'],
+  summer:['blackcohosh','goatsbeard','astilbe','meadowrue','monkshood','foxglove','japaneseanemone','cenolophium','persicaria','astrantia','astrantiaroma','peachbellflower','comfrey','whiteturtlehead','cardinallobelia','greatbluelobelia','monkeyflower','bluemistflower','carolinawildpetunia'],
+  fall:['woodlandsunflower','whitewoodaster','bluestemmedgoldenrod'],
+  bog:['japaneseprimrose','bulleysprimrose','giantcowslip','drumstickprimrose'],
+  dry:['falsealoe','texasbeargrass','hummingbirdsage'],
+  other:[],
+};
+(function fill(){
+  const placed=new Set(Object.values(FAMILIES).flat());
+  for (const k of PLANT_KEYS){ const P=PLANTS[k];
+    if (P.type!=='forb'||P.sun!=='part') continue;
+    if (P.form==='fern'){ if(!placed.has(k)) FAMILIES.ferns.push(k); placed.add(k); continue; }
+    if (!placed.has(k)) FAMILIES.other.push(k);
+  }
+})();
+const expand=keys=>keys.filter(k=>PLANTS[k]).flatMap(k=>[[k,null],...Object.keys(PLANTS[k].cv||{}).map(v=>[k,v])]);
+const batchSel=document.getElementById('batch');
+for(const name of ['all',...Object.keys(FAMILIES)]){const o=document.createElement('option');o.value=o.textContent=name;batchSel.append(o);}
+const params=new URLSearchParams(location.search);
+if(params.has('batch'))batchSel.value=params.get('batch');
+const CW=+params.get('card')||120, CH=Math.round(CW*1.36);
+document.documentElement.style.setProperty('--card',(CW*4+60)+'px');
+/* Try a change without editing plants.js:
+   ?ov=hosta:moundHW=0.9,sea.Summer.fol=%23778866|heuchera.caramel:leaves=9 */
+for (const part of (params.get('ov')||'').split('|').filter(Boolean)){
+  const [key,fields]=part.split(':'), [k,v]=key.split('.');
+  const rec=v ? PLANTS[k].cv[v] : PLANTS[k]; if (!rec) continue;
+  rec.look=Object.assign({},rec.look||{});
+  for (const kv of (fields||'').split(',').filter(Boolean)){
+    const [f,val]=kv.split('='); let x=val; try { x=JSON.parse(val); } catch(e){}
+    if (f.startsWith('sea.')){ const [,s,g]=f.split('.'); rec.sea=rec.sea||{}; rec.sea[s]=Object.assign({},rec.sea[s]||{},{[g]:x}); }
+    else if (f.startsWith('rec.')) rec[f.slice(4)]=x;
+    else rec.look[f]=x;
+  }
+}
+function currentRefs(){
+  const only=params.get('only');
+  if(only)return only.split(',').map(s=>{const [k,v]=s.split(':');return [k,v||null];});
+  const b=batchSel.value;
+  return expand(b==='all'?Object.values(FAMILIES).flat():FAMILIES[b]);
+}
+const seasons=params.get('seasons')?params.get('seasons').split(','):SEASONS;
+function renderReview(){
+  ART2.on=document.getElementById('art').value==='1';
+  const refs=currentRefs();
+  const host=document.getElementById('plants');host.replaceChildren();
+  if(!params.has('nocards'))for(const [k,v] of refs){
+    const P=plantDef(k,v),card=document.createElement('article');
+    card.innerHTML='<h2>'+P.name+'</h2><div class="latin">'+P.latin+' · '+k+(v?':'+v:'')+'</div><div class="seasons"></div>';
+    for(const season of seasons){
+      const fig=document.createElement('figure'),c=libCanvas(k,v,season,CW,CH);
+      fig.append(c);const label=document.createElement('figcaption');label.textContent=season;fig.append(label);card.querySelector('.seasons').append(fig);
+    }
+    const note=document.createElement('p');note.className='notes';
+    note.textContent=(P.heightIn?P.heightIn+' in tall':'h '+P.h+' px')+' · '+P.spread+' in wide · '+P.form+' · zones '+P.zones.join('-')+' · bloom '+(P.bloomMonths||[]).join(',');card.append(note);host.append(card);
+  }
+  document.getElementById('status').textContent=refs.length+' exact plant choices · actual library previews';
+  renderHeads(refs);renderDrift(refs);renderScale(refs);
+}
+/* The top of each plant drawn large: flowers, leaf shape. */
+function renderHeads(refs){
+  const box=document.getElementById('heads');box.replaceChildren();
+  if(!params.has('heads'))return;
+  const season=params.get('headSeason')||'Summer';
+  const perRow=+params.get('headsPerRow')||8,cellW=+params.get('headCellW')||160,rowH=+params.get('headRowH')||190,rows=Math.ceil(refs.length/perRow);
+  const c=document.createElement('canvas');c.width=perRow*cellW*2;c.height=rows*rowH*2;box.append(c);
+  const ctx=c.getContext('2d');ctx.scale(2,2);
+  refs.forEach(([k,v],i)=>{
+    const x=(i%perRow)*cellW+cellW/2,y=Math.floor(i/perRow)*rowH;
+    ctx.save();ctx.beginPath();ctx.rect(x-cellW/2+2,y+2,cellW-4,rowH-20);ctx.clip();
+    const P=plantDef(k,v), H=plantVisualH(P);
+    const frac=+params.get('headFrac')||0.6, z=Math.min(5,(rowH-30)/(H*frac*1.14));
+    ctx.translate(x,y+8+H*z*1.14);ctx.scale(z,z);
+    drawPlant(ctx,0,0,k,1,season,tileSeed(i+11,5),0,v||null,1);
+    ctx.restore();
+    ctx.fillStyle='#f4eee2';ctx.font='10px system-ui';ctx.textAlign='center';
+    const name=v?PLANTS[k].cv[v].name:P.name;
+    ctx.fillText(name.length>26?name.slice(0,25)+'…':name,x,y+rowH-6);
+  });
+}
+/* A drift of each at true garden scale on bed-coloured ground: what a gardener
+   actually sees, several clumps a tile and a half apart. ?drift */
+function renderDrift(refs){
+  const box=document.getElementById('drift');box.replaceChildren();
+  if(!params.has('drift'))return;
+  const season=params.get('driftSeason')||'Summer', z=+params.get('dz')||1.6;
+  const perRow=+params.get('driftPerRow')||6,cellW=+params.get('driftCellW')||220,rowH=+params.get('driftRowH')||190,rows=Math.ceil(refs.length/perRow);
+  const c=document.createElement('canvas');c.width=perRow*cellW*2;c.height=rows*rowH*2;box.append(c);
+  const ctx=c.getContext('2d');ctx.scale(2,2);
+  refs.forEach(([k,v],i)=>{
+    const cx=(i%perRow)*cellW+cellW/2,cy=Math.floor(i/perRow)*rowH+rowH*0.45;
+    ctx.save();ctx.beginPath();ctx.rect(cx-cellW/2+2,cy-rowH*0.45+2,cellW-4,rowH-4);ctx.clip();
+    const pts=[];for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)pts.push([a,b]);
+    pts.sort((p,q)=>(p[0]+p[1])-(q[0]+q[1]));
+    for(const [a,b] of pts){
+      const x=cx+(a-b)*TILE_W/2*z, y=cy+(a+b)*TILE_H/2*z+30;
+      ctx.save();ctx.translate(x,y);ctx.scale(z,z);
+      drawPlant(ctx,0,0,k,1,season,tileSeed(a+20+i,b+9),0,v||null,1);ctx.restore();
+    }
+    ctx.restore();
+    ctx.fillStyle='#f4eee2';ctx.font='10px system-ui';ctx.textAlign='center';
+    const P=plantDef(k,v),name=v?PLANTS[k].cv[v].name:P.name;
+    ctx.fillText(name.length>30?name.slice(0,29)+'…':name,cx,Math.floor(i/perRow)*rowH+12);
+  });
+}
+/* True drawn scale, side by side, with a 6 ft post. ?scale */
+function renderScale(refs){
+  const box=document.getElementById('scale');box.replaceChildren();
+  if(!params.has('scale'))return;
+  const season=params.get('scaleSeason')||'Summer';
+  const list=refs.filter(([k])=>PLANTS[k]);
+  const z=+params.get('z')||1;
+  const perRow=+params.get('perRow')||10,cellW=+params.get('cellW')||150,rowH=+params.get('rowH')||250,rows=Math.ceil(list.length/perRow);
+  const c=document.createElement('canvas');c.width=perRow*cellW*2*z;c.height=rows*rowH*2*z;box.append(c);
+  const ctx=c.getContext('2d');ctx.scale(2*z,2*z);
+  list.forEach(([k,v],i)=>{
+    const x=(i%perRow)*cellW+cellW/2,y=(Math.floor(i/perRow)+1)*rowH-22;
+    ctx.fillStyle='rgba(255,255,255,.14)';ctx.fillRect(x-cellW/2+6,y,cellW-12,1);
+    ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(x-cellW/2+4,y-feetToPx(6),2,feetToPx(6));
+    drawPlant(ctx,x,y,k,1,season,tileSeed(i+3,7),0,v||null,1);
+    ctx.fillStyle='#f4eee2';ctx.font='10px system-ui';ctx.textAlign='center';
+    const P=plantDef(k,v),name=v?PLANTS[k].cv[v].name:P.name;ctx.fillText(name.length>24?name.slice(0,23)+'…':name,x,y+13);
+  });
+}
+/* Sprites are ImageBitmaps since 0.9.38, so copy each onto a canvas to read it. */
+function checkEdges(){
+  const bad=[];let count=0,previews=0;const original=ART2.on;
+  const refs=currentRefs();
+  const scratch=document.createElement('canvas'),sctx=scratch.getContext('2d',{willReadFrequently:true});
+  try{for(const mode of [false,true]){ART2.on=mode;
+    for(const [k,v] of refs)for(const season of SEASONS)for(const seed of [7,101,4410])for(const growth of [3,8]){
+      const s=makePlantSprite(k,growth,3,season,seed,v),img=s&&s.cv;if(!img)continue;
+      const w=img.width,h=img.height;
+      scratch.width=w;scratch.height=h;sctx.clearRect(0,0,w,h);sctx.drawImage(img,0,0);
+      const d=sctx.getImageData(0,0,w,h).data;
+      let edge=false;for(let x=0;x<w;x++)if(d[x*4+3]>8||d[((h-1)*w+x)*4+3]>8)edge=true;
+      for(let y=0;y<h;y++)if(d[y*w*4+3]>8||d[(y*w+w-1)*4+3]>8)edge=true;
+      if(edge)bad.push(k+(v?':'+v:'')+' '+season+' seed '+seed+' g'+growth+(mode?' art2':' classic'));count++;
+    }
+    TRAY_ART.clear();
+    for(const [k,v] of refs)for(const season of SEASONS){
+      for(const [surface,c] of [['library',libCanvas(k,v,season,70,105)],['tray',trayPlantArt(k,v,season,plantDef(k,v))]]){
+        const w=c.width,h=c.height,d=c.getContext('2d').getImageData(0,0,w,h).data;let edge=false;
+        for(let x=0;x<w;x++)if(d[x*4+3]>8)edge=true;
+        for(let y=0;y<h-18;y++)if(d[y*w*4+3]>8||d[(y*w+w-1)*4+3]>8)edge=true;
+        if(edge)bad.push(k+(v?':'+v:'')+' '+season+' '+surface+(mode?' art2':' classic'));previews++;
+      }
+    }
+  }}finally{ART2.on=original;TRAY_ART.clear();}
+  window.reviewResult={count,previews,bad};
+  document.getElementById('status').textContent=count+' sprite and '+previews+' preview checks: '+(bad.length?bad.length+' touching edges — '+bad.join('; '):'no painted edges');
+  return window.reviewResult;
+}
+/* How far each plant's ink really reaches, against what its sprite box and the
+   library preview allow for: halfW and top as fractions of the drawn height H,
+   at full growth over four seasons and three seeds. A preview clips when halfW
+   is more than the authored sideScale. ?measure */
+function measure(){
+  const c=document.createElement('canvas');c.width=1400;c.height=1400;
+  const ctx=c.getContext('2d',{willReadFrequently:true}),rows=[];
+  for(const [k,v] of currentRefs()){
+    const P=plantDef(k,v),H=plantVisualH(P);let hw=0,top=0;
+    for(const season of SEASONS)for(const seed of [7,101,4410]){
+      ctx.clearRect(0,0,1400,1400);drawPlant(ctx,700,1000,k,1,season,seed,0,v||null,1);
+      const d=ctx.getImageData(0,0,1400,1400).data;
+      for(let y=0;y<1400;y+=2)for(let x=0;x<1400;x+=2){ if(d[(y*1400+x)*4+3]>8){
+        hw=Math.max(hw,Math.abs(x-700));top=Math.max(top,1000-y); } }
+    }
+    const box=plantDrawBox(P,k,1);
+    rows.push({ref:k+(v?':'+v:''),H:+H.toFixed(1),halfW:+(hw/H).toFixed(3),top:+(top/H).toFixed(3),
+      side:(P.look||{}).sideScale||0,boxHalfW:+(box.halfW/H).toFixed(3),boxTop:+(box.top/H).toFixed(3),artTop:+(plantArtTop(P)/H).toFixed(3)});
+  }
+  window.__measure=rows;
+  document.getElementById('status').textContent='measured '+rows.length+', see window.__measure';
+  return rows;
+}
+/* What one bake costs, procedural, in this browser. ?bench=1 */
+function bench(){
+  const c=new OffscreenCanvas(420,520),ctx=c.getContext('2d'),rows=[];
+  for(const [k,v] of currentRefs())for(const season of ['Spring','Summer','Fall','Winter']){
+    let best=Infinity;
+    for(let r=0;r<3;r++){
+      const t0=performance.now();
+      for(let i=0;i<8;i++)drawPlant(ctx,210,480,k,1,season,tileSeed(i,3),0,v||null,1);
+      best=Math.min(best,(performance.now()-t0)/8);
+    }
+    rows.push([k+(v?':'+v:''),season,+best.toFixed(3)]);
+  }
+  window.__bench=rows;
+  document.getElementById('status').textContent='bench done: '+rows.length+' rows, see window.__bench';
+  return rows;
+}
+batchSel.onchange=renderReview;document.getElementById('art').onchange=renderReview;document.getElementById('check').onclick=checkEdges;
+if(params.has('art'))document.getElementById('art').value=params.get('art');
+try{renderReview();if(params.has('check'))setTimeout(checkEdges,0);if(params.has('bench'))setTimeout(bench,0);if(params.has('measure'))setTimeout(measure,0);}catch(error){document.getElementById('status').textContent='Review failed: '+(error.stack||error);}
+</script></html>

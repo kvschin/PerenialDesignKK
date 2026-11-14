@@ -444,7 +444,7 @@ test('native perennial morphology is finite, seeded, and active in both visual s
   const cases=[['bluebells','Spring','spikeStyle'],['whiteturtlehead','Fall','spikeStyle'],
     ['cardinallobelia','Summer','spikeStyle'],['greatbluelobelia','Summer','spikeStyle'],
     ['lizardtail','Summer','spikeStyle'],['arrowhead','Summer','leafShape'],
-    ['wildgeranium','Spring','leafShape'],['mountainmint','Summer','umbelStyle'],
+    ['wildgeranium','Spring','leafStyle'],['mountainmint','Summer','umbelStyle'],
     ['commonmilkweed','Summer','stemLeafArrangement'],['whorledmilkweed','Summer','stemLeafArrangement'],
     ['noddingonion','Summer','globeStyle'],['prairieonion','Fall','globeStyle']];
   const before=ART2.on;
@@ -459,6 +459,122 @@ test('native perennial morphology is finite, seeded, and active in both visual s
       for(const s of SEASONS)for(const g of [0.4,1])nativePerennialTrace(key,s,g);
     }
   }} finally {ART2.on=before;}
+});
+
+/* The shade audit (0.9.103). Four drawings carried most of the Shade Perennials
+   tab and none read as its plant: ferns were a bare stick with five ellipse pairs,
+   every foliage mound a fan of folded-paper blades, astilbe-type plants a grass tuft
+   under a bead column. These pin the shapes that replaced them, through the same
+   recording context, so a later edit cannot quietly put the fishbone back. */
+function shadeOps(key,season,variant=null,seed=101,growth=1){
+  const ops=[]; let fill=null, stroke=null;
+  const ctx=new Proxy({}, {
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return (...a)=>{ops.push({op:p});return {addColorStop(){}};};
+      return (...a)=>{
+        for(const v of a)if(typeof v==='number')assert(Number.isFinite(v),`${key}: finite ${p}`);
+        ops.push({op:p,a,fill,stroke});
+      };
+    },
+    set(o,p,v){o[p]=v; if(p==='fillStyle')fill=v; if(p==='strokeStyle')stroke=v; return true;}
+  });
+  drawPlant(ctx,0,0,key,growth,season,seed,0,variant,1);
+  return ops;
+}
+test('a fern frond is a filled blade of many leaflets, not a fishbone', () => {
+  const before=ART2.on;
+  try {for(const mode of [false,true]){
+    ART2.on=mode;
+    for(const key of PLANT_KEYS){
+      const P=PLANTS[key];
+      if(P.form!=='fern' || P.look.frondStyle!=='blade') continue;
+      const L=P.look, ops=shadeOps(key,'Summer'), n=Math.max(3,Math.round(L.fronds));
+      const fills=ops.filter(o=>o.op==='fill').length;
+      const edges=ops.filter(o=>o.op==='quadraticCurveTo'||o.op==='bezierCurveTo'||o.op==='lineTo').length;
+      // two fills a frond (the blade, then its lit side) and a leaflet edge for every leaflet
+      assert(fills>=n*2, `${key}: ${fills} fills for ${n} fronds`);
+      assert(edges>=n*L.pairs*2, `${key}: ${edges} leaflet edges, a blade of leaflets`);
+      // the fishbone drew each leaflet as an ellipse; a blade draws none of its own
+      const fertileNow=(L.fertileStyle==='tassel'||L.fertileStyle==='interrupt') && P.sea.Summer.seed;
+      // (the ground shadow under every plant is the one ellipse it keeps)
+      if(!fertileNow) assertEqual(ops.filter(o=>o.op==='ellipse' && !String(o.fill).startsWith('rgba(0,0,0')).length,0,`${key}: no ellipse leaflets`);
+    }
+  }} finally {ART2.on=before;}
+});
+test('a fern carries its fertile parts where and when the plant does', () => {
+  const seedFills=(key,season)=>{
+    const S=PLANTS[key].sea[season], cols=new Set([shade(S.seed,-12),shade(S.seed,13)]);
+    return shadeOps(key,season).filter(o=>o.op==='fill'&&cols.has(o.fill)).length;
+  };
+  // the ostrich fern's brown plumes stand in the centre of the vase through winter
+  assert(seedFills('ostrichfern','Winter')>=PLANTS.ostrichfern.look.fertileN*2, 'ostrich fern: winter plumes');
+  // the Osmundas: cinnamon clubs in spring, royal tassels and interrupted leaflets
+  // as clusters on the fronds themselves, and nothing at all in winter
+  for (const key of ['royalfern','interruptedfern']){
+    const withSeed=JSON.stringify(shadeOps(key,'Spring').map(o=>o.op));
+    const S=PLANTS[key].sea.Spring, saved=S.seed;
+    try { delete S.seed; assert(JSON.stringify(shadeOps(key,'Spring').map(o=>o.op))!==withSeed, `${key}: the fertile clusters are drawn`); }
+    finally { S.seed=saved; }
+  }
+  for (const key of ['cinnamonfern','royalfern','interruptedfern'])
+    assertEqual(shadeOps(key,'Winter').length,0,`${key}: draws nothing in winter`);
+  // a wood fern's seed colour is its spores, under the leaflets: no bare stick
+  for (const key of ['marginalwoodfern','goldiefern','autumnfern','malefern']){
+    const sticks=shadeOps(key,'Fall').filter(o=>o.op==='lineTo' && o.stroke===PLANTS[key].sea.Fall.seed);
+    assertEqual(sticks.length,0,`${key}: no fertile stick in the middle`);
+  }
+});
+test('the maidenhair holds flat fans of fingers on dark wires', () => {
+  const L=PLANTS.maidenhairfern.look, ops=shadeOps('maidenhairfern','Summer');
+  const wires=ops.filter(o=>o.op==='stroke' && o.stroke===L.stipe).length;
+  assert(wires>=Math.max(3,L.fronds)*L.fingers, `a wire for each frond and each finger's rachis (${wires})`);
+  const fills=ops.filter(o=>o.op==='fill').length;
+  assert(fills>=Math.max(3,L.fronds)*L.fingers*2, `every finger is a lit blade (${fills})`);
+});
+test('a hosta is a dome of stalked, veined leaves with funnels on its scapes', () => {
+  for (const [key,v] of [['hosta',null],['hosta','blueangel'],['hosta','sumsubstance']]){
+    const P=plantDef(key,v), H=plantVisualH(P), ops=shadeOps(key,'Summer',v);
+    const xs=ops.filter(o=>o.op==='quadraticCurveTo').map(o=>o.a[2]);
+    assert(Math.max(...xs)-Math.min(...xs)>=H*0.7, `${key}: leaves spread round the crown`);
+    assert(ops.filter(o=>o.op==='fill').length>=P.look.leaves, `${key}: a filled blade per leaf`);
+    // drawBulbBell draws each open funnel with bezier curves
+    assert(ops.filter(o=>o.op==='bezierCurveTo').length>=8, `${key}: funnels on the scapes`);
+  }
+  // a lungwort is the same leaf, narrow and spotted silver
+  const L=PLANTS.dianaclarelungwort.look, spots=shadeOps('dianaclarelungwort','Summer')
+    .filter(o=>o.op==='ellipse' && o.fill===PLANTS.dianaclarelungwort.sea.Summer.edge);
+  assert(spots.length>=L.spots*6, `lungwort: silver spots on its leaves (${spots.length})`);
+});
+test('a notched leaf is opt-in and the wet-ground plants draw the leaf they always did', () => {
+  const trace=(L,sa)=>{ const ops=[]; const ctx=makeCanvasCtx({lineTo:(...a)=>ops.push(a.map(x=>x.toFixed(4)).join()),moveTo:(...a)=>ops.push('m'+a.join())});
+    drawParasolLeaf(ctx,10,-20,8,0.5,0.2,1.1,'#557744','#334422',L,sa); return ops.join(';'); };
+  const plain={lobes:5,lobeDepth:0.4,lobeCut:1.5};
+  assertEqual(trace(plain,undefined),trace(plain,0.8),'no sinus key: the angle changes nothing');
+  assert(trace(Object.assign({sinus:0.5},plain),0.8)!==trace(plain,0.8),'a sinus cuts the rim');
+  // the heucheras, brunnera and the geraniums carry one; the bog plants do not
+  for (const k of ['heuchera','brunnera','wildgeranium','foamflower','ladysmantle'])
+    assert(PLANTS[k].look.leafStyle==='parasol' && PLANTS[k].look.sinus>0, `${k}: a notched leaf on its stalk`);
+  for (const k of ['umbrellaplant','bigleafligularia','featherrodgersia','giantrhubarb'])
+    assert(!PLANTS[k].look.sinus, `${k}: a peltate or bog leaf keeps its own outline`);
+});
+test('the shade perennials stand over their own leaves, not a grass tuft', () => {
+  // each was a fan of strap blades under its flowers; now each carries the leaf it has
+  const want={astilbe:'parasol',blackcohosh:'parasol',goatsbeard:'parasol',monkshood:'parasol',
+    japaneseanemone:'parasol',meadowrue:'parasol',globeflower:'parasol',foamflower:'parasol',ladysmantle:'parasol',
+    heuchera:'parasol',brunnera:'parasol',lentenrose:'parasol',barrenwort:'parasol',bigrootgeranium:'parasol',
+    hosta:'hosta',dianaclarelungwort:'hosta',bugle:'rosette',deadnettle:'rosette',londonpride:'rosette',
+    bearsbreeches:'rosette',comfrey:'rosette',shootingstar:'rosette',jacobsladder:'pinnate'};
+  for (const [k,s] of Object.entries(want)) assertEqual(PLANTS[k].look.leafStyle,s,`${k}: basal leaves`);
+  // and the plumes are plumes: astilbe, goat's beard, black cohosh and foamflower
+  for (const k of ['astilbe','goatsbeard','blackcohosh','foamflower'])
+    assertEqual(PLANTS[k].look.spikeStyle,'plume',`${k}: a branched plume, not a bead column`);
+  // shooting star's flowers hang with their petals swept back, as a cyclamen's do
+  assertEqual(PLANTS.shootingstar.look.flowerStyle,'reflexedCyclamen','shooting star: reflexed petals');
+  // the creeping mats keep their flower stalks inside the mat or end them at a flower
+  for (const k of ['periwinkle','blueeyedmary','trailingbellflower'])
+    assert(PLANTS[k].look.flowerLen<=0.15, `${k}: no bare stalk standing over the mat`);
+  assert(PLANTS.creepingphlox.look.matHeadRise>0, 'creeping phlox holds its flowers at the tips of its stems');
 });
 
 /* The stem-built shrub-form habits (threadleaf, leafystems): the threadleaf
@@ -14442,11 +14558,11 @@ test('snow only falls on a plant that actually drew something', () => {
 
   // The species the report was actually about, resolved through real data.
   for (const k of ['ladyfern','maidenhairfern','hayscentedfern','newyorkfern',
-                   'japanesepaintedfern','hosta','brunnera','daylily'])
+                   'japanesepaintedfern','hosta','brunnera','daylily','cinnamonfern','royalfern'])
     assert(!catchesSnow(PLANTS[k], PLANTS[k].sea.Winter || {}),
       `${k}: dies down, so it must not wear snow`);
   for (const k of ['christmasfern','hartstonguefern','hollyfern','autumnfern','malefern',
-                   'ostrichfern','cinnamonfern','sensitivefern','bluestem','echinacea'])
+                   'ostrichfern','sensitivefern','bluestem','echinacea'])
     assert(catchesSnow(PLANTS[k], PLANTS[k].sea.Winter || {}),
       `${k}: holds winter structure, so it must keep its snow`);
 });
