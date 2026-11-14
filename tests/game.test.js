@@ -2238,6 +2238,101 @@ test('ball dahlias batch dense florets into a bounded fill budget', () => {
   assert(fills<160,`Cornel Brons stays within a bounded paint budget (${fills} fills)`);
 });
 
+/* The 0.9.101 audit: stonecrops, blazing stars, betony and the onions each draw
+   in a grammar of their own. A recorder keeps every coordinate a call passes and
+   the fill each closed path lands in, which is enough to ask where on the plant
+   things are without a pixel. */
+function recordPlant(key,season,variant,bloomLvl,growth){
+  const ops=[]; let path=[];
+  const ctx=new Proxy({fillStyle:'',strokeStyle:''}, {
+    get(o,p){
+      if (p in o) return o[p];
+      if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return ()=>({addColorStop(){}});
+      if (p==='measureText') return ()=>({width:0});
+      if (p==='beginPath') return ()=>{ path=[]; };
+      if (p==='fill') return ()=>{ ops.push({fill:o.fillStyle,pts:path}); path=[]; };
+      if (p==='stroke') return ()=>{ ops.push({stroke:o.strokeStyle,pts:path}); };
+      return (...a)=>{
+        if (p==='ellipse'||p==='arc') path.push([a[0],a[1],a[2]]);
+        else if (p==='moveTo'||p==='lineTo') path.push([a[0],a[1]]);
+        else if (p==='quadraticCurveTo') path.push([a[2],a[3]]);
+        else if (p==='bezierCurveTo') path.push([a[4],a[5]]);
+      };
+    },
+    set(o,p,v){ o[p]=v; return true; },
+  });
+  drawPlant(ctx,0,0,key,growth===undefined?1:growth,season,9137,0,variant||null,bloomLvl);
+  return ops;
+}
+test('the audited perennials and onions keep their own grammars in the data', () => {
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='hylotelephium'))
+    assertEqual(PLANTS[k].look.habit,'stonecrop',`${k}: a bouquet of leafy stems, not a yarrow`);
+  for (const k of ['stachys','betony']){
+    assertEqual(PLANTS[k].look.spikeStyle,'betony',`${k}: whorled spikes of two-lipped flowers`);
+    assertEqual(PLANTS[k].look.leafStyle,'rosette',`${k}: a low mat of stalked leaves`);
+  }
+  const shapes={allium:'ball',alliumGlobemaster:'ball',alliumPurpleSensation:'ball',alliumGladiator:'ball',
+    alliumMountEverest:'ball',alliumPinkJewel:'ball',alliumcaeruleum:'ball',alliumAtropurpureum:'dome',prairieonion:'dome',
+    alliumChristophii:'starburst',alliumRedMohican:'egg',alliumsphaerocephalon:'egg'};
+  for (const [k,s] of Object.entries(shapes)) assertEqual(PLANTS[k].look.headShape,s,`${k}: head shape`);
+  assertEqual(PLANTS.noddingonion.look.headShape,'loosePendant','nodding onion keeps its hanging bells');
+});
+test('a stonecrop is leafy up to its heads, and its dried heads stand into winter', () => {
+  const H=plantVisualH(PLANTS.sedum), fol=PLANTS.sedum.sea.Summer.fol;
+  const tones=new Set([0,-8].flatMap(sh=>[14,5,-4,-16].map(t=>shade(fol,sh+t))));
+  const leaves=recordPlant('sedum','Summer',null,1).filter(o=>tones.has(o.fill)&&o.pts.length>2);
+  assert(leaves.length>=10,`leaf batches are drawn up every stem (${leaves.length})`);
+  const top=Math.min(...leaves.flatMap(o=>o.pts.map(p=>p[1])));
+  assert(top < -H*0.7,`leaves reach the top of the clump (${(-top/H).toFixed(2)}H), not just a fan at the ground`);
+  const winter=recordPlant('sedum','Winter',null,0);
+  const snow=winter.filter(o=>o.fill==='rgba(240,244,250,0.9)');
+  assert(snow.length===1&&snow[0].pts.length>=8,'every dried head holds its own cap of snow');
+  assert(fol, 'fixture has foliage');
+});
+test('a blazing star spike opens from the top down', () => {
+  // one spike, drawn straight: the open heads (cups under their threads) all
+  // stand above the buds, and a stem whose turn has not come is buds to the top
+  const P=PLANTS.liatrisspicata, L=P.look, S=P.sea.Summer;
+  const bract=S.bract||shade(S.bloom,-34), bud=shade(S.bloom,-30);
+  const spike=phase=>{
+    const ops=[]; let path=[];
+    const ctx=new Proxy({fillStyle:'',strokeStyle:''}, {
+      get(o,p){
+        if (p in o) return o[p];
+        if (p==='beginPath') return ()=>{ path=[]; };
+        if (p==='fill') return ()=>{ ops.push({fill:o.fillStyle,pts:path}); path=[]; };
+        return (...a)=>{ if (p==='ellipse') path.push([a[0],a[1]]); };
+      },
+      set(o,p,v){ o[p]=v; return true; },
+    });
+    drawBlazingStar(ctx,0,0,L,S,phase,0.35,0,1);
+    const ys=c=>ops.filter(o=>o.fill===shade(c,-8)).flatMap(o=>o.pts.map(q=>q[1]));
+    return {open:ys(bract),buds:ys(bud)};
+  };
+  const half=spike(1);
+  assert(half.open.length&&half.buds.length,'part of the spike is open and part still in bud');
+  assert(Math.max(...half.open) < Math.min(...half.buds),'every open head stands above every bud');
+  const late=spike(0);
+  assertEqual(late.open.length,0,'a spike in bud has no open head, not even at its tip');
+});
+test('betony stems stand only in flower and seed, and dormant onions leave no snow in the air', () => {
+  const H=plantVisualH(PLANTS.stachys);
+  const spring=recordPlant('stachys','Spring',null,0);
+  const high=Math.min(...spring.flatMap(o=>o.pts.map(p=>p[1])));
+  assert(high > -H*0.5,`in spring betony is a low rosette (${(-high/H).toFixed(2)}H)`);
+  for (const k of ['noddingonion','prairieonion'])
+    assertEqual(recordPlant(k,'Winter',null,0).length,0,`${k}: nothing on the tile in winter, and so no snow hung in the air`);
+});
+test('a dense onion head is covered in florets, a starburst shows its pedicels', () => {
+  const P=PLANTS.alliumPurpleSensation, col=P.sea.Summer.bloom;
+  const ops=recordPlant('alliumPurpleSensation','Summer',null,1);
+  const stars=ops.filter(o=>o.fill===shade(col,0)||o.fill===shade(col,16)||o.fill===shade(col,-20));
+  const pts=stars.reduce((n,o)=>n+o.pts.length,0)/12;
+  assert(pts>=P.look.stems*15,`each ball carries a skin of star florets (${Math.round(pts)})`);
+  const burst=recordPlant('alliumChristophii','Summer',null,1).filter(o=>o.stroke&&o.pts.length>20);
+  assert(burst.length>=2,'Star of Persia strokes its far and near pedicels');
+});
+
 test('Allium flower accents do not survive into dried seedheads', () => {
   function paintedColors(season,bloomLvl){
     const colors=[];

@@ -131,6 +131,9 @@ const LEAF_SHAPES = {
   lance:   {wAt:0.34, baseW:0.16, tipW:0.03, tipEase:1.25},
   ovate:   {wAt:0.42, baseW:0.34, tipW:0.05, tipEase:1.50},
   cordate: {wAt:0.30, baseW:0.62, tipW:0.04, tipEase:1.15},
+  // widest toward a blunt, rounded tip from a narrow base: a stonecrop's
+  // fleshy leaf. Only the stonecrop habit asks for it.
+  obovate: {wAt:0.64, baseW:0.24, tipW:0.34, tipEase:0.7, baseEase:0.9},
 };
 function leafWidth(t, S){
   if (t<=S.wAt) return S.baseW + (1-S.baseW)*Math.pow(t/S.wAt, S.baseEase||0.65);
@@ -1229,6 +1232,350 @@ function drawReflexedFloret(ctx,cx,cy,r,col){
   ctx.fill();
   ctx.strokeStyle=shade(col,-24); ctx.lineWidth=0.65; ctx.beginPath();
   ctx.moveTo(cx,cy-0.25); ctx.lineTo(cx,cy+r*0.95); ctx.stroke();
+}
+
+/* ---------- stonecrop (Hylotelephium) ----------
+   An upright stonecrop is a bouquet: a dozen or more stout succulent stems
+   rising from one crown and leaning out a little, clothed to the top in fleshy
+   leaves, each ending in a broad flat head of tiny florets packed like
+   broccoli. The heads jostle into one domed top over the clump and the leaves
+   are its sides. Drawn on the umbel form's bare stalks over a fan of leaves at
+   the ground it was a small yarrow, which is the one thing in a border a
+   stonecrop is never mistaken for.
+   Stems stand in the round, an azimuth and a radius over a disc, so the near
+   ones come down the screen; they are painted far to near with their leaves,
+   then the heads go on last, far to near, as the top of the clump. Leaves are
+   placed by a fixed spiral and a hash, not the random stream, so the leaves
+   behind a stem (painted before it) and those in front (after it) can be two
+   passes without either moving the other.
+   In spring the short shoots carry nearly full-size leaves, which is the knot
+   of fleshy rosettes a stonecrop comes up as; in winter the leaves are gone and
+   the dried heads stand on bare stems, each holding its own cap of snow.
+   `head` sizes a head, `plateY` how flat it reads, `clumpW` the half-width the
+   stems splay to, `leafNodes`, `leafL`, `leafWR` (width over length) and
+   `leafRise` the leaves. A season's `edge` colour draws a margin round every
+   leaf, `edgeInset` how much of it is left green. */
+const SC_MAX=32;
+const _skBX=new Float64Array(SC_MAX), _skBY=new Float64Array(SC_MAX), _skCX=new Float64Array(SC_MAX),
+      _skCY=new Float64Array(SC_MAX), _skX=new Float64Array(SC_MAX), _skY=new Float64Array(SC_MAX),
+      _skZ=new Float64Array(SC_MAX), _skR=new Float64Array(SC_MAX), _skO=new Int8Array(SC_MAX);
+// a stable 0..1 from two small integers, so a leaf can be placed without
+// drawing on the random stream
+function hash01(i,j){ const s=Math.sin(i*12.9898+j*78.233+0.5)*43758.5453; return s-Math.floor(s); }
+function scLeafFlush(ctx,L,fol,wr,shift,inset){
+  const S=LEAF_SHAPES[L.leafShape||'obovate']||LEAF_SHAPES.obovate, bow=L.leafBow===undefined?0.08:L.leafBow;
+  const teeth=L.leafTeeth||0, tn=L.leafTeethN||5;
+  for (let t=0;t<4;t++){
+    let any=false; ctx.beginPath();
+    for (let n=0;n<_lbN;n++){
+      if (_lbT[n]!==t) continue; any=true;
+      const k=n*5, x0=_lb[k], y0=_lb[k+1], x1=_lb[k+2], y1=_lb[k+3], dx=x1-x0, dy=y1-y0, len=_lb[k+4]*2;
+      const bw=len*wr*inset;
+      if (len<LEAF_LO_LEN){
+        const l=Math.sqrt(dx*dx+dy*dy)||1, nx=-dy/l*bw*2, ny=dx/l*bw*2;
+        const mx=x0+dx*S.wAt-dy*bow, my=y0+dy*S.wAt+dx*bow;
+        ctx.moveTo(x0,y0); ctx.quadraticCurveTo(mx+nx,my+ny,x1,y1); ctx.quadraticCurveTo(mx-nx,my-ny,x0,y0);
+        continue;
+      }
+      ribbonPath(ctx,x0,y0,(x0+x1)/2-dy*bow,(y0+y1)/2+dx*bow,x1,y1,
+                 len>LEAF_HI_LEN?S.profHi:S.prof,bw,teeth,tn,true);
+    }
+    if (any){ ctx.fillStyle=shade(fol,shift+(t===3?14:t===2?5:t===1?-4:-16)); ctx.fill(); }
+  }
+}
+function drawStonecrop(ctx,P,L,S,H,growth,season,mature,blooming,blv,sway,rnd,stemFor){
+  const n=Math.min(SC_MAX,stemFor(L.stems||12));
+  const W=H*(L.clumpW||0.5), bw=H*(L.baseW||0.2), look=0.42;
+  for (let k=0;k<n;k++){
+    const a=k*2.39996+rnd()*0.7, r=Math.sqrt((k+0.6)/(n+0.2)), ca=Math.cos(a), sa=Math.sin(a);
+    // the middle of the clump stands tallest, so the heads make a dome
+    const len=H*(0.97-0.24*r*r)*(0.93+rnd()*0.1), z=sa*r;
+    const tx=ca*r*W+sway*len*0.04, ty=-len+z*W*look;
+    const bx=ca*r*bw, by=sa*r*bw*0.4;
+    _skBX[k]=bx; _skBY[k]=by; _skCX[k]=bx+(tx-bx)*0.16; _skCY[k]=by+(ty-by)*0.6;
+    _skX[k]=tx; _skY[k]=ty; _skZ[k]=z; _skR[k]=(L.head||6)*(0.84+rnd()*0.3)*(0.7+0.3*growth);
+    // insertion by depth, the far stems first
+    let p=k; while (p>0 && _skZ[_skO[p-1]]>z){ _skO[p]=_skO[p-1]; p--; } _skO[p]=k;
+  }
+  const fol=S.fol, winter=season==='Winter';
+  // winter keeps a few shrivelled leaves on the dead stems (winterLeaves of
+  // them, smaller); bare, the stems under their plates read as toadstools
+  const wl=winter?(L.winterLeaves===undefined?0.45:L.winterLeaves):1;
+  const nodes=fol&&wl>0 ? Math.max(2,Math.round((L.leafNodes||7)*(0.6+0.4*growth)*wl)) : 0;
+  const leafL=(L.leafL||6)*(0.62+0.38*growth)*(winter?0.68:1), wr=(L.leafWR||0.34)*(winter?0.7:1), rise=L.leafRise||0.42;
+  const edge=S.edge, inset=L.edgeInset||0.62, stemCol=P.stem||shade(fol||S.seed||'#7a6450',-20);
+  ctx.lineCap='round'; ctx.lineWidth=L.stemW||1.5;
+  for (let o=0;o<n;o++){
+    const i=_skO[o], bx=_skBX[i], by=_skBY[i], qx=_skCX[i], qy=_skCY[i], tx=_skX[i], ty=_skY[i];
+    for (let pass=0;pass<2;pass++){
+      _lbN=0;
+      for (let j=0;j<nodes;j++){
+        const f=0.06+0.88*(j+0.5)/nodes, u=1-f, h=hash01(i,j);
+        const phi=j*2.39996+i*1.7, sp=Math.sin(phi), back=sp<-0.3;
+        if (back!==(pass===0)) continue;
+        const px=u*u*bx+2*u*f*qx+f*f*tx, py=u*u*by+2*u*f*qy+f*f*ty;
+        const ll=leafL*(1.08-0.3*f)*(0.86+h*0.28), el=rise+0.36*f;
+        const hl=ll*Math.cos(el), dx=Math.cos(phi)*hl, dy=-ll*Math.sin(el)+sp*hl*look;
+        const lit=(px+dx*0.5)/W*LIT.x+(py+dy*0.5+H*0.55)/(H*0.5)*LIT.y-Math.cos(phi)*0.3+(h-0.5)*0.4;
+        leafBatchPush(px,py,px+dx,py+dy,ll*0.5,back?0:lit>0.45?3:lit>0.05?2:lit>-0.35?1:0);
+      }
+      if (_lbN){
+        if (edge){ scLeafFlush(ctx,L,edge,wr,pass?0:-8,1); scLeafFlush(ctx,L,fol,wr,pass?0:-8,inset); }
+        else scLeafFlush(ctx,L,fol,wr,pass?0:-8,1);
+        _lbN=0;
+      }
+      if (!pass){
+        ctx.strokeStyle=stemCol; ctx.beginPath(); ctx.moveTo(bx,by); ctx.quadraticCurveTo(qx,qy,tx,ty); ctx.stroke();
+      }
+    }
+  }
+  ctx.lineCap='butt';
+  if (!mature) return null;
+  // A head stands from midsummer to spring: green-cream buds before the bloom,
+  // the flower while it lasts, a faded mix after, the dried head in winter.
+  const shown=blooming?Math.max(1,Math.ceil(n*blv)):0;
+  const anchors=AMBIENCE[season].snow?[]:null, flat=L.plateY||0.42;
+  for (let o=0;o<n;o++){
+    const i=_skO[o], on=blooming&&i<shown;
+    const col=on?S.bloom:(S.seed||(S.bloom&&fol?(S.bud||mixHex(fol,S.bloom,0.45)):null));
+    if (!col) continue;
+    const hx=_skX[i], hy=_skY[i], R=_skR[i], ry=R*flat, cy=hy-ry*0.2;
+    // the mass of short branches under the plate, then its scalloped rim
+    ctx.fillStyle=shade(col,-34); ctx.beginPath(); ctx.ellipse(hx,hy+ry*0.35,R*0.86,ry*0.9,0,0,7); ctx.fill();
+    for (let p=0;p<6;p++){ const a=(p+hash01(i,p+9))/6*Math.PI*2;
+      fcPush(hx+Math.cos(a)*R*0.9,cy+Math.sin(a)*ry*0.92+0.4,R*0.24,0.72); }
+    fcDraw(ctx,col,10,-10);
+    ctx.beginPath(); ctx.ellipse(hx,cy,R,ry,0,0,7); litFill(ctx,hx,cy,R,col,14,-14);
+    // the florets as crumbs: dark ones between, lit ones on top
+    const m=Math.max(6,Math.min(16,Math.round(R*R*0.3)));
+    for (let q=0;q<m;q++){ const a=q*2.39996+i, rr=Math.sqrt((q+0.5)/m)*0.9;
+      fcPush(hx+Math.cos(a)*rr*R,cy+Math.sin(a)*rr*ry+0.3,0.62+0.22*hash01(i,q),0.75); }
+    fcDraw(ctx,col,0,-22);
+    for (let q=0;q<m;q++){ const a=q*2.39996+i+1.2, rr=Math.sqrt((q+0.5)/m)*0.86;
+      fcPush(hx+Math.cos(a)*rr*R-0.3,cy+Math.sin(a)*rr*ry-0.35,0.6+0.2*hash01(q,i),0.75); }
+    fcDraw(ctx,col,0,16);
+    if (anchors) anchors.push([hx-R*0.06,cy-ry*0.2,R*0.58]);
+  }
+  if (anchors && anchors.length){
+    ctx.fillStyle='rgba(240,244,250,0.9)'; ctx.beginPath();
+    for (const a of anchors){ ctx.moveTo(a[0]+a[2],a[1]); ctx.ellipse(a[0],a[1],a[2],a[2]*flat*0.7,0,0,7); }
+    ctx.fill();
+  }
+  return anchors;
+}
+
+/* ---------- blazing star (Liatris) ----------
+   A blazing star's spike is a column of small flower heads, each a tuft of
+   long thread-like styles standing out of a purplish cup of bracts, so the
+   spike reads as feathery and its outline as a soft fringe. Drawn as stacked
+   beads with a whisker each, it was a grape hyacinth, or a meadow sage. The
+   spike opens from the TOP down (Minnesota Wildflowers; Wildflower Center),
+   the reverse of nearly every other spike, so a spike in flower is fluffy
+   above and still in tight dark buds below, and a stem whose turn has not come
+   carries buds the whole way. In seed every head is a puff of tan pappus.
+   Heads spiral round the axis and are painted back half, axis, front half; each
+   head's threads go into the thread batch (three light buckets) and its cup
+   into the floret batch, so a whole spike is a handful of fills and strokes.
+   `heads`, `spikeLen`, `spikeW` (how far a head stands off the axis), `capW`/
+   `capH` (the cup), `threads`/`threadLen`/`threadW`, and `headForm:'cylinder'`
+   for a cylindric blazing star's few long, spaced heads whose threads leave
+   only from the top. phase: 1 in flower, 0 in bud, -1 in seed. */
+function drawBlazingStar(ctx,hx,hy,L,S,phase,blv,stem,rec){
+  const col=phase===1?S.bloom:phase<0?S.seed:(S.bloom||S.fol);
+  if (!col) return;
+  const nh=Math.max(3,Math.min(40,Math.round(L.heads||16))), span=(L.spikeLen||20)*rec;
+  const rw=(L.spikeW||1.8)*rec, cw=(L.capW||1.4)*rec, ch=(L.capH||1.6)*rec;
+  const cyl=L.headForm==='cylinder', seed=phase<0;
+  const tn=Math.max(3,Math.min(9,Math.round(L.threads||6))), tl=(L.threadLen||2.6)*rec*(seed?1.25:1);
+  // how far down the spike the flowers have opened; the rest are buds
+  const open=phase===1?Math.min(1,0.2+0.95*blv):seed?1:0;
+  const bract=S.bract||shade(col,seed?-30:-34), bud=S.bud||shade(S.bloom||col,-30);
+  ctx.lineWidth=(L.threadW||0.55)*rec*(seed?0.85:1); ctx.lineCap='round';
+  for (let pass=0;pass<2;pass++){
+    // buds first, then the open heads: cups, and the threads over them
+    for (let q=0;q<2;q++){
+      for (let k=0;k<nh;k++){
+        const u=nh>1?k/(nh-1):0, az=k*2.39996+stem*0.9, fore=Math.sin(az);
+        if ((fore<0)!==(pass===0)) continue;
+        const isOpen=seed||(phase===1&&u<=open);
+        if (isOpen!==(q===1)) continue;
+        const taper=0.5+0.5*Math.min(1,u*3.2), h=hash01(stem+7,k);
+        const x=hx+Math.cos(az)*rw*taper+(h-0.5)*0.6*rec, y=hy+u*span+fore*0.5;
+        if (!q){ fcPush(x,y,cw*0.62*taper,1.25); continue; }
+        fcPush(x,cyl?y:y+ch*0.15,cw*(cyl?0.62:0.5)*taper,cyl?ch/cw*1.1:1.1);
+        // a fan of threads, mostly up and out; a seed head's is a whole puff
+        const fan=seed?3.4:cyl?1.4:(L.threadFan||2.1), oy=cyl?y-ch*0.7:y;
+        for (let t=0;t<tn;t++){
+          const a=-Math.PI/2+(tn>1?t/(tn-1)-0.5:0)*fan+(hash01(k,t+stem*13)-0.5)*0.6;
+          const l=tl*(0.55+0.6*hash01(t,k+stem*5))*(0.6+0.4*taper);
+          const ex=x+Math.cos(a)*l, ey=oy+Math.sin(a)*l*0.9;
+          thrPush(pass===0?0:(ex<hx?2:1),x+Math.cos(a)*cw*0.3,oy+Math.sin(a)*cw*0.2,ex,ey);
+        }
+      }
+      fcDraw(ctx,q?bract:bud,14,-8);
+    }
+    thrStroke(ctx,0,shade(col,-22)); thrStroke(ctx,1,col); thrStroke(ctx,2,shade(col,18));
+    if (!pass){
+      // the axis between the two halves of the spike
+      ctx.strokeStyle=shade(S.fol||col,-24); ctx.lineWidth=0.9*rec; ctx.beginPath();
+      ctx.moveTo(hx,hy+span); ctx.lineTo(hx,hy+1); ctx.stroke();
+      ctx.lineWidth=(L.threadW||0.55)*rec*(seed?0.85:1);
+    }
+  }
+  ctx.lineCap='butt';
+}
+
+/* ---------- betony (Betonica) ----------
+   A short, dense spike of whorls: round each node of the stem's top a ring of
+   two-lipped tubular flowers stands out and up from a knot of calyces, the
+   whorls crowded at the top and the lowest one or two set apart down the stem.
+   The lips are what give the spike its frilled outline. Drawn as a column of
+   round florets tapering upward it was a grape hyacinth on a stalk. Each whorl
+   is built in the round, so a ring's far flowers stand behind the axis; tubes
+   are one stroke a half and lips one fill. The top whorl is still in bud while
+   the rest flower; in seed the calyces stand as a dark knobbled spike.
+   `whorls`, `spikeLen`, `whorlR`, `whorlN`, `interrupt` (how many of the lowest
+   whorls stand apart), `tubeW`, `lipR`. phase: 1 in flower, 0 bud, -1 seed. */
+function drawBetonySpike(ctx,hx,hy,L,S,phase,stem,rec){
+  const col=phase===1?S.bloom:phase<0?S.seed:(S.bloom||S.fol);
+  if (!col) return;
+  const nw=Math.max(2,Math.min(9,Math.round(L.whorls||6))), span=(L.spikeLen||7)*rec;
+  const R=(L.whorlR||2)*rec, n=Math.max(3,Math.min(8,Math.round(L.whorlN||6))), gap=Math.max(0,Math.min(nw-1,L.interrupt===undefined?1:L.interrupt));
+  // crowded above, the lowest whorls spaced out: weights 1 above and 2.4 below
+  let tot=0; for (let w=1;w<nw;w++) tot+=w>=nw-gap?2.4:1;
+  const step=span/(tot||1), calyx=S.bract||shade(phase<0?col:(S.fol||col),phase<0?-18:-8);
+  let y=hy;
+  for (let pass=0;pass<2;pass++){
+    if (pass){
+      ctx.strokeStyle=shade(S.fol||col,-20); ctx.lineWidth=0.9*rec; ctx.beginPath();
+      ctx.moveTo(hx,hy+span+1); ctx.lineTo(hx,hy); ctx.stroke();
+      // the calyx knots on the axis
+      y=hy; for (let w=0;w<nw;w++){ if (w) y+=(w>=nw-gap?2.4:1)*step;
+        fcPush(hx,y,R*(w?0.42:0.5),0.9); }
+      fcDraw(ctx,phase===0?shade(col,-30):calyx,12,-6);
+    }
+    y=hy; ctx.lineWidth=(L.tubeW||1)*rec; ctx.lineCap='round';
+    ctx.strokeStyle=pass?col:shade(col,-24); ctx.beginPath();
+    for (let w=0;w<nw;w++){
+      if (w) y+=(w>=nw-gap?2.4:1)*step;
+      const bud=phase===0||(phase===1&&w===0), r=R*(w===0?0.62:1)*(phase<0?0.66:1);
+      for (let f=0;f<n;f++){
+        const az=(f+0.5)/n*Math.PI*2+w*0.55+stem, fore=Math.sin(az);
+        if ((fore<0)!==(pass===0)) continue;
+        const ex=hx+Math.cos(az)*r, ey=y-r*0.3+fore*r*0.32;
+        if (bud||phase<0){ fcPush(ex*0.6+hx*0.4,ey*0.6+y*0.4,r*0.32,0.95); continue; }
+        ctx.moveTo(hx+Math.cos(az)*r*0.25,y+fore*r*0.1); ctx.lineTo(ex,ey);
+        fcPush(ex+Math.cos(az)*r*0.18,ey+r*0.12,(L.lipR||0.9)*rec,0.78);
+      }
+    }
+    ctx.stroke(); ctx.lineCap='butt';
+    // lips (or buds, or seed calyces) over the tubes
+    fcDraw(ctx,phase===1?(pass?shade(col,8):shade(col,-20)):phase===0?shade(col,-30):(pass?col:shade(col,-16)),16,-10);
+  }
+}
+
+/* ---------- ornamental onion heads ----------
+   An allium umbel is a ball (or an egg, or a dome) of florets on pedicels
+   radiating from one point. The dense ones -- Purple Sensation, Globemaster,
+   Gladiator, Mount Everest, the drumstick -- pack their florets so tightly
+   that the head reads as a solid ball with a starry skin; Star of Persia holds
+   a few dozen stars far out on stiff pedicels, a see-through starburst. Both
+   were one flat wheel, spokes round a circle with a star on each tip: the
+   starburst in a single plane, which on a dense head read as a firework.
+   Florets sit on a Fibonacci sphere tilted toward the viewer, so the near ones
+   cover the face and the far ones peek round the rim, and each is lit by its
+   own surface normal into three tones, one fill each. A dense head has a dark
+   core under its florets; a starburst shows its pedicels, the far ones first.
+   In seed every head is the same skeleton, pale pedicels each ending in a
+   capsule, except a dot-floret head (the drumstick), which stays a solid oval.
+   shape: 'ball' | 'egg' (an upright oval) | 'dome' (a flat-based umbel) |
+   'starburst'. `florets` overrides the count the head size gives, `floretR`
+   the floret, `floretShape:'dot'` makes them small bells rather than stars,
+   and `headAccent:'lower'` with the season's `eye` colours the lower half (a
+   drumstick opens wine-red from the top while its lower florets stay green). */
+const ALLIUM_3D={ball:1,egg:1,dome:1,starburst:1};
+const AL_MAX=160;
+const _alX=new Float64Array(AL_MAX), _alY=new Float64Array(AL_MAX), _alZ=new Float64Array(AL_MAX),
+      _alB=new Float64Array(AL_MAX), _alA=new Float64Array(AL_MAX), _alH=new Float64Array(AL_MAX);
+function drawAlliumHead(ctx,cx,cy,L,S,col,open,hr,stem){
+  const shape=L.headShape, star=shape==='starburst', dome=shape==='dome', dot=L.floretShape==='dot';
+  const rx=L.headW||hr*(shape==='egg'?0.74:1), ry=L.headH||hr*(shape==='egg'?1.22:dome?0.78:0.94);
+  const n=Math.max(12,Math.min(AL_MAX,Math.round(L.florets||(star?hr*7:hr*hr*1.5))));
+  const ct=Math.cos(0.42), st=Math.sin(0.42), seed=!open, skeleton=seed&&!dot;
+  // a dome is the top of the sphere, its base drawn in toward the stem
+  const oy=dome?ry*0.3:0;
+  let m=0;
+  for (let k=0;k<n;k++){
+    const y0=dome?1-1.15*(k+0.5)/n:1-2*(k+0.5)/n, rr=Math.sqrt(Math.max(0,1-y0*y0));
+    const th=k*2.39996+stem*0.7, x=Math.cos(th)*rr, z=Math.sin(th)*rr;
+    const y1=y0*ct-z*st, z1=y0*st+z*ct;
+    _alX[m]=cx+x*rx; _alY[m]=cy+oy-y1*ry; _alZ[m]=z1; _alA[m]=th; _alH[m]=y0;
+    _alB[m]=-0.45*x+0.6*y1+0.66*z1; m++;
+  }
+  const eye=L.headAccent==='lower'&&S.eye&&open?S.eye:null;
+  const fr=(L.floretR||(star?Math.max(1.2,hr*0.2):dot?0.95:1.7));
+  if (!star&&!skeleton){
+    // the dense core under the florets
+    ctx.beginPath(); ctx.ellipse(cx,cy+oy*0.4,rx*0.88,ry*(dome?0.7:0.9),0,0,7);
+    litFill(ctx,cx,cy,rx,shade(col,-30),12,-20);
+  }
+  if (star||skeleton){
+    // pedicels, the far half first
+    for (let pass=0;pass<2;pass++){
+      ctx.strokeStyle=shade(col,pass?(skeleton?-4:-12):-30); ctx.lineWidth=skeleton?0.5:0.55; ctx.beginPath();
+      for (let k=0;k<m;k++){ if ((_alZ[k]<0)!==(pass===0)) continue;
+        ctx.moveTo(cx,cy+oy); ctx.lineTo(_alX[k],_alY[k]); }
+      ctx.stroke();
+      if (skeleton){
+        // a capsule at every tip
+        for (let k=0;k<m;k++){ if ((_alZ[k]<0)!==(pass===0)) continue;
+          fcPush(_alX[k],_alY[k],Math.max(0.55,hr*0.1),0.9); }
+        fcDraw(ctx,col,pass?14:0,pass?-6:-24);
+      } else drawAlliumFlorets(ctx,col,null,fr,m,pass,star,dot);
+    }
+  } else drawAlliumFlorets(ctx,col,eye,fr,m,1,false,dot);
+  if (open&&L.topknot){
+    // Red Mohican's tuft: short stalks out of the top, tipped pale
+    const tx=cx, ty=cy+oy-ry*0.86;
+    ctx.strokeStyle=shade(col,-12); ctx.lineWidth=0.55; ctx.beginPath();
+    for (let p=0;p<6;p++){ const a=-Math.PI/2+(p/5-0.5)*1.3, l=ry*(0.42+0.18*(p&1));
+      ctx.moveTo(tx,ty+1); ctx.lineTo(tx+Math.cos(a)*l,ty+Math.sin(a)*l); fcPush(tx+Math.cos(a)*l,ty+Math.sin(a)*l,hr*0.13,0.85); }
+    ctx.stroke(); fcDraw(ctx,L.topknot,14,-8);
+  }
+}
+// The florets of one head, in three tones by light (and two colours where the
+// lower half carries its own). pass 0 draws the far half, 1 the near half; a
+// dense head draws only florets not hidden behind its core.
+function drawAlliumFlorets(ctx,col,eye,fr,m,pass,star,dot){
+  for (let c=0;c<(eye?2:1);c++){
+    const base=c?eye:col;
+    for (let t=0;t<3;t++){
+      let any=false; ctx.beginPath();
+      for (let k=0;k<m;k++){
+        const z=_alZ[k];
+        if (star){ if ((z<0)!==(pass===0)) continue; }
+        else if (z<-0.3) continue;
+        if (eye && ((_alH[k]<0.05)!==(c===1))) continue;
+        const b=_alB[k], tone=b>0.5?2:b>0.02?1:0;
+        if (tone!==t) continue;
+        const r=fr*(0.78+0.22*Math.max(0,z));
+        if (dot){ ctx.moveTo(_alX[k]+r,_alY[k]); ctx.ellipse(_alX[k],_alY[k],r,r*0.86,0,0,7); }
+        else bulbStarPath(ctx,_alX[k],_alY[k],r,6,_alA[k],0.84);
+        any=true;
+      }
+      if (any){ ctx.fillStyle=shade(base,t===2?(star&&!pass?-4:16):t===1?(star&&!pass?-16:0):(star&&!pass?-30:-20)); ctx.fill(); }
+    }
+  }
+}
+// A bud in its papery spathe: a teardrop drawn up to a beak.
+function drawAlliumBud(ctx,x,y,r,fol){
+  const w=r*0.66, h=r*1.3, col=mixHex(fol,'#e2e0c4',0.5);
+  ctx.beginPath(); ctx.moveTo(x,y+0.6);
+  ctx.bezierCurveTo(x-w*1.15,y-h*0.1,x-w*0.7,y-h*0.82,x,y-h*1.2);
+  ctx.bezierCurveTo(x+w*0.7,y-h*0.82,x+w*1.15,y-h*0.1,x,y+0.6);
+  ctx.closePath(); litFill(ctx,x,y-h*0.45,Math.max(w,h*0.5),col,18,-18);
+  ctx.strokeStyle=shade(col,-28); ctx.lineWidth=0.45; ctx.beginPath();
+  ctx.moveTo(x-w*0.25,y-h*0.08); ctx.quadraticCurveTo(x+w*0.15,y-h*0.6,x,y-h*1.12); ctx.stroke();
 }
 
 /* ---------- bee balm (Monarda) ----------
@@ -6189,6 +6536,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
     if (sn && sn.length) snowAnchors=sn;
   }
+  else if (P.form==='umbel' && P.look && P.look.habit==='stonecrop'){
+    const sa=drawStonecrop(ctx,P,P.look,S,H,growth,season,mature,blooming,blv,sway,rnd,stemFor);
+    if (sa && sa.length) snowAnchors=sa;
+  }
   else if (P.form === 'cone' || P.form === 'globe' || P.form === 'spike' || P.form === 'umbel'){
     const L = P.look||{}; // per-species carriage: leafiness, wispiness, droop
     // Basal foliage is optional: leafy stems must not grow from a false rosette.
@@ -6207,6 +6558,26 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const droop=L.leafDroop||0;
           drawLeaf(ctx,px,py,droop?px+(u||0.14)*len*1.5:px+u*len*0.65,droop?py+len*droop:py-len,L.leafHW||6,shade(S.fol,(rnd()-0.5)*18),
             {shape:L.leafShape,rib:true,flat:!art2On(L)});
+        }
+      }
+      else if (L.leafStyle==='rosette'){
+        // A ground rosette of stalked leaves leaving the crown in every direction
+        // and rising a little, painted far to near: betony's low, dense mat of
+        // scalloped leaves, out of which the flower stems stand clear. Drawn as a
+        // fan, the same leaves stood up into a sheaf around the stems.
+        const reach=L.leafSpread||1, rise=L.leafRise===undefined?0.3:L.leafRise, wr=L.leafWR||0.3, list=[];
+        for(let i=0;i<fn;i++){
+          const a=i*2.39996+rnd()*0.5, l=H*(L.leafLen||0.3)*(0.78+rnd()*0.34);
+          list.push({c:Math.cos(a),s:Math.sin(a),l,tone:(rnd()-0.5)*14});
+        }
+        list.sort((p,q)=>p.s-q.s);
+        const stalk=shade(S.fol,-22);
+        for(const o of list){
+          const r0=o.l*0.22, bx=o.c*r0*reach, by=o.s*r0*0.42;
+          const tx=o.c*o.l*reach+sway*o.l*0.03, ty=o.s*o.l*0.42-o.l*rise*(0.7+0.3*(1-Math.abs(o.c)));
+          ctx.strokeStyle=stalk; ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(bx,by); ctx.stroke();
+          drawLeaf(ctx,bx,by,tx,ty,o.l*wr,shade(S.fol,o.tone+o.s*10),
+            {shape:L.leafShape,teeth:L.leafTeeth,teethN:L.leafTeethN,bow:o.c*0.05,rib:true,flat:!art2On(L)});
         }
       }
       else if (L.leafStyle==='parasol'){
@@ -6402,6 +6773,30 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           }
         }
         }
+      }
+      else if (S.fol && L.stemLeaves && L.stemLeafStyle==='spiral'){
+        // Narrow leaves set close up the stem in a spiral, longest at the foot
+        // and shortening into the spike, all pointing up: a blazing star's stem
+        // is leafy right to its flowers. A hash places them, not the random
+        // stream, so everything drawn after the stem stays where it was.
+        const nl=Math.max(2,Math.min(24,Math.round(L.stemLeaves)));
+        const top=Math.max(0.2,Math.min(L.stemLeafTop||0.92,1-(L.spikeLen||0)/len*0.92));
+        const ll0=(L.stemLeafLen||8)*rec, x0=ox*sb;
+        ctx.lineWidth=(L.stemLeafW||1)*rec; ctx.lineCap='round';
+        for (let pass=0;pass<2;pass++){
+          ctx.strokeStyle=pass?S.fol:shade(S.fol,-16); ctx.beginPath();
+          for (let j=0;j<nl;j++){
+            const az=j*2.39996+i*1.3, fore=Math.sin(az);
+            if ((fore<0)!==(pass===0)) continue;
+            const t=0.04+(top-0.04)*j/(nl-1), u=1-t, h=hash01(i+31,j);
+            const px=u*u*x0+2*u*t*ox+t*t*tx, py=by0-len*(1.1*u*t+t*t);
+            const l=ll0*(1-0.64*t/top)*(0.82+h*0.36), sd=Math.cos(az);
+            ctx.moveTo(px,py);
+            ctx.quadraticCurveTo(px+sd*l*0.42,py-l*0.42,px+sd*l*0.62+fore*0.6,py-l*0.78+fore*l*0.16);
+          }
+          ctx.stroke();
+        }
+        ctx.lineCap='butt';
       }
       else if (S.fol && L.stemLeaves){
         const leafPairs = Math.max(1, Math.round(L.stemLeaves));
@@ -6621,6 +7016,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       else if (P.form==='globe'){
         const col = (headOn?S.bloom:null) || S.seed;
+        // an onion stem whose turn has not come carries its bud in a papery spathe
+        if (!col && blooming && L.globeStyle==='allium' && ALLIUM_3D[L.headShape])
+          drawAlliumBud(ctx,hx,hy,(L.headR||4.2)*0.62,S.fol||'#7a8a5a');
         if (col){ ctx.fillStyle=col;
           const hr = L.headR || (key==='allium'?5:4.2);
           const ghx = hx + (L.nod?(L.nodReach||4):0), ghy = hy + (L.nod?(L.nodDrop||5):0);
@@ -6686,7 +7084,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             // (batched into one stroke instead of one per spoke) and a floret
             // lands on every spoke tip, with a few more scattered inside.
             const gs=L.globeStyle;
-            if (gs==='allium'){
+            if (gs==='allium' && ALLIUM_3D[L.headShape]){
+              drawAlliumHead(ctx,ghx,ghy,L,S,col,headOn,hr,i);
+            } else if (gs==='allium'){
               const shape=L.headShape||'sphere', spokes=Math.max(5,Math.round(L.spokes||10));
               const rx=L.headW||hr*(shape==='ovoid'?0.72:1), ry=L.headH||hr*(shape==='ovoid'?1.18:0.88);
               const loose=shape==='loosePendant', hemi=shape==='hemisphere';
@@ -6927,6 +7327,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             ctx.beginPath();
             ctx.ellipse(hx+Math.cos(a2)*rr, hy-rad*dome*0.5-Math.sin(a2)*rr*dome, 1.5,1.3,0,0,7);
             ctx.fill(); } }
+      }
+      else if (L.spikeStyle==='blazingstar'){ // Liatris; a later stem is a spike in bud
+        const ph=headOn&&S.bloom?1:blooming?0:S.seed?-1:null;
+        if (ph!==null) drawBlazingStar(ctx,hx,hy,L,S,ph,blv,i,rec);
+      }
+      else if (L.spikeStyle==='betony'){ // whorled labiate spike; a later stem is in bud
+        const ph=headOn&&S.bloom?1:blooming?0:S.seed?-1:null;
+        if (ph!==null) drawBetonySpike(ctx,hx,hy,L,S,ph,i,rec);
       }
       else if (L.spikeStyle==='torch'){ // Kniphofia; a later stem is a spike in bud
         const ph=headOn&&S.bloom?1:blooming?0:S.seed?-1:null;

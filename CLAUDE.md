@@ -7065,6 +7065,31 @@ ladder) and `winterBare`; the basal fan gained `leafArch`, arching both sides ou
 `leafBow` curves every blade the same way. Eight sourced Kniphofia cultivars. Record:
 `docs/plant-data/border-audit.md`; `dev/border-review.html`.
 
+**Stonecrops, blazing stars, betony and the onions (0.9.101)**, the same treatment: 24 records on
+grammars of their own, all opt-in (old data through old and new draw.js: identical streams over
+10,480 draws; every unchanged plant identical over 10,272). **Stonecrop** (`habit:'stonecrop'` on
+`umbel`, `drawStonecrop`) is stout stems placed in the round, leafy to the top with fleshy obovate
+leaves (`LEAF_SHAPES.obovate`), under broad flat broccoli plates that crowd into a dome; a season's
+`edge` draws a leaf margin ('Matrona' purple, 'Autumn Charm' cream). Drawn as bare stalks with dot
+sprays it was a yarrow. Leaves are placed by `hash01`, not the random stream, so the leaves behind
+a stem and those in front can be two passes. Winter keeps a few shrivelled leaves
+(`winterLeaves`), or the stems under their snow-capped plates read as toadstools. **Blazing star**
+(`spikeStyle:'blazingstar'`, `drawBlazingStar`) is heads spiralling round the axis, each a cup
+with a fan of thread-like styles, opening from the TOP down, a stem not yet in flower buds to its
+tip, tan pappus puffs in seed; `stemLeafStyle:'spiral'` clothes the stems in narrow upward leaves
+to the spike. Beads with a whisker each were a grape hyacinth. `liatris` stays for mountain
+fleece. **Betony** (`spikeStyle:'betony'`, `drawBetonySpike`) is whorls of two-lipped flowers
+built in the round, the lowest whorl set apart, over basal `leafStyle:'rosette'` (stalked leaves
+laid out on the ground), stems only in flower and seed. **Alliums** (`headShape:'ball'|'egg'|
+'dome'|'starburst'`, `drawAlliumHead`) put florets on a Fibonacci sphere tilted toward the viewer,
+each lit by its own normal: a dense ball with a starry skin (it was a flat spoke wheel, a
+firework), an egg of small bells for the drumstick and 'Red Mohican' (`floretShape:'dot'`), a
+3D starburst for Star of Persia only; a stem not yet open carries a bud in its papery spathe
+(`drawAlliumBud`), and in seed a head is pedicels tipped with capsules. Nodding and prairie onion
+stand stems only in flower and seed and are `dormantWhenBare`, or winter snow hung over an empty
+tile. Bakes cost 0.14-0.44 ms, inside the catalog's range. Record:
+`docs/plant-data/staples-audit.md`; `dev/staples-review.html`.
+
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
 separate carpet, meadow, broad woodland, wet upright, and arching sedges; shared

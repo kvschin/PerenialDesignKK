@@ -1284,7 +1284,14 @@ test('liatris species have distinct spike habits', () => {
   assert(PLANTS.liatrispycnostachya.h > PLANTS.liatrisspicata.h, 'prairie blazing star should be the tallest');
   assert(PLANTS.liatrispycnostachya.look.wildLean > PLANTS.liatrisspicata.look.wildLean, 'prairie blazing star should be wilder');
   assert(PLANTS.liatriscylindracea.h < PLANTS.liatris.h, 'cylindrical blazing star should stay compact');
-  assert(PLANTS.liatrisspicata.look.florets > PLANTS.liatris.look.florets, 'dense blazing star should have the packed spike');
+  assert(PLANTS.liatrisspicata.look.heads > PLANTS.liatris.look.heads, 'dense blazing star should have the packed spike');
+  for (const k of ['liatris','liatrispycnostachya','liatriscylindracea','liatrisspicata']){
+    assertEqual(PLANTS[k].look.spikeStyle, 'blazingstar', `${k}: a feathery spike of thread-tufted heads, not a column of beads`);
+    assertEqual(PLANTS[k].look.stemLeafStyle, 'spiral', `${k}: stems leafy right up to the spike`);
+  }
+  assertEqual(PLANTS.liatriscylindracea.look.headForm, 'cylinder', 'cylindric blazing star keeps its few long, spaced heads');
+  assertEqual(PLANTS.liatris.look.leaves, 0, 'dotted blazing star is a clump of leafy stems with no basal tuft');
+  assertEqual(PLANTS.persicaria.look.spikeStyle, 'liatris', 'mountain fleece keeps its own beaded wands');
   assertEqual(PLANTS.liatrisspicata.cv.alba.sea.Summer.bloom, '#f0ede8', 'dense blazing star keeps an alba cultivar');
 });
 
