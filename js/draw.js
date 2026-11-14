@@ -2697,7 +2697,15 @@ function plantShadowR(P, growth){
 // shadow, or a weeping conifer's cascade, whichever hangs lower.
 function plantDrawBelow(P, growth, H){
   const shR = plantShadowR(P, growth);
-  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H,growth), coniferGroundBelow(P,growth), coniferTreeBelow(P,growth,H), spikyRosetteBelow(P,H));
+  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H,growth), coniferGroundBelow(P,growth), coniferTreeBelow(P,growth,H), spikyRosetteBelow(P,H), hostaLeafBelow(P,H));
+}
+/* A hosta-leaf mound's front leaves come toward the viewer and so draw below the
+   crown, by a share of the plant's height (0.28-0.35 measured): a fixed allowance
+   held for a 30 in hosta and clipped 'Empress Wu' (0.9.106). Blade length sets it. */
+function hostaLeafBelow(P,H){
+  const L=P.look||{};
+  if (P.form!=='leafmound' || L.leafStyle!=='hosta') return 0;
+  return H*(L.leafLen||0.46)*0.72+2;
 }
 const WEEP_LEN_MAX=1.24, WEEP_SCAFFOLD=0.55;  // product of the two length jitters
 function coniferWeepBelow(P,H,growth){
@@ -6998,8 +7006,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.strokeStyle=stalk; ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(bx,by); ctx.stroke();
           drawLeaf(ctx,bx,by,tx,ty,o.l*wr,shade(S.fol,o.tone+o.s*10),
             {shape:L.leafShape,teeth:L.leafTeeth,teethN:L.leafTeethN,bow:o.c*0.05,rib:true,flat:!art2On(L)});
-          // a deadnettle's silver blotch down the middle of the leaf (0.9.103)
-          if(L.mottle && S.edge) drawLeaf(ctx,bx,by,bx+(tx-bx)*0.78,by+(ty-by)*0.78,o.l*wr*0.48,S.edge,
+          // a deadnettle's silver blotch down the middle of the leaf (0.9.103); `mottleW` and
+          // `mottleLen` (0.9.106) let a selection be silver nearly to its edge
+          if(L.mottle && S.edge) drawLeaf(ctx,bx,by,bx+(tx-bx)*(L.mottleLen||0.78),by+(ty-by)*(L.mottleLen||0.78),o.l*wr*(L.mottleW||0.48),S.edge,
             {shape:L.leafShape,rib:false,bow:o.c*0.05,flat:!art2On(L)});
         }
       }

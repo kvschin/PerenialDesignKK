@@ -173,10 +173,23 @@ of North America; leave them out or add them with cautions.
 
 ## Missing cultivars
 
+**Added in 0.9.106**: everything in this table, 75 choices on 24 plants, plus four lungwort records
+on the Lungwort card and round-leaf ragwort, sourced in `shade-cultivars.json` from the Missouri
+Botanical Garden Plant Finder, Walters Gardens (perennials.com) and Mt. Cuba Center's heuchera and
+shade-phlox trial reports. Mt. Cuba measured every plant after three years in the ground, so its
+sizes win where they exist; the estimates say where the sources disagree and which figure was taken.
+Corrections while reading them: Mt. Cuba's top ten heucheras include **'Cajun Fire', not
+'Carousel'** (this table had the wrong name), so 'Cajun Fire' was added; 'Bridal Veil' and 'Fanal'
+are Arendsii hybrids and now say so; the Honeymoon series is represented by 'New York Night', which
+is also the dark slate one; round-leaf ragwort takes medium soil by both its sources, so it is a
+record of its own (on a new Ragwort card with golden ragwort) filed under Woodland, not Dry shade.
+For a hosta or heuchera the card's height is the leaf mound, the figure the trade quotes; the
+flower height is in the estimate and drawn by the scapes.
+
 | Species | Has | Missing (the ones a buyer meets) |
 | --- | --- | --- |
 | Hosta | 'Blue Angel', 'Sum and Substance' | 'Patriot' (white margin), 'June' (gold centre, blue rim), 'Frances Williams', 'Halcyon' (small blue), 'Francee', 'Guacamole', 'Empress Wu' (giant), 'Blue Mouse Ears' (miniature), 'Krossa Regal' (vase). The new hosta leaf draws a margin already; a centre variegation needs one more option. |
-| Heuchera | 'Green Spice', 'Palace Purple', 'Caramel', 'Apple Crisp', 'Steel City' | From Mt. Cuba Center's trial of 83 heucheras: *H. villosa* 'Bronze Wave', 'Citronelle', 'Southern Comfort', 'Color Dream', 'Frosted Violet', 'Spellbound', 'Carousel'; and *H. villosa* 'Autumn Bride' (white, fall), 'Obsidian' (near black). |
+| Heuchera | 'Green Spice', 'Palace Purple', 'Caramel', 'Apple Crisp', 'Steel City' | From Mt. Cuba Center's trial of 83 heucheras: *H. villosa* 'Bronze Wave', 'Citronelle', 'Southern Comfort', 'Color Dream', 'Frosted Violet', 'Spellbound', 'Cajun Fire' (listed here as 'Carousel', which is not on Mt. Cuba's list); and *H. villosa* 'Autumn Bride' (white, fall), 'Obsidian' (near black). |
 | Astilbe | 'Fanal', 'Bridal Veil', 'Visions' | 'Deutschland' (white), 'Rheinland' (pink, early), 'Peach Blossom', *A. simplicifolia* 'Sprite', *A. chinensis* var. *pumila* (low groundcover), 'Purple Candles' |
 | Lenten rose | none | 'Ivory Prince', the Honeymoon and Wedding Party series, 'Pink Frost'; and a dark slate one |
 | Brunnera | 'Jack Frost' (PPA 2012), 'Looking Glass' | 'Sea Heart', 'Alexander's Great', 'Hadspen Cream' (cream margin) |
@@ -219,8 +232,8 @@ a kind of plant into a list of places. A search still draws one flat list.
 - Dwarf crested iris (8 px, no `heightIn`) has its leaves hidden by its flowers.
 - White wood aster flowers in a few large heads on bare stalks where it carries
   many small stars in loose flat clusters.
-- 'Blue Angel' and 'Sum and Substance' inherit the species' 30 in height and 36 in
-  spread; both grow far larger. Most shade records (every fern but two, hosta,
+- 'Blue Angel' and 'Sum and Substance' inherited the species' 30 in height and 36 in
+  spread; both grow far larger. Sized from their sources in 0.9.106. Most shade records (every fern but two, hosta,
   heuchera, astilbe, brunnera) carry no `heightIn`, so their cards quote the drawn
   height.
 - `sun:'part'` means "takes part shade", so a few sun plants sit on this tab:
@@ -240,3 +253,7 @@ a kind of plant into a list of places. A search still draws one flat list.
   over three years), via Fine Gardening and Longfield Gardens summaries.
 - Mt. Cuba Center phlox trial (2015-2017, 94 selections of eight species), via
   Penn State Extension and North Creek Nurseries.
+- For the cultivars (0.9.106), read directly: Mt. Cuba Center's trial pages
+  (`mtcubacenter.org/trials/heuchera/`, `/trials/phlox-for-shade/`), each plant's measured
+  size and bloom period; the Missouri Botanical Garden Plant Finder; Walters Gardens'
+  `perennials.com`. Every URL is in `shade-cultivars.json`.

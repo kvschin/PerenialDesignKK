@@ -7133,6 +7133,26 @@ drawing: `flowerStyle:'spathe'`/`seedStyle:'berries'` (cone), `leafShape:'round'
 top-level function name must be unique across them**: the jack's painter was first called
 `drawSpathe`, the water arums' painter already had that name, the later one won and the jack drew
 nothing. A test now refuses a duplicate.
+**The audit's cultivars (0.9.106)**: 75 new choices on 24 shade plants, plus four lungwort records and
+round-leaf ragwort (its own record on a new Ragwort card, so it files under Woodland while golden
+ragwort stays under Moist shade), sourced in `docs/plant-data/shade-cultivars.json` from the Plant
+Finder, Walters (perennials.com) and Mt. Cuba's trial reports, whose measured sizes win where they
+exist. Mt. Cuba's top ten heucheras are all in now; the audit's 'Carousel' was a misreading, and
+'Cajun Fire' is the one on their list. **For a hosta or heuchera `heightIn` is the leaf mound**, the
+figure the trade quotes, with the flower height in the estimate; for everything else it is the height
+in flower. Drawn sizes were SOLVED, not chosen: a hosta's or heuchera's `h`, leaf lift and `scapeH`
+fitted so its drawn width, leaves and flowers match the sources, measured in the real renderer
+without the ground shadow (whose size does not follow `h`, and which collapsed the first fit). A
+hosta's leaf mound tops out at about half its drawn `h`. Narrowing `leafSpread` raises a mound,
+but below about 0.6 the plant reads as a vase, which only 'Krossa Regal' is, so three big hostas draw
+their leaves a few inches under their sources. Every other choice stands at `heightIn` in flower.
+**A cultivar drawn much smaller than its species keeps the species' look in miniature**: its plant
+dimensions (stem spread and the like) scale with it, and its flower sizes and stem counts by the
+square root, or the same spray crowds into a smaller plant and reads as a blob. Opt-in drawing:
+`mottleW`/`mottleLen` on the rosette mottle (a deadnettle silver nearly to its edge). And
+`hostaLeafBelow` in `plantDrawBelow`: a hosta leaf mound's front leaves come below the crown by
+about a third of its height, which the fixed allowance held at 30 in and clipped at 'Empress Wu';
+it changes sprite boxes, never drawings.
 
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to

@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,777,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,782,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),559,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),634,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -318,6 +318,46 @@ test("the shade audit's first batch is in, as reviewed, with its sources", () =>
   // a selection keeps its species' wild range; the variegated Solomon's seal is a selection of an Asian plant
   assertEqual(PLANTS.variegatedsolomonsseal.provenance,'selection',"'Variegatum' is a selection");
   assert(PLANTS.bergenia.synonyms.includes('Bergenia crassifolia'),'bergenia is findable under the name Wikipedia uses');
+});
+
+// The shade audit's missing cultivars (0.9.106): docs/plant-data/shade-cultivars.json.
+test("the shade audit's cultivars are in, as reviewed, with their sources", () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/shade-cultivars.json'));
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  for(const row of doc.cultivars){
+    const [k,v]=row.ref.split('|'), C=PLANTS[k].cv&&PLANTS[k].cv[v];
+    assert(C,row.ref+': in the catalog');
+    for(const [f,want] of Object.entries(row.proposed)) assert(same(C[f],want),row.ref+': reviewed '+f+' '+JSON.stringify(C[f])+' vs '+JSON.stringify(want));
+    assert(row.sources.length>=1&&row.sources.every(u=>/^https?:\/\//.test(u)),row.ref+': cites its source');
+    assert(row.estimates&&Object.keys(row.estimates).length,row.ref+': says how its values were chosen');
+    if(row.resized) continue;
+    assert(C.heightIn>0&&C.spread>0,row.ref+': states its own size, not its species\'');
+    assert(C.latin&&C.latin!==PLANTS[k].latin,row.ref+': carries its own botanical name');
+    assert(C.note&&C.note.length>15,row.ref+': says what sets it apart');
+  }
+  assertEqual(doc.cultivars.filter(r=>!r.resized).length,75,'seventy-five new choices');
+  for(const row of doc.plants){
+    const P=PLANTS[row.suggestedKey]; assert(P,row.suggestedKey+': in the catalog');
+    for(const [f,want] of Object.entries(row.proposed)) assert(same(P[f],want),row.suggestedKey+': reviewed '+f);
+    assert(WIKIPEDIA_ARTICLES[row.suggestedKey],row.suggestedKey+': a Learn more article');
+  }
+  // a selection of another taxon carries that taxon's range, not its card's
+  const range=(k,v)=>PLANTS[k].cv[v].nativeTo.join(',');
+  assertEqual(range('hosta','franceswilliams'),'asia','Frances Williams is a Japanese species selection');
+  assertEqual(range('whiteturtlehead','hotlips'),'north-america','Hot Lips is the native pink turtlehead');
+  assertEqual(range('bigrootgeranium','biokovo'),'','Biokovo is a hybrid and claims no wild range');
+  assertEqual(PLANTS.foamflower.cv.collina.provenance,'species',"Wherry's foamflower is a wild variety");
+  assert(PLANTS.foamflower.cv.collina.synonyms.includes('Tiarella wherryi'),'and findable as Tiarella wherryi');
+  for (const v of ['citronelle','cajunfire','colordream','frostedviolet','southerncomfort','spellbound','obsidian'])
+    assertEqual(PLANTS.heuchera.cv[v].provenance,'hybrid',v+': a hybrid heuchera, not American alumroot');
+  // Mt. Cuba's ten top-rated heucheras are all in the catalog
+  for (const v of ['citronelle','bronzewave','cajunfire','colordream','steelcity','caramel','applecrisp','frostedviolet','southerncomfort','spellbound'])
+    assert(PLANTS.heuchera.cv[v],v+": one of Mt. Cuba's top ten");
+  // the sizes cover the range a buyer meets
+  assert(PLANTS.hosta.cv.empresswu.spread>=6*PLANTS.hosta.cv.bluemouseears.spread,'from a giant to a miniature');
+  // round-leaf ragwort shares golden ragwort's card but files under its own site
+  assertEqual(keys.filter(k=>PLANTS[k].group==='ragwort').sort().join(','),'goldenragwort,roundleafragwort','the ragwort card');
+  assertEqual(keys.filter(k=>PLANTS[k].group==='lungwort').length,7,'seven lungworts on the card');
 });
 
 test('wet-ground plants are planted in soil, and only claim the range their source gives', () => {

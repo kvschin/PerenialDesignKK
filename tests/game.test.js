@@ -558,6 +558,43 @@ test('the first shade batch draws its own organs: a hood, a plume, a fern mound,
     assertEqual(shadeOps(k,'Winter').length,0,k+': dormant in winter');
 });
 
+test('the shade cultivars draw what sets them apart', () => {
+  const fills=(k,v,season)=>shadeOps(k,season,v).filter(o=>o.op==='fill').length;
+  // a variegated hosta fills a margin under each face-up leaf; a plain one does not
+  for (const v of ['patriot','francee','june','guacamole','franceswilliams'])
+    assert(fills('hosta',v,'Summer')>=fills('hosta','halcyon','Summer')+4, v+': a margin on its leaves');
+  // the giant draws far wider than the miniature
+  const width=(k,v)=>{ const xs=shadeOps(k,'Summer',v).filter(o=>o.op==='quadraticCurveTo').map(o=>o.a[2]); return Math.max(...xs)-Math.min(...xs); };
+  assert(width('hosta','empresswu')>4*width('hosta','bluemouseears'),'Empress Wu against Blue Mouse Ears');
+  // a deadnettle selection silver nearly to its edge: the blotch covers far more of the leaf
+  const hex=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));
+  const silverShare=(v)=>{
+    const S=plantDef('deadnettle',v).sea.Summer, e=hex(S.edge);
+    let pts=[], silver=0, leaf=0;
+    for (const o of shadeOps('deadnettle','Summer',v)){
+      if(o.op==='beginPath') pts=[];
+      else if(['moveTo','lineTo'].includes(o.op)) pts.push(o.a);
+      else if(o.op==='quadraticCurveTo') pts.push(o.a.slice(2));
+      else if(o.op==='bezierCurveTo') pts.push(o.a.slice(4));
+      else if(o.op==='fill' && pts.length && typeof o.fill==='string' && o.fill.startsWith('rgb(')){
+        const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]), area=(Math.max(...xs)-Math.min(...xs))*(Math.max(...ys)-Math.min(...ys));
+        const c=o.fill.match(/\d+/g).map(Number), d=Math.hypot(c[0]-e[0],c[1]-e[1],c[2]-e[2]);
+        if(d<12) silver+=area; else leaf+=area;
+      }
+    }
+    return silver/leaf;
+  };
+  assert(silverShare('whitenancy')>2.2*silverShare(null),'White Nancy is silver nearly to the edge');
+  assert(silverShare('purpledragon')<silverShare('whitenancy'),'Purple Dragon keeps a wider green edge');
+  // the gold periwinkle and the near-black heuchera read as themselves
+  const lum=c=>{const [r,g,b]=hex(c); return 0.2126*r+0.7152*g+0.0722*b;};
+  assert(lum(plantDef('heuchera','obsidian').sea.Summer.fol)<50,'Obsidian is near black');
+  assert(lum(plantDef('periwinkle','illumination').sea.Summer.fol)>lum(plantDef('periwinkle').sea.Summer.fol)+60,'Illumination is gold');
+  // round-leaf ragwort shares golden ragwort's card and files under its own site
+  assertEqual(shadeSiteOf(PLANTS.roundleafragwort),'woodland','round-leaf ragwort: Woodland');
+  assertEqual(shadeSiteOf(PLANTS.goldenragwort),'moistshade','golden ragwort: Moist shade');
+});
+
 test('the maidenhair holds flat fans of fingers on dark wires', () => {
   const L=PLANTS.maidenhairfern.look, ops=shadeOps('maidenhairfern','Summer');
   const wires=ops.filter(o=>o.op==='stroke' && o.stroke===L.stipe).length;

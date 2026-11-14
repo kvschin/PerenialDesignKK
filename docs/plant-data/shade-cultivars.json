@@ -1,0 +1,1743 @@
+{
+ "reviewed": "2026-11-14",
+ "note": "The shade audit's missing cultivars (docs/plant-data/shade-audit.md). Sizes from the Missouri Botanical Garden Plant Finder, Walters Gardens' catalogue (perennials.com) and Mt. Cuba Center's trial reports, which measured each plant after three years: where they disagree, estimates says which was taken. For a hosta or a heuchera, heightIn is the leaf mound, the figure the trade quotes, and the flower height is in the estimate; for every other plant it is the height in flower.",
+ "cultivars": [
+  {
+   "ref": "hosta|patriot",
+   "proposed": {
+    "latin": "Hosta 'Patriot'",
+    "heightIn": 20,
+    "spread": 30
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=255958",
+    "https://www.perennials.com/plants/hosta-patriot.html"
+   ],
+   "estimates": {
+    "heightIn": "A 12-20 in mound (Missouri Botanical Garden; Walters 21-23 in), lavender scapes to 34 in. 20 in, the mound.",
+    "spread": "Missouri Botanical Garden 24-30 in, Walters 35-47 in. 30 in."
+   }
+  },
+  {
+   "ref": "hosta|june",
+   "proposed": {
+    "latin": "Hosta (Tardiana Group) 'June'",
+    "heightIn": 15,
+    "spread": 32
+   },
+   "sources": [
+    "https://www.perennials.com/plants/hosta-june.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 12-16 in, the mound; a sport of Halcyon, whose scapes reach about 26 in. 15 in.",
+    "spread": "Walters 29-35 in. 32 in."
+   }
+  },
+  {
+   "ref": "hosta|franceswilliams",
+   "proposed": {
+    "latin": "Hosta sieboldiana 'Frances Williams'",
+    "heightIn": 24,
+    "spread": 54,
+    "bloomMonths": [
+     6,
+     7
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "selection"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=248945"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: a mound to 24 in, flowers just below to just above the leaves. 24 in.",
+    "spread": "48-60 in over time (Missouri Botanical Garden). 54 in.",
+    "bloomMonths": "June and July (Missouri Botanical Garden), a month before most hostas."
+   }
+  },
+  {
+   "ref": "hosta|halcyon",
+   "proposed": {
+    "latin": "Hosta (Tardiana Group) 'Halcyon'",
+    "heightIn": 16,
+    "spread": 33,
+    "bloomMonths": [
+     8
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=247557"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: an erect plant to 14 in (listing 18-24 in), scapes to 26 in. 16 in.",
+    "spread": "Missouri Botanical Garden 30-36 in. 33 in."
+   }
+  },
+  {
+   "ref": "hosta|francee",
+   "proposed": {
+    "latin": "Hosta 'Francee'",
+    "heightIn": 21,
+    "spread": 36
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=248653"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: an arching mound to 21 in, scapes to 30 in. 21 in.",
+    "spread": "To 36 in (Missouri Botanical Garden). 36 in."
+   }
+  },
+  {
+   "ref": "hosta|guacamole",
+   "proposed": {
+    "latin": "Hosta 'Guacamole'",
+    "heightIn": 18,
+    "spread": 42
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=247553"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: a mound to 18 in, scapes to 36 in. 18 in.",
+    "spread": "Missouri Botanical Garden 3-4 ft, to 50 in over time. 42 in."
+   }
+  },
+  {
+   "ref": "hosta|empresswu",
+   "proposed": {
+    "latin": "Hosta 'Empress Wu'",
+    "heightIn": 54,
+    "spread": 84
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=271668"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 4-5 ft. 54 in.",
+    "spread": "Missouri Botanical Garden 6-8 ft. 84 in."
+   }
+  },
+  {
+   "ref": "hosta|bluemouseears",
+   "proposed": {
+    "latin": "Hosta 'Blue Mouse Ears'",
+    "heightIn": 9,
+    "spread": 11
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=267491"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-12 in. 9 in.",
+    "spread": "Missouri Botanical Garden 9-12 in. 11 in."
+   }
+  },
+  {
+   "ref": "hosta|krossaregal",
+   "proposed": {
+    "latin": "Hosta 'Krossa Regal'",
+    "heightIn": 36,
+    "spread": 48
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=247567"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: a vase to 3 ft, scapes to 5-6 ft. 36 in.",
+    "spread": "Missouri Botanical Garden 3-6 ft. 48 in."
+   }
+  },
+  {
+   "ref": "hosta|blueangel",
+   "resized": true,
+   "proposed": {
+    "heightIn": 36,
+    "spread": 48
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=248612"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: a mound to 36 in, scapes to 48 in. 36 in.",
+    "spread": "To 48 in (Missouri Botanical Garden). 48 in."
+   }
+  },
+  {
+   "ref": "hosta|sumsubstance",
+   "resized": true,
+   "proposed": {
+    "heightIn": 30,
+    "spread": 60,
+    "bloomMonths": [
+     8
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=248912"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: to 30 in, scapes to 38 in. 30 in.",
+    "spread": "To 60 in (Missouri Botanical Garden). 60 in."
+   }
+  },
+  {
+   "ref": "heuchera|citronelle",
+   "proposed": {
+    "latin": "Heuchera 'Citronelle'",
+    "heightIn": 14,
+    "spread": 30,
+    "bloomMonths": [
+     7,
+     8
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-citronelle/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=269216"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial: 14 in of leaves, flowers to 24 in (Missouri Botanical Garden 6-12 in). 14 in.",
+    "spread": "Mt. Cuba's trial 30 in after three years; Missouri Botanical Garden 9-18 in. 30 in.",
+    "bloomMonths": "Mt. Cuba: early July to mid-August, later than most."
+   }
+  },
+  {
+   "ref": "heuchera|bronzewave",
+   "proposed": {
+    "latin": "Heuchera villosa 'Bronze Wave'",
+    "heightIn": 18,
+    "spread": 38,
+    "bloomMonths": [
+     6,
+     7,
+     8
+    ],
+    "provenance": "selection"
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-villosa-bronze-wave/"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial: 18 in of leaves, flowers to 30 in. 18 in.",
+    "spread": "Mt. Cuba's trial 38 in. 38 in.",
+    "bloomMonths": "Mt. Cuba: late June to early August."
+   }
+  },
+  {
+   "ref": "heuchera|cajunfire",
+   "proposed": {
+    "latin": "Heuchera 'Cajun Fire'",
+    "heightIn": 9,
+    "spread": 22,
+    "bloomMonths": [
+     6,
+     7,
+     8
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-cajun-fire/"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial: 9 in of leaves, flowers to 18 in on wine-red stems. 9 in.",
+    "spread": "Mt. Cuba's trial 22 in. 22 in.",
+    "bloomMonths": "Mt. Cuba: late May to late August, sporadically."
+   }
+  },
+  {
+   "ref": "heuchera|colordream",
+   "proposed": {
+    "latin": "Heuchera 'Color Dream'",
+    "heightIn": 12,
+    "spread": 28,
+    "bloomMonths": [
+     5,
+     6,
+     7
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-color-dream/"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial: 12 in of leaves, flowers to 26 in. 12 in.",
+    "spread": "Mt. Cuba's trial 28 in. 28 in.",
+    "bloomMonths": "Mt. Cuba: late May to early July."
+   }
+  },
+  {
+   "ref": "heuchera|frostedviolet",
+   "proposed": {
+    "latin": "Heuchera 'Frosted Violet'",
+    "heightIn": 14,
+    "spread": 34,
+    "bloomMonths": [
+     6,
+     7
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-frosted-violet/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256666"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial: 14 in of leaves, flowers to 32 in (Missouri Botanical Garden: a mound to 12 in, flowers to 30 in). 14 in.",
+    "spread": "Mt. Cuba's trial 34 in; Missouri Botanical Garden 24 in. 34 in.",
+    "bloomMonths": "Mt. Cuba: mid-June to late July."
+   }
+  },
+  {
+   "ref": "heuchera|southerncomfort",
+   "proposed": {
+    "latin": "Heuchera 'Southern Comfort'",
+    "heightIn": 14,
+    "spread": 34,
+    "bloomMonths": [
+     6,
+     7,
+     8
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-southern-comfort/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=268083"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial: 14 in of leaves, flowers to 24 in (Missouri Botanical Garden: a mound 10-14 in). 14 in.",
+    "spread": "Mt. Cuba's trial 34 in; Missouri Botanical Garden 18-24 in. 34 in.",
+    "bloomMonths": "Mt. Cuba: mid-June to early August."
+   }
+  },
+  {
+   "ref": "heuchera|spellbound",
+   "proposed": {
+    "latin": "Heuchera 'Spellbound'",
+    "heightIn": 12,
+    "spread": 30,
+    "bloomMonths": [
+     6,
+     7,
+     8
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-spellbound/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=441003"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial: 12 in of leaves, flowers to 24 in. 12 in.",
+    "spread": "Mt. Cuba's trial 30 in; Missouri Botanical Garden 18 in. 30 in.",
+    "bloomMonths": "Mt. Cuba: early June to early August."
+   }
+  },
+  {
+   "ref": "heuchera|autumnbride",
+   "proposed": {
+    "latin": "Heuchera villosa 'Autumn Bride'",
+    "heightIn": 18,
+    "spread": 42,
+    "zones": [
+     3,
+     8
+    ],
+    "bloomMonths": [
+     8,
+     9,
+     10
+    ],
+    "provenance": "selection"
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-villosa-autumn-bride/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256179"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial: 18 in of leaves, flowers to 36 in. 18 in.",
+    "spread": "Mt. Cuba's trial 42 in; Missouri Botanical Garden 18-24 in. 42 in.",
+    "zones": "Missouri Botanical Garden 3-8.",
+    "bloomMonths": "Mt. Cuba: late July to late October."
+   }
+  },
+  {
+   "ref": "heuchera|obsidian",
+   "proposed": {
+    "latin": "Heuchera 'Obsidian'",
+    "heightIn": 10,
+    "spread": 20,
+    "bloomMonths": [
+     5,
+     6
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-obsidian/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=258936"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial: 10 in of leaves, flowers to 20 in (Missouri Botanical Garden: a mound 8-10 in, flowers to 20-24 in). 10 in.",
+    "spread": "Mt. Cuba's trial 20 in; Missouri Botanical Garden 16 in. 20 in.",
+    "bloomMonths": "Mt. Cuba: late May to late June."
+   }
+  },
+  {
+   "ref": "astilbe|deutschland",
+   "proposed": {
+    "latin": "Astilbe 'Deutschland'",
+    "heightIn": 24,
+    "spread": 20,
+    "zones": [
+     4,
+     9
+    ],
+    "bloomMonths": [
+     5,
+     6
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=241996"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: leaves to 18 in, flowers to 2 ft. 24 in.",
+    "spread": "Missouri Botanical Garden 18-24 in. 20 in.",
+    "zones": "Missouri Botanical Garden 4-9.",
+    "bloomMonths": "Missouri Botanical Garden: May to June."
+   }
+  },
+  {
+   "ref": "astilbe|rheinland",
+   "proposed": {
+    "latin": "Astilbe 'Rheinland'",
+    "heightIn": 24,
+    "spread": 20,
+    "bloomMonths": [
+     5,
+     6
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=242003"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: leaves 9-12 in, flowers to 24 in. 24 in.",
+    "spread": "Missouri Botanical Garden 18-24 in. 20 in.",
+    "bloomMonths": "Missouri Botanical Garden: May to June."
+   }
+  },
+  {
+   "ref": "astilbe|peachblossom",
+   "proposed": {
+    "latin": "Astilbe × rosea 'Peach Blossom'",
+    "heightIn": 24,
+    "spread": 15,
+    "zones": [
+     4,
+     9
+    ],
+    "bloomMonths": [
+     5,
+     6
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=242017"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: leaves to 18 in, flowers to 24 in. 24 in.",
+    "spread": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "zones": "Missouri Botanical Garden 4-9.",
+    "bloomMonths": "Missouri Botanical Garden: May to June."
+   }
+  },
+  {
+   "ref": "astilbe|sprite",
+   "proposed": {
+    "latin": "Astilbe simplicifolia 'Sprite'",
+    "heightIn": 12,
+    "spread": 12,
+    "zones": [
+     3,
+     9
+    ],
+    "bloomMonths": [
+     7,
+     8
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.perennials.com/plants/astilbe-simplicifolia-sprite.html",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=260361"
+   ],
+   "estimates": {
+    "heightIn": "Walters 8-12 in; Missouri Botanical Garden: leaves to 10 in, flowers 12-18 in. 12 in.",
+    "spread": "Walters 10-12 in; Missouri Botanical Garden 12-18 in. 12 in.",
+    "zones": "Walters 3-9.",
+    "bloomMonths": "Walters late summer to early fall; Missouri Botanical Garden May to June. A simplicifolia hybrid flowers after the Arendsii hybrids: July and August."
+   }
+  },
+  {
+   "ref": "astilbe|pumila",
+   "proposed": {
+    "latin": "Astilbe chinensis var. pumila",
+    "heightIn": 12,
+    "spread": 15,
+    "zones": [
+     3,
+     9
+    ],
+    "bloomMonths": [
+     7,
+     8,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.perennials.com/plants/astilbe-chinensis-var-pumila.html",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=241993"
+   ],
+   "estimates": {
+    "heightIn": "Walters 10-12 in; Missouri Botanical Garden: leaves to 6 in, flowers 9-12 in. 12 in.",
+    "spread": "Walters 12-18 in. 15 in.",
+    "zones": "Walters 3-9.",
+    "bloomMonths": "Walters late summer to early fall; Missouri Botanical Garden May to August. July to September."
+   }
+  },
+  {
+   "ref": "astilbe|purplecandles",
+   "proposed": {
+    "latin": "Astilbe chinensis 'Purpurkerze'",
+    "heightIn": 42,
+    "spread": 20,
+    "bloomMonths": [
+     6,
+     7
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=254937"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: leaves to 24 in, flowers to 42 in. 42 in.",
+    "spread": "Missouri Botanical Garden 18-24 in. 20 in.",
+    "bloomMonths": "Missouri Botanical Garden: June to July."
+   }
+  },
+  {
+   "ref": "astilbe|fanal",
+   "resized": true,
+   "proposed": {
+    "latin": "Astilbe × arendsii 'Fanal'",
+    "heightIn": 18,
+    "spread": 12,
+    "bloomMonths": [
+     7
+    ],
+    "nativeTo": []
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=242008"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: leaves 9-12 in, flowers 15-18 in. 18 in.",
+    "spread": "Missouri Botanical Garden 9-12 in. 12 in.",
+    "bloomMonths": "Missouri Botanical Garden: July."
+   }
+  },
+  {
+   "ref": "astilbe|bridalveil",
+   "resized": true,
+   "proposed": {
+    "latin": "Astilbe × arendsii 'Bridal Veil'",
+    "nativeTo": []
+   },
+   "sources": [
+    "https://www.whiteflowerfarm.com/24332-product.html"
+   ],
+   "estimates": {
+    "latin": "An Arendsii hybrid ('Brautschleier'), not a Chinese astilbe."
+   }
+  },
+  {
+   "ref": "astilbe|visions",
+   "resized": true,
+   "proposed": {
+    "latin": "Astilbe chinensis 'Visions'",
+    "heightIn": 15,
+    "spread": 15,
+    "bloomMonths": [
+     7,
+     8
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=241994"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: leaves to 9 in, flowers 12-15 in. 15 in.",
+    "spread": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "bloomMonths": "Missouri Botanical Garden: July to August."
+   }
+  },
+  {
+   "ref": "lentenrose|ivoryprince",
+   "proposed": {
+    "latin": "Helleborus 'Walhelivor'",
+    "heightIn": 15,
+    "spread": 15,
+    "zones": [
+     3,
+     8
+    ],
+    "bloomMonths": [
+     3,
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=271449"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "spread": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "zones": "Missouri Botanical Garden 3-8.",
+    "bloomMonths": "Missouri Botanical Garden: March to May."
+   }
+  },
+  {
+   "ref": "lentenrose|pinkfrost",
+   "proposed": {
+    "latin": "Helleborus × ballardiae 'Coseh 710'",
+    "heightIn": 18,
+    "spread": 24,
+    "bloomMonths": [
+     2,
+     3,
+     4
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=445177"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: up to 18 in. 18 in.",
+    "spread": "Missouri Botanical Garden: fills a 24 in area. 24 in.",
+    "bloomMonths": "Missouri Botanical Garden: February to April."
+   }
+  },
+  {
+   "ref": "lentenrose|weddingbells",
+   "proposed": {
+    "latin": "Helleborus 'Wedding Bells'",
+    "heightIn": 20,
+    "spread": 20,
+    "bloomMonths": [
+     3,
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.perennials.com/plants/helleborus-wedding-bells.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 18-23 in. 20 in.",
+    "spread": "Walters 18-23 in. 20 in.",
+    "bloomMonths": "Walters: early to late spring."
+   }
+  },
+  {
+   "ref": "lentenrose|newyorknight",
+   "proposed": {
+    "latin": "Helleborus 'New York Night'",
+    "heightIn": 20,
+    "spread": 20,
+    "bloomMonths": [
+     3,
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.perennials.com/plants/helleborus-new-york-night.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 18-23 in. 20 in.",
+    "spread": "Walters 18-23 in. 20 in.",
+    "bloomMonths": "Walters: early to late spring."
+   }
+  },
+  {
+   "ref": "brunnera|seaheart",
+   "proposed": {
+    "latin": "Brunnera macrophylla 'Sea Heart'",
+    "heightIn": 10,
+    "spread": 18,
+    "zones": [
+     3,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=293404"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-12 in. 10 in.",
+    "spread": "Missouri Botanical Garden 12-24 in. 18 in.",
+    "zones": "Missouri Botanical Garden 3-9."
+   }
+  },
+  {
+   "ref": "brunnera|alexandersgreat",
+   "proposed": {
+    "latin": "Brunnera macrophylla 'Alexander's Great'",
+    "heightIn": 15,
+    "spread": 27
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=359098"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "spread": "Missouri Botanical Garden 24-30 in. 27 in."
+   }
+  },
+  {
+   "ref": "brunnera|hadspencream",
+   "proposed": {
+    "latin": "Brunnera macrophylla 'Hadspen Cream'",
+    "heightIn": 15,
+    "spread": 21,
+    "zones": [
+     3,
+     7
+    ],
+    "bloomMonths": [
+     4
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256664"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "spread": "Missouri Botanical Garden 18-24 in. 21 in.",
+    "zones": "Missouri Botanical Garden 3-7.",
+    "bloomMonths": "Missouri Botanical Garden: April."
+   }
+  },
+  {
+   "ref": "japaneseanemone|septembercharm",
+   "proposed": {
+    "latin": "Anemone × hybrida 'September Charm'",
+    "heightIn": 36,
+    "spread": 30
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=267852"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-4 ft. 36 in.",
+    "spread": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "japaneseanemone|queencharlotte",
+   "proposed": {
+    "latin": "Anemone × hybrida 'Königin Charlotte'",
+    "heightIn": 30,
+    "spread": 27,
+    "zones": [
+     5,
+     8
+    ],
+    "bloomMonths": [
+     8,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=242814"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in.",
+    "spread": "Missouri Botanical Garden 24-30 in. 27 in.",
+    "zones": "Missouri Botanical Garden 5-8.",
+    "bloomMonths": "Missouri Botanical Garden: August to September."
+   }
+  },
+  {
+   "ref": "japaneseanemone|whirlwind",
+   "proposed": {
+    "latin": "Anemone × hybrida 'Whirlwind'",
+    "heightIn": 42,
+    "spread": 30,
+    "zones": [
+     5,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.perennials.com/plants/anemone-hybrida-whirlwind.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 35-47 in. 42 in.",
+    "spread": "Walters 23-35 in. 30 in.",
+    "zones": "Walters 5-9."
+   }
+  },
+  {
+   "ref": "japaneseanemone|robustissima",
+   "proposed": {
+    "latin": "Anemone tomentosa 'Robustissima'",
+    "heightIn": 42,
+    "spread": 30,
+    "zones": [
+     3,
+     9
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "selection"
+   },
+   "sources": [
+    "https://www.perennials.com/plants/anemone-tomentosa-robustissima.html",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286277"
+   ],
+   "estimates": {
+    "heightIn": "Walters 35-47 in; Missouri Botanical Garden for the species: leaves to 2 ft, flowers 3-4 ft. 42 in.",
+    "spread": "Walters 23-35 in. 30 in.",
+    "zones": "Walters 3-9 for the cultivar (Missouri Botanical Garden 4-7 for the species)."
+   }
+  },
+  {
+   "ref": "japaneseanemone|pamina",
+   "proposed": {
+    "latin": "Anemone hupehensis var. japonica 'Pamina'",
+    "heightIn": 30,
+    "spread": 27,
+    "zones": [
+     5,
+     8
+    ],
+    "bloomMonths": [
+     8,
+     9
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "selection"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=259011"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: to 30 in. 30 in.",
+    "spread": "Missouri Botanical Garden 24-30 in. 27 in.",
+    "zones": "Missouri Botanical Garden 5-8.",
+    "bloomMonths": "Missouri Botanical Garden: August to September."
+   }
+  },
+  {
+   "ref": "barrenwort|rubrum",
+   "proposed": {
+    "latin": "Epimedium × rubrum",
+    "heightIn": 10,
+    "spread": 15,
+    "zones": [
+     4,
+     9
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.perennials.com/plants/epimedium-x-rubrum.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 8-12 in. 10 in.",
+    "spread": "Walters 12-18 in. 15 in.",
+    "zones": "Walters 4-9."
+   }
+  },
+  {
+   "ref": "barrenwort|frohnleiten",
+   "proposed": {
+    "latin": "Epimedium × perralchicum 'Frohnleiten'",
+    "heightIn": 9,
+    "spread": 15,
+    "zones": [
+     5,
+     9
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=246081"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-12 in (a compact 4-6 in mound). 9 in.",
+    "spread": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "zones": "Missouri Botanical Garden 5-9."
+   }
+  },
+  {
+   "ref": "barrenwort|lilafee",
+   "proposed": {
+    "latin": "Epimedium grandiflorum 'Lilafee'",
+    "heightIn": 15,
+    "spread": 15,
+    "zones": [
+     5,
+     8
+    ],
+    "bloomMonths": [
+     5
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "selection"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=246056"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "spread": "Missouri Botanical Garden 9-18 in. 15 in.",
+    "zones": "Missouri Botanical Garden 5-8.",
+    "bloomMonths": "Missouri Botanical Garden: May."
+   }
+  },
+  {
+   "ref": "barrenwort|niveum",
+   "proposed": {
+    "latin": "Epimedium × youngianum 'Niveum'",
+    "heightIn": 8,
+    "spread": 15,
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=246086"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-9 in. 8 in.",
+    "spread": "Missouri Botanical Garden 12-18 in. 15 in."
+   }
+  },
+  {
+   "ref": "bleedingheart|valentine",
+   "proposed": {
+    "latin": "Lamprocapnos spectabilis 'Hordival'",
+    "heightIn": 21,
+    "spread": 21
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=293832"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 18-24 in. 21 in.",
+    "spread": "Missouri Botanical Garden 18-24 in. 21 in."
+   }
+  },
+  {
+   "ref": "bugle|blackscallop",
+   "proposed": {
+    "latin": "Ajuga reptans 'Binblasca'",
+    "heightIn": 6,
+    "spread": 18
+   },
+   "sources": [
+    "https://www.perennials.com/plants/ajuga-reptans-black-scallop.html",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=264500"
+   ],
+   "estimates": {
+    "heightIn": "Walters 4-6 in; Missouri Botanical Garden: a 3-4 in carpet with spikes above. 6 in.",
+    "spread": "Walters 12-18 in. 18 in."
+   }
+  },
+  {
+   "ref": "bugle|chocolatechip",
+   "proposed": {
+    "latin": "Ajuga reptans 'Valfredda'",
+    "heightIn": 3,
+    "spread": 8
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=254287"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: a 2 in mat, spikes to 3 in. 3 in.",
+    "spread": "Missouri Botanical Garden 6-9 in. 8 in."
+   }
+  },
+  {
+   "ref": "bugle|burgundyglow",
+   "proposed": {
+    "latin": "Ajuga reptans 'Burgundy Glow'",
+    "heightIn": 6,
+    "spread": 9,
+    "zones": [
+     3,
+     10
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=243536"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-9 in, spikes to 6 in. 6 in.",
+    "spread": "Missouri Botanical Garden 6-12 in. 9 in.",
+    "zones": "Missouri Botanical Garden 3-10."
+   }
+  },
+  {
+   "ref": "bugle|catlinsgiant",
+   "proposed": {
+    "latin": "Ajuga reptans 'Catlin's Giant'",
+    "heightIn": 8,
+    "spread": 18,
+    "zones": [
+     4,
+     8
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=243537"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: leaves 3-9 in, spikes to 8 in. 8 in.",
+    "spread": "Missouri Botanical Garden 12-24 in. 18 in.",
+    "zones": "Missouri Botanical Garden 4-8."
+   }
+  },
+  {
+   "ref": "deadnettle|whitenancy",
+   "proposed": {
+    "latin": "Lamium maculatum 'White Nancy'",
+    "heightIn": 7,
+    "spread": 24
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=249391",
+    "https://www.perennials.com/plants/lamium-maculatum-white-nancy.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 6-8 in; Missouri Botanical Garden 6-9 in. 7 in.",
+    "spread": "Missouri Botanical Garden 2-3 ft; Walters 12-23 in. 24 in."
+   }
+  },
+  {
+   "ref": "deadnettle|beaconsilver",
+   "proposed": {
+    "latin": "Lamium maculatum 'Beacon Silver'",
+    "heightIn": 7,
+    "spread": 18
+   },
+   "sources": [
+    "https://www.perennials.com/plants/lamium-maculatum-beacon-silver.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 6-8 in. 7 in.",
+    "spread": "Walters 12-23 in. 18 in."
+   }
+  },
+  {
+   "ref": "deadnettle|purpledragon",
+   "proposed": {
+    "latin": "Lamium maculatum 'Purple Dragon'",
+    "heightIn": 7,
+    "spread": 21
+   },
+   "sources": [
+    "https://www.perennials.com/plants/lamium-maculatum-purple-dragon.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 6-8 in. 7 in.",
+    "spread": "Walters 18-23 in. 21 in."
+   }
+  },
+  {
+   "ref": "deadnettle|pinkpewter",
+   "proposed": {
+    "latin": "Lamium maculatum 'Pink Pewter'",
+    "heightIn": 7,
+    "spread": 18
+   },
+   "sources": [
+    "https://www.perennials.com/plants/lamium-maculatum-pink-pewter.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 6-8 in. 7 in.",
+    "spread": "Walters 12-23 in. 18 in."
+   }
+  },
+  {
+   "ref": "foamflower|springsymphony",
+   "proposed": {
+    "latin": "Tiarella 'Spring Symphony'",
+    "heightIn": 10,
+    "spread": 10,
+    "bloomMonths": [
+     4,
+     5,
+     6
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=250336"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-12 in. 10 in.",
+    "spread": "Missouri Botanical Garden 6-12 in. 10 in.",
+    "bloomMonths": "Missouri Botanical Garden: April to July."
+   }
+  },
+  {
+   "ref": "foamflower|pinkskyrocket",
+   "proposed": {
+    "latin": "Tiarella 'Pink Skyrocket'",
+    "heightIn": 12,
+    "spread": 11,
+    "bloomMonths": [
+     5,
+     6
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=262391"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-12 in. 12 in, the spikes standing tall.",
+    "spread": "Missouri Botanical Garden 9-12 in. 11 in.",
+    "bloomMonths": "Missouri Botanical Garden: May to June."
+   }
+  },
+  {
+   "ref": "foamflower|sugarandspice",
+   "proposed": {
+    "latin": "Tiarella 'Sugar and Spice'",
+    "heightIn": 10,
+    "spread": 12,
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=264759"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: an 8 in mound, flowers above it. 10 in.",
+    "spread": "Missouri Botanical Garden: to 12 in. 12 in."
+   }
+  },
+  {
+   "ref": "foamflower|collina",
+   "proposed": {
+    "latin": "Tiarella cordifolia var. collina",
+    "heightIn": 10,
+    "spread": 11,
+    "bloomMonths": [
+     5,
+     6,
+     7
+    ],
+    "provenance": "species"
+   },
+   "sources": [
+    "https://www.perennials.com/plants/tiarella-wherryi.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 8-12 in. 10 in.",
+    "spread": "Walters 10-12 in. 11 in.",
+    "bloomMonths": "Walters: late spring to midsummer."
+   }
+  },
+  {
+   "ref": "woodlandphlox|bluemoon",
+   "proposed": {
+    "latin": "Phlox divaricata 'Blue Moon'",
+    "heightIn": 16,
+    "spread": 32
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/phlox-for-shade/phlox-divaricata-blue-moon/"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 16 in. 16 in.",
+    "spread": "Mt. Cuba's trial 32 in. 32 in."
+   }
+  },
+  {
+   "ref": "woodlandphlox|maybreeze",
+   "proposed": {
+    "latin": "Phlox divaricata 'May Breeze'",
+    "heightIn": 16,
+    "spread": 24,
+    "zones": [
+     3,
+     9
+    ]
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/phlox-for-shade/phlox-divaricata-may-breeze/",
+    "https://www.perennials.com/plants/phlox-divaricata-may-breeze.html"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 16 in; Walters 12-16 in. 16 in.",
+    "spread": "Mt. Cuba's trial 24 in. 24 in.",
+    "zones": "Walters 3-9."
+   }
+  },
+  {
+   "ref": "woodlandphlox|fullerswhite",
+   "proposed": {
+    "latin": "Phlox divaricata 'Fuller's White'",
+    "heightIn": 10,
+    "spread": 10
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=241505",
+    "https://mtcubacenter.org/trials/phlox-for-shade/phlox-divaricata-fullers-white/"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 8-12 in. 10 in.",
+    "spread": "Missouri Botanical Garden 9-12 in. 10 in."
+   }
+  },
+  {
+   "ref": "woodlandphlox|chattahoochee",
+   "proposed": {
+    "latin": "Phlox divaricata subsp. laphamii 'Chattahoochee'",
+    "heightIn": 11,
+    "spread": 9,
+    "bloomMonths": [
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=261614"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 10-12 in. 11 in.",
+    "spread": "Missouri Botanical Garden 6-12 in. 9 in.",
+    "bloomMonths": "Missouri Botanical Garden: May."
+   }
+  },
+  {
+   "ref": "creepingphlox|pinkridge",
+   "proposed": {
+    "latin": "Phlox stolonifera 'Pink Ridge'",
+    "heightIn": 10,
+    "spread": 24
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/phlox-for-shade/phlox-stolonifera-pink-ridge/"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 10 in. 10 in.",
+    "spread": "Mt. Cuba: spreads 1-2 ft a year. 24 in, as the species."
+   }
+  },
+  {
+   "ref": "creepingphlox|bruceswhite",
+   "proposed": {
+    "latin": "Phlox stolonifera 'Bruce's White'",
+    "heightIn": 8,
+    "spread": 24
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/phlox-for-shade/phlox-stolonifera-bruces-white/"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 8 in. 8 in.",
+    "spread": "Mt. Cuba: spreads 1-2 ft a year. 24 in, as the species."
+   }
+  },
+  {
+   "ref": "creepingphlox|homefires",
+   "proposed": {
+    "latin": "Phlox stolonifera 'Home Fires'",
+    "heightIn": 12,
+    "spread": 24
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/phlox-for-shade/phlox-stolonifera-home-fires/"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 12 in. 12 in.",
+    "spread": "Mt. Cuba: spreads 1-2 ft a year. 24 in, as the species."
+   }
+  },
+  {
+   "ref": "solomonsseal|commutatum",
+   "proposed": {
+    "latin": "Polygonatum biflorum var. commutatum",
+    "heightIn": 54,
+    "spread": 36,
+    "zones": [
+     3,
+     7
+    ],
+    "bloomMonths": [
+     5,
+     6
+    ],
+    "provenance": "species"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282245"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 3-5 ft, occasionally 7. 54 in.",
+    "spread": "Missouri Botanical Garden 3-4 ft. 36 in.",
+    "zones": "Missouri Botanical Garden 3-7.",
+    "bloomMonths": "Missouri Botanical Garden: May to June."
+   }
+  },
+  {
+   "ref": "columbine|littlelanterns",
+   "proposed": {
+    "latin": "Aquilegia canadensis 'Little Lanterns'",
+    "heightIn": 10,
+    "spread": 10
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256520"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: to 10 in. 10 in.",
+    "spread": "Missouri Botanical Garden 9-12 in. 10 in."
+   }
+  },
+  {
+   "ref": "columbine|corbett",
+   "proposed": {
+    "latin": "Aquilegia canadensis 'Corbett'",
+    "heightIn": 16,
+    "spread": 10
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=243172"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 15-18 in. 16 in.",
+    "spread": "Missouri Botanical Garden 9-12 in. 10 in."
+   }
+  },
+  {
+   "ref": "wildgeranium|espresso",
+   "proposed": {
+    "latin": "Geranium maculatum 'Espresso'",
+    "heightIn": 22,
+    "spread": 18,
+    "zones": [
+     5,
+     8
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256590"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: a loose mound to 24 in (listing 18-24 in). 22 in.",
+    "spread": "Missouri Botanical Garden: 18 in. 18 in.",
+    "zones": "Missouri Botanical Garden 5-8."
+   }
+  },
+  {
+   "ref": "wildgeranium|album",
+   "proposed": {
+    "latin": "Geranium maculatum f. albiflorum",
+    "heightIn": 15,
+    "spread": 15
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=280875"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "spread": "Missouri Botanical Garden 12-18 in. 15 in."
+   }
+  },
+  {
+   "ref": "bigrootgeranium|bevansvariety",
+   "proposed": {
+    "latin": "Geranium macrorrhizum 'Bevan's Variety'",
+    "heightIn": 10,
+    "spread": 21,
+    "zones": [
+     3,
+     8
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=245622"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 9-12 in. 10 in.",
+    "spread": "Missouri Botanical Garden 18-24 in. 21 in.",
+    "zones": "Missouri Botanical Garden 3-8."
+   }
+  },
+  {
+   "ref": "bigrootgeranium|ingwersensvariety",
+   "proposed": {
+    "latin": "Geranium macrorrhizum 'Ingwersen's Variety'",
+    "heightIn": 14,
+    "spread": 15
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=245827"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 14 in.",
+    "spread": "Missouri Botanical Garden 12-18 in. 15 in."
+   }
+  },
+  {
+   "ref": "bigrootgeranium|spessart",
+   "proposed": {
+    "latin": "Geranium macrorrhizum 'Spessart'",
+    "heightIn": 16,
+    "spread": 22,
+    "zones": [
+     3,
+     8
+    ]
+   },
+   "sources": [
+    "https://www.nvknurseries.com/plant/Geranium-macrorrhizum-Spessart",
+    "https://www.rhs.org.uk/plants/74692/geranium-macrorrhizum-spessart/details"
+   ],
+   "estimates": {
+    "heightIn": "NVK 40-45 cm (RHS 10-50 cm). 16 in.",
+    "spread": "NVK 50-60 cm (RHS 0.5-1 m). 22 in.",
+    "zones": "NVK zone 3; RHS H7. 3-8."
+   }
+  },
+  {
+   "ref": "bigrootgeranium|biokovo",
+   "proposed": {
+    "latin": "Geranium × cantabrigiense 'Biokovo'",
+    "heightIn": 8,
+    "spread": 12,
+    "zones": [
+     5,
+     8
+    ],
+    "bloomMonths": [
+     5,
+     6
+    ],
+    "nativeTo": [],
+    "provenance": "hybrid"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=245839"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-10 in. 8 in.",
+    "spread": "Missouri Botanical Garden 6-12 in, running further. 12 in.",
+    "zones": "Missouri Botanical Garden 5-8.",
+    "bloomMonths": "Missouri Botanical Garden: May to June."
+   }
+  },
+  {
+   "ref": "monkshood|arendsii",
+   "proposed": {
+    "latin": "Aconitum carmichaelii 'Arendsii'",
+    "heightIn": 42,
+    "spread": 15,
+    "zones": [
+     3,
+     7
+    ],
+    "bloomMonths": [
+     10,
+     11
+    ],
+    "nativeTo": [
+     "asia"
+    ],
+    "provenance": "selection"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=243342"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-4 ft. 42 in.",
+    "spread": "Missouri Botanical Garden 12-18 in. 15 in.",
+    "zones": "Missouri Botanical Garden 3-7.",
+    "bloomMonths": "Missouri Botanical Garden: October to November."
+   }
+  },
+  {
+   "ref": "whiteturtlehead|hotlips",
+   "proposed": {
+    "latin": "Chelone lyonii 'Hot Lips'",
+    "heightIn": 30,
+    "spread": 24,
+    "bloomMonths": [
+     7,
+     8,
+     9
+    ],
+    "nativeTo": [
+     "north-america"
+    ],
+    "provenance": "selection"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=293430"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-4 ft. 30 in.",
+    "spread": "Missouri Botanical Garden 18-30 in. 24 in.",
+    "bloomMonths": "Missouri Botanical Garden: July to September."
+   }
+  },
+  {
+   "ref": "jacobsladder|brisedanjou",
+   "proposed": {
+    "latin": "Polemonium caeruleum 'Blanjou'",
+    "heightIn": 20,
+    "spread": 20,
+    "zones": [
+     4,
+     8
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=252569"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 18-24 in. 20 in.",
+    "spread": "Missouri Botanical Garden 18-24 in. 20 in.",
+    "zones": "Missouri Botanical Garden 4-8."
+   }
+  },
+  {
+   "ref": "ladysmantle|erythropoda",
+   "proposed": {
+    "latin": "Alchemilla erythropoda",
+    "heightIn": 6,
+    "spread": 14,
+    "nativeTo": [
+     "europe",
+     "asia"
+    ],
+    "provenance": "species"
+   },
+   "sources": [
+    "https://www.perennials.com/plants/alchemilla-erythropoda.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 4-6 in. 6 in.",
+    "spread": "Walters 12-16 in. 14 in."
+   }
+  },
+  {
+   "ref": "periwinkle|bowlesvariety",
+   "proposed": {
+    "latin": "Vinca minor 'Bowles' Variety'",
+    "heightIn": 5,
+    "spread": 21,
+    "zones": [
+     3,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.perennials.com/plants/vinca-minor-bowles-variety.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 4-6 in. 5 in.",
+    "spread": "Walters 18-23 in. 21 in.",
+    "zones": "Walters 3-9."
+   }
+  },
+  {
+   "ref": "periwinkle|illumination",
+   "proposed": {
+    "latin": "Vinca minor 'Illumination'",
+    "heightIn": 5,
+    "spread": 30,
+    "zones": [
+     3,
+     9
+    ]
+   },
+   "sources": [
+    "https://www.perennials.com/plants/vinca-minor-illumination.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 4-6 in. 5 in.",
+    "spread": "Walters 23-35 in. 30 in.",
+    "zones": "Walters 3-9."
+   }
+  }
+ ],
+ "plants": [
+  {
+   "suggestedKey": "raspberrysplashlungwort",
+   "proposed": {
+    "latin": "Pulmonaria 'Raspberry Splash'",
+    "heightIn": 12,
+    "spread": 18,
+    "zones": [
+     4,
+     9
+    ],
+    "provenance": "hybrid",
+    "bloomMonths": [
+     3,
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256572"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: an upright clump to 12 in. 12 in.",
+    "spread": "To 18 in (Missouri Botanical Garden). 18 in."
+   }
+  },
+  {
+   "suggestedKey": "trevifountainlungwort",
+   "proposed": {
+    "latin": "Pulmonaria 'Trevi Fountain'",
+    "heightIn": 11,
+    "spread": 24,
+    "zones": [
+     4,
+     9
+    ],
+    "provenance": "hybrid",
+    "bloomMonths": [
+     3,
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256672"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden: a clump to 11 in. 11 in.",
+    "spread": "To 25 in (Missouri Botanical Garden). 24 in."
+   }
+  },
+  {
+   "suggestedKey": "mrsmoonlungwort",
+   "proposed": {
+    "latin": "Pulmonaria saccharata 'Mrs. Moon'",
+    "heightIn": 12,
+    "spread": 21,
+    "zones": [
+     3,
+     8
+    ],
+    "provenance": "selection",
+    "bloomMonths": [
+     3,
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=253032"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 9-18 in. 12 in.",
+    "spread": "Missouri Botanical Garden 18-24 in. 21 in."
+   }
+  },
+  {
+   "suggestedKey": "bertramandersonlungwort",
+   "proposed": {
+    "latin": "Pulmonaria longifolia 'Bertram Anderson'",
+    "heightIn": 10,
+    "spread": 18,
+    "zones": [
+     3,
+     8
+    ],
+    "provenance": "selection",
+    "bloomMonths": [
+     4,
+     5
+    ]
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=253024"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-12 in. 10 in.",
+    "spread": "Missouri Botanical Garden 12-24 in. 18 in."
+   }
+  },
+  {
+   "suggestedKey": "roundleafragwort",
+   "proposed": {
+    "latin": "Packera obovata",
+    "heightIn": 16,
+    "spread": 12,
+    "zones": [
+     3,
+     8
+    ],
+    "provenance": "species",
+    "bloomMonths": [
+     4,
+     5,
+     6
+    ],
+    "moist": "medium"
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=292089",
+    "https://www.wildflower.org/plants/result.php?id_plant=PAOB6"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1-1.5 ft; Wildflower Center up to about 20 in. 16 in.",
+    "spread": "Missouri Botanical Garden 6-12 in, spreading by stolons into colonies. 12 in.",
+    "moist": "Missouri Botanical Garden medium to wet, tolerating some dryness; the Wildflower Center gives low to medium water use on calcareous rocky slopes. Medium, so it files under Woodland.",
+    "bloomMonths": "Wildflower Center: April to June in the north."
+   }
+  }
+ ]
+}
