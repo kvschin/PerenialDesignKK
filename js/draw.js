@@ -5745,7 +5745,8 @@ function drawGrassPanicle(ctx,L,x0,y0,cx,cy,x1,y1,H,col,stemCol,rnd,sn){
     const mx=ax+hx*bl*0.55, my=ay-bl*rise*1.1+dz*bl*0.18;
     const ex=ax+hx*bl, ey=ay-bl*rise+bl*droop+dz*bl*0.36;
     ctx.moveTo(ax,ay); ctx.quadraticCurveTo(mx,my,ex,ey);
-    if (sn && b===nb-2) sn.push([mx+_crX,my+_crY,2.2]);   // drawn inside the crown's translate
+    // halfway along the branch: its control point (mx,my) lies off the curve
+    if (sn && b===nb-2) sn.push([qBez(0.5,ax,mx,ex)+_crX,qBez(0.5,ay,my,ey)+_crY,2.2]);   // drawn inside the crown's translate
     for (let s=0;s<per;s++){
       const u=per>1?0.42+0.58*s/(per-1):1;
       const px=qBez(u,ax,mx,ex), py=qBez(u,ay,my,ey);
@@ -6026,7 +6027,7 @@ function drawSedgeTufts(ctx,P,L,S,H,growth,sway,rnd,stemFor,a2,head,drawSeed,sno
     // the middle of a clump stands tallest, and near tufts come forward into the light
     const ts=1-(L.tuftFall===undefined?0.26:L.tuftFall)*r, depth=rx>0?(y0/(ry||1)+1)*0.5:0.6;
     const n=Math.max(3,Math.round(nb*(1.2-0.4*r)));
-    let top=0;
+    let top=0, snL=null, snR=null, dL=9, dR=9;
     for (let k=0;k<n;k++){
       const i=a2?fanIdx(k,n):k, u=i/(n-1), side=u-0.5;
       const a=side*fan+(rnd()-0.5)*(L.jitter||0.26);
@@ -6037,6 +6038,10 @@ function drawSedgeTufts(ctx,P,L,S,H,growth,sway,rnd,stemFor,a2,head,drawSeed,sno
       const baseX=x0+(rnd()-0.5)*(L.baseW||5);
       const jit=(rnd()-0.5)*(L.colorJitter||22);
       if (-by>top) top=-by;
+      // the blade nearest each shoulder of the tuft carries its snow, 0.6 along its arch
+      if (anchors){ const e=Math.abs(side+0.24), g=Math.abs(side-0.24);
+        if (e<dL||g<dR){ const q=0.6, w=1-q, ax=w*w*baseX+2*w*q*(baseX+bx*0.22)+q*q*(x0+bx), ay=w*w*y0+2*w*q*(y0-len*0.46)+q*q*(y0+by);
+          if (e<dL){ dL=e; snL=[ax,ay,2.8]; } else { dR=g; snR=[ax,ay,2.8]; } } }
       if (a2){
         const z=arc*0.78+rnd()*0.22;
         drawBlade(ctx, baseX,y0-(1-z)*H*0.02, baseX+bx*0.22,y0-len*0.46, x0+bx,y0+by,
@@ -6049,7 +6054,7 @@ function drawSedgeTufts(ctx,P,L,S,H,growth,sway,rnd,stemFor,a2,head,drawSeed,sno
         if (L.stripe) drawBladeStripe(ctx,baseX,y0,baseX+bx*0.22,y0-len*0.46,x0+bx,y0+by,L.stripe,L.stripeW);
       }
     }
-    if (anchors){ const w=top*spread*0.5; anchors.push([x0-w,y0-top*0.72,2.8],[x0+w,y0-top*0.72,2.8]); }
+    if (anchors){ if (snL) anchors.push(snL); if (snR) anchors.push(snR); }
     const hc=Math.floor((t+1)*heads/T)-Math.floor(t*heads/T);
     for (let c=0;c<hc;c++){
       const s=rnd()-0.5, cy=y0-realTop*(seedLo+rnd()*(1-seedLo));
@@ -6059,6 +6064,7 @@ function drawSedgeTufts(ctx,P,L,S,H,growth,sway,rnd,stemFor,a2,head,drawSeed,sno
       // a nodding head tips away from the clump's middle: `a` turns it, `brush` reads a quarter of it
       const nod=L.seedNod?(s<0?-1:1)*L.seedNod*4:0;
       drawSeed(L.seedStyle,cx,cy,s*fan+nod,head,headK);
+      if (anchors) anchors.push([cx,cy,2.2]);
     }
   }
   return anchors;
@@ -6651,7 +6657,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const len=H*(0.85+rnd()*0.2);
       const ox=stemFan!==null ? side*(L.stemBase||12)+(rnd()-0.5)*(L.stemJitter||4) : (rnd()-0.5)*10;
       const tip=stemFan!==null ? ox+side*len*stemFan*0.34+sway*len*(L.stemLean!==undefined?L.stemLean:0.06) : ox+sway*len*0.06;
-      if (snow) snow.push(cloud ? [tip+_crX,-len*topF-(L.cloudHeight||11)*0.45+_crY,Math.min(3.6,Math.max(2.2,(L.cloudWidth||15)*0.14))] : [tip+_crX,-len*topF+_crY,2.2]);
+      // an open panicle is mostly air: the snow goes on the spikelet nearest the middle of
+      // its cloud (picked as the cloud is laid, below), or on the top of a bare stem
+      const snowCloud=snow&&cloud&&mature, scY=-len*topF-(L.cloudHeight||11)*0.45;
+      let snX=tip, snY=-len*topF, snD=snowCloud?1e9:0;
+      const snowAt=(x,y)=>{ const d=(x-tip)*(x-tip)+(y-scY)*(y-scY); if (d<snD){ snD=d; snX=x; snY=y; } };
       ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=L.stemW||1.1;
       ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.quadraticCurveTo(ox,-len*0.6,tip,-len*topF); ctx.stroke();
       if (cloud && mature){ ctx.fillStyle=cloud;
@@ -6664,6 +6674,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             const fy=rnd();
             _cloudX[d2]=tip+(rnd()-0.5)*cloudW; _cloudY[d2]=-len*topF+2-fy*cloudH;
             _cloudR[d2]=dotR*(0.72+rnd()*1.06); _cloudS[d2]=fy;
+            if (snowCloud) snowAt(_cloudX[d2],_cloudY[d2]);
           }
           if (L.panicle){                    // every branch in ONE stroke
             const oldAlpha=ctx.globalAlpha; ctx.globalAlpha=0.42;
@@ -6699,6 +6710,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         } else
         for (let d2=0;d2<dots;d2++){
           const px=tip+(rnd()-0.5)*cloudW, py=-len*topF+2-rnd()*cloudH;
+          if (snowCloud) snowAt(px,py);
           if (L.panicle){
             const oldAlpha=ctx.globalAlpha;
             ctx.globalAlpha=0.45; ctx.strokeStyle=shade(panicle,(rnd()-0.5)*18); ctx.lineWidth=0.45;
@@ -6713,6 +6725,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             ctx.fillStyle=cloud;
           }
         } }
+      if (snow) snow.push([snX+_crX,snY+_crY,2.2]);
       grassCrownOut(ctx);
     }
     if (snow) snowAnchors=snow;
@@ -6850,7 +6863,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.strokeStyle=shade(S.fol,jit); ctx.lineWidth=L.leafW||1.3;
         ctx.beginPath(); ctx.moveTo(baseX,0);
         ctx.quadraticCurveTo(bx*cK,-len*cY,bx*tipK,-len*tipY); ctx.stroke(); }
-      if (snow && arch && i%4===1) snow.push([bx*0.7+_crX,-len*(cY*0.5+tipY*0.25)+_crY,2.2]);
+      if (snow && arch && i%4===1) snow.push([baseX*0.25+bx*(cK*0.5+tipK*0.25)+_crX,-len*(cY*0.5+tipY*0.25)+_crY,2.2]);
       grassCrownOut(ctx); }
     }
     // Bloom-first, then dried seed (matches fountaingrass): the same eyelash
@@ -8286,6 +8299,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.strokeStyle=shade(S.fol||S.seed||'#6b6248',-18); ctx.lineWidth=0.9;
       ctx.beginPath(); ctx.moveTo(ox*0.3,0); ctx.quadraticCurveTo(ox,-len*0.56,tip,-len); ctx.stroke();
       if (!mature) continue;
+      if (snowLv) snowLv.push([tip,-len,0]);
       const headOn=blooming && i < Math.max(1,Math.ceil(sn*blv));
       const col=(headOn?S.bloom:null)||S.seed;
       if (col){
@@ -8413,6 +8427,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       if (!mature) continue;
       const headOn = blooming ? (i < Math.max(1,Math.ceil(sn*blv))) : false;
       const col=(headOn?S.bloom:null)||S.seed;
+      if (snowLv) snowLv.push([hx,col&&L.seedStyle!=='smoke'&&L.flowerStyle!=='noddingBell'?hy-(L.buttonLen||3.2)*1.1:hy,0]);
       if (col && L.seedStyle==='smoke' && S.seed && !headOn){
         const plumes=L.plumeCount||13, plumeLen=L.plumeLen||10;
         ctx.strokeStyle=shade(col,12); ctx.lineWidth=0.55; ctx.lineCap='round';
@@ -8576,6 +8591,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const u=1-f;
         return [u*u*ox+2*u*f*ctrlX+f*f*tip, 2*u*f*ctrlY+f*f*(-len*0.55)];
       };
+      if (snowLv){ const p=bez(0.72); snowLv.push([p[0],p[1],0]); }
       if (S.fol){
         const leaves=L.leaves===undefined?8:L.leaves;
         for (let j=0;j<leaves;j++){
@@ -8695,6 +8711,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const ox=(st-(sn-1)/2)*7+(rnd()-0.5)*2, len=H*(0.9+rnd()*0.08), tip=ox+sway*len*0.03;
         ctx.strokeStyle=stemCol; ctx.lineWidth=1.4;
         ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(ox+sway*1.5,-len*0.48,tip,-len); ctx.stroke();
+        if (snowLv) snowLv.push([tip,-len,0]);
         if (S.fol){
           const whorls=L.whorls||4;
           for(let w=0;w<whorls;w++){
@@ -8717,7 +8734,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               if(L.spotted){ ctx.fillStyle=S.eye||shade(S.bloom,-34);
                 for(let d=0;d<6;d++){ const a=d/6*Math.PI*2; ctx.beginPath(); ctx.arc(fx+Math.cos(a)*2.5,fy+Math.sin(a)*1.8,0.42,0,7); ctx.fill(); } }
               drawFloret(ctx,fx,fy,1.0,S.eye||shade(S.bloom,-24));
-            } else if (S.seed){ ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(fx,fy,1.6,3.2,0,0,7); ctx.fill(); }
+            } else if (S.seed){ ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(fx,fy,1.6,3.2,0,0,7); ctx.fill();
+              if (snowLv) snowLv.push([fx,fy-2.2,1.6]); }
           }
         }
       }
@@ -8927,7 +8945,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const len=H*(raisedMat
           ? (L.foliageH||0.18)+matRise*(0.78+liftRnd*0.22)
           : (L.flowerLen||0.85)+liftRnd*(L.flowerJitter||0.2));
-        if(AMBIENCE[season].snow&&habit==='mound'&&S.seed){
+        if(AMBIENCE[season].snow&&S.seed){
           if(!snowAnchors)snowAnchors=[];snowAnchors.push([ox+sway*2,-len,2.2]);
         }
         ctx.strokeStyle=shade(fol,-25); ctx.lineWidth=1.1;
@@ -9460,11 +9478,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       // Undivided straps: one tapering ribbon per frond, drawn back-to-front so
       // the near blades overlap rather than interleave.
       const rach=layout(stemFor(fn)).sort((p,q)=>q.py-p.py);
+      _snowLeaves=snowLv;
       for (const r of rach)
         drawLeaf(ctx, 0,0, r.px, r.py, (Lf.pinnaW||3.4)*(Lf.strapHW||1.0),
                  shade(S.fol,(rnd()-0.5)*20),
                  {shape:Lf.leafShape||'linear', bow:Lf.leafBow===undefined?0.05:Lf.leafBow,
                   teeth:Lf.leafTeeth, teethN:Lf.leafTeethN, rib:true});
+      _snowLeaves=null;
+      if (snowLv && snowLv.length) snowAnchors=snowLv;
     }
     else if (S.fol && art2On(Lf)){
       // A fern draws ~9 fronds x 6 leaflets. Shading each one would be 54
@@ -11098,6 +11119,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       tips.forEach(([hx,hy])=>drawHead(hx,hy,S.seed,0.8));
     }
   }
+  // a form that recorded where its winter stems, heads and leaves are puts its snow there
+  if (!snowAnchors && snowLv && snowLv.length) snowAnchors=snowLv;
   // winter snow caps on mature structure (woody: spread across the drawn crown)
   if (AMBIENCE[season].snow && mature && catchesSnow(P,S)){
     ctx.fillStyle='rgba(240,244,250,0.85)';

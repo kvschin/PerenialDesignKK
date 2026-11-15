@@ -7290,8 +7290,23 @@ plants, umbels with a style and alliums did before; the plain bractstack and the
 tip of each stem and scape. Measured on every herbaceous choice, floating caps went 481 to 91 and
 plants with any 212 to 45, none worse; 478 of 23,232 drawings moved, all winter at full growth
 and the same up to the snow. A test holds each cap of eight such plants within a unit of a stem
-tip. Of the 45 left, 20 are sedges, whose snow is already pinned to their heads and overhangs
-a thin stalk; the rest are other forms' scatters (drumstick, archbell, martagon lilies, a few grasses).
+tip.
+**And on everything else a plant stands in winter** (0.9.112), which takes it to none left. The
+drumstick puts snow on the top of each button, the pincushion on each head, the archbell on the
+crown of each arch (0.72 along it), the recurved lily on its stem top and pods, the shrub form on
+the tips of the seed stems of every habit (the mound alone did), and hart's tongue on its straps;
+these push into `snowLv`, which drawPlant takes as the anchors of any form that set none. Three
+anchors were simply off the drawing and moved onto it: a sedge's two per tuft were guesses at its
+shoulders, now a point 0.6 along the real blade nearest each shoulder, plus each head; an oat
+grass's arching blade used 0.7 of the tip's x at half its height, now the curve's own midpoint;
+and a panicle head's branch used its control point, which lies off the curve. A cloud grass's snow
+goes on the spikelet nearest its cloud's middle, an open panicle being mostly air. The pixel
+measure (every herbaceous choice, three seeds, a cap floating when under a quarter of it lies within
+two pixels of the plant) reads 0 of 1,452 bar one cyclamen cap, which at 8x lies fully on its leaf.
+310 of 23,232 drawings moved, all winter at full growth, the same up to the snow, each with the same
+number of caps. The stem-tip test became `snow sits on what a plant stands in winter`: 22 plants,
+each cap within two units of a drawn line, curve or ellipse, measured to the segment, since a
+blade's outline is a few long ones. Woody plants were not part of this; their habits pin their own.
 
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to

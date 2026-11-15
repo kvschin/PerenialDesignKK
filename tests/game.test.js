@@ -15027,28 +15027,51 @@ test('snow lies on the leaves of a plant whose stems stand only in flower', () =
   // a plant that still stands in winter keeps its old snow: a coneflower's seedheads
   assert(shadeOps('echinacea','Winter').some(o=>o.op==='ellipse'&&o.fill===CAP),'a coneflower still catches snow');
 });
-test('snow sits on the tips of the stems a plant stands in winter', () => {
+test('snow sits on what a plant stands in winter, not in the air beside it', () => {
   // A plant that keeps its stems through winter took the box scatter, which put caps in the
   // air between thin stems: lavender, Siberian iris, hummingbird sage, bluestem goldenrod and
-  // Carolina wild petunia each had five of twelve there (0.9.111). Each cap now sits where a
-  // stem the plant drew ends.
+  // Carolina wild petunia each had five of twelve there (0.9.111). The same was true of the
+  // burnets, pussytoes, the lilies' pods, the arches of bleeding heart and Solomon's seal, the
+  // cornflower's heads, the aster's seed stems and hart's tongue's straps, and a sedge's snow
+  // was set at two guessed shoulders of each tuft, often in the gap between blades (0.9.112).
+  // Each cap now sits within two units of something the plant drew: a line, a curve or a filled
+  // ellipse, measured to the line itself, since a blade's outline is a few long segments.
   const CAP='rgba(240,244,250,0.85)';
   const plants=[['lavender'],['siberianiris'],['siberianiris','caesarsbrother'],['hummingbirdsage'],
-    ['bluestemmedgoldenrod'],['carolinawildpetunia'],['echinacea'],['yarrow']];
+    ['bluestemmedgoldenrod'],['carolinawildpetunia'],['echinacea'],['yarrow'],
+    ['greatburnet'],['pussytoes'],['claudeshride'],['perennialcornflower'],['bleedingheart'],['solomonsseal'],
+    ['aster'],['hartstonguefern'],['sedge'],['grayssedge'],['bristlysedge'],['weepingsedge'],['molinia'],['giantstipa']];
   for (const [k,v] of plants){
     for (const seed of [101,4410,98765]){
-      const ops=shadeOps(k,'Winter',v||null,seed);
-      const caps=ops.filter(o=>o.op==='ellipse'&&o.fill===CAP);
+      const segs=[], blobs=[], caps=[]; let px=0, py=0, tx=0, ty=0;
+      const ctx=new Proxy({},{
+        get(o,p){
+          if(p in o)return o[p];
+          if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+          if(p==='translate')return (a,b)=>{ tx+=a; ty+=b; };
+          return (...a)=>{
+            if(p==='ellipse'&&o.fillStyle===CAP){ caps.push([a[0]+tx,a[1]+ty]); return; }
+            if(p==='moveTo'){ px=a[0]; py=a[1]; }
+            if(p==='lineTo'){ segs.push([px+tx,py+ty,a[0]+tx,a[1]+ty]); px=a[0]; py=a[1]; }
+            if(p==='ellipse'||p==='arc'){ blobs.push([a[0]+tx,a[1]+ty,a[2]]); px=a[0]; py=a[1]; }
+            if(p==='quadraticCurveTo'){
+              // a curve is ink all along it: follow it from the pen in short steps
+              let qx=px, qy=py;
+              for(let i=1;i<=20;i++){ const t=i/20, u=1-t, nx=u*u*px+2*u*t*a[0]+t*t*a[2], ny=u*u*py+2*u*t*a[1]+t*t*a[3];
+                segs.push([qx+tx,qy+ty,nx+tx,ny+ty]); qx=nx; qy=ny; }
+              px=a[2]; py=a[3];
+            }
+          };
+        },set(o,p,val){o[p]=val;return true;}
+      });
+      drawPlant(ctx,0,0,k,1,'Winter',seed,0,v||null,1);
       assert(caps.length>=2,`${k}: snow in winter (${caps.length} caps)`);
-      const ends=[];
-      for (const o of ops){
-        const a=o.a||[];
-        if (o.op==='lineTo') ends.push([a[0],a[1]]);
-        else if (o.op==='quadraticCurveTo') ends.push([a[2],a[3]]);
-      }
       for (const c of caps){
-        const d=Math.min(...ends.map(e=>Math.hypot(e[0]-c.a[0],e[1]-c.a[1])));
-        assert(d<1,`${k}${v?':'+v:''}: a cap at (${c.a[0].toFixed(1)}, ${c.a[1].toFixed(1)}) is ${d.toFixed(1)} from the nearest stem tip`);
+        let d=Infinity;
+        for (const [x0,y0,x1,y1] of segs){ const dx=x1-x0, dy=y1-y0, l=dx*dx+dy*dy, t=l?Math.max(0,Math.min(1,((c[0]-x0)*dx+(c[1]-y0)*dy)/l)):0;
+          d=Math.min(d,Math.hypot(x0+t*dx-c[0],y0+t*dy-c[1])); }
+        for (const [x,y,r] of blobs) d=Math.min(d,Math.max(0,Math.hypot(x-c[0],y-c[1])-Math.abs(r||0)));
+        assert(d<2,`${k}${v?':'+v:''}: a cap at (${c[0].toFixed(1)}, ${c[1].toFixed(1)}) is ${d.toFixed(1)} from anything the plant drew`);
       }
     }
   }
