@@ -4282,8 +4282,21 @@ test('top-bar icons are drawn at the rail\'s resolution and inside their own box
   /* The hamburger spans 14 of its symbol's 24 units, so at the shared 18px it
      drew 10.5px wide beside 14-24px neighbours. */
   const css = readRepoFile('styles.css');
-  const menu = css.match(/#btnMenu \.ui-icon\{width:(\d+)px;height:(\d+)px/);
+  const menu = css.match(/#btnMenu \.menu-bars\{[^}]*width:(\d+)px;height:(\d+)px/);
   assert(menu && +menu[1] >= 22 && menu[1] === menu[2], 'the Menu glyph is sized up to match the bar');
+  /* Three bars that cross into a close mark while the menu is open: elements,
+     so each can move, and moved by transform and opacity only (the bar sits
+     over the garden canvas). aria-expanded is what openOverlay already keeps. */
+  const barHtml = readRepoFile('index.html');
+  assert(/id="btnMenu"[^>]*aria-controls="gardenMenu"[^>]*><span class="menu-bars" aria-hidden="true"><i><\/i><i><\/i><i><\/i><\/span>/.test(barHtml),
+    'the Menu button carries three bars, hidden from assistive tech');
+  const bars = css.match(/#btnMenu \.menu-bars i\{[^}]*transition:([^}]*)\}/);
+  assert(bars && /transform/.test(bars[1]) && /opacity/.test(bars[1]) && !/background|box-shadow|width|height|top|left/.test(bars[1]),
+    'the bars animate transform and opacity and nothing that repaints');
+  assert(/#btnMenu\[aria-expanded="true"\] \.menu-bars i:nth-child\(1\)\{transform:rotate\(45deg\)\}/.test(css),
+    'and the open state is keyed on aria-expanded');
+  assert(/#btnMenu \.menu-bars i\{forced-color-adjust:none;background:ButtonText\}/.test(css),
+    'forced colours discard a background, so the bars restate theirs');
 });
 
 test('plant catalog controls pair into two rows instead of five stacked rows', () => {
@@ -6300,9 +6313,58 @@ test('the tool hint steps round the start-here list rather than printing over it
   assert(surfaces.length >= 2 && surfaces.every(v => /^#[0-9a-f]{6}$/i.test(v)), 'solid in both themes');
 });
 
+test('the garden menu is grouped rows with a pinned footer, and the photo row is gone', () => {
+  /* It was eleven identical outlined buttons and a Close. Nothing said which
+     rows take something out of the garden, which set it up and which are help;
+     the filter row wrapped to two lines; and on a 320x568 phone the list
+     scrolled with Save & quit under the fold. */
+  const html = readRepoFile('index.html');
+  const menu = html.slice(html.indexOf('id="gardenMenu"'), html.indexOf('<!-- SETTINGS') > 0 ? html.indexOf('<!-- SETTINGS') : html.indexOf('id="gardenMenu"') + 9000);
+  const body = menu.slice(menu.indexOf('class="gm-body"'), menu.indexOf('class="gm-foot"'));
+  const foot = menu.slice(menu.indexOf('class="gm-foot"'));
+  const groups = [...body.matchAll(/<p class="gm-label">([^<]+)<\/p>/g)].map(m => m[1]);
+  assertEqual(groups.join('|'), "Today's challenge|Plans and lists|This garden|Help", 'the groups, in reading order');
+  const order = ['btnChallenge', 'btnChallengeFinish', 'btnExport', 'btnPlan', 'btnBloom', 'btnShare',
+    'btnFilters', 'btnSchemes', 'btnGardenGuide', 'btnGardenTour'];
+  let at = -1;
+  for (const id of order) {
+    const i = body.indexOf(`id="${id}"`);
+    assert(i > at, `${id} is a row of the body, in order`); at = i;
+  }
+  assert(/id="btnGardenSettings"/.test(foot) && /id="btnQuit"/.test(foot) && foot.indexOf('btnGardenSettings') < foot.indexOf('btnQuit'),
+    'Settings and Save & quit are the footer, which does not scroll');
+  const css = readRepoFile('styles.css');
+  assert(/\.gm-body\{[^}]*overflow-y:auto/.test(css) && /\.gm-foot\{flex:0 0 auto/.test(css)
+    && /#gardenMenu \.panel\{[^}]*display:flex;flex-direction:column;overflow:hidden/.test(css),
+    'the body scrolls inside the panel; the header and footer stay');
+  // every row leads with an icon the sprite really has
+  const sprite = html.slice(html.indexOf('class="ui-icon-sprite"'), html.indexOf('</svg>', html.indexOf('class="ui-icon-sprite"')));
+  const rows = [...menu.matchAll(/<button class="gm-row[^"]*"[^>]*>(.*?)<\/button>/g)];
+  assert(rows.length === 12, `twelve rows, found ${rows.length}`);
+  for (const [, inner] of rows) {
+    const use = inner.match(/^<svg class="ui-icon" aria-hidden="true"><use href="#(ui-[a-z-]+)">/);
+    assert(use && sprite.includes(`id="${use[1]}"`), `a row leads with a sprite icon: ${inner.slice(0, 80)}`);
+    assert(/<span class="gm-name">[^<]+<\/span>/.test(inner), 'and names itself in a span the icon sits beside');
+  }
+  // the values keep the ids the app already writes
+  assert(/<span class="gm-val" id="filterLbl">/.test(menu) && /<span class="gm-val gm-count" id="schemeLbl">/.test(menu),
+    'the filter and scheme values are their own spans');
+  assert(/\.gm-val\{[^}]*text-overflow:ellipsis;white-space:nowrap/.test(css), 'a long value ellipsizes rather than wrapping');
+  // the challenge group is empty outside a daily garden and must not leave a heading behind
+  assert(/\.gm-group:not\(:has\(\.gm-row:not\(\.hidden\)\)\)\{display:none\}/.test(css), 'a group with no row on show is not shown');
+  // Finish design is written into the row's name, not over its icon
+  setup(15, 15);
+  syncChallengeFinishButton(true);
+  assert(/querySelector\('\.gm-name'\)/.test(String(syncChallengeFinishButton)), 'the label goes into .gm-name');
+  // the photo row, its handler and takePhoto went together
+  assert(!/btnPhoto/.test(html) && !/btnPhoto/.test(readRepoFile('js/screens.js')), 'no photo row and no handler for one');
+  assert(typeof takePhoto === 'undefined', 'takePhoto is gone');
+  assert(!/golden-hour wash/.test(readRepoFile('js/renderer.js')), 'and so is its wash');
+});
+
 test('the guidebook and the tour are in the garden menu, and the guidebook returns there', () => {
   const html = readRepoFile('index.html');
-  const menu = html.slice(html.indexOf('id="gardenMenu"'), html.indexOf('id="btnGmClose"'));
+  const menu = html.slice(html.indexOf('id="gardenMenu"'), html.indexOf('id="btnQuit"'));
   assert(menu.includes('id="btnGardenGuide"') && menu.includes('id="btnGardenTour"'),
     'both are rows of the garden menu');
   setup(21, 21);
@@ -12220,7 +12282,7 @@ test('the garden menu and the zone escape hatch meet the touch minimum', () => {
      the ZIP lookup and the plain-language winter-cold picker, at 121x23. */
   const css = readRepoFile('styles.css');
   const coarse = css.slice(css.indexOf('@media (pointer:coarse)'));
-  assert(/#gardenMenu \.pause-actions \.btn,#gardenMenu #btnGmClose\{min-height:44px\}/.test(coarse),
+  assert(/\.gm-row,\.gm-foot \.gm-row\{min-height:44px\}/.test(coarse) && /\.gm-x\{width:44px;height:44px\}/.test(coarse),
     'every garden-menu row and its Close are 44');
   assert(/\.link-toggle\{min-height:44px;display:inline-flex/.test(coarse),
     'and so is "Don\'t know your zone?" — inline-flex, or min-height does nothing to an inline-block');

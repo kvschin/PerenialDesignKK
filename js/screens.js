@@ -735,10 +735,12 @@ $('btnDailyResolve').onclick=()=>{
 /* Both entry points lead to the saved-image screen; reading the brief never
    saves a completion timestamp or prepares an image. */
 function syncChallengeFinishButton(done){
-  const b=$('btnChallengeFinish');
-  b.textContent=done?'Save & share design':'Finish design';
+  const b=$('btnChallengeFinish'), label=done?'Save & share design':'Finish design';
+  // the row is an icon and a name; writing the button's own text would take the icon
+  const name=b.querySelector&&b.querySelector('.gm-name');
+  (name&&name.parentNode===b?name:b).textContent=label;
   b.classList.toggle('primary',!done);
-  document.querySelectorAll('.discovery-challenge-finish').forEach(el=>{el.textContent=b.textContent;});
+  document.querySelectorAll('.discovery-challenge-finish').forEach(el=>{el.textContent=label;});
 }
 $('btnChallengeStudy').onclick=()=>{
   applyGardenCriteria({...game.filters,zone:null},{announce:false});
@@ -2090,7 +2092,8 @@ function quitToMenu(){
 }
 function openGardenMenu(){
   syncSchemeLabel();
-  const gm=openOverlay('gardenMenu','#btnFilters');
+  // the first row on show: View brief in a daily garden, the planting list otherwise
+  const gm=openOverlay('gardenMenu','.gm-body .gm-row:not(.hidden)');
   // anchor the dropdown right under the menu button, right-aligned to the action
   // bar — robust to the bar's height/width at any breakpoint
   const bar=$('actionBar').getBoundingClientRect(), p=gm.querySelector('.panel');
@@ -2631,7 +2634,6 @@ if ($('btnPaletteClose')) $('btnPaletteClose').onclick=()=>{ palettePendingRef=n
 if ($('btnPaletteCreate')) $('btnPaletteCreate').onclick=createPaletteFromInput;
 if ($('paletteName')) $('paletteName').onkeydown=e=>{ if (e.key==='Enter'){ e.preventDefault(); createPaletteFromInput(); } };
 if ($('btnRotate')) $('btnRotate').onclick=()=>rotateView(1);
-$('btnPhoto').onclick=()=>{ closeOverlay('gardenMenu'); takePhoto(); };
 $('btnPlan').onclick=()=>{ closeOverlay('gardenMenu'); openPlan(); };
 $('btnPlanClose').onclick=()=>closeOverlay('planScreen');
 $('btnPlanPng').onclick=downloadPlan;

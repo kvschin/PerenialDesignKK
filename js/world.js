@@ -3930,16 +3930,7 @@ function rotateView(dir){
   updateCompass();
   toast(`View rotated — ${game.rot*90}°.`);
 }
-/* photo mode: one frame rendered with a golden-hour wash, saved as PNG.
-   The HUD is DOM, not canvas, so the shot is clean automatically. */
-function takePhoto(){
-  game.photo=true; render(performance.now()); game.photo=false;
-  cnv.toBlob(b=>{
-    if (!b){ toast('The camera jammed — try again.'); return; }
-    const a=document.createElement('a'), cal=calClock();
-    a.href=URL.createObjectURL(b);
-    a.download=`hortus-${cal.season.toLowerCase()}-y${cal.year}-d${cal.day}.png`;
-    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
-  },'image/png');
-  toast('Photo taken — golden hour included.');
-}
+/* The golden-hour photo (takePhoto) was a row of the garden menu until 0.9.114
+   and went with the menu's regrouping. `game.photo` outlives it as the
+   renderer's "this frame is kept, bake everything exactly" flag: nothing in
+   the app sets it now, and the sprite and ground tests still do. */

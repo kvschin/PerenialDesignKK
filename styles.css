@@ -1292,7 +1292,17 @@ canvas.world-thumb{object-fit:contain}
    (14px) and the rotate/layers glyphs (18-24px). 24px brings its three strokes
    to 14px; the stroke is thinned so the lines stay the canvas icons' ~1.4px
    weight rather than growing with the box. */
-#btnMenu .ui-icon{width:24px;height:24px;stroke-width:1.5}
+/* The Menu glyph is three bars that cross into a close mark while the menu is
+   open. They are elements, not the sprite's one path, so each can move, and
+   they move by transform and opacity alone: the bar sits over the garden. */
+#btnMenu .menu-bars{position:relative;display:block;flex:0 0 auto;width:24px;height:24px}
+#btnMenu .menu-bars i{position:absolute;left:5px;right:5px;top:11.25px;height:1.5px;border-radius:1px;background:currentColor;
+  transition:transform var(--motion-menu) var(--ease-emphasized),opacity var(--motion-control)}
+#btnMenu .menu-bars i:nth-child(1){transform:translateY(-5px)}
+#btnMenu .menu-bars i:nth-child(3){transform:translateY(5px)}
+#btnMenu[aria-expanded="true"] .menu-bars i:nth-child(1){transform:rotate(45deg)}
+#btnMenu[aria-expanded="true"] .menu-bars i:nth-child(2){opacity:0;transform:scaleX(.3)}
+#btnMenu[aria-expanded="true"] .menu-bars i:nth-child(3){transform:rotate(-45deg)}
 /* The library toggle sits beside Menu and reads the same at rest; while the
    library is open it is PRESSED, on the tokens .top-tool.sel uses, so the bar
    says whether the panel is up without anyone looking right to check. The
@@ -1361,6 +1371,16 @@ canvas.world-thumb{object-fit:contain}
   transition:background var(--motion-control),border-color var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
 .canvas-tool:active:not(.disabled){transform:translateY(1px)}
 .canvas-tool canvas{position:absolute;top:3px;left:50%;width:42px;height:32px;transform:translateX(-50%)}
+/* An armed rail tool settles into place, and the day/night icon turns in. Both
+   are one-shot and move by transform and opacity alone: the rail and the bar
+   sit over the garden, and anything that repaints there costs a frame. The
+   rail is built once and its class written only on change, so the first plays
+   once per arming; setUiIcon inserts a new svg only on a change, so the second
+   plays once per toggle. The keyframe carries the icon's own translateX(-50%). */
+@keyframes toolSettle{0%{transform:translateX(-50%) translateY(3px) scale(.8)}55%{transform:translateX(-50%) translateY(-1.5px) scale(1.08)}100%{transform:translateX(-50%)}}
+.canvas-tool.sel>canvas:not(.rail-swatch){animation:toolSettle 240ms var(--ease-emphasized)}
+@keyframes dialTurn{from{opacity:0;transform:rotate(-90deg) scale(.55)}to{opacity:1;transform:none}}
+#btnDayNight .ui-icon{animation:dialTurn 280ms var(--ease-emphasized)}
 .canvas-tool canvas.rail-swatch{left:auto;right:2px;top:2px;transform:none;width:18px;height:16px;
   border-radius:3px;background:rgba(25,18,15,.72);border:1px solid rgba(var(--ink-rgb),.28)}
 .canvas-tool span{font-size:9px;font-weight:500;line-height:1.15;text-align:center;pointer-events:none}
@@ -2078,14 +2098,47 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 /* garden menu: a compact dropdown anchored under the menu button (top/right set
    in JS), not a full-screen centered modal — keeps the garden in view */
 #gardenMenu{display:block;padding:0;background:transparent}
-#gardenMenu .panel{position:fixed;top:54px;right:10px;width:236px;max-width:calc(100vw - 16px);
-  max-height:calc(100vh - 64px);max-height:calc(100dvh - var(--garden-menu-top,54px) - 10px - env(safe-area-inset-bottom,0px));overflow-y:auto;overscroll-behavior:contain;
-  padding:13px;border-radius:var(--radius-panel);box-shadow:var(--shadow-dialog);animation:gmDrop var(--motion-menu) var(--ease-emphasized)}
-#gardenMenu .panel h2{font-size:16px;margin-bottom:2px}
-#gardenMenu .panel .sub{display:none}
-#gardenMenu .pause-actions{gap:6px}
-#gardenMenu .pause-actions .btn{padding:10px 12px;font-size:13px}
-#gardenMenu #btnGmClose{padding:9px 12px;font-size:12.5px}
+#gardenMenu .panel{position:fixed;top:54px;right:10px;width:272px;max-width:calc(100vw - 16px);
+  max-height:calc(100vh - 64px);max-height:calc(100dvh - var(--garden-menu-top,54px) - 10px - env(safe-area-inset-bottom,0px));
+  display:flex;flex-direction:column;overflow:hidden;
+  padding:0;border-radius:var(--radius-panel);box-shadow:var(--shadow-dialog);animation:gmDrop var(--motion-menu) var(--ease-emphasized)}
+/* The menu is a header, a body that scrolls and a footer that does not. Its
+   rows are flat: an icon, a name and, where a row has one, its current value. */
+.gm-head{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:10px 6px 6px 14px}
+#gardenMenu .gm-head h2{flex:1 1 auto;min-width:0;margin:0;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gm-x{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--text-secondary);cursor:pointer;
+  transition:background var(--motion-control),color var(--motion-control)}
+.gm-x:hover{background:var(--surface-control-hover);color:var(--text-primary)}
+.gm-x .ui-icon{width:17px;height:17px}
+.gm-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 6px 6px}
+.gm-group{padding:2px 0 6px}
+.gm-group+.gm-group{border-top:1px solid var(--border-quiet);padding-top:6px}
+/* the challenge group is two rows that are hidden outside a daily garden */
+.gm-group:not(:has(.gm-row:not(.hidden))){display:none}
+.gm-group:not(:has(.gm-row:not(.hidden)))+.gm-group{border-top:0;padding-top:2px}
+.gm-label{margin:0;padding:6px 10px 3px;font-size:11px;font-weight:700;line-height:1.2;letter-spacing:.09em;text-transform:uppercase;color:var(--text-muted)}
+.gm-row{display:flex;align-items:center;gap:11px;width:100%;min-height:38px;padding:5px 10px;border:0;border-radius:var(--radius-control);
+  background:transparent;color:var(--text-primary);font-family:inherit;font-size:14px;font-weight:600;line-height:1.2;letter-spacing:.01em;text-align:left;cursor:pointer;
+  transition:background var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.gm-row.hidden{display:none}
+.gm-row:hover{background:var(--surface-control-hover)}
+.gm-row:active{transform:translateY(1px)}
+.gm-row:focus-visible,.gm-x:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+.gm-row:disabled{opacity:var(--disabled-opacity);pointer-events:none}
+.gm-row>.ui-icon{flex:0 0 auto;width:19px;height:19px;color:var(--color-accent-700);stroke-width:1.7}
+.gm-text{display:flex;flex-direction:column;gap:2px;flex:1 1 auto;min-width:0}
+.gm-name{white-space:nowrap}
+.gm-val{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:12.5px;font-weight:500;letter-spacing:0}
+.gm-count{margin-left:auto;flex:0 0 auto}
+.gm-row>.ui-icon.gm-chev{margin-left:auto;width:14px;height:14px;color:var(--text-muted)}
+/* Finish design is the one row that is the next step rather than a place to go */
+.gm-row.primary{background:var(--surface-active);box-shadow:inset 0 0 0 1.5px var(--border-active)}
+.gm-foot{flex:0 0 auto;display:grid;grid-template-columns:1fr 1.25fr;gap:6px;padding:8px;border-top:1px solid var(--border-subtle);background:rgba(var(--ink-rgb),.035)}
+.gm-foot .gm-row{justify-content:center;gap:8px;min-height:40px;padding:5px 8px;background:var(--surface-control);box-shadow:inset 0 0 0 1px var(--border-quiet);font-size:13.5px}
+.gm-foot .gm-row:hover{background:var(--surface-control-hover)}
+.gm-foot .gm-row>.ui-icon{color:var(--text-secondary);width:17px;height:17px}
+/* a short phone: the headings go, the rows keep their height */
+@media (max-height:600px){ .gm-label{display:none} .gm-group{padding:2px 0} .gm-group+.gm-group{padding-top:2px} }
 @keyframes gmDrop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 /* time menu: a compact dropdown that drops down under the season box (top/left
    set in JS via openPause), not a centered modal */
@@ -3073,6 +3126,9 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
     background:Highlight!important;color:HighlightText!important}
   .canvas-tool.sel span{color:HighlightText!important}
   .canvas-tool.sel::after{background:HighlightText!important}
+  /* the Menu's bars are backgrounds, which forced colours discard */
+  #btnMenu .menu-bars i{forced-color-adjust:none;background:ButtonText}
+  .gm-row.primary{border:2px solid Highlight}
   .canvas-tool canvas{background:var(--color-bg)}
   .canvas-tool:focus-visible{outline:2px solid CanvasText!important}
   /* Canvas art cannot be recoloured, so at least frame it so the control reads
@@ -3253,7 +3309,9 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
   /* The garden menu is the most-used menu on a phone and every row in it
      was 39px, its Close 36px — the dropdown re-pads .btn for a 236px panel
      and there was no coarse override to put the floor back. */
-  #gardenMenu .pause-actions .btn,#gardenMenu #btnGmClose{min-height:44px}
+  .gm-row,.gm-foot .gm-row{min-height:44px}
+  .gm-x{width:44px;height:44px}
+  .gm-head{padding:4px 2px 2px 14px}
   /* "Don't know your zone?" is a standalone button, not an inline link, so
      it gets no WCAG inline exception. It is also the first-run escape hatch
      for the one question the questionnaire knows most people cannot answer

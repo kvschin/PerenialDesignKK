@@ -87,6 +87,20 @@ if ('serviceWorker' in navigator)
        would need fill, and .ui-icon sets fill:none, which a presentation
        attribute cannot override. Callers thicken the stroke to size the dots. -->
   <symbol id="ui-ellipsis" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01"/></symbol>
+  <!-- The garden menu's row icons and the catalog's, to the same grammar: a 24
+       box, stroke only, round caps, dots as zero-length segments. -->
+  <symbol id="ui-list" viewBox="0 0 24 24"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01"/></symbol>
+  <symbol id="ui-plan" viewBox="0 0 24 24"><path d="M9 4.5 3.5 6.5v13l5.5-2 6 2 5.5-2v-13l-5.5 2-6-2ZM9 4.5v13M15 6.5v13"/></symbol>
+  <symbol id="ui-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="15" rx="2.2"/><path d="M3.5 10h17M8 3.5v4M16 3.5v4M8 14h.01M12 14h.01M16 14h.01M8 17.2h.01M12 17.2h.01"/></symbol>
+  <symbol id="ui-share" viewBox="0 0 24 24"><path d="M12 15V4M8 7.5l4-4 4 4M5 12v6.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V12"/></symbol>
+  <symbol id="ui-filter" viewBox="0 0 24 24"><path d="M4 7h8.5M17.5 7H20M4 12h2.5M11.5 12H20M4 17h9.5M18.5 17H20"/><circle cx="15" cy="7" r="2.3"/><circle cx="9" cy="12" r="2.3"/><circle cx="16" cy="17" r="2.3"/></symbol>
+  <symbol id="ui-layers" viewBox="0 0 24 24"><path d="M12 4 3.5 8.5 12 13l8.5-4.5L12 4ZM3.5 12.5 12 17l8.5-4.5M3.5 16.5 12 21l8.5-4.5"/></symbol>
+  <symbol id="ui-tour" viewBox="0 0 24 24"><path d="M12 3v18M12 5h6.5l2 2.5-2 2.5H12M12 12H6l-2 2.5L6 17h6"/></symbol>
+  <symbol id="ui-exit" viewBox="0 0 24 24"><path d="M13.5 4.5h4.5A1.5 1.5 0 0 1 19.5 6v12a1.5 1.5 0 0 1-1.5 1.5h-4.5M9.5 8l-4 4 4 4M5.5 12h10"/></symbol>
+  <symbol id="ui-flag" viewBox="0 0 24 24"><path d="M6 21V4.5M6 5.5c4-2.5 7 2.5 12 0v8c-5 2.5-8-2.5-12 0"/></symbol>
+  <symbol id="ui-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="ui-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></symbol>
+  <symbol id="ui-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.6 15.6 4.6 4.6"/></symbol>
 </svg>
 
 <canvas id="menuCanvas"></canvas>
@@ -367,7 +381,7 @@ if ('serviceWorker' in navigator)
              two controls for one job in two places. The phone sheet keeps its
              own handle. -->
         <button id="btnLibraryToggle" class="library-toggle" type="button" title="Hide the library (L)" aria-label="Library" aria-controls="sheetCatalog" aria-expanded="true"><svg class="ui-icon" aria-hidden="true"><use href="#ui-library"></use></svg><span class="lbl">Library</span></button>
-        <button id="btnMenu" title="Garden menu" aria-label="Garden menu" aria-haspopup="dialog" aria-controls="gardenMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#ui-menu"></use></svg><span class="lbl">Menu</span></button>
+        <button id="btnMenu" title="Garden menu" aria-label="Garden menu" aria-haspopup="dialog" aria-controls="gardenMenu" aria-expanded="false"><span class="menu-bars" aria-hidden="true"><i></i><i></i><i></i></span><span class="lbl">Menu</span></button>
       </div>
     </div>
   </div>
@@ -484,33 +498,53 @@ if ('serviceWorker' in navigator)
 
 <!-- GARDEN MENU -->
 <div class="screen hidden" id="gardenMenu" role="dialog" aria-modal="false" aria-labelledby="worldLabel">
-  <div class="panel pause-panel" tabindex="-1">
-    <h2 id="worldLabel">My garden</h2>
-    <p class="sub">Take something out of your garden — or head back.</p>
-    <div class="pause-actions">
-      <button class="btn hidden" id="btnChallenge" aria-haspopup="dialog" aria-controls="challengeScreen">View brief</button>
-      <button class="btn hidden" id="btnChallengeFinish" aria-haspopup="dialog" aria-controls="challengeFinishScreen">Finish design</button>
-      <button class="btn" id="btnFilters">Plant filters &middot; <span id="filterLbl">Any</span></button>
-      <button class="btn" id="btnSchemes">Planting schemes &middot; <span id="schemeLbl">1</span></button>
-      <button class="btn" id="btnExport">Planting list</button>
-      <button class="btn" id="btnPlan">Design plan</button>
-      <button class="btn" id="btnBloom">Bloom calendar</button>
-      <button class="btn" id="btnPhoto">Golden-hour photo</button>
-      <button class="btn" id="btnShare">Share garden</button>
-      <!-- Appearance, haptics and the rail side used to be three rows here.
-           They are DEVICE preferences, not garden actions, so they were in the
-           wrong menu twice over: they sat among the planting list, the plan and
-           Share in a 236px dropdown, and they were unreachable from the main
-           menu, where somebody who has not opened a garden yet would look for
-           dark mode. One row, one settings surface, reachable from both. -->
+  <!-- Three groups and a footer, each row an icon and a name. It was eleven
+       identical outlined buttons and a Close: nothing said which rows take
+       something out of the garden, which set it up and which are help, the
+       filter row wrapped to two lines, and on a 320x568 phone the list scrolled
+       with Save & quit under the fold. The footer is pinned, so those two are
+       always on screen. -->
+  <div class="panel pause-panel gm-panel" tabindex="-1">
+    <div class="gm-head">
+      <h2 id="worldLabel">My garden</h2>
+      <button class="gm-x" id="btnGmClose" type="button" aria-label="Close menu"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
+    </div>
+    <div class="gm-body">
+      <div class="gm-group gm-challenge" role="group" aria-label="Today's challenge">
+        <p class="gm-label">Today's challenge</p>
+        <button class="gm-row hidden" id="btnChallenge" type="button" aria-haspopup="dialog" aria-controls="challengeScreen"><svg class="ui-icon" aria-hidden="true"><use href="#ui-flag"></use></svg><span class="gm-name">View brief</span></button>
+        <button class="gm-row hidden" id="btnChallengeFinish" type="button" aria-haspopup="dialog" aria-controls="challengeFinishScreen"><svg class="ui-icon" aria-hidden="true"><use href="#ui-check"></use></svg><span class="gm-name">Finish design</span></button>
+      </div>
+      <div class="gm-group" role="group" aria-label="Plans and lists">
+        <p class="gm-label">Plans and lists</p>
+        <button class="gm-row" id="btnExport" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-list"></use></svg><span class="gm-name">Planting list</span></button>
+        <button class="gm-row" id="btnPlan" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-plan"></use></svg><span class="gm-name">Design plan</span></button>
+        <button class="gm-row" id="btnBloom" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-calendar"></use></svg><span class="gm-name">Bloom calendar</span></button>
+        <button class="gm-row" id="btnShare" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-share"></use></svg><span class="gm-name">Share garden</span></button>
+      </div>
+      <div class="gm-group" role="group" aria-label="This garden">
+        <p class="gm-label">This garden</p>
+        <button class="gm-row gm-two" id="btnFilters" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-filter"></use></svg><span class="gm-text"><span class="gm-name">Plant filters</span><span class="gm-val" id="filterLbl">Any</span></span><svg class="ui-icon gm-chev" aria-hidden="true"><use href="#ui-chevron-right"></use></svg></button>
+        <button class="gm-row" id="btnSchemes" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-layers"></use></svg><span class="gm-name">Planting schemes</span><span class="gm-val gm-count" id="schemeLbl">1</span></button>
+      </div>
       <!-- Help from where the questions come up. The guidebook opened only from
            the title screen, and the tour only from inside Settings. -->
-      <button class="btn" id="btnGardenGuide">Tool guide</button>
-      <button class="btn" id="btnGardenTour">Tour the controls</button>
-      <button class="btn" id="btnGardenSettings" aria-haspopup="dialog">Settings</button>
-      <button class="btn" id="btnQuit">Save &amp; quit to menu</button>
+      <div class="gm-group" role="group" aria-label="Help">
+        <p class="gm-label">Help</p>
+        <button class="gm-row" id="btnGardenGuide" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-book"></use></svg><span class="gm-name">Tool guide</span></button>
+        <button class="gm-row" id="btnGardenTour" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-tour"></use></svg><span class="gm-name">Tour the controls</span></button>
+      </div>
     </div>
-    <button class="btn" id="btnGmClose" style="margin-top:10px">Close</button>
+    <!-- Appearance, haptics and the rail side used to be three rows here.
+         They are DEVICE preferences, not garden actions, so they were in the
+         wrong menu twice over: they sat among the planting list, the plan and
+         Share, and they were unreachable from the main menu, where somebody who
+         has not opened a garden yet would look for dark mode. One row, one
+         settings surface, reachable from both. -->
+    <div class="gm-foot">
+      <button class="gm-row" id="btnGardenSettings" type="button" aria-haspopup="dialog"><svg class="ui-icon" aria-hidden="true"><use href="#ui-settings"></use></svg><span class="gm-name">Settings</span></button>
+      <button class="gm-row" id="btnQuit" type="button" aria-label="Save and quit to menu" title="Save &amp; quit to menu"><svg class="ui-icon" aria-hidden="true"><use href="#ui-exit"></use></svg><span class="gm-name">Save &amp; quit</span></button>
+    </div>
   </div>
 </div>
 

@@ -4211,14 +4211,7 @@ function render(t){
     }
   }
 
-  if (game.photo){ // golden-hour wash, only on the captured frame
-    const g2=cx.createRadialGradient(W*0.72,H*0.22,30, W*0.72,H*0.22,H*0.95);
-    g2.addColorStop(0,'rgba(255,212,140,0.38)');
-    g2.addColorStop(0.5,'rgba(228,160,90,0.10)');
-    g2.addColorStop(1,'rgba(50,35,55,0.24)');
-    cx.fillStyle=g2; cx.fillRect(0,0,W,H);
-  }
-  drawSeasonFade(t);                             // old season dissolves over the new one
+  drawSeasonFade(t);                            // old season dissolves over the new one
   /* Split three ways, because 'fx' was a catch-all for everything after the
      entity pass and read as "planting pulses" when it was mostly a full-screen
      lighting wash. A live session showed it at 31% of the frame while planting

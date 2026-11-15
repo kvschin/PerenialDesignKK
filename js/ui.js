@@ -1737,7 +1737,10 @@ function updateFilterBtn(){
   if (f.deer) bits.push('Deer');
   if (f.rabbit) bits.push('Rabbit');
   if (f.squirrel) bits.push('Squirrel');
-  $('filterLbl').textContent=bits.length?bits.join(' / '):'Any';
+  const text=bits.length?bits.join(' / '):'Any';
+  $('filterLbl').textContent=text;
+  // the menu row shows it on one line and ellipsizes; the whole of it is here
+  const row=$('btnFilters'); if (row) row.title='Plant filters: '+text;
 }
 
 /* Plant guidance is built only when someone asks for details, never in render.

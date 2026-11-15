@@ -3045,9 +3045,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     is integer-day) live in the records, and stunting is now computed against
     the FULL tree list (the old per-frame pass used the viewport-culled list,
     so an off-screen tree stopped stunting a visible plant). Planting
-    pulse fx (`game.fx`), the baked season wash (§11c), snowfall, and — when `game.photo` is
-    set — a golden-hour wash for `takePhoto()` (renders one washed frame,
-    downloads the canvas PNG; the DOM HUD is excluded automatically).
+    pulse fx (`game.fx`), the baked season wash (§11c) and snowfall. (The
+    golden-hour photo, `takePhoto()`, and its wash went in 0.9.114 with the
+    garden menu's regrouping. `game.photo` outlives it as the renderer's
+    "this frame is kept, bake everything exactly" flag: nothing in the app sets
+    it now, and the sprite and ground tests still do.)
     Full-sun plants under a tree canopy render stunted (growth × 0.45,
     `shadeTrees` precomputed per frame); the plant card says "Struggling".
     Woody visual rings are separate from legality: placement ghosts,
@@ -6036,11 +6038,36 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and the toggle first shipped with the same id, so `getElementById` wired the
     toggle's handler onto the MENU button and its SHEET `display:none` would have
     hidden the main menu's Plant Library on every phone. A test now refuses any
-    duplicate id in `index.html`. The Menu opens `#gardenMenu` — the planting list,
-    plant filters (shows the active filter), photo, planting plan, opt-in
-    haptics when the device supports them, and Save & quit — so the infrequent
-    outputs sit one tap behind Menu rather than a
-    permanent row. `#gardenMenu` is a compact **dropdown**, not a centered
+    duplicate id in `index.html`. The Menu opens `#gardenMenu`, so the infrequent
+    outputs sit one tap behind Menu rather than in a permanent row.
+    **It is three groups and a pinned footer** (0.9.114; `.gm-head`, `.gm-body`,
+    `.gm-group`, `.gm-row`, `.gm-foot`, styles.css): *Plans and lists*
+    (Planting list, Design plan, Bloom calendar, Share garden), *This garden*
+    (Plant filters with its value on a second line, Planting schemes with its
+    count) and *Help* (Tool guide, Tour the controls), then Settings and Save &
+    quit side by side in a footer that does not scroll. A daily garden adds
+    *Today's challenge* (View brief, Finish design) on top; outside one its two
+    rows are `.hidden` and `.gm-group:not(:has(.gm-row:not(.hidden)))` hides
+    the empty group, heading and all. Each row is an icon from the sprite and a
+    `.gm-name`. It was eleven identical outlined buttons and a Close: measured,
+    236x657 on a 375x812 phone with the filter row wrapped to two lines, and at
+    320x568 it scrolled (655 in 498) with Save & quit and Close under the fold.
+    Now 272x572 and 272x485, no scroll, the footer always on screen; under
+    600px tall the headings drop and the rows keep their 44px. Three things to
+    keep: **a row's label is written into `.gm-name`**, never the button's own
+    `textContent`, which would take the icon (`syncChallengeFinishButton` checks
+    the span is the button's own child, because the test sandbox's
+    `querySelector` hands back a stub that is not); **the value spans keep their
+    ids** (`#filterLbl`, `#schemeLbl`), and the filter value ellipsizes with
+    the whole of it in the row's `title`; and focus on open goes to
+    `.gm-body .gm-row:not(.hidden)`, the first row on show. **The Golden-hour
+    photo row is gone**, with its handler and `takePhoto()`.
+    **The Menu glyph is three bars that cross into a close mark while the menu
+    is open** (`.menu-bars`, keyed on the `aria-expanded` that `openOverlay`
+    already keeps). They are elements, since the sprite's hamburger is one path
+    and cannot move its bars apart, and they move by transform and opacity only;
+    forced colours discard a background, so that block restates theirs.
+    `#gardenMenu` is a compact **dropdown**, not a centered
     modal: `openGardenMenu()` measures the action bar's rect and pins the panel
     just under the Menu icon, right-aligned to it (`position:fixed`, JS-set
     `top`/`right`); `--garden-menu-top` also caps its height to the remaining
@@ -8107,6 +8134,19 @@ heavy for three frames to engage.
   down 1px on press; panels rise/fade by 8px; menus use a short directional
   reveal. Keep motion out of the garden renderer and preserve the global
   reduced-motion override.
+  **Icons react to state, and only by transform and opacity** (0.9.114): the
+  chrome sits over the animating garden canvas, so anything that repaints it
+  (a box-shadow, a filter, a width) costs a frame; a transform composites.
+  Every one is finite and plain CSS, which is what lets the one
+  `[data-motion="reduce"] *` rule switch them all off: a Web Animations API
+  call would escape it. An armed rail tool settles (`toolSettle`, 240ms; the
+  rail is built once and its class written only on change, so it plays once
+  per arming, and the keyframe carries the icon's own `translateX(-50%)` or
+  the icon jumps), the day/night icon turns in (`dialTurn`; `setUiIcon`
+  inserts a new svg only on a change) and the Menu's bars cross (above).
+  **An animation keyed on a class that a rebuild re-applies replays on every
+  rebuild**, so anything inside the catalog needs a one-shot marker set by the
+  press and consumed by the rebuild the press causes.
 - **Settings is ONE surface with two doors** (`#settingsScreen`,
   `settingsSections`/`renderSettings`/`openSettings` in screens.js): the gear
   at the top-right of the main menu, and a single **Settings** row in the garden
