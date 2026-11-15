@@ -444,7 +444,7 @@ test('native perennial morphology is finite, seeded, and active in both visual s
   const cases=[['bluebells','Spring','spikeStyle'],['whiteturtlehead','Fall','spikeStyle'],
     ['cardinallobelia','Summer','spikeStyle'],['greatbluelobelia','Summer','spikeStyle'],
     ['lizardtail','Summer','spikeStyle'],['arrowhead','Summer','leafShape'],
-    ['wildgeranium','Spring','leafStyle'],['mountainmint','Summer','umbelStyle'],
+    ['wildgeranium','Spring','leafStyle'],['mountainmint','Summer','headStyle'],
     ['commonmilkweed','Summer','stemLeafArrangement'],['whorledmilkweed','Summer','stemLeafArrangement'],
     ['noddingonion','Summer','globeStyle'],['prairieonion','Fall','globeStyle']];
   const before=ART2.on;
@@ -1299,8 +1299,8 @@ test('a stem-built mound draws no stray highlight above itself', () => {
     const P=plantDef(k), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
     assertEqual(stemMoundOps(k,'Summer').filter(o=>o.op==='stroke'&&o.stroke===col).length, 0, `${k}: no generic highlight`);
   }
-  const P=plantDef('aster'), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
-  assert(stemMoundOps('aster','Summer').some(o=>o.op==='stroke'&&o.stroke===col), 'other shrub-form habits keep it');
+  const P=plantDef('sanguineumgeranium'), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
+  assert(stemMoundOps('sanguineumgeranium','Summer').some(o=>o.op==='stroke'&&o.stroke===col), 'other shrub-form habits keep it');
 });
 
 /* The mounded perennials that were drawn as a stalk or a column: catmint,
@@ -2514,6 +2514,83 @@ test('the audited perennials and onions keep their own grammars in the data', ()
     alliumChristophii:'starburst',alliumRedMohican:'egg',alliumsphaerocephalon:'egg'};
   for (const [k,s] of Object.entries(shapes)) assertEqual(PLANTS[k].look.headShape,s,`${k}: head shape`);
   assertEqual(PLANTS.noddingonion.look.headShape,'loosePendant','nodding onion keeps its hanging bells');
+});
+/* The 0.9.113 meadow audit (docs/plant-data/meadow-audit.md): seven plants that
+   drew close to, but not as, themselves. Each test asks the drawing for what
+   makes the plant itself. */
+test('the meadow perennials keep their own grammars in the data', () => {
+  assertEqual(PLANTS.rattlesnake.look.globeStyle,'cyme','rattlesnake master: a branched cluster of balls, not one egg per stalk');
+  assertEqual(PLANTS.eryngiumbourgatii.look.globeStyle,'collar','sea holly: a cone in a ruff of spiny bracts');
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='mountainmint')){
+    assertEqual(PLANTS[k].look.habit,'leafystems',`${k}: a dense clump of leafy stems`);
+    assertEqual(PLANTS[k].look.headStyle,'knot',`${k}: small knots of florets`);
+  }
+  assert(PLANTS.mountainmint.look.frost>0 && PLANTS.mountainmint.sea.Summer.bract,'mountain mint: its top leaves silvered');
+  assertEqual(PLANTS.yarrow.look.umbelStyle,'plate','yarrow: a flat plate of florets');
+  assertEqual(PLANTS.yarrow.look.leafStyle,'feather','yarrow: feathery leaves, not grass blades');
+  assertEqual(PLANTS.prairiesmoke.look.flowerStyle,'avens','prairie smoke: nodding flowers in threes, then plumes');
+  assert(!PLANTS.prairiesmoke.sea.Winter.seed && PLANTS.prairiesmoke.sea.Winter.fol,'prairie smoke: the plumes are gone by winter, the rosette is not');
+  for (const k of ['purpleprairieclover','whiteprairieclover']){
+    assertEqual(PLANTS[k].look.spikeStyle,'dalea',`${k}: a thimble with a ring of florets`);
+    assertEqual(PLANTS[k].look.stemLeafStyle,'feather',`${k}: fine pinnate leaves up wiry stems`);
+  }
+});
+test('rattlesnake master carries a cluster of balls on every stem, and keeps them through winter', () => {
+  const L=PLANTS.rattlesnake.look;
+  for (const [season,key,sh] of [['Summer','bloom',-14],['Winter','seed',-10]]){
+    const col=shade(PLANTS.rattlesnake.sea[season][key],sh);
+    const balls=recordPlant('rattlesnake',season,null,1).filter(o=>o.fill===col).reduce((n,o)=>n+o.pts.filter(p=>p.length===3).length,0);
+    assert(balls>=L.stems*L.cymeHeads*0.8,`${season}: about ${L.cymeHeads} balls to each of ${L.stems} stems (${balls})`);
+  }
+  assertEqual(recordPlant('rattlesnake','Spring',null,0).filter(o=>o.fill===shade(PLANTS.rattlesnake.sea.Summer.bloom,-14)).length,0,'no flower stems in spring');
+});
+test('a sea holly head stands in its ruff of spines in flower and in seed', () => {
+  for (const season of ['Summer','Winter']){
+    const S=PLANTS.eryngiumbourgatii.sea[season], ops=recordPlant('eryngiumbourgatii',season,null,1);
+    const ruff=ops.filter(o=>o.fill===S.bract||o.fill===shade(S.bract,-16));
+    assert(ruff.length>=2 && ruff.reduce((n,o)=>n+o.pts.length,0)>=PLANTS.eryngiumbourgatii.look.bracts*10,`${season}: a full ruff of spined bracts`);
+  }
+});
+test('prairie smoke is a rosette all year, with plumes only after it flowers', () => {
+  const S=PLANTS.prairiesmoke.sea;
+  const plume=season=>recordPlant('prairiesmoke',season,null,1).filter(o=>S.Summer.seed&&(o.stroke===shade(S.Summer.seed,14)||o.stroke===shade(S.Summer.seed,-10)));
+  assert(plume('Summer').length>=2,'summer: plumes of smoke');
+  for (const season of ['Fall','Winter']){
+    const ops=recordPlant('prairiesmoke',season,null,0);
+    assert(ops.some(o=>o.stroke===S[season].fol),`${season}: the ferny rosette`);
+    assertEqual(plume(season).length,0,`${season}: no plumes`);
+  }
+});
+test('every sun perennial draws at its sourced height', () => {
+  // The px-art h is the drawn height in inches; heightIn is what the card quotes.
+  // They had drifted apart by half again (pale coneflower drawn at 55 in for a
+  // 36 in plant). The top is read off the recorded geometry, a few inches short
+  // of the browser's ink. Desert rosettes are excluded: their heightIn is the
+  // rosette's and they draw a flower stalk (0.9.94).
+  const skip=new Set(['rosette','agave','sotol','ocotillo']);
+  const topOf=(k,v,season)=>{
+    let top=0;
+    const ctx=new Proxy({fillStyle:'',strokeStyle:''},{get(o,p){ if(p in o) return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return ()=>({addColorStop(){}});
+      if(p==='measureText') return ()=>({width:0});
+      return (...a)=>{ if(p==='ellipse') top=Math.min(top,a[1]-a[3]); else if(p==='arc') top=Math.min(top,a[1]-a[2]);
+        else if(p==='moveTo'||p==='lineTo') top=Math.min(top,a[1]); else if(p==='quadraticCurveTo') top=Math.min(top,a[3]);
+        else if(p==='bezierCurveTo') top=Math.min(top,a[5]); }; },
+      set(o,p,val){ o[p]=val; return true; }});
+    drawPlant(ctx,0,0,k,1,season,9137,0,v,1);
+    return -top/HERB_SCALE;
+  };
+  let n=0;
+  for (const k of PLANT_KEYS){
+    const p=PLANTS[k]; if(p.type!=='forb'||p.sun!=='full'||skip.has(p.form)) continue;
+    for (const v of [null,...Object.keys(p.cv||{})]){
+      const D=plantDef(k,v); if(D.heightIn==null) continue;
+      const seasons=SEASONS.filter(s=>D.sea[s]&&D.sea[s].bloom), top=Math.max(...(seasons.length?seasons:SEASONS).map(s=>topOf(k,v,s)));
+      assert(Math.abs(top-D.heightIn)<=Math.max(4,D.heightIn*0.25),`${k}${v?':'+v:''}: drawn ${top.toFixed(1)} in for a ${D.heightIn} in plant`);
+      n++;
+    }
+  }
+  assert(n>250,`checked ${n} choices`);
 });
 test('a stonecrop is leafy up to its heads, and its dried heads stand into winter', () => {
   const H=plantVisualH(PLANTS.sedum), fol=PLANTS.sedum.sea.Summer.fol;
@@ -10108,7 +10185,7 @@ test('plant card mature size uses real tree heights (heightIn)', () => {
   const txt = matureSizeText(oak, false);
   assert(txt.startsWith(plantMeasure(oak.heightIn, false)), 'tree card height comes from heightIn');
   assert(txt.includes('90 ft'), `white oak reads 90 ft H (got "${txt}")`);
-  const forb = PLANTS.echinacea;
+  const forb = PLANTS.cardinallobelia;
   assert(!forb.heightIn && matureSizeText(forb, false).startsWith(plantMeasure(forb.h, false)), 'a herbaceous plant not yet backfilled keeps the px-h fallback');
   // a weeping cultivar's own heightIn overrides the species number
   const cq = plantDef('japanesemaple', 'crimsonqueen');

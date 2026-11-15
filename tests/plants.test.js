@@ -112,7 +112,7 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,811,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,814,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),641,
     'canonical nested-choice count');
@@ -1401,9 +1401,14 @@ test('shrub-form forbs use distinct foliage habits', () => {
   assertEqual(PLANTS.baptisia.look.habit, 'leafystems', 'baptisia is a clump of leafy stems');
   assertEqual(PLANTS.baptisia.look.leaflets, 3, 'baptisia carries trifoliate leaves');
   assertEqual(PLANTS.baptisia.look.headStyle, 'raceme', 'baptisia flowers in racemes above the foliage');
-  assertEqual(PLANTS.aster.look.habit, 'asterdome', 'aromatic aster should be a low dome');
-  assertEqual(PLANTS.newengland.look.habit, 'asterupright', 'new england aster should be taller and upright');
-  assertEqual(PLANTS.smoothaster.look.habit, 'asterclean', 'smooth blue aster should keep its clean blue-gray habit');
+  // the asters are leafy stems all season, their daisies on the branched tips in fall (0.9.113)
+  for (const k of ['aster','newengland','smoothaster','whitewoodaster','bluewoodaster','frikartaster','kalimerisbluestar']){
+    assertEqual(PLANTS[k].look.habit, 'leafystems', k+': a clump of leafy stems, not a scatter of leaves in a blob');
+    assertEqual(PLANTS[k].look.headStyle, 'aster', k+': daisies on the branched stem tips');
+  }
+  assertEqual(PLANTS.aster.look.mass, 'dome', 'aromatic aster should be a low dome');
+  assert(PLANTS.newengland.look.spread < PLANTS.smoothaster.look.spread, 'new england aster should be taller and upright');
+  assertEqual(PLANTS.smoothaster.sea.Summer.fol, '#6e8a90', 'smooth blue aster keeps its clean blue-gray leaves');
 });
 
 test('liatris species have distinct spike habits', () => {
@@ -1411,7 +1416,7 @@ test('liatris species have distinct spike habits', () => {
   assertEqual(PLANTS.liatrispycnostachya.group, 'liatris', 'prairie blazing star should share the liatris picker');
   assert(PLANTS.liatrispycnostachya.h > PLANTS.liatrisspicata.h, 'prairie blazing star should be the tallest');
   assert(PLANTS.liatrispycnostachya.look.wildLean > PLANTS.liatrisspicata.look.wildLean, 'prairie blazing star should be wilder');
-  assert(PLANTS.liatriscylindracea.h < PLANTS.liatris.h, 'cylindrical blazing star should stay compact');
+  assert(PLANTS.liatriscylindracea.heightIn <= PLANTS.liatris.heightIn && PLANTS.liatriscylindracea.heightIn < PLANTS.liatrisspicata.heightIn, 'cylindrical blazing star should stay compact');
   assert(PLANTS.liatrisspicata.look.heads > PLANTS.liatris.look.heads, 'dense blazing star should have the packed spike');
   for (const k of ['liatris','liatrispycnostachya','liatriscylindracea','liatrisspicata']){
     assertEqual(PLANTS[k].look.spikeStyle, 'blazingstar', `${k}: a feathery spike of thread-tufted heads, not a column of beads`);
@@ -1655,7 +1660,7 @@ test('European Oudolf additions retain their design roles and distinct renderer 
     assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: needs real bloom months`);
   }
   assertEqual(PLANTS.rattlesnake.group, 'eryngium', 'rattlesnake master anchors the Eryngium picker');
-  assertEqual(PLANTS.eryngiumbourgatii.look.globeStyle, 'seaHolly', 'Pyrenean sea holly needs its bracted blue head');
+  assertEqual(PLANTS.eryngiumbourgatii.look.globeStyle, 'collar', 'Pyrenean sea holly needs its cone in a ruff of spiny bracts');
   assertEqual(PLANTS.astrantia.look.pincushionStyle, 'astrantia', 'masterwort needs its star-bracted head');
   assertEqual(PLANTS.sedum.group, 'hylotelephium', 'Autumn Joy shares the stonecrop picker');
   assertEqual(PLANTS.matrona.group, 'hylotelephium', 'Matrona is a sibling, not an Autumn Joy cultivar');

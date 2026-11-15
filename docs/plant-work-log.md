@@ -275,3 +275,18 @@ later runs do not redo or touch the same records.
 - Added: Kniphofia 'Alcazar', 'Timothy', 'Percy's Pride', 'Ice Queen', 'Tawny King', 'Toffee Nosed', 'Little Maid',
   'Papaya Popsicle'. Sources: RHS plant pages, Cotswold Garden Flowers, Walters Gardens. Nested choices 546 -> 554.
 - Next: the shrubby St. Johnsworts are missing from the catalog.
+
+## 2026-11-14 — meadow perennial audit and Sun Perennial heights (0.9.113)
+
+- Direct to master. Rattlesnake master, sea holly, mountain mint, the asters, yarrow, prairie smoke and the
+  prairie clovers redrawn (`dev/meadow-review.html`). Record: `docs/plant-data/meadow-audit.md`.
+- Renderer, opt-in: `globeStyle:'cyme'|'collar'`, leafy-stem `headStyle:'aster'|'knot'` and `frost`,
+  `umbelStyle:'plate'`, `leafStyle`/`stemLeafStyle:'feather'`, `spikeStyle:'dalea'`, drumstick
+  `flowerStyle:'avens'`. Old data through old and new draw.js: identical call streams over 11,616 draws.
+- Added: Virginia, slender and hoary mountain mint (`group:'mountainmint'`). Sources: MBG, Prairie Moon, New Moon.
+- Heights: every Sun Perennial choice measured in the renderer; 217 choices given a sourced `heightIn`
+  and/or an `h` that draws at it (MBG Plant Finder first, then RHS, Prairie Moon, New Moon, nurseries).
+  A test holds every choice within 25% or 4 in of its `heightIn`. The audit doc lists each choice.
+- Next: second sources for the wide-range figures the audit names (purple coneflower, Culver's root,
+  *Penstemon digitalis*, 'Caradonna', 'Blue Spire', 'Jeana'); move scabiosa 'Blue Cockade' (an annual
+  *S. atropurpurea*); heights for the Shade Perennials, which this pass did not touch.

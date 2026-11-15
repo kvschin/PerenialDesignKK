@@ -7190,6 +7190,35 @@ tile. Bakes cost 0.14-0.44 ms, inside the catalog's range. Record:
 sourced `heightIn` with `h` set equal to it (a test holds the pair), and dense blazing star
 gained 'Kobold'.
 
+**The meadow audit and Sun Perennial heights (0.9.113)**: seven plants redrawn on grammars of
+their own, all opt-in (old data through old and new draw.js: identical call streams over
+11,616 draws; every unchanged plant identical over 11,464). **Rattlesnake master**
+(`globeStyle:'cyme'`, `drawEryngiumCyme`) is a few stems forking into a dome of small bristly
+balls built in the round, kept brown into winter; it was one egg per stalk. **Sea holly**
+(`globeStyle:'collar'`, `drawEryngiumCollar`) is an upright cone in a flat ruff of spined
+bracts on branched stems, the ruff drying with it; it was a ball in a star of spines with no
+collar in seed. **Asters** (all seven) are the leafy-stem habit with `headStyle:'aster'`
+(daisies on short shoots up the stem top, pappus tufts in seed); the scattered mound they were
+on has no stems, so before the fall bloom they were a translucent blob of leaves. **Mountain
+mints** are leafy-stem domes with `frost` (the top of every stem in the season's `bract`
+colour) and `headStyle:'knot'`, smaller and darker in seed; Virginia, slender and hoary
+mountain mint joined under a Mountain Mint card. **Yarrow** is `umbelStyle:'plate'` (a flat
+compound corymb) over `leafStyle:'feather'` (`drawFeatherTuft`/`featherLeafPush`: finely cut
+leaves as strokes in three depth tones; `stemLeafStyle:'feather'` up the stem). **Prairie
+smoke** is `flowerStyle:'avens'` on its own drumstick branch (`drawAvensStem`): a feather
+rosette all year, burgundy in fall and winter, stems only in flower (three nodding urns) and
+early-summer seed (wispy plumes). **Prairie clovers** are `spikeStyle:'dalea'`
+(`drawDaleaHead`): a thimble with a ring of florets climbing it, silver buds above and spent
+calyces below, on wiry stems of feather leaves. The retired `seaHolly`/`rattlesnake` globe
+branches and the three aster habits are gone. **Every Sun Perennial's height was audited**:
+`h` is the drawn height in inches, and the earlier backfills had set `heightIn` without it
+(pale coneflower drawn at 55 in for 36), so every choice was measured in the real renderer,
+given a sourced `heightIn` where it lacked one (MBG first, then RHS, Prairie Moon, New Moon,
+nurseries), and had `h` rescaled to draw at it; a test holds every one within 25% or 4 in.
+Excluded: the desert rosettes (flower stalk drawn) and the stonecrops. **A mat that draws its
+width at a fixed size keeps `h:8`** (aubrieta, moss phlox) or clips its sprite. Record and
+the full table: `docs/plant-data/meadow-audit.md`; `dev/meadow-review.html`.
+
 **The shade audit (0.9.103)**: 52 records (77 choices) on the Shade Perennials tab, four drawings
 that carried most of it, all opt-in (old data through old and new draw.js: identical streams over
 20,976 draws; with the new data exactly the 77 edited choices differ). **Ferns** were a bare stick
