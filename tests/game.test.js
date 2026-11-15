@@ -10927,7 +10927,14 @@ test('the daily brief leads with the task and keeps its actions on screen',()=>{
      beneath it), which only works while it is the panel's LAST child. */
   const footer=(s,ids)=>{const f=s.slice(s.indexOf('class="daily-footer"')), end=f.indexOf('\n    </div>\n');
     return ids.every(id=>{const i=f.indexOf(id);return i>0&&i<end;})&&f.slice(end).startsWith('\n    </div>\n  </div>');};
-  assert(footer(daily,['id="dailyStatus"','data-back','id="btnDailyStart"']),'start screen: status, back and Start share the last-child footer');
+  assert(footer(daily,['id="dailyStatus"','id="btnDailyStart"']),'start screen: status and Start share the last-child footer');
+  /* The way back is in the header now, as it is on every screen the menu opens,
+     and the header is pinned the way the footer is: it must be the panel's
+     FIRST child, taking over the top padding, or the brief scrolls past above it. */
+  const head=daily.slice(0,daily.indexOf('</header>'));
+  assert(/<div class="panel[^"]*" id="dailyPanel">\s*(<!--[\s\S]*?-->\s*)*<header class="page-head daily-head">/.test(daily),'the header is the panel\'s first child');
+  assert(/data-back/.test(head)&&/id="dailyTitle"/.test(head)&&/id="dailyDate"/.test(head)&&/id="dailyTheme"/.test(head),'and holds the way back, the title, the date and the theme');
+  assertEqual((daily.match(/data-back/g)||[]).length,1,'there is one way back, not one at each end');
   assert(footer(brief,['id="btnChallengeReturn"']),'brief ends with a return action');
   assert(!brief.includes('id="challengeShare"')&&!brief.includes('id="btnChallengeFinish"'),'reading the brief cannot finish or share');
   assert(footer(finishScreen,['id="challengeStatus"','id="btnChallengeFinishReturn"','id="btnChallengeSaveRetry"']),'result ends with save status and return/retry actions');
@@ -10936,6 +10943,8 @@ test('the daily brief leads with the task and keeps its actions on screen',()=>{
   assert(/position:sticky/.test(rule('.daily-footer'))&&/bottom:0/.test(rule('.daily-footer')),'the footer sticks');
   assert(/var\(--panel-pad\)/.test(rule('.daily-footer')),'and bleeds by the panel\'s own padding');
   assert(/padding-bottom:0/.test(rule('.panel.daily-panel')),'with the panel handing it its bottom padding');
+  assert(/position:sticky/.test(rule('.daily-head'))&&/top:0/.test(rule('.daily-head'))&&/var\(--panel-pad\)/.test(rule('.daily-head')),'the header sticks and bleeds the same way');
+  assert(/padding-top:0/.test(css.slice(css.indexOf('#dailyScreen .daily-panel{padding-top'),css.indexOf('#dailyScreen .daily-panel{padding-top')+60)),'with the panel handing it its top padding');
   const px=(sel)=>+/font-size:(\d+)px/.exec(rule(sel))[1];
   assert(px('.daily-brief')>=16&&/var\(--text-primary\)/.test(rule('.daily-brief')),'the brief is lead text');
   assert(px('.daily-label')>=px('.daily-goals'),'a heading is at least the size of what it heads');
@@ -11186,6 +11195,177 @@ test('menu chrome lies over an animating canvas, so none of it blurs', () => {
   // the pressed dot is not signalled by colour alone where colour is taken away
   const forced = css.slice(css.indexOf('@media (forced-colors: active)'));
   assert(/\.menu-pip\[aria-pressed="true"\] i\{[^}]*Highlight/.test(forced), 'forced colours re-signal the season shown');
+});
+
+/* ---------- the screens the menu opens ----------
+   Your gardens, the daily challenge and the Plant Library share one header:
+   the way back top left, the screen's name, and a line under it. Back was a
+   text link at the foot of two of them and a chevron at the head of the third. */
+test('the three screens the menu opens share one header, with the way back in it', () => {
+  const html = readRepoFile('index.html'), css = readRepoFile('styles.css');
+  const screen = (id, next) => html.slice(html.indexOf('id="' + id + '"'), html.indexOf(next));
+  const worlds = screen('worldsScreen', 'id="plotScreen"'), daily = screen('dailyScreen', 'id="challengeScreen"'),
+    library = screen('libraryScreen', 'id="guideScreen"');
+  [['Your gardens', worlds], ['the daily challenge', daily], ['the Plant Library', library]].forEach(([name, part]) => {
+    assertEqual((part.match(/class="page-back"/g) || []).length, 1, name + ' has exactly one back control');
+    const back = part.slice(part.indexOf('class="page-back"'), part.indexOf('</button>', part.indexOf('class="page-back"')));
+    assert(/aria-label="Back to the menu"/.test(back), name + ': it is named for a screen reader');
+    assert(/<span>Menu<\/span>/.test(back) && /#ui-chevron-right/.test(back), name + ': and carries its label and its chevron');
+    assert(part.indexOf('class="page-back"') < part.indexOf('class="page-title"'), name + ': back comes before the title');
+    assert(/class="page-title">\s*<h2 id="\w+">/.test(part), name + ': the title is the heading');
+    assert(/class="page-sub"/.test(part), name + ': with a line under it');
+    assert(!/class="back-link"[^>]*data-back/.test(part), name + ': and no second way back at the foot');
+  });
+  assert(/class="page-back"[^>]*data-back/.test(worlds) && /class="page-back"[^>]*data-back/.test(daily),
+    'the two panels go back through the shared data-back wiring');
+  // On a phone the label is clipped, never removed: display:none leaves a button with no name.
+  const sheetAt = css.indexOf('.page-back span{'), rule = css.slice(sheetAt, css.indexOf('}', sheetAt));
+  assert(sheetAt > 0 && /clip:rect\(0 0 0 0\)/.test(rule) && !/display:none/.test(rule), 'the phone clips the label rather than hiding it');
+  const coarse = css.slice(css.lastIndexOf('.library-back{min-height:44px;min-width:44px}'));
+  assert(/\.page-back\{min-height:44px;min-width:44px\}/.test(coarse.slice(0, 600)), 'and the control is finger-sized on a touch screen');
+  /* The theme beside the daily date is styled with .page-sub, above its phone
+     override. Down with the daily rules it would come later in the file and
+     outrank the override: a media query adds no specificity. */
+  const base = css.indexOf('.page-sub .daily-theme::before{content:" · "'), over = css.indexOf('.page-sub .daily-theme::before{content:none}');
+  assert(base > 0 && over > base, 'the phone override of the theme separator comes after the rule it overrides');
+  assertEqual(css.indexOf('.page-sub .daily-theme::before{', over + 10), -1, 'and nothing restates it further down');
+  // Escape leaves the two panels as it leaves the Library, and for that it must sit above the hidden-HUD guard.
+  const input = readRepoFile('js/input.js');
+  const esc = input.indexOf("for (const id of ['worldsScreen','dailyScreen'])"), guard = input.indexOf("getElementById('hud').classList.contains('hidden')");
+  assert(esc > 0 && esc < guard, 'Escape reaches Your gardens and the daily challenge, where the HUD is hidden');
+  assert(esc > input.indexOf("getElementById('confirmPop')"), 'after a confirm or a rename has had its turn');
+});
+
+test('a scrolling pane contains the screen-reader labels inside it', () => {
+  /* .sr-only is position:absolute. Inside a scroller that is not positioned it
+     is not clipped by that scroller, so a link's "opens in a new tab" label at
+     the foot of a plant card made the whole Library screen scroll past its own
+     end. Measured in a browser at 1280x720: 15px with the two-column card, and
+     the card's full height before it. */
+  const css = readRepoFile('styles.css');
+  assert(/\.sr-only\{position:absolute/.test(css), 'the label is still absolutely positioned (or this guard has nothing to guard)');
+  assert(/\.library-list,\.library-detail\{position:relative\}/.test(css), 'both Library panes are positioned');
+  const at = css.indexOf('.page-panel{'), rule = css.slice(at, css.indexOf('}', at));
+  assert(/position:relative/.test(rule), 'and so are the panels that scroll: the daily brief holds the same links');
+});
+
+test('a garden card dates itself in words', () => {
+  const now = new Date(2026, 10, 14, 9, 30).getTime();                 // 14 Nov 2026, mid-morning
+  assertEqual(worldDateLabel(new Date(2026, 10, 14, 0, 5).getTime(), now), 'Today', 'earlier today');
+  assertEqual(worldDateLabel(new Date(2026, 10, 13, 23, 55).getTime(), now), 'Yesterday', 'ten hours ago, but a calendar day back');
+  const older = worldDateLabel(new Date(2026, 10, 2).getTime(), now);
+  assert(/2/.test(older) && !/2026/.test(older) && !/\//.test(older), 'this year: a short date with no year and no slashes: ' + older);
+  assert(/2025/.test(worldDateLabel(new Date(2025, 11, 30).getTime(), now)), 'another year says which');
+  assertEqual(worldDateLabel(NaN, now), '', 'and a row with no date says nothing rather than "Invalid Date"');
+});
+
+test('Your gardens is a gallery: a picture, a name and two lines to each card', async () => {
+  setup();
+  const css = readRepoFile('styles.css');
+  const at = css.indexOf('#worldsScreen .panel{'), panel = css.slice(at, css.indexOf('}', at));
+  assert(/grid-template-areas:"head actions" "list list"/.test(panel), 'wide: the two actions share the header row');
+  const sheet = css.slice(css.indexOf('#worldsScreen .panel{', at + 10)); // the SHEET override follows it
+  assert(/grid-template-areas:"head" "list" "actions"/.test(sheet.slice(0, 300)), 'phone: they run along the bottom');
+  const list = css.slice(css.indexOf('#worldsScreen #worldList{'), css.indexOf('.world-row{'));
+  assert(/repeat\(auto-fill,minmax\(var\(--world-card,208px\),1fr\)\)/.test(list), 'cards fill the width they are given');
+  /* A card clips its picture to its corners, and a grid item that clips has no
+     minimum height: in a list shorter than its cards the auto rows shrank and
+     every card lost its text. Seen on a phone, never on a desktop. */
+  assert(/grid-auto-rows:max-content/.test(list), 'rows are as tall as their cards, however short the list');
+  assert(/--world-card:124px/.test(css), 'two to a row down to a 320px phone');
+
+  const c = dailyChallengeFor(new Date(2026, 5, 1));
+  await sSet('hortus:world:pgcard1', { gw: 20, gh: 8, plants: { '1,1': { s: 'bluestem', d: 0, t: 1 } }, challenge: { ...c, completedAt: 5 } });
+  await sSet('hortus:world:pgcard2', { gw: 31, gh: 31, plants: {} });
+  await updateWorldsIndex(rows => (rows || []).filter(r => !/^pgcard/.test(r.id)).concat([
+    { id: 'pgcard1', name: 'Card one', ts: Date.now(), gw: 20, gh: 8 },
+    { id: 'pgcard2', name: 'Card two', ts: Date.now() - 864e5, gw: 31, gh: 31 }]));
+  try {
+    await openWorlds();
+    await sGet('hortus:world:pgcard2'); await sGet('hortus:world:pgcard2');   // let each card read its garden
+    const n = (await worldsIndex()).length;
+    assertEqual(document.getElementById('worldsSub').textContent, n + ' gardens · saved on this device', 'the header counts them and says where they live');
+    const cardOf = name => document.getElementById('worldList').children.find(r => {
+      const info = r.children.find(k => k.className === 'world-info'); return info && info.children[0].textContent === name; });
+    const one = cardOf('Card one'), two = cardOf('Card two');
+    assert(one && two, 'both gardens have a card');
+    assertEqual(one.children[0].tagName, 'CANVAS', 'a card leads with its picture');
+    const info = one.children.find(k => k.className === 'world-info');
+    assertEqual(info.children.length, 3, 'then its name and two lines');
+    assertEqual(info.children[1].textContent, '1 plant · ' + worldSaveMeta({ plants: {} }).season, 'what is in it');
+    assert(/^30 ft × 12 ft · Today$/.test(info.children[2].textContent), 'and its size and when it was last opened: ' + info.children[2].textContent);
+    const twoInfo = two.children.find(k => k.className === 'world-info');
+    assert(/· Yesterday$/.test(twoInfo.children[2].textContent), 'in words: ' + twoInfo.children[2].textContent);
+    const badge = one.children.find(k => k.className === 'world-badge');
+    assert(badge && badge.textContent === 'Daily · done', 'a daily challenge says it is one, and that it is done');
+    assert(!two.children.find(k => k.className === 'world-badge'), 'an ordinary garden carries no badge');
+  } finally {
+    await updateWorldsIndex(rows => ({ index: rows.filter(r => !/^pgcard/.test(r.id)), del: ['hortus:world:pgcard1', 'hortus:world:pgcard2'] }));
+  }
+  // nothing saved: the picture, the words, and the third way in
+  const empty = worldsEmptyState();
+  assertEqual(empty.className, 'worlds-empty', 'an empty list says so');
+  const demo = empty.children[empty.children.length - 1].children[0];
+  assertEqual(demo.tagName, 'BUTTON', 'and offers the demo garden');
+  assert(String(demo.onclick).includes('openDemoGarden'), 'through the same loader the first-run offer uses');
+  const src = readRepoFile('js/screens.js'), open = src.slice(src.indexOf('async function openWorlds(){'), src.indexOf('async function enterWorld('));
+  assert(/list\.removeAttribute\('role'\)/.test(open) && /worldsEmptyState\(\)/.test(open), 'an empty list is not announced as a list of nothing');
+});
+
+test('quitting part-way through the controls tour takes its callout along', () => {
+  /* tourRender hides the callout when there is no garden, but only when it is
+     next called, and nothing called it on the way out. Reproduced in a browser:
+     open a planted garden for the first time, Menu, Save & quit, and the
+     "Move around" callout was standing on the title screen. */
+  const src = readRepoFile('js/screens.js');
+  const quit = src.slice(src.indexOf('function quitToMenu(){'), src.indexOf('function openGardenMenu(){'));
+  const left = quit.indexOf('game.inGarden=false'), render = quit.indexOf('tourRender()');
+  assert(left > 0 && render > left, 'the tour is rendered again once the garden is closed');
+  assert(render < quit.indexOf("show('menuScreen')"), 'before the title screen is shown');
+});
+
+test('a saved daily design shows its own picture, and a past one is a card', () => {
+  setup();
+  const prior = [dailyOpening, dailyResumeId];
+  try {
+    const frame = document.getElementById('dailyResumePreview');
+    dailyResumeId = 'pgresume';
+    renderDailyResume({ gw: 20, gh: 8, plants: {} }, dailyOpening, 'pgresume');
+    /* The map is drawn to fit its canvas. In a fixed 4:3 canvas a 30 x 12 ft
+       border was a strip of garden between two dark bars. */
+    assertEqual(frame.style.aspectRatio, '480 / 192', 'the frame takes the plot\'s own shape');
+    renderDailyResume({ gw: 8, gh: 40, plants: {} }, dailyOpening, 'pgresume');
+    assertEqual(frame.style.aspectRatio, '480 / 360', 'a tall plot is held to the old frame, not a tower');
+    renderDailyResume({ gw: 200, gh: 8, plants: {} }, dailyOpening, 'pgresume');
+    assertEqual(frame.style.aspectRatio, '480 / 150', 'and a very long one to a strip that can still be read');
+
+    const c = normalizeDailyChallenge({ ...dailyChallengeFor(new Date(2026, 5, 1)), completedAt: 9 });
+    const card = dailyHistoryCard({ id: 'pgpast', challenge: c, blob: { gw: 20, gh: 8, plants: {} } }, dailyOpening);
+    assertEqual(card.tagName, 'BUTTON', 'a past design is one control');
+    assertEqual(card.children[0].tagName, 'CANVAS', 'that leads with its picture');
+    const copy = card.children[1], split = c.title.indexOf(': ');
+    assertEqual(copy.children[0].textContent, c.title.slice(split + 2), 'names the exercise');
+    assertEqual(copy.children[1].textContent, c.title.slice(0, split), 'then its theme');
+    assertEqual(copy.children[2].textContent, 'Finished · ' + dailyDateLabel(c.date), 'then whether it was finished and when, in words');
+    assert(String(card.onclick).includes('enterWorld'), 'and opens that garden');
+    const legacy = dailyHistoryCard({ id: 'pgold', challenge: { ...c, title: 'An older untitled brief', completedAt: 0 }, blob: { gw: 20, gh: 8 } }, dailyOpening);
+    assertEqual(legacy.children[1].children.length, 2, 'a brief with no theme has no theme line');
+    assertEqual(legacy.children[1].children[1].textContent, 'In progress · ' + dailyDateLabel(c.date), 'and an unfinished one says so');
+  } finally { [dailyOpening, dailyResumeId] = prior; }
+  // Neither loads a garden: the picture is the saved map, or the saved portrait once it has decoded.
+  const src = readRepoFile('js/screens.js');
+  const body = src.slice(src.indexOf('function dailyGardenPortrait('), src.indexOf('// Freeze the brief displayed'));
+  assert(!/enterGarden|loadSolo|renderGardenPortrait|captureGardenPortrait/.test(body.replace(/b\.onclick=\(\)=>enterWorld\(row\.id\);/, '')),
+    'no live garden is loaded or rendered for a picture');
+  assert(/request===dailyOpening/.test(body), 'and a portrait that decodes late is checked against the screen that asked for it');
+  /* The picture stands beside the status on a wide screen. That rule was once
+     pasted into the short-screen block below it by mistake, and a desktop went
+     back to a stacked panel with a 520px picture. */
+  const css = readRepoFile('styles.css'), at = css.indexOf('.daily-resume{flex-direction:row');
+  assert(at > 0, 'the wide resume layout exists');
+  const media = css.lastIndexOf('@media', at);
+  assert(css.slice(media, css.indexOf('{', media)).includes('(min-width:1025px), (min-width:768px) and (orientation:landscape)'),
+    'and it is inside the wide-screen block, not the short-screen one');
 });
 
 test('worlds-list thumbnails: meta counts live plants and reads the save season', () => {
@@ -17361,7 +17541,7 @@ test('the climbers can be browsed, listed and opened in the library', () => {
   buildLibraryCats();
   const card = cards.children.find(b => b.dataset.cat === 'climbers');
   assert(card, 'the phone view has a card for them');
-  assertEqual(String(card.children[1].textContent), String(vines.length), 'counting them');
+  assertEqual(String(card.children[card.children.length - 1].textContent), String(vines.length), 'counting them');
 
   const list = document.getElementById('libraryList');
   list.children.length = 0;
@@ -17385,10 +17565,150 @@ test('the category cards count what their category actually holds', () => {
   buildLibraryCats();
   assertEqual(wrap.children.length, LIB_CATS.length, 'one card per category');
   LIB_CATS.forEach((cat, i) => {
-    assertEqual(String(wrap.children[i].children[1].textContent),
+    const kids = wrap.children[i].children;   // its picture, its name, its count
+    assertEqual(String(kids[kids.length - 1].textContent),
       String(libraryCatKeys(cat).length),
       `the ${cat.label} card counts its own keys rather than a typed number`);
+    assertEqual(kids[kids.length - 2].textContent, cat.label, `and the ${cat.label} card is named`);
+    assert(/lib-catcard-art/.test(kids[0].className), `and the ${cat.label} card leads with a picture`);
   });
+});
+
+/* A category card shows three of its own plants. The named ones are a choice of
+   what leads; a name that has left the catalog, or a category nobody named,
+   must still come out as three plants of that category and never an empty card. */
+test('every category card pictures three of its own plants', () => {
+  setup();
+  LIB_CATS.forEach(cat => {
+    const keys = libraryCatKeys(cat), art = libraryCatArtKeys(cat);
+    assertEqual(art.length, Math.min(3, keys.length), `${cat.label}: three plants, or all it has`);
+    assertEqual(new Set(art).size, art.length, `${cat.label}: no plant twice`);
+    art.forEach(k => assert(keys.includes(k), `${cat.label}: ${k} belongs to it`));
+  });
+  Object.keys(LIB_CAT_SHOW).forEach(id => {
+    const cat = libraryCatById(id);
+    assert(cat, `${id} is a library category`);
+    const keys = libraryCatKeys(cat);
+    LIB_CAT_SHOW[id].forEach(k => assert(keys.includes(k), `${k} is still a plant in ${cat.label}`));
+  });
+  // the fallback, for a category with no names and for names that are gone
+  const real = LIB_CAT_SHOW.trees;
+  try {
+    LIB_CAT_SHOW.trees = ['no-such-tree', 'nor-this'];
+    const cat = libraryCatById('trees'), art = libraryCatArtKeys(cat);
+    assertEqual(art.length, 3, 'a stale list still yields three');
+    art.forEach(k => assert(libraryCatKeys(cat).includes(k), `${k} is a tree`));
+    delete LIB_CAT_SHOW.trees;
+    assertEqual(libraryCatArtKeys(cat).length, 3, 'and so does no list at all');
+  } finally { LIB_CAT_SHOW.trees = real; }
+  /* The dock has no category view, so opening the library there must not draw
+     their pictures: 27 plants, three of them trees, for cards nobody can see. */
+  const w0 = innerWidth, h0 = innerHeight, wrap = document.getElementById('libraryCats');
+  try {
+    innerWidth = 1440; innerHeight = 900;
+    wrap.children.length = 0;
+    openLibrary();
+    assertEqual(wrap.children.length, 0, 'the dock builds no category cards');
+    innerWidth = 390; innerHeight = 844;
+    openLibrary();
+    assertEqual(wrap.children.length, LIB_CATS.length, 'the phone builds them all');
+  } finally { innerWidth = w0; innerHeight = h0; show('menuScreen'); }
+});
+
+/* The header says where the reader is. It used to say nothing on a phone (the
+   title was clipped away and the search placeholder left to name the screen). */
+test('the library header names the library, the category, the search and the plant', () => {
+  setup();
+  const w0 = innerWidth, h0 = innerHeight;
+  const state = [libView, libSel, libCat, libListMode, libListCat, libMatches, libTotal];
+  try {
+    innerWidth = 390; innerHeight = 844;
+    libTotal = libraryAllKeys().length; libMatches = null; libSel = null;
+    libView = 'cats'; libListMode = 'none'; libListCat = null;
+    let t = libraryHeadText(true);
+    assertEqual(t.title, 'Plant Library', 'the categories are the library');
+    assert(t.sub.startsWith(libTotal + ' plants'), 'and count every plant: ' + t.sub);
+    libView = 'list'; libListMode = 'sections'; libListCat = 'climbers';
+    t = libraryHeadText(true);
+    assertEqual(t.title, 'Climbers', 'a category is named');
+    assertEqual(t.sub, libraryCatKeys(libraryCatById('climbers')).length + ' plants', 'and counted');
+    libListMode = 'results'; libListCat = null; libMatches = 1;
+    t = libraryHeadText(true);
+    assertEqual(t.title, 'Search', 'a search says so');
+    assertEqual(t.sub, '1 of ' + libTotal + ' plants match', 'and how many it found');
+    libView = 'detail'; libSel = 'bluestem';
+    t = libraryHeadText(true);
+    assertEqual(t.title, PLANTS.bluestem.name, 'a plant is named');
+    assertEqual(t.sub, libraryCatFor('bluestem').label, 'with the category it is filed under');
+    // the dock is always the library; the line counts what a search found
+    t = libraryHeadText(false);
+    assertEqual(t.title, 'Plant Library', 'the dock header does not follow the phone views');
+    assertEqual(t.sub, '1 of ' + libTotal + ' plants match', 'and counts the search');
+    libMatches = null;
+    assert(libraryHeadText(false).sub.startsWith(libTotal + ' plants'), 'or every plant, with no search');
+    // one back control on both tiers
+    const html = readRepoFile('index.html'), lib = html.slice(html.indexOf('id="libraryScreen"'), html.indexOf('id="guideScreen"'));
+    assertEqual((lib.match(/class="page-back"/g) || []).length, 1, 'the library has one back control');
+    assert(!/btnLibraryClose/.test(html + readRepoFile('js/screens.js')), 'and no second way out beside it');
+  } finally {
+    innerWidth = w0; innerHeight = h0;
+    [libView, libSel, libCat, libListMode, libListCat, libMatches, libTotal] = state;
+  }
+});
+
+/* A list row is a plant, its Latin name, and the three things a list is scanned
+   for. Its picture is drawn when the row nears the viewport; here, with no
+   IntersectionObserver, it is drawn as the row is built, as it always was. */
+test('a library row says how tall, how sunny and how wet, in the reader\'s units', () => {
+  setup();
+  const prior = unitsPref;
+  try {
+    setUnitsPref('imperial');
+    const P = PLANTS.bluestem, facts = libraryRowFacts(P);
+    assert(facts.includes(plantMeasure(P.heightIn || P.h, false) + ' tall'), 'height through the shared formatter: ' + facts);
+    assert(/Full sun/.test(facts) && /Dry/.test(facts), 'light and moisture as the detail card words them: ' + facts);
+    const water = PLANT_KEYS.find(k => PLANTS[k].type === 'water' && !PLANTS[k].marginal && !PLANTS[k].hidden);
+    assert(/Open water/.test(libraryRowFacts(PLANTS[water])), 'a floating plant is not given a soil moisture');
+    setUnitsPref('metric');
+    assert(/\d (cm|m) tall/.test(libraryRowFacts(P)), 'and it follows the units preference: ' + libraryRowFacts(P));
+    setUnitsPref('imperial');
+    const row = libItemButton('bluestem', false), copy = row.children[1];
+    assertEqual(row.children[0].tagName, 'CANVAS', 'a row leads with its picture');
+    assertEqual(row.children[0].dataset.k, 'bluestem', 'which knows what it is a picture of');
+    assertEqual(row.children[0].dataset.drawn, '1', 'and is drawn at once where nothing can watch it scroll in');
+    assertEqual(copy.children.map(c => c.className).join(), 'li-name,li-latin,li-facts', 'then name, Latin and facts');
+    assertEqual(copy.children[0].textContent, P.name, 'the name is text, not markup');
+    assertEqual(copy.children[2].textContent, facts, 'and the facts are the same sentence');
+  } finally { setUnitsPref(prior); }
+  const src = readRepoFile('js/library.js');
+  assert(/IntersectionObserver/.test(src) && /libThumbQueue/.test(src), 'rows are drawn as they come into view');
+  assert(/c\.isConnected/.test(src), 'and a row that has left the list is not drawn');
+  const clear = src.slice(src.indexOf('function clearLibraryList'), src.indexOf('function clearLibraryList') + 400);
+  assert(/disconnect\(\)/.test(clear) && /libThumbQueue\.length=0/.test(clear), 'emptying the list lets go of what was being watched');
+});
+
+/* A wide detail pane stands the pictures beside the words. The card is BUILT
+   for the pane it is in, because its season tiles are drawn to the column. */
+test('a wide library pane gets two columns and season tiles sized to the first', () => {
+  const w0 = innerWidth, h0 = innerHeight;
+  try {
+    innerWidth = 1440; innerHeight = 900;
+    assertEqual(libraryDetailWide({ clientWidth: LIB_WIDE_PANE - 1 }), false, 'just under the width is one column');
+    assertEqual(libraryDetailWide({ clientWidth: LIB_WIDE_PANE }), true, 'at it, two');
+    const css = readRepoFile('styles.css');
+    const rule = css.slice(css.indexOf('.ld-card.wide{'), css.indexOf('}', css.indexOf('.ld-card.wide{')));
+    assert(/minmax\(0,38fr\) minmax\(0,62fr\)/.test(rule) && /column-gap:32px/.test(rule) && /max-width:1040px/.test(rule),
+      'the stylesheet holds the 38%, the 32px and the 1040px the tile is sized from');
+    [LIB_WIDE_PANE, 1000, 1065, 1400, 2200].forEach(W => {
+      const tile = librarySeasonTile({ clientWidth: W });
+      const card = Math.min(1040, W - 52), column = (card - 32) * .38;
+      assert(tile.w > 80, `${W}: larger than the authored tile`);
+      assert(tile.w * 2 + 10 + 28 <= column + .5, `${W}: two tiles, their gap and the plate padding fit the column (${tile.w} in ${column.toFixed(0)})`);
+      assertEqual(tile.h, Math.round(tile.w * 104 / 80), `${W}: the authored aspect is kept`);
+    });
+    innerWidth = 390; innerHeight = 844;
+    assertEqual(libraryDetailWide({ clientWidth: 2000 }), false, 'a phone is never wide, whatever it measures');
+  } finally { innerWidth = w0; innerHeight = h0; }
 });
 
 test('the dock accordion is untouched by the phone views', () => {

@@ -20,11 +20,16 @@ and three self-review goals. View from the Patio and Welcoming Entrance add
 viewpoint, layering, arrival and reveal exercises to the planting-style themes. The user's
 local calendar date determines the prompt and the start screen freezes it
 across midnight. `openDaily` checks saved attempts before enabling Start,
-offers Continue for today's attempt and six recent designs. Every attempt
-with saved progress opens a compact resume view: saved status and a current
+offers Continue for today's attempt and six recent designs, each a card with
+its own picture, exercise, theme, status and date (`dailyHistoryCard`). Every
+attempt with saved progress opens a compact resume view: saved status and a current
 saved-garden thumbnail above an initially collapsed original brief. The thumbnail
 uses `drawWorldThumb` on the saved blob, upgrading to a valid same-day saved
-portrait after decoding; no live garden is loaded or rendered. Late image loads
+portrait after decoding (`dailyGardenPortrait`, shared with the history cards);
+no live garden is loaded or rendered. The map is drawn to fit its canvas, so the
+canvas takes the plot's own shape and the frame takes the canvas's
+(`renderDailyResume`): in a fixed 4:3 canvas a 30 x 12 ft border was a strip of
+garden between two dark bars. Late image loads
 are guarded by the open request and garden ID. New attempts show the full brief.
 Both daily headings split the saved `Theme: Exercise` wording into a small theme
 label and short exercise title, with unsplit legacy titles retained. A compact
@@ -118,11 +123,22 @@ through the shared catalog eligibility pipeline, including saved collections;
 palette edits/free choice are in both catalog and tray cache keys. Finish only
 reports saved completion after a successful save. Daily panels lead with
 the brief as 16px `.daily-brief` text and end in a sticky `.daily-footer`
-(status, the way back, the primary action) that **must stay the panel's last
+(status and the primary action) that **must stay the panel's last
 child**: a sticky box sticks inside its scroller's padding, so the footer owns
 the panel's bottom padding (`.panel.daily-panel{padding-bottom:0}`), bleeds by
 `--panel-pad`, and lays the surface twice to be opaque. Status copy there is
-kept to a line. The result screen leads with the image and Download/Share, with
+kept to a line. **The start screen is also headed by a pinned `.daily-head`**
+(0.9.108): the way back, the exercise as the title, and the date and theme on
+the line under it. It **must stay the panel's FIRST child**, for the footer's
+reason turned over (`#dailyScreen .daily-panel{padding-top:0}`). The way back
+left the footer for it, so there is one, in the place every screen the menu
+opens has it. On DOCK the brief is two columns (`.daily-brief-cols`: the task
+and the ideas in `.daily-lead` and `.daily-rest` on the left, the site in
+`.daily-site-block` on the right, spanning both rows so a tall site plan opens
+no gap), the footer puts the status left and Start right at a button's width,
+and a saved design stands its picture beside its status in a narrower panel
+(`.is-resuming`). On SHEET the three blocks follow one another in the same DOM
+order, which is the reading order. The result screen leads with the image and Download/Share, with
 format and season controls below; its footer offers Keep designing and a save
 retry only when needed. Dates display through
 `dailyDateLabel` (the ISO key stays the storage key and file name); site sizes
@@ -173,7 +189,24 @@ key sits in the screen's corner on a wide window, folds to one line under
 scrolls instead of laying it over the entries; `.menu-shell` is therefore NOT
 positioned. The title's italic word and eyebrow take the season's `accent`
 (`--menu-accent`). No menu chrome uses `backdrop-filter`: a blurred plate over
-an animating canvas is re-blurred every frame, and there are five plates. A dev-only
+an animating canvas is re-blurred every frame, and there are five plates.
+**The three screens the menu opens share one header** (0.9.108; `.page-head`,
+`.page-back`, `.page-title`, `.page-sub`, styles.css): the way back at the top
+left, the screen's name in the title face, and one 13px line under it saying
+what is here (a count, a date). Back was a text link at the foot of Your gardens
+and the daily challenge and a chevron at the head of the Library, so leaving
+meant looking in a different place on each. It is a labelled pill on DOCK and a
+44px circle on SHEET, its label clipped and never `display:none`. Escape leaves
+the two panels as it leaves the Library (input.js, above the hidden-HUD guard,
+after a confirm has had its turn). `.page-sub .daily-theme` is styled with
+`.page-sub` and not with the daily rules, because its phone override has to
+come after it. **A pane that scrolls must be POSITIONED** (`.library-list`,
+`.library-detail`, `.page-panel`, `.daily-panel`): `.sr-only` is
+`position:absolute`, and inside a scroller that is not its containing block it
+is not clipped by that scroller, so a plant card's "opens in a new tab" label
+made the whole Library screen scroll past its own end, by 15px with the
+two-column card at 1280x720 and by the card's full height before it. The check
+is `#libraryScreen.scrollHeight===clientHeight` in a browser. A dev-only
 **Plant Creator** (`dev/plant-creator.html`, opened directly, not linked from the
 game) loads the real `plants.js` + game modules to author `PLANTS` entries with
 a live `drawPlant` preview.
@@ -1043,6 +1076,39 @@ logic is split across ordered modules. They map onto the section list below
   Escape branch — so the library block has to sit ABOVE that guard.
   `libCollapsed`, the accordion, the card order, `js/photos.js` and the
   illustration plate's deliberately-dark theming are all untouched.
+  **0.9.108 brought it in line with the menu, and four things are new.**
+  *The header is `.page-head` on both tiers and says where the reader is*
+  (`libraryHeadText`, pure): the library, a category and its count, a search and
+  its matches, a plant and its category; on DOCK it is always the library and
+  the line under the title counts what a search found. The phone title used to
+  be clipped away and the search placeholder left to name the screen, which it
+  stopped doing once anything was typed. One back control (`#btnLibraryBack`),
+  top left; `#btnLibraryClose` is gone. The phone's search is 16px, since iOS
+  zooms the page to any field it focuses that is set smaller.
+  *A category card pictures three of its plants* (`LIB_CAT_SHOW`,
+  `libraryCatArtKeys`, `libraryCatArt`), the menu's own idea that an entry
+  shows what it opens. A name that has left the catalog, or a category nobody
+  named, falls back to three spread through its own list. Drawn once a session
+  and kept, one card per animation frame: all nine in the opening task measured
+  32ms on a desktop. Only SHEET builds them; the dock has no category view.
+  *Row thumbnails are drawn as they come into view* (`libraryThumb`,
+  `libraryThumbObserver`, `libThumbQueue`, 4ms a frame, a canvas that has left
+  the list skipped). Drawing all of them before the library appeared was 156ms
+  at 473 plants; at 811, with trees and shrubs drawn in far more detail, it
+  measured 450-680ms an open on a desktop, and the dock now opens in about 75ms.
+  A row costs the same at any thumbnail size: it is the plant's paths, not its
+  pixels. Where there is no IntersectionObserver (the sandbox) a row is drawn as
+  it is built. A row also says height, light and moisture (`libraryRowFacts`).
+  *A wide detail pane is two columns* (`LIB_WIDE_PANE` 860, `.ld-card.wide`):
+  the four seasons as a 2x2 block of large tiles that stays put beside the
+  facts. It is a class the card is BUILT with, because the tiles are drawn to
+  the column: `librarySeasonTile` sizes them from the same 38%, 32px and 1040px
+  the rule states (a test holds the two together), `libraryDetailWide` asks the
+  pane and not the window, and `syncLibraryTier` rebuilds the card when a resize
+  crosses the width. `libCanvas` takes a `maxScale` for those tiles, and now
+  fits a tree or shrub to the tile's WIDTH as well: only plants that author a
+  `sideScale` were, and a white oak was cut off on both sides at every tile
+  size. The Bloom fact carries the catalog's own 12-month strip.
 - **`guide.js`** — the **tool guidebook** (`#guideScreen`, the book beside the
   gear on the title screen, and since 0.9.29 the **Tool guide** row of a
   garden's menu — `guideFrom` sends Close back to the garden rather than the
@@ -1489,6 +1555,10 @@ logic is split across ordered modules. They map onto the section list below
   cascade on `#zoomPill` and threw it from bottom-left to the top corner, and an
   outline already follows the element's own radius. `tourRender` also bails on
   `!game.inGarden`, or the callout follows the gardener out to the title screen.
+  **And `quitToMenu` has to call it** (0.9.108): that bail only runs when the
+  tour is next rendered, and nothing rendered it on the way out. Reproduced in a
+  browser: open a planted garden for the first time, Menu, Save & quit, and the
+  "Move around" callout was standing on the title screen.
   Two traps in anchoring, both hit: `visibleEl` alone is not enough, because a
   control inside a CLOSED library has a display and a **0x0 box** — that
   resolved as the anchor and pinned the callout to the top-left corner, so
@@ -6215,10 +6285,25 @@ Rough order of the logic, top to bottom (the numbering predates the split):
 16. **Screens** — menu, worlds list (`#worldsScreen`: open saved gardens or start
     a new one, with rename/duplicate/delete behind a per-row overflow menu).
     The single **Your gardens** menu entry opens it via `openWorlds()`.
-    Each row carries an **automatic garden portrait**, 136×102px on desktop
-    and up to 120×90px on phones (96×72px on the narrowest screens), plus
-    separate metadata lines for size/date and plant count/season
-    (`worldSaveMeta`). `captureGardenPortrait` draws a
+    **It is a gallery** (0.9.108; `worldCard`): each garden is a card with its
+    **automatic garden portrait** across the top at 4:3, its name (two lines at
+    most), then plant count/season (`worldSaveMeta`) and size/date. The date is
+    words (`worldDateLabel`: Today, Yesterday, then a short date), where every
+    row read 11/14/2026. It was a list of rows with a 136px thumbnail, 3.3 to a
+    phone screen; the picture is what tells one garden from another, and two
+    cards to a row show five or six. `#worldList` is
+    `repeat(auto-fill,minmax(var(--world-card,208px),1fr))`, 124px under 520px
+    wide, which is two to a row down to a 320px phone, and
+    **`grid-auto-rows:max-content`**: a card clips its picture to its corners, a
+    grid item that clips has no minimum height, and in a list shorter than its
+    cards the auto rows shrank until every card had lost its text. That shows on
+    a phone and never on a desktop. A daily-challenge garden carries a badge
+    (Daily, Daily · done: short, because on a 320px phone the card is 131px wide
+    and the overflow control has the other corner). The overflow control's
+    target is 36px (44px for a finger) and what is drawn is its 30px `::before`.
+    An empty list shows the menu's own garden picture and offers the demo garden
+    (`worldsEmptyState` → `openDemoGarden`), which the first-run offer makes
+    exactly once. `captureGardenPortrait` draws a
     420×315 JPEG on Save & quit using the real ground and depth-sorted entity
     painters. It fits the actual lot plus plant/structure bounds, uses rotation
     zero, Established planting and daylight in the saved season, and omits
@@ -6248,17 +6333,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     gardens into the live renderer. Covers travel with duplicate/export/import
     and are deleted with their garden.
     The panel is **locked to the viewport and only `#worldList` scrolls**, so
-    the heading and the New/Import/Back actions stay put however many gardens
+    the heading and the actions stay put however many gardens
     you have; previously the whole `.screen` scrolled and at a dozen gardens
     the panel ran 2604px on an 844px phone, putting the title above the
-    viewport and every action below the fold. Rows use a three-column grid;
-    the name and size/date metadata span above the overflow control to leave
-    readable text beside the larger picture on narrow phones.
-    **A row is a list item, not a button** (U04): it was a `<button>` holding the
+    viewport and every action below the fold. The panel is a grid of three
+    parts, the header, the gardens and the two actions (New garden, Import
+    garden): the actions share the header's row on DOCK and run along the bottom
+    on SHEET, where a thumb is. One element, placed by `grid-template-areas`.
+    **A card is a list item, not a button** (U04): it was a `<button>` holding the
     Actions `<button>`, which is invalid HTML. The garden NAME is the Open
-    button (`.world-open`) and its `::after` covers the whole row, so the
-    picture still opens it; the focus ring is drawn on that overlay, and
-    Actions sits above it (`z-index:1`) as its own button.
+    button (`.world-open`) and its `::after` covers the whole card, so the
+    picture still opens it; the focus ring is drawn on that overlay, inside the
+    card's edge since the card clips, and Actions sits above it (`z-index:1`) as
+    its own button. The name's two-line clamp is on the button itself, with a
+    `max-height` under it for a browser that will not clamp a button.
     Other screens are plot setup (`#plotScreen`, new solo gardens: name + acre presets + ONE
     always-visible plot diagram that owns size, shape, and orientation
     together. **One size, everywhere**: a plot is whole 18in tiles, so every

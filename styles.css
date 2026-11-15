@@ -561,10 +561,71 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .back-link:hover{color:var(--seedhead)}
 .field .check-row+.check-row{margin-top:10px}
 
+/* ---------- pages: the screens the menu opens ----------
+   Your gardens, the daily challenge and the Plant Library share one header:
+   the way back at the top left, the screen's name in the title face, and one
+   line under it saying what is here. Back was a text link at the foot of two
+   of them and a chevron at the head of the third, so leaving meant looking in
+   a different place on each.
+
+   The line under the title is 13px in sentence case, not the menu's spaced
+   capitals: it carries a date or a count that somebody reads, where the menu's
+   eyebrow is a label. */
+/* Positioned for the Library panes' reason (.library-list, below): a panel
+   that scrolls must contain the screen-reader labels inside it. */
+.page-panel{--panel-pad:clamp(14px,2.6vw,26px);max-width:1040px;position:relative}
+.page-head{display:flex;align-items:center;gap:14px;min-width:0}
+.page-back{flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;min-height:40px;padding:0 15px 0 9px;
+  border:1.5px solid var(--border-control);border-radius:var(--radius-pill);background:var(--surface-control);
+  color:var(--text-primary);font-size:13px;font-weight:600;letter-spacing:.02em;
+  transition:background var(--motion-control) var(--ease-standard),border-color var(--motion-control),
+             transform var(--motion-control) var(--ease-standard)}
+.page-back:hover{background:var(--surface-control-hover);border-color:var(--border-strong)}
+.page-back:active{transform:translateY(1px)}
+.page-back:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+/* There is no ui-chevron-left in the sprite; the right one turned around is
+   the same drawing and does not grow the icon set. */
+.page-back .ui-icon{width:18px;height:18px;transform:rotate(180deg)}
+.page-title{flex:1 1 auto;min-width:0}
+.page-title h2{font-family:'Fraunces',serif;font-weight:600;font-size:28px;line-height:1.1;margin:0;overflow-wrap:anywhere}
+.page-sub{margin:3px 0 0;font-size:13px;line-height:1.45;color:var(--text-secondary)}
+/* The daily screen's line is the date and then the theme its exercise belongs
+   to. Here rather than with the daily rules, because the phone override below
+   has to come after it: a media query adds no specificity. */
+.page-sub .daily-theme{font-size:13px;font-weight:600;margin:0}
+.page-sub .daily-theme::before{content:" · ";font-weight:400}
+.page-actions{display:flex;gap:10px}
+/* On a phone the label goes and the control is the 44px circle the menu's own
+   corner buttons are. The label is clipped, not removed: a button whose only
+   text is display:none has no accessible name. */
+@media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
+  .page-head{gap:10px}
+  .page-back{width:44px;min-height:44px;padding:0;justify-content:center}
+  .page-back span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+    clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+  .page-back .ui-icon{width:20px;height:20px}
+  .page-title h2{font-size:23px}
+  /* the day's theme takes its own line rather than breaking in the middle */
+  .page-sub .daily-theme{display:block}
+  .page-sub .daily-theme::before{content:none}
+}
+/* A phone on its side: the header is pinned on the daily screen, so it gives
+   its second line back to the brief. */
+@media (max-height:520px){
+  .page-title h2{font-size:20px}
+  .page-sub{display:none}
+}
+/* A phone has no room to spend on a gutter round the panel. */
+@media (max-width:767px){
+  #worldsScreen,#dailyScreen{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+}
+
 /* ---------- plant library ---------- */
 #libraryScreen{padding:0;align-items:stretch;justify-content:stretch}
+/* No backdrop blur: the plate is 97% opaque, so there was nothing behind it to
+   see blurred, and the border is not painted while this screen covers it. */
 .library-wrap{display:flex;flex-direction:column;width:100%;height:100%;
-  background:var(--surface-dialog);backdrop-filter:blur(4px)}
+  background:var(--surface-dialog)}
 /* #libraryScreen keeps padding:0 — full-bleed is right, the --surface-dialog
    plate should reach the edges the way the canvas does under viewport-fit=cover.
    But .screen's own padding carries max(18px,env(safe-area-inset-top)) and this
@@ -585,13 +646,19 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   padding:max(16px,calc(env(safe-area-inset-top) + 8px)) max(20px,env(safe-area-inset-right))
           12px max(20px,env(safe-area-inset-left));
   border-bottom:1.5px solid var(--border-quiet)}
-.library-head h2{font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin-right:auto;
-  min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.library-head input{flex:1;min-width:160px;max-width:320px;padding:9px 12px;font-size:14px;font-family:inherit;
-  border-radius:var(--radius-control);border:1.5px solid var(--border-control);background:var(--surface-input);color:var(--text-primary)}
+.library-head h2{font-size:25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.library-head input{flex:0 1 340px;min-width:160px;min-height:40px;padding:9px 14px;font-size:14px;font-family:inherit;
+  border-radius:var(--radius-pill);border:1.5px solid var(--border-control);background:var(--surface-input);color:var(--text-primary)}
 .library-head input:focus{outline:none;border-color:var(--focus-ring)}
 .library-head .back-link{margin:0}
 .library-body{display:flex;flex:1;min-height:0}
+/* Both panes are POSITIONED, and it is not decoration. An absolutely positioned
+   descendant is clipped by a scroller only if that scroller is, or sits inside,
+   its containing block. A card's "opens in a new tab" label is .sr-only, which
+   is position:absolute, and with nothing positioned between it and the screen
+   it escaped the pane: the whole library scrolled by however far down the card
+   the link was, with a blank band where it had been. */
+.library-list,.library-detail{position:relative}
 .library-list{width:38%;max-width:360px;overflow-y:auto;border-right:1.5px solid var(--border-quiet);
   padding:6px 6px max(6px,env(safe-area-inset-bottom))}
 .lib-section{border-bottom:1px solid rgba(var(--ink-rgb),.08)}
@@ -612,12 +679,18 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
 .lib-cat small{font-size:10px;letter-spacing:0;color:var(--text-muted)}
 .lib-cat-items{padding-bottom:4px}
 .lib-section.collapsed:not(.search-open) .lib-cat-items{display:none}
-.lib-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border:none;border-radius:var(--radius-control);
-  background:none;color:var(--text-primary);text-align:left;font-size:13.5px}
+.lib-item{display:flex;align-items:center;gap:11px;width:100%;padding:7px 10px;border:none;border-radius:var(--radius-control);
+  background:none;color:var(--text-primary);text-align:left;font-size:14px}
 .lib-item:hover{background:var(--surface-control-hover)}
 .lib-item.sel{background:var(--surface-active)}
 .lib-item canvas{flex-shrink:0}
-.lib-item .li-latin{display:block;font-style:italic;font-size:11px;color:var(--text-muted)}
+.lib-item .li-copy{flex:1 1 auto;min-width:0}
+.lib-item .li-name{display:block;font-weight:600;line-height:1.3}
+.lib-item .li-latin{display:block;font-style:italic;font-size:12px;line-height:1.35;color:var(--text-muted)}
+/* height, light and moisture: one line, cut rather than wrapped, so every row
+   is the same height and a column of them can be scanned */
+.lib-item .li-facts{display:block;margin-top:1px;font-size:11.5px;line-height:1.4;color:var(--text-muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Search spans every category, so a result has to say which one it came from —
    it is the only row in the app whose neighbours are not its siblings. */
 .lib-item .li-cat{margin-left:auto;flex-shrink:0;font-size:9.5px;letter-spacing:.1em;
@@ -639,19 +712,44 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Eight categories, all eight on screen at once, and — unlike the accordion it
    replaces — no plant canvases built to show them. */
-.library-cats{grid-template-columns:1fr 1fr;gap:10px;align-content:start;overflow-y:auto;
-  padding:16px 16px max(16px,env(safe-area-inset-bottom))}
-.lib-catcard{display:flex;align-items:center;justify-content:space-between;gap:8px;
-  min-height:56px;padding:12px 14px;text-align:left;
+.library-cats{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:max-content;gap:10px;align-content:start;overflow-y:auto;
+  padding:14px 16px max(16px,env(safe-area-inset-bottom))}
+/* A card is three of the category's plants on the illustration plate, with its
+   name and count under them: the menu's own idea, that an entry shows what it
+   opens. The plate is .ld-img's, dark in both themes, because the plants are
+   drawn to stand on one. */
+.lib-catcard{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 8px;
+  padding:0 0 10px;overflow:hidden;text-align:left;
   border:1.5px solid var(--border-quiet);border-radius:var(--radius-panel);
   background:var(--surface-control);color:var(--text-primary);
-  transition:background var(--motion-control) var(--ease-standard),border-color var(--motion-control)}
-.lib-catcard:hover{background:var(--surface-control-hover);border-color:var(--border-active)}
+  transition:background var(--motion-control) var(--ease-standard),border-color var(--motion-control),
+             transform var(--motion-control) var(--ease-standard)}
+.lib-catcard:hover{background:var(--surface-control-hover);border-color:var(--border-strong);transform:translateY(-1px)}
+.lib-catcard:active{transform:translateY(1px)}
 .lib-catcard:focus-visible{outline:2px solid var(--bronze);outline-offset:2px}
-.lib-catcard-name{font-size:13.5px;font-weight:600;line-height:1.25}
-.lib-catcard small{font-size:12px;color:var(--bronze);font-variant-numeric:tabular-nums}
+/* the band takes the picture's own shape (LIB_CAT_ART_W x _H), so the three
+   plants fill a tablet's wider card instead of standing in the middle of it */
+.lib-catcard-art{grid-column:1/-1;display:block;aspect-ratio:168/74;margin-bottom:9px;
+  background:linear-gradient(#3a4a3a,#26331f);border-bottom:1px solid rgba(0,0,0,.3)}
+.lib-catcard-art canvas{display:block;width:100%;height:100%;object-fit:contain}
+.lib-catcard-name{padding-left:12px;font-size:14.5px;font-weight:600;line-height:1.25}
+.lib-catcard small{padding-right:12px;font-size:12.5px;color:var(--color-accent-700);font-variant-numeric:tabular-nums}
 .ld-back{display:none;width:100%;margin-top:20px;text-align:center}
 .ld-card{max-width:560px;margin:0 auto}
+/* A pane wide enough (library.js, LIB_WIDE_PANE) stands the pictures beside
+   the words: the four seasons large in a 2x2 block that stays put while the
+   facts scroll. It is a class the card is BUILT with, not a media query,
+   because its season tiles are drawn to the size of the column they stand in.
+   The 38% and the 32px are also in librarySeasonTile. */
+.ld-card.wide{max-width:1040px;display:grid;grid-template-columns:minmax(0,38fr) minmax(0,62fr);column-gap:32px;align-items:start}
+.ld-card.wide .ld-art{position:sticky;top:0}
+.ld-card.wide .ld-img{display:grid;grid-template-columns:1fr 1fr;justify-items:center;gap:10px;padding:14px}
+.ld-card.wide .ld-img figcaption{font-size:11.5px;margin-top:4px}
+.ld-card.wide .ld-name{font-size:34px}
+.ld-card.wide .ld-latin{font-size:15.5px;margin-bottom:14px}
+.ld-card.wide .ld-blurb{font-size:15px}
+.ld-card.wide .ld-facts{font-size:14px;gap:7px 18px}
+.ld-facts dd .plant-bloom-timeline{max-width:230px;margin-top:6px}
 .ld-img{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;background:linear-gradient(#3a4a3a,#26331f);
   border-radius:var(--radius-panel);padding:10px;margin-bottom:16px}
 .ld-img figure{margin:0;text-align:center}
@@ -745,15 +843,17 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
   .ld-img{gap:8px;padding:8px;flex-wrap:nowrap}
   .ld-back{display:block}
 
-  /* One 44px header row. The h2 restates the button pressed one screen ago, so
-     it goes to the screen reader and the placeholder names the screen instead. */
-  .library-head{gap:10px;padding-bottom:10px}
-  .library-head h2{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
-    clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
-  .library-head input{min-width:0;max-width:none}
-  #btnLibraryClose{display:none}
-  .library-back{display:flex}
+  /* Two rows: the way back and where you are, then the search across the full
+     width. The title used to be clipped away and the placeholder left to name
+     the screen, which it stopped doing the moment anything was typed. */
+  .library-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 10px;padding-bottom:10px}
+  .library-head h2{font-size:23px}
+  /* 16px: iOS zooms the page to any field it focuses that is set smaller */
+  .library-head input{grid-column:1/-1;width:100%;min-width:0;max-width:none;min-height:44px;font-size:16px}
   .library-cats{display:grid}
+  /* three to a row once there is room for them: a portrait tablet */
+  @media (min-width:600px){ .library-cats{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  .lib-item{padding:8px 10px}
 
   /* Three views of one screen. data-libview is read ONLY here, so DOCK cannot
      reach a state that hides one of its panes. */
@@ -764,8 +864,15 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
   #libraryScreen[data-libview="detail"] .library-cats,
   #libraryScreen[data-libview="detail"] .library-list{display:none}
   #libraryScreen[data-libview="detail"] #librarySearch{display:none}
-  #libraryScreen[data-libview="detail"] .library-head-title{display:block}
+  /* reading a plant: the header only says which one, on one line; the card
+     below carries its name at full size */
+  #libraryScreen[data-libview="detail"] .library-head h2{font-size:18px}
   .lib-section.solo{border-bottom:none}
+  /* One category on screen, and the header already names it and counts it:
+     its heading stays for a screen reader and is not drawn a second time. */
+  .lib-section.solo .lib-cat-static{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+    clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+  .lib-section.solo .lib-cat-items{padding-top:6px}
 }
 
 /* ---------- tool guidebook ----------
@@ -924,48 +1031,110 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
    and Start a new garden / Import / Back all sat below the fold. Lock the
    panel to the viewport and let ONLY the list scroll, so the heading stays put
    and the actions stay reachable however many gardens you have. */
-#worldsScreen .panel{display:flex;flex-direction:column;min-height:0;max-height:100%}
-#worldsScreen .panel>*{flex:0 0 auto}
-#worldsScreen #worldList{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
-  -webkit-overflow-scrolling:touch;scrollbar-width:thin;margin:0 -4px;padding:2px 4px}
-/* A divider under the list makes the pinned footer read as pinned rather than
-   as the end of the content. */
-#worldsScreen #worldList+.row{margin-top:0;padding-top:14px;border-top:1px solid var(--border-quiet)}
-
-/* One width for both the rendered portrait and its map fallback. */
-.world-row{--thumb-w:136px;position:relative;display:grid;grid-template-columns:var(--thumb-w) minmax(0,1fr) auto;
-  align-items:center;column-gap:14px;row-gap:4px;width:100%;padding:12px 14px;margin-bottom:8px;
-  border:1.5px solid var(--border-control);background:var(--surface-input);border-radius:var(--radius-control);
-  color:var(--text-primary);text-align:left;font-size:14px}
-.world-row:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
-.world-info{display:contents}
-.world-row .wname{grid-column:2/4;grid-row:1;align-self:end;display:block;font-weight:600;font-size:16px;line-height:1.3;overflow-wrap:anywhere}
-.world-row .meta{grid-column:2/4;grid-row:2;display:block;font-size:12px;line-height:1.5;color:var(--text-muted)}
-.world-row .world-details{grid-column:2;grid-row:3}
+/* The panel is a grid of three parts: the header, the gardens, and the two
+   actions. On a wide screen the actions share the header's row; on a phone
+   they run along the bottom, where a thumb is. One element, two places. */
+#worldsScreen .panel{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr);
+  grid-template-areas:"head actions" "list list";gap:16px;min-height:0;max-height:100%}
+.worlds-panel .page-head{grid-area:head}
+.worlds-panel .page-actions{grid-area:actions;align-self:center}
+.worlds-panel .page-actions .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:42px;padding:9px 16px;font-size:14px;white-space:nowrap}
+.worlds-panel .page-actions .btn .ui-icon{width:17px;height:17px;stroke-width:2.4}
+/* A gallery, not a list: the picture is what tells one garden from another, and
+   most of them are called "My garden". Each card is the garden's portrait with
+   its name and two lines of detail under it. */
+#worldsScreen #worldList{grid-area:list;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;scrollbar-width:thin;margin:0 -6px -6px;padding:2px 6px 6px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--world-card,208px),1fr));gap:14px;align-content:start;
+  /* max-content, not auto: a card clips its picture to its corners, and a grid
+     item that clips has no minimum height, so in a list shorter than its cards
+     the auto rows shrank and every card lost its text. */
+  grid-auto-rows:max-content}
+.world-row{position:relative;display:flex;flex-direction:column;min-width:0;overflow:hidden;
+  border:1.5px solid var(--border-quiet);border-radius:var(--radius-panel);background:var(--surface-control);
+  color:var(--text-primary);text-align:left;
+  transition:border-color var(--motion-control),background var(--motion-control),
+             transform var(--motion-control) var(--ease-standard)}
+.world-row:hover{border-color:var(--border-strong);background:var(--surface-control-hover);transform:translateY(-1px)}
+.world-info{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 12px 12px}
+/* Two lines at most. max-height does the cutting, so a browser that will not
+   clamp a button still shows two whole lines; the clamp adds the ellipsis
+   where it is honoured. The Open overlay is positioned against the card, not
+   this button, so hiding the overflow here does not clip it. */
+.world-row .wname{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+  max-height:2.6em;overflow:hidden;overflow-wrap:anywhere;font-weight:600;font-size:15.5px;line-height:1.3}
+.world-row .meta{display:block;font-size:12.5px;line-height:1.45;color:var(--text-muted)}
+/* filled from the saved garden a moment after the card is drawn: keep its line */
+.world-row .world-details{min-height:1.45em}
 /* The garden's name is the Open button (U04), and its ::after covers the whole
-   row, so the picture and details open it too without the row being a button
-   that contains another. The focus ring goes on that overlay, round the row. */
+   card, so the picture and details open it too without the card being a button
+   that contains another. The focus ring goes on that overlay, inside the card's
+   own edge, because the card clips its picture to its corners. */
 .world-open{margin:0;padding:0;border:0;background:none;color:inherit;font-family:inherit;
   text-align:left;cursor:pointer}
 .world-open::after{content:"";position:absolute;inset:0;border-radius:inherit}
 .world-open:focus-visible{outline:none!important}   /* the shared button ring is !important */
-.world-open:focus-visible::after{outline:2px solid var(--focus-ring);outline-offset:2px;
-  border-radius:var(--radius-control)}
-/* Same 4:3 frame for the automatic portrait and the older-save map fallback. */
-.world-thumb{grid-column:1;grid-row:1/4;width:var(--thumb-w);height:calc(var(--thumb-w) * .75);border-radius:var(--radius-control);
-  background:#241a16;border:1px solid var(--border-quiet)}
-/* One overflow control per row, replacing Rename/Duplicate/Delete inline. */
-.world-more{grid-column:3;grid-row:3;position:relative;z-index:1;display:flex;align-items:center;justify-content:center;
-  width:40px;height:40px;background:var(--surface-control);border:1px solid var(--border-control);
-  color:var(--text-primary);border-radius:var(--radius-control);
-  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
-.world-more:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
+.world-open:focus-visible::after{outline:2px solid var(--focus-ring);outline-offset:-3px;
+  border-radius:var(--radius-panel)}
+/* Same 4:3 frame for the automatic portrait and the older-save map fallback.
+   The portrait fills it; the map is drawn to fit, so it is never cropped. */
+.world-thumb{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;
+  background:#241a16;border-bottom:1px solid var(--border-quiet)}
+canvas.world-thumb{object-fit:contain}
+/* Both of these stand on the picture, which is world art and follows the
+   garden's season rather than the theme, so each brings its own opaque plate. */
+.world-badge{position:absolute;top:8px;left:8px;z-index:1;pointer-events:none;padding:3px 9px;
+  border-radius:var(--radius-pill);border:1px solid var(--border-quiet);background:rgba(var(--paper-rgb),.92);
+  color:var(--text-primary);font-size:11.5px;font-weight:600;letter-spacing:.02em;line-height:1.4}
+/* One overflow control per card, replacing Rename/Duplicate/Delete inline. */
+/* The button is the target and its ::before is what is seen: a 30px plate in
+   the picture's corner, inside a 36px target that grows to 44px for a finger
+   without the plate growing to cover a third of a phone card's picture. */
+.world-more{--more-pad:3px;position:absolute;top:3px;right:3px;z-index:1;display:flex;align-items:center;justify-content:center;
+  width:36px;height:36px;padding:0;background:none;border:0;color:var(--text-primary);border-radius:50%}
+.world-more::before{content:"";position:absolute;inset:var(--more-pad);border-radius:50%;
+  background:rgba(var(--paper-rgb),.92);border:1px solid var(--border-control);box-shadow:0 2px 8px rgba(0,0,0,.28);
+  transition:background var(--motion-control),border-color var(--motion-control)}
+.world-more:hover::before{border-color:var(--border-strong);background:rgb(var(--paper-rgb))}
 .world-more:active{transform:translateY(1px)}
-.world-more[aria-expanded="true"]{border-color:var(--border-active);background:var(--surface-active)}
+.world-more[aria-expanded="true"]::before{border-color:var(--border-active);background:rgb(var(--paper-rgb))}
 /* The sprite's dots are zero-length strokes, so their SIZE is the stroke width.
    1.8 (the .ui-icon default) renders them at ~1.35px on screen — a smudge. */
-.world-more .ui-icon{width:20px;height:20px;stroke-width:3.2}
-@media (pointer:coarse){ .world-more{width:44px;height:44px} }
+.world-more .ui-icon{position:relative;width:18px;height:18px;stroke-width:3.2}
+@media (pointer:coarse){ .world-more{--more-pad:7px;top:-1px;right:-1px;width:44px;height:44px} }
+/* Nothing saved yet: say so, show what a garden is, and offer the three ways
+   in. The picture is the menu's own (paintMenuGardenArt). */
+.worlds-empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:22px 12px 14px;text-align:center}
+.worlds-empty canvas{width:116px;height:116px;border-radius:var(--radius-panel);
+  border:1px solid rgba(0,0,0,.34);box-shadow:0 6px 18px rgba(0,0,0,.28);background:#2b211b}
+.worlds-empty h3{font-family:'Fraunces',serif;font-size:22px;font-weight:600;line-height:1.15;margin-top:6px}
+.worlds-empty p{max-width:40ch;font-size:14px;line-height:1.5;color:var(--text-secondary)}
+.worlds-empty .row{justify-content:center;margin-top:6px}
+.worlds-empty .btn{flex:0 1 auto;min-height:44px;padding:10px 18px;font-size:15px}
+@media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
+  #worldsScreen .panel{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;
+    grid-template-areas:"head" "list" "actions";gap:12px}
+  /* A divider over the bar makes it read as pinned rather than as the end of
+     the gardens. */
+  .worlds-panel .page-actions{align-self:stretch;padding-top:12px;border-top:1px solid var(--border-quiet)}
+  .worlds-panel .page-actions .btn{flex:1 1 0;min-height:48px;font-size:15px}
+  .worlds-panel .page-actions .btn.primary{flex:1.5 1 0}
+}
+/* two to a row on a phone, down to 320px */
+@media (max-width:520px){
+  #worldsScreen #worldList{--world-card:124px;gap:10px}
+  .world-info{padding:8px 10px 10px}
+  .world-row .wname{font-size:14.5px}
+  .world-row .meta{font-size:12px}
+}
+/* A 320px phone: the two labels do not wrap, and at their usual size they were
+   8px wider than the bar they stand in. */
+@media (max-width:359px){
+  .worlds-panel .page-actions{gap:8px}
+  .worlds-panel .page-actions .btn{min-width:0;padding:9px 8px;font-size:14px}
+}
 @media (pointer:coarse){ .ld-photo-info{min-height:44px;padding:0 12px} }
 /* planting-scheme manager: one row per scheme over the shared site plan.
    Locked to the viewport with ONLY the list scrolling, exactly like
@@ -1317,7 +1486,23 @@ canvas.layer-eye{display:block}
 .discovery-summary+.discovery-site-head,.discovery-challenge+.discovery-site-head{margin-top:4px}
 /* Says the catalog is deliberately narrowed, and offers the way out. Bronze
    because it is a live constraint on what you can plant, not a status line. */
-.daily-panel{max-width:600px;max-height:100%;overflow-y:auto;overscroll-behavior:contain;text-align:left}
+/* position:relative keeps the screen-reader labels of the plant-detail links
+   inside this scroller (see .library-list); the two brief dialogs share it. */
+.daily-panel{max-width:600px;max-height:100%;overflow-y:auto;overscroll-behavior:contain;text-align:left;position:relative}
+/* The start screen is wider than the two dialogs that share this panel: on a
+   wide screen its brief is two columns. A saved design is a picture and one
+   button, and keeps the reading width. */
+#dailyScreen .daily-panel{max-width:960px}
+#dailyScreen .daily-panel.is-resuming{max-width:640px}
+/* Pinned at the top as the footer is at the bottom, and by the same means: it
+   takes over the panel's top padding and bleeds to its edges, so the brief
+   scrolls under a solid band and not through a strip above it. */
+#dailyScreen .daily-panel{padding-top:0}
+.daily-head{position:sticky;top:0;z-index:2;margin:0 calc(-1 * var(--panel-pad)) 16px;
+  padding:14px var(--panel-pad) 12px;border-bottom:1px solid var(--border-subtle);
+  background:linear-gradient(var(--surface-dialog),var(--surface-dialog)) var(--surface-dialog)}
+/* (.page-sub .daily-theme, the theme beside the date, is styled with .page-sub
+   above: its phone override sits there, and a rule down here would outrank it.) */
 /* No color-scheme is declared anywhere, so native controls draw light — an
    unchecked goal box was a white square on the loam panel. Scoped to the brief
    rather than the root: the root would restyle every scrollbar and select in the
@@ -1381,14 +1566,25 @@ canvas.layer-eye{display:block}
 .daily-status{margin-top:14px;line-height:1.5}
 .daily-actions{flex-wrap:wrap;gap:8px;margin:16px 0}
 .daily-actions .btn{min-height:44px}
-.daily-history{display:grid;gap:8px}
+.daily-history{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+/* The brief's three blocks. One after another by default; side by side on a
+   wide screen (the DOCK rule below). */
+.daily-site-block .daily-site-summary{margin-top:16px}
+.daily-rest>.daily-label:first-child{margin-top:4px}
 .daily-details{border-top:1px solid var(--border-subtle);margin-top:12px;padding:8px 0}
 .daily-details summary{font-size:14px;line-height:1.5;cursor:pointer;padding:8px 0;min-height:44px;box-sizing:border-box}
 .daily-entry-brief:not(.is-resuming){border:0;padding:0;margin:0}
 .daily-entry-brief.is-resuming .daily-intro{display:none}
-.daily-resume-status{font-size:16px;font-weight:600;margin:14px 0 10px}
-.daily-resume-preview{aspect-ratio:4/3;max-width:360px;margin:0 auto;background:var(--surface-control);border:1px solid var(--border-subtle);border-radius:10px;overflow:hidden}
-.daily-resume-preview canvas,.daily-resume-preview img{display:block;width:100%;height:100%;object-fit:contain}
+.daily-resume{display:flex;flex-direction:column;gap:14px;margin-bottom:6px}
+.daily-resume-copy .note{margin-top:8px}
+/* the status is a fact about the design, set apart from the sentence under it */
+.daily-resume-status{display:inline-block;margin:0;padding:4px 11px;border-radius:var(--radius-pill);
+  border:1px solid var(--border-active);background:var(--surface-active);font-size:14px;font-weight:600;line-height:1.4}
+/* The frame takes the picture's own shape (renderDailyResume sets it), so a
+   long narrow border is not a strip between two dark bars. */
+.daily-resume-preview{aspect-ratio:4/3;width:100%;max-width:520px;background:#241a16;
+  border:1px solid var(--border-subtle);border-radius:var(--radius-panel);overflow:hidden}
+.daily-resume-preview canvas,.daily-resume-preview img{display:block;width:100%;height:100%;object-fit:cover}
 .daily-footer .daily-availability:not(:empty){font-size:14px;margin:0;padding:0;border:0}
 #btnDailyResolve{margin:0 0 6px;font-size:14px;min-height:44px}
 .daily-plant-list{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px;font-size:14px;line-height:1.5}
@@ -1405,8 +1601,50 @@ canvas.layer-eye{display:block}
 @media(max-width:480px){.daily-plant-list{grid-template-columns:1fr}}
 .daily-plant-unavailable{border-style:dashed!important}
 .daily-availability:not(:empty){padding:10px;border-left:3px solid var(--bronze);margin:10px 0}
-.daily-history-item{background:var(--surface-control);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:8px;padding:12px;text-align:left;line-height:1.5;cursor:pointer;min-height:44px}
-.daily-history-item:hover{background:var(--surface-control-hover)}
+.daily-history-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;
+  padding:8px 10px 8px 8px;min-height:44px;text-align:left;cursor:pointer;
+  background:var(--surface-control);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:var(--radius-panel);
+  transition:background var(--motion-control),border-color var(--motion-control)}
+.daily-history-item:hover{background:var(--surface-control-hover);border-color:var(--border-strong)}
+.daily-history-thumb{display:block;width:84px;height:63px;border-radius:var(--radius-control);background:#241a16;object-fit:cover}
+canvas.daily-history-thumb{object-fit:contain}
+.daily-history-copy{min-width:0}
+.daily-history-copy strong{display:block;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.daily-history-copy small{display:block;font-size:14px;line-height:1.45;color:var(--text-secondary)}
+.daily-history-item .ui-icon{width:18px;height:18px;color:var(--text-muted)}
+@media (min-width:1025px), (min-width:768px) and (orientation:landscape){ /* DOCK */
+  /* The task and the ideas down the left, the site they are for on the right.
+     The site spans both rows, and the second row takes what is left, so a tall
+     site plan never opens a gap between the task and the ideas. */
+  #dailyScreen .daily-panel:not(.is-resuming) .daily-brief-cols{display:grid;
+    grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);grid-template-rows:auto 1fr;
+    grid-template-areas:"lead site" "rest site";column-gap:34px}
+  #dailyScreen .daily-panel:not(.is-resuming) .daily-lead{grid-area:lead}
+  #dailyScreen .daily-panel:not(.is-resuming) .daily-site-block{grid-area:site}
+  #dailyScreen .daily-panel:not(.is-resuming) .daily-rest{grid-area:rest}
+  #dailyScreen .daily-panel:not(.is-resuming) .daily-site-block .daily-site-summary{margin-top:10px}
+  #dailyScreen .daily-panel:not(.is-resuming) .daily-site-preview canvas{max-height:280px}
+  #dailyScreen .daily-panel:not(.is-resuming) .daily-rest>.daily-label:first-child{margin-top:22px}
+  /* The status on the left, Start on the right at a button's width. One button
+     across a 900px panel was a bar, not a button. */
+  #dailyScreen .daily-footer{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:18px}
+  #dailyScreen .daily-footer>*{grid-column:1}
+  #dailyScreen .daily-footer>#btnDailyResolve{justify-self:start}
+  #dailyScreen .daily-footer>.daily-footer-actions{grid-column:2;grid-row:1/span 3}
+  #dailyScreen .daily-footer .daily-status:not(:empty){margin-bottom:0}
+  #dailyScreen .daily-footer-actions .btn{min-width:240px}
+  /* a saved design: its picture beside its status */
+  .daily-resume{flex-direction:row;align-items:center;gap:20px}
+  .daily-resume-preview{flex:0 1 300px}
+  .daily-resume-copy{flex:1 1 0;min-width:0}
+}
+/* A phone on its side has 390px of height and two pinned bands in it: both
+   give up some of their padding to the brief between them. */
+@media (max-height:520px){
+  .daily-head{padding-top:8px;padding-bottom:8px;margin-bottom:10px}
+  #dailyScreen .daily-footer{margin-top:12px;padding-top:8px;padding-bottom:10px}
+  #dailyScreen .daily-footer-actions .btn{min-height:44px;padding-top:9px;padding-bottom:9px}
+}
 .daily-share-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
 .daily-share-options label{font-size:12px;color:var(--text-secondary);min-width:0}
 .daily-share-options select{display:block;box-sizing:border-box;width:100%;min-height:44px;margin-top:6px;padding:8px;border:1px solid var(--border-control);border-radius:8px;background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:14px}
@@ -1989,7 +2227,6 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 }
 
 @media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
-  .world-row{--thumb-w:clamp(96px,calc(100vw - 240px),120px);column-gap:10px;padding:10px}
   /* The same three things, stacked and centred: title, entries, then the key
      and the footer at the foot of the screen with the border between. The key
      is IN the column here (a row of its own), so on a phone too short for all
@@ -2868,6 +3105,13 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
      preview is a canvas — so in forced colors the selected plant was invisible
      and every row was a blank box. Same treatment as the tray's cards. */
   .lib-catcard,.lib-item{border:1px solid ButtonBorder!important}
+  /* The pages' cards are told from the panel by a tint, which forced colours
+     discard, and their pictures are bitmaps it must not recolour. */
+  .page-back,.world-row,.daily-history-item{border:1px solid ButtonBorder!important}
+  .world-more::before{border:1px solid ButtonBorder;background:Canvas}
+  .world-badge{border:1px solid CanvasText;background:Canvas;color:CanvasText}
+  .world-thumb,.daily-history-thumb,.lib-catcard-art canvas,.daily-resume-preview canvas,.daily-resume-preview img{forced-color-adjust:none}
+  .daily-resume-status{border:1px solid CanvasText}
   .lib-item.sel{border:2px solid Highlight!important;outline:1px solid Highlight;
     forced-color-adjust:none;background:Highlight!important;color:HighlightText!important}
   .lib-item canvas{forced-color-adjust:none;border:1px solid ButtonBorder;border-radius:3px}
@@ -2916,6 +3160,10 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
   .lib-catcard{min-height:56px}
   .library-back{min-height:44px;min-width:44px}
   .lib-item{min-height:44px}
+  /* the screens the menu opens: their way back, their two actions, a past design */
+  .page-back{min-height:44px;min-width:44px}
+  .worlds-panel .page-actions .btn{min-height:44px}
+  .daily-history-item{min-height:56px}
   /* min-WIDTH too: the worlds "Back" is full-width so it never showed the
      problem, but the library's "Menu" is content-sized and came out 36.5 wide. */
   .back-link{min-height:44px;min-width:44px}

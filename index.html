@@ -182,19 +182,38 @@ if ('serviceWorker' in navigator)
 
 <!-- DAILY DESIGN CHALLENGE -->
 <div class="screen hidden" id="dailyScreen">
-  <div class="panel daily-panel">
-    <div id="dailyDate" class="daily-date">Today</div>
-    <p id="dailyTheme" class="daily-theme"></p>
-    <h2 id="dailyTitle">Challenge</h2>
+  <div class="panel daily-panel page-panel panel-enter" id="dailyPanel">
+    <!-- Pinned, and first: the way back is here rather than in the footer, where
+         it sat beside Start. It takes over the panel's TOP padding the way the
+         footer takes the bottom (a sticky box sticks inside its scroller's
+         padding), so it has to be the panel's first child. -->
+    <header class="page-head daily-head">
+      <button class="page-back" type="button" data-back aria-label="Back to the menu">
+        <svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-right"></use></svg><span>Menu</span>
+      </button>
+      <div class="page-title">
+        <h2 id="dailyTitle">Challenge</h2>
+        <p class="page-sub"><span id="dailyDate" class="daily-date">Today</span><span id="dailyTheme" class="daily-theme"></span></p>
+      </div>
+    </header>
     <section id="dailyResume" class="daily-resume hidden" aria-label="Your saved design">
-      <p id="dailyResumeStatus" class="daily-resume-status"></p>
       <div id="dailyResumePreview" class="daily-resume-preview" role="img" aria-label="Preview of your saved garden"></div>
-      <p class="note">Continue where you left off. You can keep editing or share your design.</p>
+      <div class="daily-resume-copy">
+        <p id="dailyResumeStatus" class="daily-resume-status"></p>
+        <p class="note">Continue where you left off. You can keep editing or share your design.</p>
+      </div>
     </section>
     <details id="dailyBriefDetails" class="daily-details daily-entry-brief" open>
     <summary id="dailyBriefSummary" class="hidden">View original brief</summary>
+    <!-- Three blocks in reading order: the task, the site, then the ideas and
+         plants. On a wide screen the site stands beside the other two
+         (.daily-brief-cols); on a phone they simply follow one another. -->
+    <div class="daily-brief-cols">
+    <div class="daily-lead">
     <p class="daily-brief" id="dailyBrief"></p>
     <p class="daily-intro">A new prompt each day. No scores or deadline.</p>
+    </div>
+    <div class="daily-site-block">
     <p class="daily-site-summary" id="dailySiteSummary"></p>
     <figure class="daily-site-preview">
       <canvas id="dailySiteCanvas" width="560" height="320" role="img" aria-describedby="dailySiteCaption"></canvas>
@@ -202,6 +221,8 @@ if ('serviceWorker' in navigator)
       <div class="daily-site-legend" id="dailySiteLegend"></div>
     </figure>
     <details class="daily-details"><summary>About this starting site</summary><p class="note" id="dailySite"></p></details>
+    </div>
+    <div class="daily-rest">
     <h3 class="daily-label">Ideas to try · optional</h3>
     <ol class="daily-goals" id="dailyGoals"></ol>
     <p class="note" id="dailyPlants"></p>
@@ -210,20 +231,21 @@ if ('serviceWorker' in navigator)
     <p class="note" id="dailyClimate"></p>
     <button class="back-link" id="btnDailyStudy">Show all hardiness zones</button>
     <button class="back-link" id="btnDailyPalette">Use all plants</button>
+    </div>
+    </div>
     </details>
     <h3 class="daily-label hidden" id="dailyHistoryHeading">Recent daily designs</h3>
     <div id="dailyHistory" class="daily-history"></div>
     <!-- Sticky, and last: the brief runs two or three screens on a phone, and
-         Start and the way back used to sit at the very bottom of it. The status
-         lives inside, so a message a press produces is never scrolled out from
-         under it. It has to be the LAST child, because it takes over the panel's
-         bottom padding (see .daily-footer). -->
+         Start used to sit at the very bottom of it. The status lives inside, so
+         a message a press produces is never scrolled out from under it. It has
+         to be the LAST child, because it takes over the panel's bottom padding
+         (see .daily-footer). -->
     <div class="daily-footer">
       <p class="note daily-availability" id="dailyAvailability" role="status"></p>
       <button class="back-link hidden" id="btnDailyResolve">Show all hardiness zones</button>
       <p class="note daily-status" id="dailyStatus" role="status"></p>
       <div class="daily-footer-actions">
-        <button class="back-link" type="button" data-back>Back to menu</button>
         <button class="btn primary" type="button" id="btnDailyStart" aria-describedby="dailyAvailability dailyStatus">Start designing</button>
       </div>
     </div>
@@ -547,17 +569,28 @@ if ('serviceWorker' in navigator)
 </div>
 
 <!-- YOUR GARDENS (saved solo worlds) -->
+<!-- The three places the menu opens share one header (.page-head): the way
+     back at the top left, the screen's name, and a line under it saying what
+     is here. The two actions sit in that header on a wide screen and along the
+     bottom on a phone, where a thumb is; they are one element, placed by the
+     panel's grid (styles.css, .worlds-panel). -->
 <div class="screen hidden" id="worldsScreen">
-  <div class="panel">
-    <h2 id="worldsTitle">Your gardens</h2>
-    <p class="sub" id="worldsSub">Pick up where you left off, or break new ground.</p>
+  <div class="panel page-panel worlds-panel panel-enter">
+    <header class="page-head">
+      <button class="page-back" type="button" data-back aria-label="Back to the menu">
+        <svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-right"></use></svg><span>Menu</span>
+      </button>
+      <div class="page-title">
+        <h2 id="worldsTitle">Your gardens</h2>
+        <p class="page-sub" id="worldsSub">Saved on this device</p>
+      </div>
+    </header>
     <div id="worldList"></div>
-    <div class="row" style="margin-top:14px">
-      <button class="btn primary" id="btnNewWorld">Start a new garden</button>
-      <button class="btn" id="btnImport">Import a garden</button>
+    <div class="page-actions">
+      <button class="btn primary" id="btnNewWorld" type="button">New garden</button>
+      <button class="btn" id="btnImport" type="button">Import garden</button>
     </div>
     <input type="file" id="importFile" accept=".json,application/json" style="display:none">
-    <button class="back-link" data-back>Back</button>
   </div>
 </div>
 
@@ -850,12 +883,20 @@ if ('serviceWorker' in navigator)
 <!-- PLANT LIBRARY -->
 <div class="screen hidden" id="libraryScreen" data-libview="cats">
   <div class="library-wrap">
+    <!-- One back control, top left, on both tiers. On a wide screen it closes the
+         library (both panes are on screen, so there is nowhere else to go back
+         to); on a phone it walks detail -> list -> categories -> menu. The title
+         and the line under it are written by renderLibraryHead (library.js) and
+         say where the reader is: the library, a category, or a plant. -->
     <div class="library-head">
-      <button class="library-back" type="button" id="btnLibraryBack" aria-label="Back to the menu"></button>
-      <h2>Plant Library</h2>
-      <span class="library-head-title" id="libraryHeadTitle"></span>
-      <input id="librarySearch" type="search" placeholder="Search name or latin…" autocomplete="off">
-      <button class="back-link" id="btnLibraryClose">Menu</button>
+      <button class="page-back" type="button" id="btnLibraryBack" aria-label="Back to the menu">
+        <svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-right"></use></svg><span>Menu</span>
+      </button>
+      <div class="page-title">
+        <h2 id="libraryHeadTitle">Plant Library</h2>
+        <p class="page-sub" id="libraryHeadSub"></p>
+      </div>
+      <input id="librarySearch" type="search" placeholder="Search name or latin…" autocomplete="off" aria-label="Search the plant library">
     </div>
     <div class="library-body">
       <div class="library-cats" id="libraryCats"></div>

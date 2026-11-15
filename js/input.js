@@ -59,6 +59,17 @@ addEventListener('keydown',e=>{
     else trapOverlayFocus(confirmPop,e);
     return;
   }
+  /* The two panels the menu opens beside the Library. Escape leaves them the way
+     their Back does, and it has to be asked here, above the hidden-HUD guard,
+     for the Library's reason: on these screens the HUD is hidden. A card's
+     overflow menu and a confirm both answer Escape before this is reached. */
+  for (const id of ['worldsScreen','dailyScreen']){
+    const el=document.getElementById(id);
+    if (el && !el.classList.contains('hidden')){
+      if (e.key==='Escape'){ e.preventDefault(); show('menuScreen'); }
+      return;
+    }
+  }
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (game.photoEditing && e.key==='Escape'){ e.preventDefault();
     if (game.underlayCalibration) cancelSitePhotoCalibration(); else closeSitePhotoEdit(false); return; }

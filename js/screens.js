@@ -459,6 +459,8 @@ let dailySelection=null, dailyResumeId=null, dailyOpening=0, dailyStarting=false
 function renderDailyEntry(){
   const c=dailySelection; if(!c)return;
   const resuming=!!dailyResumeId;
+  // a saved design is a picture and one button: its panel is the narrower one
+  $('dailyPanel').classList.toggle('is-resuming',resuming);
   $('dailyResume').classList.toggle('hidden',!resuming);
   $('dailyBriefSummary').classList.toggle('hidden',!resuming);
   $('dailyBriefDetails').classList.toggle('is-resuming',resuming);
@@ -585,8 +587,7 @@ async function openDaily(){
       $('dailyBriefDetails').open=false;
       $('dailyResumeStatus').textContent=today.challenge.completedAt?'Finished design':'In progress · saved';
       renderDailyResume(today.blob,request,today.id);
-      // Short: this rides the sticky footer, beside a button that already says "Continue".
-      $('dailyStatus').textContent=today.challenge.completedAt?'Finished. Reopen it to edit or share it.':'Your design is saved.';
+      // Nothing in the footer: the status sits beside the picture now, a line above the button.
     } else {
       // Loading an older garden must not replace the user's preference for
       // future challenges. Existing attempts still keep their own criteria.
@@ -594,11 +595,8 @@ async function openDaily(){
       dailyCriteria=normalizeFilters({zone:preferred.zone,nativeRegion:preferred.nativeRegion,invasive:preferred.invasive});
       if(!hasStorage)$('dailyStatus').textContent='Storage is unavailable. This design will last for this session; export the garden file to keep it.';
     }
-    for(const row of designs.filter(row=>row.id!==dailyResumeId).slice(0,6)){
-      const b=document.createElement('button'); b.className='daily-history-item'; b.type='button';
-      b.textContent=`${row.challenge.completedAt?'Finished':'In progress'} · ${row.challenge.title} · ${dailyDateLabel(row.challenge.date)}`;
-      b.onclick=()=>enterWorld(row.id); $('dailyHistory').appendChild(b);
-    }
+    for(const row of designs.filter(row=>row.id!==dailyResumeId).slice(0,6))
+      $('dailyHistory').appendChild(dailyHistoryCard(row,request));
     $('dailyHistoryHeading').classList.toggle('hidden',!$('dailyHistory').children.length);
   } catch(e){
     if(request!==dailyOpening)return;
@@ -610,20 +608,53 @@ async function openDaily(){
   // "Continue designing", not "Continue today's design": the footer's status
   // already says the design is saved, and the shorter label fits beside Back on a phone.
   $('btnDailyStart').textContent=dailyResumeId?'Continue designing':'Start designing'; renderDailyEntry();
-  document.querySelector('#dailyScreen .panel').scrollTop=0;
+  $('dailyPanel').scrollTop=0;
+}
+/* A saved garden's own picture for the daily screen: its map at once, and its
+   portrait in place of the map where the portrait is still current. `shown`
+   says whether the screen that asked is still the one on screen when the
+   portrait has decoded. No garden is loaded and no live scene is rendered. */
+function dailyGardenPortrait(blob,shown,use){
+  const portrait=normalizeGardenPortrait(blob.portrait);
+  const day=Math.floor((blob.elapsedMs||0)/DAY_MS)+(blob.dayOffset||0);
+  if(!portrait||portrait.day!==day)return;
+  const img=new Image();img.alt='';img.decoding='async';
+  img.onload=()=>{if(shown())use(img);};
+  img.src=portrait.image;
 }
 // Reuse the saved-garden preview. Never load a garden or render its live scene here.
 function renderDailyResume(blob,request,id){
   const target=$('dailyResumePreview'),thumb=document.createElement('canvas');
-  thumb.width=480;thumb.height=360;thumb.setAttribute('aria-hidden','true');
+  /* The map is drawn to fit its canvas, so the canvas takes the plot's own
+     shape and the frame takes the canvas's. A 30 x 12 ft border in a fixed 4:3
+     canvas was a strip of garden between two dark bars. */
+  const gw=blob.gw||blob.grid||31,gh=blob.gh||blob.grid||31;
+  thumb.width=480;thumb.height=Math.round(Math.max(150,Math.min(360,480*gh/gw)));thumb.setAttribute('aria-hidden','true');
+  target.style.aspectRatio=thumb.width+' / '+thumb.height;
   drawWorldThumb(thumb,blob);target.replaceChildren(thumb);
-  const portrait=normalizeGardenPortrait(blob.portrait);
-  const day=Math.floor((blob.elapsedMs||0)/DAY_MS)+(blob.dayOffset||0);
-  if(portrait&&portrait.day===day){
-    const img=new Image();img.alt='';img.decoding='async';
-    img.onload=()=>{if(request===dailyOpening&&dailyResumeId===id&&screenOpen('dailyScreen'))target.replaceChildren(img);};
-    img.src=portrait.image;
-  }
+  dailyGardenPortrait(blob,()=>request===dailyOpening&&dailyResumeId===id&&screenOpen('dailyScreen'),
+    img=>{target.style.aspectRatio='4 / 3';target.replaceChildren(img);});
+}
+/* An earlier daily design: its picture, the exercise, its theme, and whether it
+   was finished and when. It was one line of text, every design alike. */
+function dailyHistoryCard(row,request){
+  const c=row.challenge,split=c.title.indexOf(': ');
+  const b=document.createElement('button');b.className='daily-history-item';b.type='button';
+  const thumb=document.createElement('canvas');thumb.className='daily-history-thumb';
+  thumb.width=160;thumb.height=120;thumb.setAttribute('aria-hidden','true');
+  drawWorldThumb(thumb,row.blob);
+  const copy=document.createElement('span');copy.className='daily-history-copy';
+  const name=document.createElement('strong');name.textContent=split<0?c.title:c.title.slice(split+2);
+  copy.appendChild(name);
+  if(split>0){const theme=document.createElement('small');theme.textContent=c.title.slice(0,split);copy.appendChild(theme);}
+  const when=document.createElement('small');
+  when.textContent=`${c.completedAt?'Finished':'In progress'} · ${dailyDateLabel(c.date)}`;
+  copy.appendChild(when);
+  b.append(thumb,copy,uiIcon('chevron-right'));
+  b.onclick=()=>enterWorld(row.id);
+  dailyGardenPortrait(row.blob,()=>request===dailyOpening&&screenOpen('dailyScreen'),img=>{
+    img.className='daily-history-thumb';thumb.replaceWith(img);});
+  return b;
 }
 // Freeze the brief displayed on the start screen, even across midnight.
 async function startDailyChallenge(){
@@ -907,9 +938,7 @@ $('btnChallengeCaption').onclick=async()=>{
 $('btnLibrary').onclick=openLibrary;
 // btnGardens is gone: it ran this same handler, so each label was wrong in one
 // of the two states the shared screen has.
-$('btnLibraryClose').onclick=()=>show('menuScreen');
 $('librarySearch').oninput=libraryQueryInput;
-setUiIcon($('btnLibraryBack'),'chevron-right');
 $('btnLibraryBack').onclick=libraryBack;
 /* A rotation can cross the SHEET/DOCK tier with the library open, and the two
    layouts want different bodies built — the split needs every section and a
@@ -1004,6 +1033,111 @@ function worldSaveMeta(s){
 function startNewGarden(){
   game.discovery=defaultDiscovery(); openDesignSetup();
 }
+/* "Today", "Yesterday", then a short date. Every card used to read 11/14/2026,
+   most of them the same day, in whichever order the device's locale puts the
+   numbers. Counted in calendar days, so 11pm yesterday is Yesterday. */
+function worldDateLabel(ts,now=Date.now()){
+  const d=new Date(ts), n=new Date(now);
+  if (!isFinite(d.getTime())) return '';
+  const day=x=>Math.floor(Date.UTC(x.getFullYear(),x.getMonth(),x.getDate())/864e5);
+  const ago=day(n)-day(d);
+  if (ago===0) return 'Today';
+  if (ago===1) return 'Yesterday';
+  const opts={month:'short',day:'numeric'};
+  if (d.getFullYear()!==n.getFullYear()) opts.year='numeric';
+  return d.toLocaleDateString(undefined,opts);
+}
+/* One saved garden, as a card: its picture, its name, and two lines of detail.
+
+   U04: a row used to be a <button> with the Actions <button> inside it, which
+   is invalid HTML (interactive content inside a button) and left screen
+   readers announcing one control that contained another. The card is a plain
+   list item; the garden's NAME is the Open button, and its ::after stretches
+   over the whole card (styles.css, .world-open), so the picture and the
+   details still open the garden on a click or tap. Actions sits above that
+   overlay as a separate button. */
+function worldCard(w){
+  const row=document.createElement('div'); row.className='world-row'; row.setAttribute('role','listitem');
+  const thumb=document.createElement('canvas'); thumb.className='world-thumb';
+  thumb.width=280; thumb.height=210;
+  thumb.setAttribute('aria-hidden','true');
+  const info=document.createElement('span'); info.className='world-info';
+  const nm=document.createElement('button'); nm.type='button'; nm.className='wname world-open';
+  nm.textContent=w.name||'My garden';
+  nm.onclick=()=>enterWorld(w.id);
+  const meta=document.createElement('span'); meta.className='meta';
+  /* 1.5 was feet-per-tile written as a literal in three places (here and
+     twice on the plan sheet). It reads TILE_IN now, so the card cannot start
+     lying about a garden's size the day the tile becomes a setting. */
+  const ftPerTile=TILE_IN/12;
+  // one decimal: a 31-tile side is 46.5 ft, and "47 ft" disagreed with the
+  // plot screen the garden was made on
+  meta.textContent=`${fmtFeet((w.gw||31)*ftPerTile,1)} × ${fmtFeet((w.gh||31)*ftPerTile,1)} · ${worldDateLabel(w.ts)}`;
+  const details=document.createElement('span'); details.className='meta world-details';
+  // the size, date and plant count are read with the Open button, not as stray text
+  const metaId='world-meta-'+w.id, detailsId='world-details-'+w.id;
+  meta.id=metaId; details.id=detailsId;
+  nm.setAttribute('aria-describedby',metaId+' '+detailsId);
+  info.append(nm,details,meta);
+  /* One overflow control per card. Three buttons cost more width than the
+     garden's own name had, and every one of them needed stopPropagation to
+     avoid opening the garden they sit on. */
+  const more=document.createElement('button'); more.className='world-more'; more.type='button';
+  setUiIcon(more,'ellipsis');
+  more.title='Rename, duplicate or delete this garden';
+  more.setAttribute('aria-label',`Actions for ${w.name||'this garden'}`);
+  more.setAttribute('aria-haspopup','menu'); more.setAttribute('aria-expanded','false');
+  more.onclick=e=>{ e.stopPropagation(); showWorldMenu(more,w); };
+  row.append(thumb,info,more);
+  // the save blob fills in the picture + living details (async, per card)
+  sGet('hortus:world:'+w.id).then(s=>{
+    if (!s) return;
+    drawWorldThumb(thumb,s);
+    const m=worldSaveMeta(s);
+    details.textContent=`${m.plants} plant${m.plants===1?'':'s'} · ${m.season}`;
+    if (m.schemes>1) details.textContent+=` · ${m.schemes} schemes`;
+    /* A daily challenge is an ordinary garden once it is saved, and can be
+       renamed like one, so the card says which ones they are. */
+    const challenge=normalizeDailyChallenge(s.challenge);
+    if (challenge){
+      const badge=document.createElement('span'); badge.className='world-badge';
+      // short: on a 320px phone the card is 131px wide and the overflow control has the other corner
+      badge.textContent=challenge.completedAt?'Daily · done':'Daily';
+      row.appendChild(badge);
+    }
+    const portrait=normalizeGardenPortrait(s.portrait);
+    const day=Math.floor((s.elapsedMs||0)/DAY_MS)+(s.dayOffset||0);
+    if (portrait && portrait.day===day){
+      const img=new Image(); img.className='world-thumb'; img.alt=''; img.decoding='async';
+      img.width=GARDEN_PORTRAIT_WIDTH; img.height=GARDEN_PORTRAIT_HEIGHT;
+      img.onload=()=>thumb.replaceWith(img);
+      img.src=portrait.image;
+    }
+  });
+  return row;
+}
+/* Nothing saved yet. The two standing actions are still in their usual place;
+   this adds the third way in, which the first-run offer makes exactly once and
+   which was otherwise gone for good after "Not now". The picture is the menu's
+   own garden, copied rather than drawn again. */
+function worldsEmptyState(){
+  const box=document.createElement('div'); box.className='worlds-empty';
+  const art=document.createElement('canvas'); art.width=148; art.height=148; art.setAttribute('aria-hidden','true');
+  try{
+    const src=$('menuArtGardens'), g=art.getContext && art.getContext('2d');
+    if (g && src && src.width) g.drawImage(src,0,0,art.width,art.height);
+  }catch(e){}
+  const h=document.createElement('h3'); h.textContent='Nothing planted yet';
+  const p=document.createElement('p');
+  p.textContent='New garden starts one of your own. Import garden opens a file someone shared with you. Or look round a finished one first.';
+  const row=document.createElement('div'); row.className='row';
+  const demo=document.createElement('button'); demo.type='button'; demo.className='btn'; demo.id='btnWorldsDemo';
+  demo.textContent='Open the demo garden';
+  demo.onclick=async()=>{ demo.disabled=true; try{ await openDemoGarden(); } finally{ demo.disabled=false; } };
+  row.appendChild(demo);
+  box.append(art,h,p,row);
+  return box;
+}
 async function openWorlds(){
   await pendingSaves();   // Save & quit may still be writing the new portrait
   await migrateLegacyWorld();
@@ -1013,74 +1147,23 @@ async function openWorlds(){
   const recovered=await adoptOrphanedWorlds();
   const idx=await worldsIndex();
   $('worldsTitle').textContent='Your gardens';
+  /* Gardens live in this browser and nowhere else, which is worth saying on the
+     one screen that lists them: it is why a garden made on a phone is not on
+     the laptop, and what Import garden is for. */
+  $('worldsSub').textContent=idx.length
+    ? `${idx.length} garden${idx.length===1?'':'s'} · saved on this device`
+    : 'Saved on this device';
+  $('btnNewWorld').replaceChildren(uiIcon('plus'),document.createTextNode('New garden'));
+  const list=$('worldList'); list.innerHTML='';
   /* An empty list SHOWS this screen rather than skipping it. Bouncing straight
-     into the questionnaire hid "Import a garden" — the only import control in
+     into the questionnaire hid "Import garden" — the only import control in
      the app — behind a screen a fresh device never reached, so a garden a
      friend shared could not be opened by the person it was sent to. */
-  $('worldsSub').textContent=idx.length
-    ? 'Continue a planting plan, or start a new one.'
-    : 'Nothing planted yet. Start a garden, or import one someone shared with you.';
-  $('btnNewWorld').textContent='Design a new garden';
-  const list=$('worldList'); list.innerHTML=''; list.setAttribute('role','list');
-  idx.sort((a,b)=>b.ts-a.ts).forEach(w=>{
-    /* U04: the row used to be a <button> with the Actions <button> inside it,
-       which is invalid HTML (interactive content inside a button) and left
-       screen readers announcing one control that contained another. The row
-       is a plain list item now; the garden's NAME is the Open button, and its
-       ::after stretches over the whole row (styles.css, .world-open), so the
-       picture and the details still open the garden on a click or tap.
-       Actions sits above that overlay as a separate button. */
-    const row=document.createElement('div'); row.className='world-row'; row.setAttribute('role','listitem');
-    const thumb=document.createElement('canvas'); thumb.className='world-thumb';
-    thumb.width=280; thumb.height=210;
-    thumb.setAttribute('aria-hidden','true');
-    const info=document.createElement('span'); info.className='world-info';
-    const nm=document.createElement('button'); nm.type='button'; nm.className='wname world-open';
-    nm.textContent=w.name||'My garden';
-    nm.onclick=()=>enterWorld(w.id);
-    const meta=document.createElement('span'); meta.className='meta';
-    /* 1.5 was feet-per-tile written as a literal in three places (here and
-       twice on the plan sheet). It reads TILE_IN now, so the row cannot start
-       lying about a garden's size the day the tile becomes a setting. */
-    const ftPerTile=TILE_IN/12;
-    // one decimal: a 31-tile side is 46.5 ft, and "47 ft" disagreed with the
-    // plot screen the garden was made on
-    meta.textContent=`${fmtFeet((w.gw||31)*ftPerTile,1)} × ${fmtFeet((w.gh||31)*ftPerTile,1)} · ${new Date(w.ts).toLocaleDateString()}`;
-    const details=document.createElement('span'); details.className='meta world-details';
-    // the size, date and plant count are read with the Open button, not as stray text
-    const metaId='world-meta-'+w.id, detailsId='world-details-'+w.id;
-    meta.id=metaId; details.id=detailsId;
-    nm.setAttribute('aria-describedby',metaId+' '+detailsId);
-    info.append(nm,meta,details);
-    // the save blob fills in the picture + living details (async, per row)
-    sGet('hortus:world:'+w.id).then(s=>{
-      if (!s) return;
-      drawWorldThumb(thumb,s);
-      const m=worldSaveMeta(s);
-      details.textContent=`${m.plants} plant${m.plants===1?'':'s'} · ${m.season}`;
-      if (m.schemes>1) details.textContent+=` · ${m.schemes} schemes`;
-      const portrait=normalizeGardenPortrait(s.portrait);
-      const day=Math.floor((s.elapsedMs||0)/DAY_MS)+(s.dayOffset||0);
-      if (portrait && portrait.day===day){
-        const img=new Image(); img.className='world-thumb'; img.alt=''; img.decoding='async';
-        img.width=GARDEN_PORTRAIT_WIDTH; img.height=GARDEN_PORTRAIT_HEIGHT;
-        img.onload=()=>thumb.replaceWith(img);
-        img.src=portrait.image;
-      }
-    });
-    /* Three buttons per row cost more width than the garden's own name had, and
-       every one of them needed stopPropagation to avoid opening the garden they
-       sit on. One overflow control instead. */
-    const more=document.createElement('button'); more.className='world-more'; more.type='button';
-    setUiIcon(more,'ellipsis');
-    more.title='Rename, duplicate or delete this garden';
-    more.setAttribute('aria-label',`Actions for ${w.name||'this garden'}`);
-    more.setAttribute('aria-haspopup','menu'); more.setAttribute('aria-expanded','false');
-    more.onclick=e=>{ e.stopPropagation(); showWorldMenu(more,w); };
-    row.append(thumb,info,more);
-    list.appendChild(row);
-  });
+  if (idx.length) list.setAttribute('role','list');
+  else { list.removeAttribute('role'); list.appendChild(worldsEmptyState()); }
+  idx.sort((a,b)=>b.ts-a.ts).forEach(w=>list.appendChild(worldCard(w)));
   show('worldsScreen');
+  list.scrollTop=0;
   // Say so, rather than silently growing the list by one.
   if (recovered.length) toast(recovered.length===1
     ? `Recovered "${recovered[0]}" — it had lost its place in this list.`
@@ -1987,6 +2070,11 @@ function quitToMenu(){
     saveSolo();
   }
   game.inGarden=false; game.pausedAt=0; game.clockSuspended=false;
+  /* The controls tour points at things that only exist in a garden. Its callout
+     hides itself when there is no garden, but only when it is next rendered,
+     and nothing rendered it on the way out: quitting part-way through the tour
+     left it standing on the title screen. */
+  if (typeof tourRender==='function') tourRender();
   document.body.classList.remove('design-mode');
   closeOverlay('exportScreen',false); closeOverlay('discoveryFilterScreen',false); closeOverlay('paletteScreen',false);
   closeOverlay('planScreen',false); closeOverlay('bloomScreen',false);

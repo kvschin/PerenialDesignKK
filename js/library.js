@@ -47,17 +47,93 @@ function libraryBloomText(P){
   return runs.join(', ');
 }
 function libraryPreviewSeason(P){ return SEASONS.find(s=>P.sea&&P.sea[s]&&P.sea[s].bloom)||'Summer'; }
-function libCanvas(key,variant,season,w,h){
+/* maxScale is how far a small plant may be enlarged to fill its tile. 1.15 is
+   right for the authored 80x104 tile and the list's thumbnails; the wide
+   detail's tiles are up to twice that size and pass a cap to match, or a
+   12-inch sedge would sit as a speck at the foot of each one. */
+function libCanvasBlank(w,h){
   const c=document.createElement('canvas'); c.width=w*2; c.height=h*2;
   c.style.width=w+'px'; c.style.height=h+'px';
-  const ctx=c.getContext('2d'); ctx.scale(2,2);
+  return c;
+}
+function paintLibCanvas(c,key,variant,season,w,h,maxScale=1.15){
+  const ctx=c.getContext('2d'); if (!ctx) return c;
+  ctx.setTransform(2,0,0,2,0,0);
   const P=plantDef(key,variant), L=P.look||{}, drawH=(plantArtTop(P)||40)*1.3+12;
   const authoredW=(plantVisualH(P)||40)*Math.max(0,L.sideScale||0)*2+8;
-  const sc=Math.min(1.15,h/drawH,authoredW>8?w/authoredW:1.15);
+  /* A tree or shrub is fitted to the tile's WIDTH as well. Only plants that
+     author a sideScale were, and a crown is often wider than the plant is tall:
+     a white oak was cut off on both sides of its tile, at every size. Its width
+     is the sprite box's, less that box's own padding. */
+  const woodyW=isWoodyDef(P) ? (plantDrawBox(P,key,1).halfW-18)*2+6 : 0;
+  const fitW=Math.max(authoredW>8?authoredW:0,woodyW);
+  const sc=Math.min(maxScale,h/drawH,fitW>0?w/fitW:maxScale);
   ctx.save(); ctx.translate(w/2,h-5); ctx.scale(sc,sc);
   drawPlant(ctx,0,0,key,1,season,libSeed(key),0,variant,1);
   ctx.restore();
   return c;
+}
+function libCanvas(key,variant,season,w,h,maxScale=1.15){
+  return paintLibCanvas(libCanvasBlank(w,h),key,variant,season,w,h,maxScale);
+}
+/* ---------- row thumbnails, drawn as they come into view ----------
+   A row's picture is a drawPlant into its own canvas, and the list drew every
+   one of them before the library appeared. That was 156ms when it was measured
+   at 473 plants. At 811, with trees and shrubs drawn in far more detail, the
+   same loop measured 450-680ms on a desktop, in the task of the click that
+   opened the library, and again on every open. A row costs the same at any
+   thumbnail size: it is the plant's paths, not its pixels.
+
+   So a row is built with an empty canvas of the right size and the picture is
+   drawn when the row nears the list's viewport, a few ms of them per frame, so
+   a fast scroll through the trees does not stall either. Where there is no
+   IntersectionObserver (the test sandbox) every row is drawn as it is built,
+   which is what it always did. A canvas that has left the list by the time its
+   turn comes is skipped. */
+const LIB_THUMB_W=40, LIB_THUMB_H=48, LIB_THUMB_SCALE=1.5, LIB_THUMB_MS=4;
+const libThumbQueue=[];
+let libThumbObserver=null, libThumbFrame=0;
+function libraryThumbPaint(c){
+  if (c.dataset.drawn) return;
+  c.dataset.drawn='1';
+  const k=c.dataset.k, P=PLANTS[k]; if (!P) return;
+  paintLibCanvas(c,k,null,libraryPreviewSeason(P),LIB_THUMB_W,LIB_THUMB_H,LIB_THUMB_SCALE);
+}
+function libraryThumbStep(){
+  libThumbFrame=0;
+  const t0=performance.now();
+  while (libThumbQueue.length && performance.now()-t0<LIB_THUMB_MS){
+    const c=libThumbQueue.shift();
+    if (c.isConnected) libraryThumbPaint(c);
+  }
+  if (libThumbQueue.length) libThumbFrame=requestAnimationFrame(libraryThumbStep);
+}
+function libraryThumbObserver(){
+  if (libThumbObserver===null){
+    libThumbObserver=typeof IntersectionObserver!=='function' ? false : new IntersectionObserver(entries=>{
+      for (const e of entries){
+        if (!e.isIntersecting) continue;
+        libThumbObserver.unobserve(e.target); libThumbQueue.push(e.target);
+      }
+      if (libThumbQueue.length && !libThumbFrame) libThumbFrame=requestAnimationFrame(libraryThumbStep);
+    },{root:$('libraryList'),rootMargin:'260px 0px'});
+  }
+  return libThumbObserver;
+}
+function libraryThumb(k){
+  const c=libCanvasBlank(LIB_THUMB_W,LIB_THUMB_H); c.dataset.k=k;
+  const io=libraryThumbObserver();
+  if (io) io.observe(c); else libraryThumbPaint(c);
+  return c;
+}
+/* Emptying the list also lets go of the rows the observer was watching and of
+   any still waiting their turn. */
+function clearLibraryList(){
+  if (libThumbObserver) libThumbObserver.disconnect();
+  libThumbQueue.length=0;
+  const list=$('libraryList');
+  if (list) list.innerHTML='';
+  return list;
 }
 /* The real photograph, its credit, and the outbound references all live in
    js/photos.js — buildPlantPhoto / buildPlantReferences. They used to be a
@@ -100,6 +176,9 @@ let libListCat=null;     // if sections: one category id, or null for all of the
 let libTierSheet=null;   // the tier the open library was last built for
 let libHay=null;
 let librarySearchTimer=null;
+let libTotal=0;          // every plant the library can show, counted once per open
+let libMatches=null;     // how many the current search found, or null with no search
+let libDetailWide=false; // whether the open detail card was built for the two-column layout
 
 /* One predicate, both tiers. DOCK hides non-matching rows in a list that
    already exists; SHEET builds a result list from scratch, because it has no
@@ -128,11 +207,33 @@ function setLibView(v){
   const s=$('libraryScreen'); if (s) s.dataset.libview=v;
   renderLibraryHead();
 }
+/* The header says where the reader is. On a wide screen that is always the
+   library, and the line under the title counts what a search has found. On a
+   phone it follows the three views: the library, then a category (or the
+   search), then a plant. PURE, so the wording can be tested without a DOM. */
+function libraryHeadText(sheet){
+  const total=libTotal||libraryAllKeys().length, plants=n=>`${n} plant${n===1?'':'s'}`;
+  const found=libMatches==null ? '' : `${libMatches} of ${plants(total)} match`;
+  if (!sheet) return {title:'Plant Library', sub:found||`${plants(total)}, drawn in four seasons`};
+  if (libView==='detail' && libSel && PLANTS[libSel]){
+    const cat=libraryCatFor(libSel);
+    return {title:PLANTS[libSel].name, sub:cat?cat.label:''};
+  }
+  if (libView==='list'){
+    if (libListMode==='results') return {title:'Search', sub:found};
+    const cat=libListCat?libraryCatById(libListCat):null;
+    if (cat) return {title:cat.label, sub:plants(libraryCatKeys(cat).length)};
+  }
+  return {title:'Plant Library', sub:`${plants(total)}, drawn in four seasons`};
+}
 function renderLibraryHead(){
-  const back=$('btnLibraryBack'), title=$('libraryHeadTitle');
-  if (title) title.textContent=(libView==='detail'&&libSel&&PLANTS[libSel])?PLANTS[libSel].name:'';
+  const back=$('btnLibraryBack'), title=$('libraryHeadTitle'), sub=$('libraryHeadSub');
+  const sheet=mobileSheetUi(), text=libraryHeadText(sheet);
+  if (title) title.textContent=text.title;
+  if (sub) sub.textContent=text.sub;
   if (back) back.setAttribute('aria-label',
-    libView==='detail' ? 'Back to the list'
+    !sheet ? 'Back to the menu'
+    : libView==='detail' ? 'Back to the list'
     : libView==='list' ? 'Back to the categories'
     : 'Back to the menu');
 }
@@ -144,8 +245,8 @@ function libraryBack(){
   if (libView==='detail'){ setLibView(libListMode==='none'?'cats':'list'); return; }
   if (libView==='list'){
     const s=$('librarySearch'); if (s) s.value='';
-    libCat=null; libListMode='none'; libListCat=null;
-    const list=$('libraryList'); if (list) list.innerHTML='';
+    libCat=null; libListMode='none'; libListCat=null; libMatches=null;
+    clearLibraryList();
     libraryEmptyState(false,'');
     setLibView('cats');
     return;
@@ -153,6 +254,68 @@ function libraryBack(){
   show('menuScreen');
 }
 
+/* Each category card shows three of its plants, the way each menu entry shows
+   what it opens. Named here where a category has plants worth leading with;
+   any name that has left the catalog, and any category not named, falls back to
+   three spread through its own list, so a card is never empty. */
+const LIB_CAT_SHOW={
+  grasses:['bluestem','switchgrass','karl'],
+  sedges:['pennsedge','palmsedge','tussocksedge'],
+  sunper:['echinacea','liatrisspicata','rudbeckia'],
+  shadeper:['hosta','ostrichfern','astilbe'],
+  bulbs:['gardentulip','daffodil','crocus'],
+  waterplants:['sacredlotus','commoncattail','pickerelweed'],
+  climbers:['clematisviticella','climbingrose','americanwisteria'],
+  shrubs:['panniclehydrangea','redtwig','lilac'],
+  trees:['redbud','whiteoak','bluespruce'],
+};
+function libraryCatArtKeys(cat){
+  const keys=libraryCatKeys(cat), out=(LIB_CAT_SHOW[cat.id]||[]).filter(k=>keys.includes(k)).slice(0,3);
+  for (let i=0; out.length<Math.min(3,keys.length) && i<keys.length*3; i++){
+    const k=keys[(Math.floor(((i%3)+.5)/3*keys.length)+Math.floor(i/3))%keys.length];
+    if (!out.includes(k)) out.push(k);
+  }
+  return out;
+}
+/* Drawn once a session and kept, since the picture does not change. A cached
+   canvas can only stand in one place, which is all a card needs: rebuilding
+   the cards moves it into the new one.
+
+   The drawing is one card per animation frame, after the screen is up. All
+   nine at once measured 32ms on a desktop (27 plants, three of them trees),
+   in the same task as the tap that opened the library; a frame apiece is
+   3-4ms and the cards fill in over a sixth of a second. */
+const LIB_CAT_ART=new Map(), LIB_CAT_ART_W=168, LIB_CAT_ART_H=74, libCatArtQueue=[];
+let libCatArtFrame=0;
+function paintLibraryCatArt(c,cat){
+  const g=c.getContext && c.getContext('2d'); if (!g) return;
+  const W=LIB_CAT_ART_W, H=LIB_CAT_ART_H;
+  g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,W,H);
+  const keys=libraryCatArtKeys(cat), n=keys.length, slot=W/Math.max(1,n);
+  keys.forEach((k,i)=>{
+    const P=PLANTS[k], box=plantDrawBox(P,k,1);
+    // the box is a sprite's, padded for wind and snow; the drawing is inside it.
+    // A bulb may be drawn at twice its size, or it is a dot on the plate.
+    const sc=Math.min(2,(H-8)/Math.max(1,box.top-22),(slot*1.25)/Math.max(1,(box.halfW-16)*2));
+    g.save(); g.translate(slot*(i+.5),H-5); g.scale(sc,sc);
+    drawPlant(g,0,0,k,1,libraryPreviewSeason(P),libSeed(k),0,null,1);
+    g.restore();
+  });
+}
+function libraryCatArtStep(){
+  libCatArtFrame=0;
+  const cat=libCatArtQueue.shift(); if (!cat) return;
+  paintLibraryCatArt(LIB_CAT_ART.get(cat.id),cat);
+  if (libCatArtQueue.length) libCatArtFrame=requestAnimationFrame(libraryCatArtStep);
+}
+function libraryCatArt(cat){
+  let c=LIB_CAT_ART.get(cat.id); if (c) return c;
+  c=document.createElement('canvas'); c.width=LIB_CAT_ART_W*2; c.height=LIB_CAT_ART_H*2; c.setAttribute('aria-hidden','true');
+  LIB_CAT_ART.set(cat.id,c);
+  libCatArtQueue.push(cat);
+  if (!libCatArtFrame) libCatArtFrame=requestAnimationFrame(libraryCatArtStep);
+  return c;
+}
 function buildLibraryCats(){
   const wrap=$('libraryCats'); if (!wrap) return;
   wrap.innerHTML='';
@@ -160,28 +323,39 @@ function buildLibraryCats(){
     const n=libraryCatKeys(cat).length; if (!n) return;
     const b=document.createElement('button'); b.type='button'; b.className='lib-catcard';
     b.dataset.cat=cat.id;
+    const art=document.createElement('span'); art.className='lib-catcard-art'; art.appendChild(libraryCatArt(cat));
     const label=document.createElement('span'); label.className='lib-catcard-name'; label.textContent=cat.label;
     const count=document.createElement('small'); count.textContent=n;
-    b.append(label,count);
+    b.append(art,label,count);
     b.onclick=()=>openLibraryCategory(cat.id);
     wrap.appendChild(b);
   });
 }
 function openLibraryCategory(id){
-  libCat=id;
+  libCat=id; libMatches=null;
   const s=$('librarySearch'); if (s) s.value='';
   buildLibraryList(id);
   libraryEmptyState(false,'');
   setLibView('list');
   const list=$('libraryList'); if (list) list.scrollTop=0;
 }
+/* What a row says under the name: how tall, how much sun, how wet. They are the
+   three things a list is scanned for, and each used to be a tap away. */
+function libraryRowFacts(P){
+  const water=P.type==='water'||P.wades;
+  return [`${plantMeasure(P.heightIn||P.h,false)} tall`, P.sun==='full'?'Full sun':'Part shade',
+    water ? (P.marginal||P.wades?'Pond margin':'Open water') : P.moist[0].toUpperCase()+P.moist.slice(1)].join(' · ');
+}
 function libItemButton(k,showCat){
   const P=PLANTS[k];
   const b=document.createElement('button'); b.className='lib-item'+(libSel===k?' sel':''); b.dataset.k=k;
   b.dataset.hay=libraryHay(k);
-  b.append(libCanvas(k,null,libraryPreviewSeason(P),30,36));
-  const t=document.createElement('span');
-  t.innerHTML=`${P.name}<span class="li-latin">${P.latin}</span>`;
+  b.append(libraryThumb(k));
+  const t=document.createElement('span'); t.className='li-copy';
+  const nm=document.createElement('span'); nm.className='li-name'; nm.textContent=P.name;
+  const la=document.createElement('span'); la.className='li-latin'; la.textContent=P.latin;
+  const fa=document.createElement('span'); fa.className='li-facts'; fa.textContent=libraryRowFacts(P);
+  t.append(nm,la,fa);
   b.append(t);
   if (showCat){
     const cat=libraryCatFor(k);
@@ -195,8 +369,7 @@ function libItemButton(k,showCat){
    plain sticky heading instead of a collapse control: there is nothing to
    collapse it against when it is the only thing on the screen. */
 function buildLibraryList(catId){
-  const list=$('libraryList'); if (!list) return;
-  list.innerHTML='';
+  const list=clearLibraryList(); if (!list) return;
   libListCat=catId==null?null:catId;
   libListMode='sections';
   const solo=libListCat!=null;
@@ -233,13 +406,13 @@ function buildLibraryList(catId){
   });
 }
 function buildLibraryResults(q){
-  const list=$('libraryList'); if (!list) return 0;
-  list.innerHTML='';
+  const list=clearLibraryList(); if (!list) return 0;
   libListMode='results'; libListCat=null;
   const keys=libraryAllKeys().filter(k=>libraryMatches(k,q));
   const wrap=document.createElement('div'); wrap.className='lib-cat-items lib-results';
   keys.forEach(k=>wrap.appendChild(libItemButton(k,true)));
   list.appendChild(wrap);
+  libMatches=keys.length;
   return keys.length;
 }
 function libraryEmptyState(show,q){
@@ -259,9 +432,22 @@ function libraryEmptyState(show,q){
    from the column rather than hardcoded, so it holds from 320px up to a
    portrait tablet. Falls back to the authored 80x104 wherever there is no
    layout to measure: DOCK, and the test sandbox, which reports no clientWidth. */
+/* A detail pane this wide gives the card two columns: the four seasons large
+   in a 2x2 block on the left, the name and the facts on the right. Below it the
+   card is one column, as it always was. Measured off the pane rather than the
+   window, because the pane is what the card has to fit. */
+const LIB_WIDE_PANE=860;
+function libraryDetailWide(d){ return !mobileSheetUi() && ((d&&d.clientWidth)||0)>=LIB_WIDE_PANE; }
 function librarySeasonTile(d){
   const W=(d&&d.clientWidth)||0;
-  if (!W || !mobileSheetUi()) return {w:80,h:104};
+  if (!W) return {w:80,h:104};
+  if (!mobileSheetUi()){
+    if (W<LIB_WIDE_PANE) return {w:80,h:104};
+    const card=Math.min(1040,W-52);                   // .ld-card.wide inside the pane's padding
+    const art=(card-32)*.38;                          // its first column
+    const w=Math.max(110,Math.min(176,Math.floor((art-28-10)/2)));   // plate padding and one gap
+    return {w,h:Math.round(w*104/80)};
+  }
   const card=Math.min(560,W-32);        // .library-detail padding
   const inner=card-16-24;               // .ld-img padding + three 8px gaps
   const w=Math.max(56,Math.min(80,Math.floor(inner/4)));
@@ -269,7 +455,8 @@ function librarySeasonTile(d){
 }
 
 function openLibrary(){
-  libHay=null;
+  libHay=null; libMatches=null;
+  libTotal=libraryAllKeys().length;
   const search=$('librarySearch');
   if (search){
     /* Reset the query. openLibrary called applyLibrarySearch() without ever
@@ -277,20 +464,22 @@ function openLibrary(){
        go to Menu, reopen the Library, and you are looking at 7 of 473 plants
        with nothing on screen saying why. */
     search.value='';
-    search.placeholder=`Search ${libraryAllKeys().length} plants…`;
+    search.placeholder=`Search ${libTotal} plants…`;
   }
   show('libraryScreen');
   libTierSheet=mobileSheetUi();
-  buildLibraryCats();
   if (libTierSheet){
+    buildLibraryCats();     // the dock has no category view, so it draws none of their pictures
     libCat=null; libListMode='none'; libListCat=null;
-    const list=$('libraryList'); if (list) list.innerHTML='';
+    clearLibraryList();
     libraryEmptyState(false,'');
     setLibView('cats');
   } else {
     buildLibraryList(null);
     setLibView('cats');
-    if (!libSel) showLibraryDetail(PLANT_KEYS[0]);
+    /* Always redrawn, not only when nothing is selected: the card is built for
+       the width of its pane, and the window may have changed since it was. */
+    showLibraryDetail(libSel||PLANT_KEYS[0]);
     applyLibrarySearch();
   }
 }
@@ -302,13 +491,20 @@ function syncLibraryTier(){
   const s=$('libraryScreen');
   if (!s || s.classList.contains('hidden')) return;
   const sheet=mobileSheetUi();
-  if (sheet===libTierSheet) return;
+  if (sheet===libTierSheet){
+    /* Within the dock, a window dragged across the two-column width has a card
+       built for the other layout: its season tiles are the wrong size for the
+       column they now stand in. */
+    if (!sheet && libSel && libraryDetailWide($('libraryDetail'))!==libDetailWide) showLibraryDetail(libSel);
+    return;
+  }
   libTierSheet=sheet;
   if (sheet){
+    buildLibraryCats();
     if (libCat){ buildLibraryList(libCat); setLibView('list'); }
     else {
       libListMode='none'; libListCat=null;
-      const list=$('libraryList'); if (list) list.innerHTML='';
+      clearLibraryList();
       libraryEmptyState(false,'');
       setLibView('cats');
     }
@@ -328,10 +524,11 @@ function showLibraryDetail(key){
   if (sheet) setLibView('detail');
   const P=PLANTS[key], d=$('libraryDetail');
   const seasons=['Spring','Summer','Fall','Winter'];
-  const tile=librarySeasonTile(d);
+  const tile=librarySeasonTile(d), wide=libraryDetailWide(d);
+  libDetailWide=wide;
   const imgs=document.createElement('div'); imgs.className='ld-img';
   seasons.forEach(s=>{ const fig=document.createElement('figure');
-    fig.append(libCanvas(key,null,s,tile.w,tile.h));
+    fig.append(libCanvas(key,null,s,tile.w,tile.h,1.15*tile.w/80));
     const cap=document.createElement('figcaption'); cap.textContent=s; fig.append(cap);
     imgs.append(fig); });
   const facts=[
@@ -351,19 +548,26 @@ function showLibraryDetail(key){
   ];
   const cvKeys=Object.keys(P.cv||{}), libraryCultivars=P.libraryCultivars||[];
   d.innerHTML='';
-  const card=document.createElement('div'); card.className='ld-card';
-  /* Order is deliberate: the four seasonal illustrations are what this app
+  /* Two blocks: the pictures and the words. One column, they simply follow one
+     another; in a wide pane they stand side by side (.ld-card.wide).
+     Order is deliberate: the four seasonal illustrations are what this app
      knows that a photograph cannot say, so they lead. The photograph follows
      as corroboration — what it looks like in a real garden — and is absent
      for most species, which is a normal state and renders as nothing. */
-  card.append(imgs);
-  const photo=buildPlantPhoto(key); if (photo) card.append(photo);
+  const shell=document.createElement('div'); shell.className='ld-card'+(wide?' wide':'');
+  const artCol=document.createElement('div'); artCol.className='ld-art';
+  const card=document.createElement('div'); card.className='ld-text';
+  artCol.append(imgs);
+  const photo=buildPlantPhoto(key); if (photo) artCol.append(photo);
   const nm=document.createElement('div'); nm.className='ld-name'; nm.textContent=P.name; card.append(nm);
   const la=document.createElement('div'); la.className='ld-latin'; la.textContent=P.latin; card.append(la);
   const bl=document.createElement('p'); bl.className='ld-blurb'; bl.textContent=P.blurb; card.append(bl);
   const dl=document.createElement('dl'); dl.className='ld-facts';
   facts.forEach(([k,v])=>{ const dt=document.createElement('dt'); dt.textContent=k;
-    const dd=document.createElement('dd'); dd.textContent=v; dl.append(dt,dd); });
+    const dd=document.createElement('dd'); dd.textContent=v;
+    /* the year at a glance, under the months it names: the catalog card's own strip */
+    if (k==='Bloom'){ const strip=discoveryBloomTimeline(P); if (strip) dd.appendChild(strip); }
+    dl.append(dt,dd); });
   card.append(dl,buildPlantGuidance({s:key,v:null}));
   if (cvKeys.length || libraryCultivars.length){
     const cvs=document.createElement('div'); cvs.className='ld-cvs';
@@ -390,7 +594,9 @@ function showLibraryDetail(key){
     back.onclick=libraryBack;
     card.append(back);
   }
-  d.append(card); d.scrollTop=0;
+  shell.append(artCol,card);
+  d.append(shell); d.scrollTop=0;
+  renderLibraryHead();
 }
 function libraryQueryInput(){
   /* Debounced to match the tray's Find (120ms). SHEET builds a row per match,
@@ -413,10 +619,11 @@ function applyLibrarySearchSheet(q){
     return;
   }
   libraryEmptyState(false,'');
+  libMatches=null;
   if (libCat){ buildLibraryList(libCat); setLibView('list'); }
   else {
     libListMode='none'; libListCat=null;
-    const list=$('libraryList'); if (list) list.innerHTML='';
+    clearLibraryList();
     setLibView('cats');
   }
 }
@@ -436,4 +643,6 @@ function applyLibrarySearchDock(q){
       head.setAttribute('aria-expanded', (!libCollapsed[section.dataset.catId] || (!!q && any))?'true':'false');
   });
   libraryEmptyState(!total,q);
+  libMatches=q?total:null;
+  renderLibraryHead();
 }
