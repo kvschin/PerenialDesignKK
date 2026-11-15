@@ -7281,8 +7281,17 @@ on its fertile sticks. On leaves each cap takes a different leaf and is at most 
 at its smallest, or a 5-inch cyclamen's four caps ran into one ball. It spends no random numbers:
 every drawing is call for call the same up to the snow, and only 184 of 23,232 drawings moved
 (92 choices, winter at full growth). A test holds every cap of fourteen such plants at or below
-the plant's own top and fails on the old code. Left: the scatter on plants that do stand in winter
-(lavender, Siberian iris, goldenrods) still lands some caps between thin stems.
+the plant's own top and fails on the old code.
+**And on the tips of the stems a plant stands in winter** (0.9.111). The scatter on a plant that
+keeps its stems still put caps in the air between them: lavender, Siberian iris, hummingbird
+sage, bluestem goldenrod and Carolina wild petunia had five of twelve there. A cone, globe, spike
+or umbel now records every standing stem's tip as a snow anchor, which only the leafy-stemmed
+plants, umbels with a style and alliums did before; the plain bractstack and the iris record the
+tip of each stem and scape. Measured on every herbaceous choice, floating caps went 481 to 91 and
+plants with any 212 to 45, none worse; 478 of 23,232 drawings moved, all winter at full growth
+and the same up to the snow. A test holds each cap of eight such plants within a unit of a stem
+tip. Of the 45 left, 20 are sedges, whose snow is already pinned to their heads and overhangs
+a thin stalk; the rest are other forms' scatters (drumstick, archbell, martagon lilies, a few grasses).
 
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to

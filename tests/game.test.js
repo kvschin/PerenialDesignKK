@@ -15027,6 +15027,32 @@ test('snow lies on the leaves of a plant whose stems stand only in flower', () =
   // a plant that still stands in winter keeps its old snow: a coneflower's seedheads
   assert(shadeOps('echinacea','Winter').some(o=>o.op==='ellipse'&&o.fill===CAP),'a coneflower still catches snow');
 });
+test('snow sits on the tips of the stems a plant stands in winter', () => {
+  // A plant that keeps its stems through winter took the box scatter, which put caps in the
+  // air between thin stems: lavender, Siberian iris, hummingbird sage, bluestem goldenrod and
+  // Carolina wild petunia each had five of twelve there (0.9.111). Each cap now sits where a
+  // stem the plant drew ends.
+  const CAP='rgba(240,244,250,0.85)';
+  const plants=[['lavender'],['siberianiris'],['siberianiris','caesarsbrother'],['hummingbirdsage'],
+    ['bluestemmedgoldenrod'],['carolinawildpetunia'],['echinacea'],['yarrow']];
+  for (const [k,v] of plants){
+    for (const seed of [101,4410,98765]){
+      const ops=shadeOps(k,'Winter',v||null,seed);
+      const caps=ops.filter(o=>o.op==='ellipse'&&o.fill===CAP);
+      assert(caps.length>=2,`${k}: snow in winter (${caps.length} caps)`);
+      const ends=[];
+      for (const o of ops){
+        const a=o.a||[];
+        if (o.op==='lineTo') ends.push([a[0],a[1]]);
+        else if (o.op==='quadraticCurveTo') ends.push([a[2],a[3]]);
+      }
+      for (const c of caps){
+        const d=Math.min(...ends.map(e=>Math.hypot(e[0]-c.a[0],e[1]-c.a[1])));
+        assert(d<1,`${k}${v?':'+v:''}: a cap at (${c.a[0].toFixed(1)}, ${c.a[1].toFixed(1)}) is ${d.toFixed(1)} from the nearest stem tip`);
+      }
+    }
+  }
+});
 test('bucketed category counts equal filtering per category', () => {
   setup(31, 31);
   const cats = TRAY_CATS.filter(c => TRAY_GROUPS[0].cats.includes(c.id));

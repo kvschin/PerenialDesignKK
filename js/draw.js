@@ -7304,7 +7304,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       if (!mature){ ctx.globalAlpha=1; continue; }
       const hx=tx, hy=by0-len;
-      if (AMBIENCE[season].snow&&(L.stemLeafArrangement||L.umbelStyle||L.globeStyle==='allium')){
+      if (AMBIENCE[season].snow){
         if(!snowAnchors)snowAnchors=[];
         const pod=L.seedStyle==='milkweedPods'&&S.seed;
         if(!pod)snowAnchors.push([hx,hy,2.2]);
@@ -8208,6 +8208,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.strokeStyle=shade(S.fol||S.seed||'#6b6248',-18); ctx.lineWidth=1.2;
       ctx.beginPath(); ctx.moveTo(ox*0.35,0); ctx.quadraticCurveTo(ox,-len*0.55,tip,-len); ctx.stroke();
       if (!mature) continue;
+      if (AMBIENCE[season].snow){ if(!snowAnchors)snowAnchors=[]; snowAnchors.push([tip,-len,2.2]); }
       const tiers=L.tiers||3, shown=blooming?Math.max(1,Math.ceil(tiers*blv)):tiers;
       for(let tr=0;tr<shown;tr++){
         const y=-len*(0.42+tr*0.15), w=(L.bractW||8)*(1-tr*0.12), br=(S.bract||S.bloom||S.seed);
@@ -8470,6 +8471,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.strokeStyle=shade(S.fol||S.seed||'#6b6248',-20); ctx.lineWidth=1.15;
       ctx.beginPath(); ctx.moveTo(ox*0.35,0); ctx.quadraticCurveTo(ox,-len*0.56,tip,-len); ctx.stroke();
       if (!mature) continue;
+      if (AMBIENCE[season].snow){ if(!snowAnchors)snowAnchors=[]; snowAnchors.push([tip,-len,2.2]); }
       const count=blooming?Math.max(1,Math.ceil((L.blooms||2)*blv)):0;
       for(let b=0;b<count;b++){
         const branch=b?(L.branches||1):0, fx=tip+branch*((b%2)?-1:1)*(L.branchReach||4), fy=-len+b*6;
