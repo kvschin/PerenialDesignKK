@@ -5616,7 +5616,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Switching catalog modes selects
     Hand so browsing cannot paint; it preserves the last brush for restoration.
     **Light and moisture filter every tab** (`DISCOVERY_LIGHT`, `DISCOVERY_MOISTURE`, `discovery.light`,
-    `discovery.moisture`, 0.9.86), in the same Plant filters as flower colour and bloom season, named as
+    `discovery.moisture`, 0.9.86), in the same filter tray as flower colour and bloom season, named as
     the cards name them. They read the exact reference, so a cultivar answers for itself. A floating
     lily is no answer to Moist, though its record says moist. A new discovery field has to reach
     `discoveryMemoKey`, or two filters in one render share an answer.
@@ -5691,9 +5691,48 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     deletes named palettes. Favorites and named palettes always open to a real
     **All** view across every saved plant category; category choices become
     optional counted facets and never inherit the previous catalog category.
-    **The zone and the garden style can be changed in Plant filters** ("This
-    garden", `#discoveryZone`/`#discoveryStyle`; `renderGardenCriteria`,
-    `applyGardenStyle`, tray.js; 0.9.29). The zone used to be a fixed gate "not
+    **Filters are a tray in the catalog, and what the garden asks is a dialog
+    of its own** (0.9.116; `discoveryFilterRegion`, `toggleDiscoveryLens`,
+    `setFilterTrayOpen`, `discoveryLensPills`, `discoveryGardenLine`; `.qf-*`).
+    One Plant filters dialog held both. Measured, it was 1.5 to 3.3 screens long
+    with Apply below the fold and about 30% of it controls: open it, press a
+    chip, find Apply, close it, look, open it again. The Filters button now
+    TOGGLES a tray of the four browsing filters (light, water, flower colour as
+    seven dots, bloom season), `discovery.filterOpen`, which was in the model
+    and unused. **Each chip applies as it is pressed** and the list changes under
+    it; there is no Apply. Shut, the ones that are on show as pills, each removed
+    by its own press, with Clear all past one. The dock mounts either under its
+    control rows (in `.discovery-controls`, so it is a flex item of `#trayTabs`
+    with the nav's order); the sheet mounts it **at the head of the list**
+    (`renderDiscoveryTrayInner`), where it scrolls away with the plants: in the
+    fixed chrome it would take 249px of a phone for as long as it was open.
+    Half height hides both (the old summary chip's rule) and the line that
+    counts the plants carries "2 filters" (`.ds-filters`) as the way in.
+    **The badge counts the browsing filters only** (`discoveryLensCount`): with
+    the garden's criteria in it, a native garden showed "1" over a tray with
+    nothing pressed. Those are named in the tray's foot (`discoveryGardenLine`:
+    zone, style, natives, what it resists; hiding flagged plants is the default
+    and goes unsaid) beside **Garden criteria**, which opens the dialog.
+    A press rebuilds the catalog, so focus is handed back to the same chip by
+    its `data-qf`, and the tray's entrance and a chip's pop are one-shot markers
+    (`pulseIs`, the non-plant form of `catalogPulsed`). An empty list with
+    filters on says so and offers to clear THEM, keeping the list, category and
+    search; it used to blame the garden style and send the gardener to another
+    list with both filters still on.
+    **The dialog is Garden criteria** (`#discoveryFilterScreen`, `.gc-*`; the
+    garden menu's row has the same name): zone and style, native planting and
+    invasive risk as radio-group segments (`criteriaSegment`; they were two 44px
+    selects), the region, and what it resists as three chips. The draft
+    (`discoveryCriteriaDraft`) IS what is being edited, pressed into by
+    `patchDiscoveryCriteria`; only the two selects are read back off the DOM
+    (`readDiscoveryCriteria`). The body scrolls and the footer does not, and the
+    button says what pressing it gives ("Show 12 plants", or "Apply anyway" at
+    none). On SHEET it is a sheet from the bottom edge with an opaque surface:
+    at `--surface-dialog`'s .97 the catalog's chips read through it.
+    `discoveryFilterDraft`, `clearDiscoveryFilters`, `discoveryFilterSummary`
+    and `discoveryCriteriaLabels` are gone, with the dialog's old CSS.
+    **The zone and the garden style can be changed there** (`#discoveryZone`/
+    `#discoveryStyle`; `renderGardenCriteria`, `applyGardenStyle`, tray.js; 0.9.29). The zone used to be a fixed gate "not
     repeated in the in-garden filter sheet" while the questionnaire promised "you
     can change any of this later", so a wrong zone meant starting the garden again.
     Both only change what the library OFFERS — nothing planted is ever removed —
@@ -5760,17 +5799,32 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     that action. Saved retired or garden-ineligible references remain visible
     with a reason and removable from Favorites or named palettes in the palette
     manager rather than falling back to their base species. The
-    planted tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
-    tab is contextual: select **Lawn** to reveal the lawn surfaces (§11f — mown,
-    no-mow fescue, meadow, wildflower, clover, thyme, moss, artificial, with
-    Mown as the row that lifts one back off), Path to reveal the 20 path
-    materials and Bed the 13 bed materials, each under its group heading (see
-    §11a), Water
-    to reveal pond/river/lake styles, or **Edging** for the strip that
-    separates either from the lawn (§11e). The **Grade** tab leads with
-    **Terrace** (a raised bed, terrace or sunken patio built with its wall in one
-    gesture, with Height and Wall chips), then raise/lower/level and **Wall**,
-    the retaining-wall facing painted onto a terrace face (§12c). Its dedicated debounced search spans all
+    planted tile stores `v`; tool state is `game.tool` + `game.toolVar`.
+    **A Landscape tab opens on what its tools are and what they lay** (0.9.116;
+    `renderGroundShelves`, `renderGradeTools`, `renderHardscapeHome`,
+    `hardscapeArt`, tray.js; `.lg-*`, `.lt-row`, `.lh-card`). Ground, Grade
+    and Hardscape each opened on five to seven small icons over an empty panel:
+    measured, Ground used 58% of it and Grade and Hardscape 35%, on a phone and
+    the dock alike. What a tool does was a tooltip, which a finger never sees,
+    and every material was an arm-then-scroll away. **Ground is a shelf per
+    tool** (Lawn, Path, Bed, Water, Edging; §11f, §11a, §11e): its name, a line
+    saying what it is for, and its surfaces face up at 72x42 through
+    `drawMaterialIcon`. A shut shelf shows the surface in hand, then the common
+    ones (`GROUND_SHELVES[].pop`, `groundShelfFace`), then "All 20", which opens
+    that shelf under its group headings (`landscapeShelfOpen`, in
+    `trayStateSig`). One press arms the tool with that surface: a bluestone path
+    was three taps and a scroll. The garden-wide Edges setting closes the page
+    as a row with a segment. **Grade is a row per tool** with the sentence its
+    tooltip held; **Terrace** leads (a raised bed, terrace or sunken patio built
+    with its wall, §12c) and the armed tool's options (Height and Wall, or Wall
+    material) open directly under its own row, not below the last. **Hardscape
+    is four quick picks over a card per tool** (below). Decor's two kinds of
+    thing carry the same headings. The chips and cards are items of
+    `#toolTray.landscape-results`' own grid, so the sub-pages' `.tool` chips sit
+    beside them, and `refreshTray` moves their `.sel` (it runs from `setTool`
+    with no rebuild), which is why the tick is always in the chip and shown by
+    the class. A rebuild costs 2.6ms for Ground and 2.3ms for Hardscape, against
+    1.3 and 1.5; they are pressed, not drawn per frame. Its dedicated debounced search spans all
     Landscape categories and routes a result into the correct tool/category;
     its result region is a responsive, vertically scrolling tool grid rather
     than the legacy horizontal strip. **It finds every material and fixture ROW,
@@ -5851,8 +5905,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     lounger, each in the finishes it is really made in (`SEAT_TYPES` /
     `SEAT_FINISHES`, §12b), each claiming its real footprint.
     **Every Hardscape tool is one idiom**: fence, pergola, support (§12e), fire
-    pit, water feature, boulder and seating each collapse to a summary button
-    and hand the whole tray over to their own options behind `game.drill` (one
+    pit, water feature, boulder and seating each have a CARD on the tab's
+    opening page (0.9.116, `HARDSCAPE_CARDS`: the tool's own draft drawn by the
+    painter the garden uses for it, on a lawn-green plate that is the same in
+    both themes, since a black aluminium fence on loam is invisible; a line
+    saying what it is; and what it is set to, in the brush bar's words). Over
+    them are four things people place most (`HARDSCAPE_PICKS`, `armHardscapePick`,
+    `hardscapePickOn`: a cedar fence, a stone wall, a teak bench, a brick fire
+    pit), each armed in one tap with nothing further to choose; a pick is the
+    one in hand whichever way it is turned. The seven per-tool top-level
+    buttons went. A card
+    hands the whole tray over to the tool's own options behind `game.drill` (one
     shared `backBtn` serves them all — it was three byte-identical closures and
     the fourth was what prompted extracting it). Seating was the exception until
     Sep 2026: nine chips laid flat under a `Seating` heading below the summary
@@ -5919,15 +5982,16 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **Now placing** name, contextual **Grid/Free** placement toggle for
     herbaceous plants, and the remaining tool-contract controls below. It is a
     real layout row rather than an overlay, so the last result card stays visible.
-    (The Ground tab adds an **Edge** Organic/Formal chip pair — `game.edgeStyle`
-    — after the path/bed/water swatches. It hangs off the TAB, not off an armed
+    (The Ground tab ends in an **Edges** row, Organic/Formal — `game.edgeStyle`
+    — after the shelves. It hangs off the TAB, not off an armed
     tool: gated on `game.tool==='path'||'bed'||'water'` it vanished the moment
     you armed Edging, which it governs, and — since entering a garden arms Hand
     — was simply absent every time you reopened one, with no hint that arming
     Path was the way back to a garden-wide setting.) New garden entries start on
-    Hand so accidental painting is harder. The single **Plant filters** modal
-    contains garden eligibility controls (native range/mode and browse), light and moisture,
-    and flower discovery (color/bloom season); it is opened from either the garden menu or the tray.
+    Hand so accidental painting is harder. The **Garden criteria** dialog holds
+    the garden's eligibility controls and is opened from the garden menu or the
+    foot of the catalog's filter tray; light, moisture, flower colour and bloom
+    season are that tray (above).
     The dedicated Plants Find field is debounced and searches common name,
     Latin name, cultivar name, roles, and category across every plant category;
     typing temporarily replaces the category facet with **All matching plants**
@@ -6085,7 +6149,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **It is three groups and a pinned footer** (0.9.114; `.gm-head`, `.gm-body`,
     `.gm-group`, `.gm-row`, `.gm-foot`, styles.css): *Plans and lists*
     (Planting list, Design plan, Bloom calendar, Share garden), *This garden*
-    (Plant filters with its value on a second line, Planting schemes with its
+    (Garden criteria with its value on a second line, Planting schemes with its
     count) and *Help* (Tool guide, Tour the controls), then Settings and Save &
     quit side by side in a footer that does not scroll. A daily garden adds
     *Today's challenge* (View brief, Finish design) on top; outside one its two
@@ -6153,8 +6217,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     press on the grip (`wireSheetHandle` ignores `.sheet-mode`). Find is 16px on
     the sheet, since iOS zooms the page to a smaller field it focuses. The notes
     below about the switch's row describe the DOCK, where it is still the first
-    control row. Not done: the "Now placing" footer is still 132px, which on a
-    320x568 phone leaves little list once a plant is chosen.
+    control row. **The "Now placing" footer is two 44px rows on the sheet**
+    (0.9.116): it was 132px with a plant armed, two rows of 50 and 54px for 44px
+    targets under 10px of padding, and is 108px (100 with a surface). The
+    eyebrow over the name is clipped, not removed, and a seg option keeps its
+    44px target by reaching 2px into the track's own inset. On a 320x568 phone
+    that is 179px of list against 155; with a plant chosen and its detail open
+    that is still less than one row of pictures.
     The **Plants / Landscape switch stays usable in the Landscape catalog** on the
     sheet: its `.catalog-control-row` pairs the switch with the landscape search,
     and the search's old `flex:1 0 100%` (from when it owned a full row) claimed

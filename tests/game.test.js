@@ -2162,14 +2162,14 @@ test('the catalog can be narrowed by light and moisture, across every plant type
     // what shows that it is on, and what clears it
     game.discovery=normalizeDiscovery({source:'all',light:['part'],moisture:['dry','medium']});
     assertEqual(discoveryFilterCount(),3,'the Filters button counts them');
-    assert(discoveryFilterSummary(game.discovery).textContent.includes('Part shade'),'the summary names them as the cards do');
-    assert(discoveryFilterSummary(game.discovery).title.includes('Low water'),'all of them');
+    const pills=discoveryLensPills(game.discovery).map(p=>p.label);
+    assert(pills.includes('Part shade'),'the pills name them as the cards do');
+    assert(pills.includes('Low water')&&pills.includes('Average water'),'all of them');
     const sigOn=trayStateSig(); game.discovery=normalizeDiscovery(Object.assign({},game.discovery,{light:[]}));
     assert(trayStateSig()!==sigOn,'a change of filter rebuilds the catalog');
     game.discovery=normalizeDiscovery({source:'all',light:['part'],moisture:['dry'],colorFamilies:['pink']});
-    clearDiscoveryFilters();
-    assertEqual(discoveryFilterDraft.light.length+discoveryFilterDraft.moisture.length+discoveryFilterDraft.colorFamilies.length,0,'Clear takes all of them');
-    discoveryFilterDraft=null;
+    clearDiscoveryLens();
+    assertEqual(discoveryLensCount(),0,'Clear takes all of them, at once');
     // and it travels with the garden
     game.discovery=normalizeDiscovery({source:'all',light:['part'],moisture:['moist']});
     const blob=buildSaveBlob();
@@ -4343,6 +4343,16 @@ test('a plant with no recorded bloom drops the timeline instead of drawing 12 em
   assert(discoveryBloomLabel(PLANTS[blooming]).startsWith('Blooms '), 'blooming species keep the Blooms label');
 });
 
+/* The catalog's 0.9.115 rules, on their own: the blocks after them are other
+   features', and a test that read "the last coarse block in the file" started
+   reading the filters' the day they were added. */
+function catalogCssBlock(css) {
+  const from = css.indexOf('Catalog: category grid, plant tiles and rows (0.9.115)');
+  const to = css.indexOf('Filters in the catalog, and the garden criteria dialog (0.9.116)');
+  assert(from > 0 && to > from, 'the 0.9.115 catalog block is found by its heading');
+  return css.slice(from, to);
+}
+
 test('the category control is a grid: a cell per category, and an empty one keeps its place', () => {
   /* It was one scrolling row of pills. On every phone and every dock width 3 of
      the 10 fitted: Trees was a 700px swipe or four chevron presses away, and a
@@ -4397,7 +4407,7 @@ test('the category control is a grid: a cell per category, and an empty one keep
   const css = readRepoFile('styles.css');
   assert(/\.catalog-category-strip\{display:grid;grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/.test(css), 'five across, so All and nine categories are two rows');
   assert(/\.catalog-category-strip button\.sel::after\{/.test(css), 'the open cell carries a bar as well as a fill (forced colours discard the fill)');
-  const coarse = css.slice(css.lastIndexOf('@media (pointer:coarse)'));
+  const block = catalogCssBlock(css), coarse = block.slice(block.lastIndexOf('@media (pointer:coarse)'));
   assert(/\.catalog-category-strip button\{min-height:44px\}/.test(coarse), 'and a cell is 44px for a finger');
   const tray = readRepoFile('js/tray.js');
   assert(!/can-scroll|scrollBy\(|catalog-strip-arrow/.test(tray), 'the fades, the chevrons and the paging went with the row');
@@ -4562,7 +4572,7 @@ test('on the sheet the handle carries the Plants/Landscape switch and the contro
   const rows = tabs.children[0].children;
   assertEqual(rows.length, 1, 'with no switch to hold, the controls are one row');
   assertEqual(rows[0].children.map(c => c.id || c.className).join(), 'discovery-source-wrap,trayFind,discovery-filter-row', 'source, Find, Filters');
-  const css = readRepoFile('styles.css'), at = css.lastIndexOf('/* SHEET */'), sheet = css.slice(at, css.indexOf('@media', at + 10));
+  const css = catalogCssBlock(readRepoFile('styles.css')), at = css.lastIndexOf('/* SHEET */'), sheet = css.slice(at, css.indexOf('@media', at + 10));
   assert(/\.hud-bottom \.catalog-header\{display:none\}/.test(sheet), 'the title block is gone from the sheet');
   assert(/#trayFind,\.landscape-controls \.catalog-search\{[^}]*font-size:16px\}/.test(sheet), 'Find is 16px, or iOS zooms the page when it takes focus');
   assert(/\.hud-bottom\.sheet-half \.discovery-controls,\.hud-bottom\.sheet-half \.landscape-controls\{display:none\}/.test(sheet),
@@ -4673,14 +4683,152 @@ test('applying garden criteria leaves the discovery lens intact', () => {
   assertEqual(game.discovery.bloomSeasons[0], 'Fall', 'the discovery bloom lens remains independent');
 });
 
-test('the fixed setup zone stays out of discovery filter summaries', () => {
+test('the Filters badge counts the browsing filters, and the tray names what the garden asks', () => {
   setup();
-  game.filters = normalizeFilters({ zone: 6, nativeRegion:'north-america', nativeMode:'regional', deer: false, rabbit: false, squirrel: false });
-  game.discovery = normalizeDiscovery({ colorFamilies: ['pink'], bloomSeasons: [] });
-  const labels = discoveryCriteriaLabels();
-  assert(!labels.some(label => /^Zone/.test(label)), 'the setup zone is not repeated in the in-garden catalog');
-  assert(labels.some(label=>label.includes('North America')), 'an active garden criterion names its comparison range');
-  assertEqual(discoveryFilterCount(), 2, 'the filter badge counts the visible criterion and flower lens, not zone');
+  const saved = [game.filters, game.discovery, game.design];
+  try {
+    game.design = null;
+    game.filters = normalizeFilters({ zone: 6, nativeRegion:'north-america', nativeMode:'regional', deer: true, rabbit: false, squirrel: false });
+    game.discovery = normalizeDiscovery({ colorFamilies: ['pink'], bloomSeasons: [] });
+    /* It counted the garden's criteria too, when one dialog held both. The
+       button now opens a tray of four browsing filters, and "2" over a tray
+       with one chip pressed is a number nobody can find. */
+    assertEqual(discoveryFilterCount(), 1, 'the badge counts what its tray holds');
+    const line = discoveryGardenLine();
+    assert(/^Zone 6/.test(line) && /Natives/.test(line) && /Resists deer/.test(line) && !/Invasives/.test(line),
+      'the tray\'s foot says what the garden itself asks: ' + line);
+    game.filters = normalizeFilters({ nativeMode: 'any', invasive: 'show' });
+    assertEqual(discoveryGardenLine(), 'Every zone \u00b7 Invasives shown', 'the default, hiding flagged plants, goes without saying; the other is said');
+  } finally { [game.filters, game.discovery, game.design] = saved; }
+});
+
+test('filters are a tray of live chips in the catalog, and pills when it is shut', () => {
+  /* They were a dialog 1.5 to 3.3 screens long with Apply below the fold:
+     open it, press a chip, find Apply, close it, look, open it again. */
+  setup();
+  const saved = [game.discovery, game.filters, game.design];
+  const texts = el => el.children.map(c => c.textContent);
+  try {
+    game.design = null; game.filters = normalizeFilters({ nativeMode: 'any' });
+    game.discovery = normalizeDiscovery({ source: 'all' });
+    assertEqual(discoveryFilterRegion(activeDiscovery()), null, 'nothing on and the tray shut: no row at all');
+
+    game.discovery = normalizeDiscovery({ source: 'all', filterOpen: true });
+    const tray = discoveryFilterRegion(activeDiscovery());
+    assert(/\bqf-tray\b/.test(tray.className) && tray.id === 'qfTray', 'open, it is the tray the button controls');
+    const rows = tray.children.filter(c => /\bqf-row\b/.test(c.className)), chipsOf = r => r.children[1].children;
+    assertEqual(rows.map(r => chipsOf(r).length).join(), '2,3,7,3', 'light, water, seven colours, three seasons');
+    assertEqual(rows.map(r => r.children[0].textContent).join(), 'Light,Water,Color,Blooms', 'each row named');
+    assertEqual(chipsOf(rows[1]).map(c => c.children[0].textContent).join(), 'Low water,Average,Moist',
+      'the first water chip names its row, for the sheet that drops the row labels');
+    assert(chipsOf(rows[2]).every(c => c.getAttribute('aria-label') && c.title), 'a colour is a dot with a name');
+    const part = chipsOf(rows[0])[1];
+    assertEqual(part.getAttribute('aria-pressed'), 'false', 'a chip says whether it is on');
+    part.onclick();
+    assertEqual(game.discovery.light.join(), 'part', 'a press applies at once: there is no Apply');
+    assert(game.discovery.filterOpen, 'and the tray stays open for the next one');
+    const again = discoveryFilterRegion(activeDiscovery());
+    const partNow = again.children.filter(c => /\bqf-row\b/.test(c.className))[0].children[1].children[1];
+    assertEqual(partNow.getAttribute('aria-pressed'), 'true', 'the rebuilt chip is on');
+    assertEqual(partNow.dataset.qf, 'light:part', 'and is found again by what it filters, to take focus back');
+    const foot = again.children[again.children.length - 1];
+    assert(/\bqf-foot\b/.test(foot.className), 'the tray ends in a foot');
+    assertEqual(texts(foot).slice(1).join(), 'Clear 1,Garden criteria', 'which clears, counted, and opens the garden\'s own criteria');
+    assertEqual(foot.children[0].textContent, discoveryGardenLine(), 'beside the line that says what they are');
+    foot.children[1].onclick();
+    assertEqual(discoveryLensCount(), 0, 'Clear takes them all');
+    assert(discoveryFilterRegion(activeDiscovery()).children[4].children[1].disabled, 'and has nothing left to clear');
+
+    game.discovery = normalizeDiscovery({ source: 'all', light: ['full'], colorFamilies: ['pink'], bloomSeasons: ['Fall'] });
+    const pills = discoveryFilterRegion(activeDiscovery());
+    assert(/\bqf-active\b/.test(pills.className), 'shut, what is on shows as pills');
+    assertEqual(pills.children.length, 4, 'one each, and Clear all');
+    assertEqual(pills.children.slice(0, 3).map(p => p.getAttribute('aria-label')).join('|'),
+      'Remove filter: Full sun|Remove filter: Pink|Remove filter: Blooms in Fall', 'each says what pressing it removes');
+    assertEqual(pills.children[3].textContent, 'Clear all', 'with one way to drop the lot');
+    pills.children[1].onclick();
+    assertEqual(game.discovery.colorFamilies.length, 0, 'a pill removes its own filter');
+    assertEqual(game.discovery.light.join() + game.discovery.bloomSeasons.join(), 'fullFall', 'and no other');
+    game.discovery = normalizeDiscovery({ source: 'all', light: ['full'] });
+    assertEqual(discoveryFilterRegion(activeDiscovery()).children.length, 1, 'one filter needs no Clear all');
+
+    // the Filters button toggles it, and says so
+    const tabs = document.createElement('div');
+    renderDiscoveryControls(tabs, null);
+    const trigger = tabs.children[0].children[0].children[2].children[0];
+    assertEqual(trigger.className, 'discovery-filter-trigger', 'the Filters button');
+    assertEqual(trigger.getAttribute('aria-expanded'), 'false', 'reports the tray shut');
+    assertEqual(trigger.getAttribute('aria-controls'), 'qfTray', 'and names what it opens');
+    setFilterTrayOpen(true);
+    assert(game.discovery.filterOpen, 'opening is a field of the garden\'s discovery lens');
+    const sig = trayStateSig(); setFilterTrayOpen(false);
+    assert(trayStateSig() !== sig, 'so it is in the catalog signature and a press rebuilds');
+    assertEqual(buildSaveBlob().discovery.filterOpen, false, 'and it saves with the garden');
+  } finally { [game.discovery, game.filters, game.design] = saved; }
+
+  const controls = String(renderDiscoveryControls), list = String(renderDiscoveryTrayInner);
+  assert(/mobileSheetUi\(\)\?null:discoveryFilterRegion\(d\)/.test(controls), 'the dock mounts it under its control rows');
+  assert(/mobileSheetUi\(\)\?discoveryFilterRegion\(d\):null/.test(list), 'the sheet at the head of the list, where it scrolls away');
+  assert(/className='ds-filters'/.test(list), 'and the half sheet, which shows neither, gets a way in from the count line');
+  const css = readRepoFile('styles.css'), at = css.indexOf('Filters in the catalog, and the garden criteria dialog (0.9.116)');
+  const block = css.slice(at);
+  assert(at > 0, 'the filters have their own block, last in the file');
+  assert(/\.hud-bottom\.sheet-half \.qf-tray,\.hud-bottom\.sheet-half \.qf-active\{display:none\}/.test(block)
+    && /\.hud-bottom\.sheet-half \.ds-filters\{display:inline\}/.test(block), 'half height hides the tray and shows the way in');
+  assert(/@media \(pointer:coarse\)\{\s*\.qf-chip\{min-height:44px/.test(block), 'a chip is 44px for a finger');
+  assert(/\.qf-chip\[aria-pressed="true"\]:not\(\.qf-dot\)::before\{content:''/.test(block),
+    'on is said by a tick as well as a fill, which forced colours discard');
+  assert(!/box-shadow|filter:|backdrop/.test((block.match(/@keyframes qfIn[^}]*\}[^}]*\}/) || [''])[0] + (block.match(/@keyframes chipPop[^@]*?100%\{[^}]*\}\}/) || [''])[0]),
+    'and its motion is transform and opacity only');
+});
+
+test('the garden criteria dialog holds what the garden asks, with its one action pinned', () => {
+  setup();
+  const html = readRepoFile('index.html');
+  const at = html.indexOf('id="discoveryFilterScreen"'), dialog = html.slice(at, html.indexOf('id="paletteScreen"', at));
+  assert(!/discoveryLightChips|discoveryColorChips|discoverySeasonChips|btnDiscoveryClear/.test(dialog),
+    'the browsing filters left it for the catalog');
+  assert(/<h2 id="discoveryFilterTitle">Garden criteria<\/h2>/.test(dialog), 'and it is named for what is left');
+  assert(dialog.indexOf('class="gc-body"') < dialog.indexOf('class="gc-foot"')
+    && dialog.indexOf('class="gc-foot"') < dialog.indexOf('id="btnDiscoveryApply"'), 'the action is in a footer after the body');
+  assert(/id="discoveryNativeMode" role="radiogroup"/.test(dialog) && /id="discoveryInvasive" role="radiogroup"/.test(dialog),
+    'the two short either/ors are radio groups, not selects');
+  assert(/<span class="gm-name">Garden criteria<\/span>/.test(html), 'and the garden menu calls it the same thing');
+  const css = readRepoFile('styles.css');
+  assert(/\.gc-body\{[^}]*flex:1 1 auto;min-height:0;overflow-y:auto/.test(css), 'only the body scrolls');
+  assert(/\.gc-body\{position:relative/.test(css), 'and it is positioned, as a pane that scrolls must be');
+  assert(/\.gc-foot\{flex:0 0 auto/.test(css), 'so the footer is always on screen');
+
+  const saved = [game.filters, game.design, game.discovery];
+  try {
+    game.design = normalizeDesign({ zone: 6, type: 'any' });
+    game.filters = normalizeFilters({ zone: 6, nativeRegion: 'north-america', nativeMode: 'any' });
+    game.discovery = normalizeDiscovery({ source: 'all' });
+    discoveryCriteriaDraft = activeFilters(); discoveryStyleDraft = gardenStyleId();
+    const host = document.createElement('div');
+    criteriaSegment(host, GARDEN_NATIVE_MODES, 'any', 'nativeMode');
+    assertEqual(host.children.length, 3, 'three origins');
+    assertEqual(host.children.map(b => b.getAttribute('aria-checked')).join(), 'true,false,false', 'one of them chosen');
+    assertEqual(host.children.map(b => b.tabIndex).join(), '0,-1,-1', 'and only it in the tab order');
+    host.children[2].onclick();
+    assertEqual(discoveryCriteriaDraft.nativeMode, 'straight', 'a press goes into the draft');
+    assertEqual(game.filters.nativeMode, 'any', 'and not into the garden until it is applied');
+    let prevented = 0;
+    host.onkeydown({ key: 'ArrowRight', preventDefault() { prevented++; } });
+    assertEqual(discoveryCriteriaDraft.nativeMode, 'regional', 'an arrow key moves from the option it was built on');
+    host.onkeydown({ key: 'a', preventDefault() { prevented++; } });
+    assertEqual(prevented, 1, 'and any other key is left alone');
+    patchDiscoveryCriteria({ deer: true });
+    assert(discoveryCriteriaDraft.deer && discoveryCriteriaDraft.nativeMode === 'regional', 'a resist chip patches the same draft');
+    assert(/^(Show \d+ plants?|Apply anyway)$/.test(document.getElementById('btnDiscoveryApply').textContent),
+      'the button says what pressing it gives: ' + document.getElementById('btnDiscoveryApply').textContent);
+    discoveryCriteriaDraft = normalizeFilters({ zone: 6, nativeRegion: 'north-america', nativeMode: 'any' });
+    renderDiscoveryFilterScreen();
+    const all = groupDiscoveryRefs(discoveryRefs()).length;
+    assertEqual(document.getElementById('btnDiscoveryApply').textContent, 'Show ' + all + ' plants', 'counted against the draft');
+    applyDiscoveryFilters();
+    assertEqual(discoveryCriteriaDraft, null, 'applying ends the draft');
+  } finally { [game.filters, game.design, game.discovery] = saved; discoveryCriteriaDraft = null; discoveryStyleDraft = null; }
 });
 
 test('a named palette has a stable plant-list dropdown value', () => {
@@ -6349,7 +6497,6 @@ test('what setup says can change later really can', () => {
   game.filters = normalizeFilters({ zone: 6 });
   // the drafts openDiscoveryFilters sets up; its chip rendering needs a DOM
   // (createTextNode) the sandbox does not claim to have
-  discoveryFilterDraft = normalizeDiscovery(activeDiscovery());
   discoveryCriteriaDraft = activeFilters();
   document.getElementById('discoveryZone').value = '4';
   discoveryCriteriaDraft = readDiscoveryCriteria();
@@ -8921,12 +9068,140 @@ test('the edge-style chips belong to the Ground tab, not to an armed tool', () =
     game.trayCat = cat; game.traySearch = ''; game.drill = null;
     tray.children.length = 0;
     buildToolTray();
-    return tray.children.filter(c => c.dataset && /^edge_/.test(c.dataset.k || '')).length;
+    // the two sit in an "Edges" row of the page since 0.9.116, so look inside
+    const all = []; const walk = el => (el.children || []).forEach(c => { all.push(c); walk(c); }); walk(tray);
+    return all.filter(c => c.dataset && /^edge_/.test(c.dataset.k || '')).length;
   };
   assertEqual(chips('landscape', 'hand'), 2, 'reopening a garden lands on Hand and must still offer them');
   assertEqual(chips('landscape', 'edging'), 2, 'and arming Edging must not hide the setting that draws it');
   assertEqual(chips('landscape', 'bed'), 2, 'as with a paint tool armed');
   assertEqual(chips('leveling', 'raise'), 0, 'the Grade tab has no bed or path edge to style');
+});
+
+/* The Landscape tabs each opened on a row of small icons over an empty panel:
+   measured, Ground used 58% of it, Grade and Hardscape 35%, with what a tool
+   does held in a tooltip a finger never sees and every material one
+   arm-then-scroll away. */
+test('the Ground tab is a shelf per tool, with its surfaces face up', () => {
+  setup(21, 21);
+  const tray = document.getElementById('toolTray');
+  const saved = [game.tool, game.trayCat, game.drill, game.pathColor, game.bedStyle, game.lawnStyle, game.edgingDraft, game.edgeStyle];
+  const page = () => { game.trayCat = 'landscape'; game.traySearch = ''; game.drill = null; tray.children.length = 0; buildToolTray(true); return tray.children; };
+  const of = (kids, k) => kids.filter(c => c.dataset && c.dataset.k === k && !c.dataset.shelf);
+  try {
+    landscapeShelfOpen = null; setTool('hand', null); game.pathColor = 'warm'; game.bedStyle = 'soil';
+    let kids = page();
+    const heads = kids.filter(c => c.className === 'lg-head');
+    assertEqual(heads.map(h => h.children[0].textContent).join(), 'Lawn,Path,Bed,Water,Edging', 'a shelf for each Ground tool, in the tab\'s order');
+    assert(heads.every(h => h.children[1].textContent.length > 12), 'each says what the tool is for, where a finger can read it');
+    assertEqual(of(kids, 'path').map(c => c.dataset.pathColor).join(), 'warm,bluestone,brick', 'a shut shelf shows the surface in hand, then the common ones');
+    assertEqual(of(kids, 'water').length, WATER_STYLES.length, 'a short table is simply all there');
+    const all = kids.filter(c => c.dataset && c.dataset.shelf);
+    assertEqual(all.map(c => c.dataset.shelf).join(), 'lawn,path,bed,edging', 'a long one ends in a way to see every surface');
+    assertEqual(all.find(c => c.dataset.shelf === 'path').children[0].textContent, 'All ' + PATH_COLORS.length, 'which says how many');
+    assert(of(kids, 'path').every(c => !/\bsel\b/.test(c.className)), 'opening the tab arms nothing');
+
+    game.pathColor = 'setts'; kids = page();
+    assertEqual(of(kids, 'path').map(c => c.dataset.pathColor).join(), 'setts,warm,bluestone', 'the surface in hand leads, wherever it sits in the table');
+
+    of(kids, 'path').find(c => c.dataset.pathColor === 'bluestone').onclick();
+    assertEqual(game.tool + ':' + game.pathColor, 'path:bluestone', 'one press arms the tool with that surface');
+    kids = page();
+    const on = of(kids, 'path').filter(c => /\bsel\b/.test(c.className));
+    assertEqual(on.map(c => c.dataset.pathColor).join(), 'bluestone', 'and only it is marked');
+    assertEqual(on[0].getAttribute('aria-pressed'), 'true', 'for a screen reader too');
+    assert(of(kids, 'bed').every(c => !/\bsel\b/.test(c.className)), 'the bed in hand is not armed, so it is not marked');
+
+    const sig = trayStateSig();
+    kids.find(c => c.dataset && c.dataset.shelf === 'path').onclick();
+    assertEqual(landscapeShelfOpen, 'path', 'All opens that shelf');
+    assert(trayStateSig() !== sig, 'which is part of the catalog signature');
+    kids = page();
+    assertEqual(of(kids, 'path').length, PATH_COLORS.length, 'every path surface');
+    assertEqual(kids.filter(c => c.className === 'lg-group').map(c => c.textContent).join('|'), PATH_GROUPS.map(g => g[1]).join('|'), 'under its group headings');
+    assertEqual(of(kids, 'bed').length, 3, 'and only that shelf opens');
+    assertEqual(kids.find(c => c.dataset && c.dataset.shelf === 'path').children[0].textContent, 'Fewer', 'with the way back in the same place');
+
+    setTool('edging', null); game.edgingDraft = 'corten'; kids = page();
+    assertEqual(of(kids, 'edging').filter(c => /\bsel\b/.test(c.className)).map(c => c.dataset.edging).join(), 'corten', 'edging marks its own style, not every chip of the armed tool');
+    const edge = kids.find(c => c.className === 'lg-edge');
+    assert(edge && edge.children[1].children.length === 2, 'and the garden-wide Edges setting closes the page');
+  } finally {
+    landscapeShelfOpen = null;
+    [game.tool, game.trayCat, game.drill, game.pathColor, game.bedStyle, game.lawnStyle, game.edgingDraft, game.edgeStyle] = saved;
+  }
+  const sync = String(refreshTray);
+  assert(/\.tool,\.lg-chip,\.lh-card,\.lt-row/.test(sync) && /dataset\.edging/.test(sync) && /dataset\.pick/.test(sync),
+    'a tool change with no rebuild still moves the mark on the new chips');
+});
+
+test('the Grade tab says what each tool does, and opens the armed one\'s options under it', () => {
+  setup(21, 21);
+  const tray = document.getElementById('toolTray');
+  const saved = [game.tool, game.trayCat, game.drill, game.terraceDraft, game.wallDraft];
+  const page = tool => { setTool(tool, null); game.trayCat = 'leveling'; game.traySearch = ''; game.drill = null; tray.children.length = 0; buildToolTray(true); return tray.children; };
+  try {
+    let kids = page('hand');
+    const rows = kids.filter(c => /\blt-row\b/.test(c.className));
+    assertEqual(rows.map(r => r.dataset.k).join(), 'terrace,raise,lower,level,wall', 'a row per tool, Terrace first');
+    assert(rows.every(r => r.children[1].children[1].textContent.length > 20), 'each with the sentence its tooltip used to hold');
+    assertEqual(kids.length, rows.length, 'and nothing else until one is armed');
+    assertEqual(rows[0].children[1].children[2].textContent, terraceLabel(), 'Terrace says the height and wall it will build');
+    kids = page('terrace');
+    const at = kids.findIndex(c => c.dataset && c.dataset.k === 'terrace' && /\blt-row\b/.test(c.className));
+    assert(/\bsel\b/.test(kids[at].className), 'the armed row is marked');
+    assertEqual(kids[at + 1].textContent, 'Height', 'and its options open directly under it');
+    assertEqual(kids.filter(c => c.dataset && c.dataset.terraceH).length, TERRACE_LEVELS.length, 'every height');
+    assertEqual(kids.filter(c => c.dataset && c.dataset.terraceW).length, WALL_STYLES.length, 'and every wall');
+    assert(kids.findIndex(c => c.dataset && c.dataset.k === 'raise') > at + 1 + TERRACE_LEVELS.length, 'above the next tool, not below the last');
+    kids = page('wall');
+    assertEqual(kids.filter(c => c.dataset && c.dataset.wallStyle).length, WALL_STYLES.length, 'Wall opens its materials the same way');
+    assertEqual(kids.filter(c => c.dataset && c.dataset.terraceH).length, 0, 'and Terrace\'s close');
+  } finally { [game.tool, game.trayCat, game.drill, game.terraceDraft, game.wallDraft] = saved; }
+});
+
+test('Hardscape opens on four things to place in one tap, then a card per tool', () => {
+  setup(21, 21);
+  const tray = document.getElementById('toolTray');
+  const saved = [game.tool, game.trayCat, game.drill, game.fenceDraft, game.seatDraft, game.firepitDraft];
+  const page = () => { game.trayCat = 'structures'; game.traySearch = ''; game.drill = null; tray.children.length = 0; buildToolTray(true); return tray.children; };
+  try {
+    setTool('hand', null);
+    let kids = page();
+    const cards = kids.filter(c => /\blh-card\b/.test(c.className));
+    assertEqual(cards.map(c => c.dataset.k).sort().join(), TRAY_CATS.find(c => c.id === 'structures').tools.slice().sort().join(),
+      'a card for every Hardscape tool, and no tool without one');
+    assert(cards.every(c => /\bhas-sub\b/.test(c.className)), 'each marked as opening a page');
+    assert(cards.every(c => c.children[2].textContent.length > 12 && c.children[3].textContent.length > 3), 'each says what it is and what it is set to');
+    assertEqual(cards.find(c => c.dataset.k === 'fence').children[3].textContent, fenceLabel(), 'in the words the brush bar uses');
+    const picks = kids.find(c => c.className === 'lg-picks');
+    assertEqual(picks.children.map(p => p.children[1].textContent).join(), HARDSCAPE_PICKS.map(p => p.label).join(), 'the quick picks, in their own row');
+    assert(HARDSCAPE_PICKS.every(p => HARDSCAPE_CARDS.some(c => c.k === p.k)), 'every pick is a tool that has a card');
+    assert(picks.children.every(p => p.getAttribute('aria-pressed') === 'false'), 'none armed on arrival');
+
+    picks.children[0].onclick();
+    assertEqual(game.tool, 'fence', 'a pick arms its tool');
+    assertEqual(fenceDraft().style + ':' + fenceDraft().height, 'privacy:6', 'set as the pick says');
+    assertEqual(game.drill, null, 'and stays on this page: there is nothing more to choose');
+    assert(hardscapePickOn(0) && !hardscapePickOn(1), 'the pick knows it is the one in hand');
+    game.fenceDraft = normalizeFenceDraft({ style: 'privacy', height: 4, gate: false });
+    assert(!hardscapePickOn(0), 'and that a shorter cedar fence is not it');
+    armHardscapePick(2);
+    game.seatDraft = normalizeSeatDraft(Object.assign({}, seatDraft(), { face: 1 }));
+    assert(hardscapePickOn(2), 'a bench turned a quarter is still that bench');
+    HARDSCAPE_PICKS.forEach((p, i) => { armHardscapePick(i); assert(hardscapePickOn(i), 'every pick is a draft its tool really accepts: ' + p.label); });
+
+    cards.find(c => c.dataset.k === 'boulder').onclick();
+    assertEqual(game.tool + ':' + game.drill, 'boulder:boulder', 'a card arms the tool and opens its own page');
+    tray.children.length = 0; buildToolTray(true);
+    assert(tray.children.some(c => /\btool-back\b/.test(c.className || '')) && !tray.children.some(c => /\blh-card\b/.test(c.className || '')),
+      'which is the page it always had, with its Back');
+  } finally { [game.tool, game.trayCat, game.drill, game.fenceDraft, game.seatDraft, game.firepitDraft] = saved; }
+  const css = readRepoFile('styles.css'), at = css.indexOf('The Landscape library\'s opening pages (0.9.116)'), block = css.slice(at);
+  assert(at > 0, 'their rules are a block of their own');
+  assert(/\.lh-card\{[^}]*grid-column:span 2/.test(block), 'a card is two cells of the tray\'s grid, so two to a row on a phone');
+  assert(/\.lg-chip\.sel \.lg-tick\{display:flex\}/.test(block), 'chosen is a tick as well as a fill');
+  assert(/\.lg-chip canvas,\.lh-card canvas,\.lt-row canvas\{forced-color-adjust:none\}/.test(block), 'and the pictures survive forced colours');
 });
 
 /* Seating is a Hardscape tool like the others: one summary button that opens

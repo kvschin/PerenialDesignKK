@@ -528,7 +528,7 @@ if ('serviceWorker' in navigator)
       </div>
       <div class="gm-group" role="group" aria-label="This garden">
         <p class="gm-label">This garden</p>
-        <button class="gm-row gm-two" id="btnFilters" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-filter"></use></svg><span class="gm-text"><span class="gm-name">Plant filters</span><span class="gm-val" id="filterLbl">Any</span></span><svg class="ui-icon gm-chev" aria-hidden="true"><use href="#ui-chevron-right"></use></svg></button>
+        <button class="gm-row gm-two" id="btnFilters" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-filter"></use></svg><span class="gm-text"><span class="gm-name">Garden criteria</span><span class="gm-val" id="filterLbl">Any</span></span><svg class="ui-icon gm-chev" aria-hidden="true"><use href="#ui-chevron-right"></use></svg></button>
         <button class="gm-row" id="btnSchemes" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#ui-layers"></use></svg><span class="gm-name">Planting schemes</span><span class="gm-val gm-count" id="schemeLbl">1</span></button>
       </div>
       <!-- Help from where the questions come up. The guidebook opened only from
@@ -748,58 +748,51 @@ if ('serviceWorker' in navigator)
 </div>
 
 <!-- PLANT FILTERS -->
+<!-- What this garden asks of a plant. The browsing filters (light, water, flower
+     colour, bloom season) left this dialog in 0.9.116 for a tray in the catalog,
+     where each one applies as it is pressed. -->
 <div class="screen modal-screen hidden" id="discoveryFilterScreen" role="dialog" aria-modal="true" aria-labelledby="discoveryFilterTitle">
-  <div class="panel discovery-filter-panel" tabindex="-1">
-    <h2 id="discoveryFilterTitle">Plant filters</h2>
-    <div class="field"><label>Light</label><div id="discoveryLightChips" class="chip-row" role="group" aria-label="Light"></div></div>
-    <div class="field"><label>Moisture</label><div id="discoveryMoistureChips" class="chip-row" role="group" aria-label="Moisture"></div></div>
-    <div class="field"><label>Flower color</label><div id="discoveryColorChips" class="chip-row chip-grid" role="group" aria-label="Flower colors"></div></div>
-    <div class="field"><label>Blooms in</label><div id="discoverySeasonChips" class="chip-row" role="group" aria-label="Bloom seasons"></div></div>
-    <p class="palette-count" id="discoveryFilterCount" aria-live="polite"></p>
-    <button class="chip discovery-clear" id="btnDiscoveryClear" type="button">Clear these filters</button>
-    <p class="sub">Garden criteria decide what can be placed in the plan. Local native status, soil, summer climate, and regional invasive risk need a separate check.</p>
-    <div class="field discovery-criteria">
-      <label>Garden criteria</label>
+  <div class="panel gc-panel" tabindex="-1">
+    <div class="gc-head">
+      <h2 id="discoveryFilterTitle">Garden criteria</h2>
+      <button class="gc-x" id="btnDiscoveryClose" type="button" aria-label="Close without changing anything" title="Close"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
+    </div>
+    <div class="gc-body">
+      <p class="gc-note">What the library offers in this garden. Nothing already planted is removed.</p>
       <!-- The two answers the questionnaire opens with. Both used to be fixed
            the moment the garden was made, while the questionnaire said "you can
            change any of this later" — so a wrong zone meant starting over. -->
-      <div class="native-criteria garden-criteria">
+      <div class="gc-pair">
         <label for="discoveryZone">Hardiness zone
-          <select id="discoveryZone" aria-describedby="discoveryGardenHint"></select>
+          <select id="discoveryZone"></select>
         </label>
         <label for="discoveryStyle">Garden style
-          <select id="discoveryStyle" aria-describedby="discoveryGardenHint"></select>
+          <select id="discoveryStyle"></select>
         </label>
-        <p class="field-hint" id="discoveryGardenHint">Set when the garden was made, and yours to correct. They change what the library offers; nothing already planted is removed.</p>
       </div>
-      <div class="native-criteria">
-        <span class="criteria-label">Native planting</span>
-        <select id="discoveryNativeMode" aria-describedby="discoveryNativeHint">
-          <option value="any">Any origin</option>
-          <option value="regional">Continent natives + selections</option>
-          <option value="straight">Straight species from continent</option>
-        </select>
-        <label id="discoveryNativeRegionRow" for="discoveryNativeRegion"><span id="discoveryNativeRegionLabel">Continent of origin</span>
+      <div class="gc-group">
+        <span class="gc-label" id="discoveryNativeLabel">Native planting</span>
+        <div class="gc-seg" id="discoveryNativeMode" role="radiogroup" aria-labelledby="discoveryNativeLabel" aria-describedby="discoveryNativeHint"></div>
+        <label class="gc-inline" id="discoveryNativeRegionRow" for="discoveryNativeRegion"><span id="discoveryNativeRegionLabel">Garden region</span>
           <select id="discoveryNativeRegion"></select>
         </label>
-        <p class="field-hint" id="discoveryNativeHint"></p>
-        <span class="criteria-label">Invasive risk</span>
-        <select id="discoveryInvasive" aria-describedby="discoveryInvasiveHint">
-          <option value="hide">Hide flagged plants</option>
-          <option value="show">Show with a caution</option>
-        </select>
-        <p class="field-hint" id="discoveryInvasiveHint"></p>
+        <p class="gc-hint" id="discoveryNativeHint"></p>
       </div>
-      <div class="discovery-criteria-checks">
-        <label class="check-row"><input type="checkbox" id="discoveryDeer"> Deer resistant</label>
-        <label class="check-row"><input type="checkbox" id="discoveryRabbit"> Rabbit resistant</label>
-        <label class="check-row"><input type="checkbox" id="discoverySquirrel"> Squirrel resistant bulbs</label>
+      <div class="gc-group">
+        <span class="gc-label" id="discoveryResistLabel">Only plants that resist</span>
+        <div class="gc-checks" id="discoveryResist" role="group" aria-labelledby="discoveryResistLabel"></div>
       </div>
+      <div class="gc-group">
+        <span class="gc-label" id="discoveryInvasiveLabel">Invasive risk</span>
+        <div class="gc-seg" id="discoveryInvasive" role="radiogroup" aria-labelledby="discoveryInvasiveLabel" aria-describedby="discoveryInvasiveHint"></div>
+        <p class="gc-hint" id="discoveryInvasiveHint"></p>
+      </div>
+      <p class="gc-hint gc-fine">Local native status, soil, summer climate and regional invasive risk need a separate check.</p>
     </div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn primary" id="btnDiscoveryApply" type="button">Apply filters</button>
+    <div class="gc-foot">
+      <span class="gc-status" id="discoveryFilterCount" aria-live="polite"></span>
+      <button class="btn primary" id="btnDiscoveryApply" type="button">Show plants</button>
     </div>
-    <button class="back-link" id="btnDiscoveryClose" type="button">Back to plants</button>
   </div>
 </div>
 

@@ -1588,17 +1588,35 @@ function discoverySiteSections(groups,d){
   return sites.map(([id,label])=>({id,label,groups:filed.filter(([s])=>s===id).map(([,g])=>g)}))
     .filter(section=>section.groups.length);
 }
-function discoveryCriteriaLabels(f=activeFilters()){
-  const out=[];
-  if (f.nativeMode!=='any') out.push(f.nativeMode==='straight'
-    ? `Straight species · ${nativeRegionLabel(f.nativeRegion)}`
-    : `Native origin · ${nativeRegionLabel(f.nativeRegion)}`);
-  if (f.deer) out.push('Deer');
-  if (f.rabbit) out.push('Rabbit');
-  if (f.squirrel) out.push('Squirrel');
+/* The Filters button opens a tray of BROWSING filters (light, water, flower
+   colour, bloom season), each applied as it is pressed, so its count is those.
+   The garden's own criteria are named in that tray's foot and changed in their
+   own dialog; counted on the button, a native garden showed "1" over a tray
+   with nothing pressed in it. */
+function discoveryLensCount(d=activeDiscovery()){ return d.colorFamilies.length+d.bloomSeasons.length+d.light.length+d.moisture.length; }
+function discoveryFilterCount(){ return discoveryLensCount(); }
+/* What is on, as a pill names it, with the field and id the pill removes. */
+function discoveryLensPills(d=activeDiscovery()){
+  const named=(rows,id)=>(rows.find(x=>x[0]===id)||[])[1]||id, out=[];
+  d.light.forEach(id=>out.push({field:'light',id,label:named(DISCOVERY_LIGHT,id)}));
+  d.moisture.forEach(id=>out.push({field:'moisture',id,label:named(DISCOVERY_MOISTURE,id)}));
+  d.colorFamilies.forEach(id=>{ const row=DISCOVERY_COLOR_FAMILIES.find(x=>x[0]===id)||[];
+    out.push({field:'colorFamilies',id,label:row[1]||id,color:row[2]||null}); });
+  d.bloomSeasons.forEach(id=>out.push({field:'bloomSeasons',id,label:`Blooms in ${id}`}));
   return out;
 }
-function discoveryFilterCount(){ const d=activeDiscovery(); return d.colorFamilies.length+d.bloomSeasons.length+d.light.length+d.moisture.length+discoveryCriteriaLabels().length; }
+/* One line for what the garden itself asks of a plant. */
+function discoveryGardenLine(f=activeFilters()){
+  const bits=[f.zone?`Zone ${f.zone}`:'Every zone'];
+  const type=activeDesignType(); if (type) bits.push(designTypeName(type).split(' / ')[0]);
+  if (f.nativeMode!=='any') bits.push(f.nativeMode==='straight'?'Straight species':'Natives');
+  const resists=[f.deer&&'deer',f.rabbit&&'rabbits',f.squirrel&&'squirrels'].filter(Boolean);
+  if (resists.length) bits.push('Resists '+resists.join(', '));
+  // hiding flagged plants is the default and goes without saying; a phone has
+  // room for about thirty characters here
+  if (f.invasive==='show') bits.push('Invasives shown');
+  return bits.join(' \u00b7 ');
+}
 function discoverySourceLabel(d=activeDiscovery()){
   if (d.source==='favorites') return 'Favorites';
   if (d.source==='palette' && typeof paletteById==='function'){ const p=paletteById(d.collectionId); return p?p.name:'Saved palette'; }
@@ -1696,8 +1714,9 @@ function firstStockedTrayCat(){
   return 'grasses';
 }
 function openFilters(){
-  // The shared Plant filters modal owns both eligibility and flower discovery.
-  // `openDiscoveryFilters` lives in tray.js but is safe to call after startup.
+  // The garden criteria dialog: what this garden asks of a plant. (The browsing
+  // filters are a tray in the catalog.) `openDiscoveryFilters` lives in tray.js
+  // but is safe to call after startup.
   if (typeof openDiscoveryFilters==='function') openDiscoveryFilters();
 }
 function applyGardenCriteria(next,{refresh=true,announce=true}={}){
@@ -1740,7 +1759,7 @@ function updateFilterBtn(){
   const text=bits.length?bits.join(' / '):'Any';
   $('filterLbl').textContent=text;
   // the menu row shows it on one line and ellipsizes; the whole of it is here
-  const row=$('btnFilters'); if (row) row.title='Plant filters: '+text;
+  const row=$('btnFilters'); if (row) row.title='Garden criteria: '+text;
 }
 
 /* Plant guidance is built only when someone asks for details, never in render.

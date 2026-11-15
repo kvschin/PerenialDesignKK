@@ -108,53 +108,70 @@ async function runSearchChecks(garden){
       const palette=createPlantPalette('Search check',allPlantRefs().filter(ref=>!ref.v).slice(0,30));
       setDiscovery({source:'palette',collectionId:palette.id,query:'',category:null,returnCategory:null,colorFamilies:['purple'],bloomSeasons:['Summer']});
       buildToolTray(true); await sleep(30);
-      const summary=document.querySelector('.discovery-filter-summary'), find=input();
+      const find=input();
+      assert(document.querySelectorAll('.qf-pill').length===2,'the two filters show as pills');
       for (const query of ['a','zzzz-no-plant','']){
         type(query,find); await sleep(220);
-        assert(input()===find&&document.querySelector('.discovery-filter-summary')===summary,'palette filter controls persist');
+        assert(input()===find&&document.querySelectorAll('.qf-pill').length===2,'palette filter controls persist');
         assert(activeDiscovery().collectionId===palette.id&&activeDiscovery().bloomSeasons[0]==='Summer','query leaves palette and bloom filters alone');
       }
       oracle(); deletePlantPalette(palette.id);
       setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null,colorFamilies:[],bloomSeasons:[]}); buildToolTray(true);
     });
-    await check('the Plant filters offer light and moisture, and apply them to the catalog',async()=>{
-      setDiscovery({source:'all',collectionId:null,query:'',category:null,returnCategory:null,colorFamilies:[],bloomSeasons:[],light:[],moisture:[]});
-      buildToolTray(true); await sleep(30);
-      openDiscoveryFilters(document.querySelector('.discovery-filter-trigger')); await sleep(30);
-      const chip=(id,label)=>[...document.querySelectorAll('#'+id+' button')].find(b=>b.textContent===label);
-      const panel=document.querySelector('#discoveryFilterScreen .panel'), box=el=>el.getBoundingClientRect();
-      assert(panel.scrollTop===0&&document.activeElement===chip('discoveryLightChips','Full sun'),'it opens at the top, on the first chip');
-      assert(box(document.getElementById('discoveryFilterCount')).bottom<=box(panel).bottom,'with the live count on screen beside the chips');
-      assert(box(document.getElementById('discoveryLightChips')).top<box(document.querySelector('.discovery-criteria')).top,'above the garden criteria');
-      const dot=document.querySelector('#discoveryColorChips .chip-swatch').getBoundingClientRect();
-      assert(dot.width>=10&&dot.height>=10,'a flower colour swatch is a dot, on a mouse as well as a finger');
-      assert(document.querySelectorAll('#discoveryLightChips button').length===2,'two light chips');
-      assert(document.querySelectorAll('#discoveryMoistureChips button').length===3,'three moisture chips');
-      const before=document.getElementById('discoveryFilterCount').textContent;
-      chip('discoveryLightChips','Part shade').click(); await sleep(10);
-      assert(chip('discoveryLightChips','Part shade').getAttribute('aria-pressed')==='true','the chip reports it is on');
-      assert(document.getElementById('discoveryFilterCount').textContent!==before,'the live count moves');
-      chip('discoveryMoistureChips','Low water').click(); await sleep(10);
-      document.getElementById('btnDiscoveryApply').click(); await sleep(60);
-      assert(activeDiscovery().light[0]==='part'&&activeDiscovery().moisture[0]==='dry','applied to the catalog');
-      assert(/Part shade/.test(document.querySelector('.discovery-filter-summary').textContent),'the catalog says what is on');
-      assert(document.getElementById('toast').textContent.startsWith(discoveryResultCountText(discoveryRefs())),'the toast quotes the catalog it leaves, not the whole garden');
-      assert(document.querySelector('.discovery-filter-trigger .filter-count').textContent==='2','and how many');
+    await check('the Filters tray applies each chip as it is pressed, and the garden criteria keep a dialog',async()=>{
+      setDiscovery({source:'all',collectionId:null,query:'',category:null,returnCategory:null,colorFamilies:[],bloomSeasons:[],light:[],moisture:[],filterOpen:false});
+      if (mobileSheetUi()) setSheetState('full');
+      buildToolTray(true); await sleep(60);
+      const trigger=()=>document.querySelector('.discovery-filter-trigger'), chip=key=>document.querySelector('[data-qf="'+key+'"]'), box=el=>el.getBoundingClientRect();
+      assert(!document.querySelector('.qf-tray')&&!document.querySelector('.qf-active'),'with nothing on and the tray shut it takes no room');
+      trigger().click(); await sleep(80);
+      assert(document.querySelector('.qf-tray')&&trigger().getAttribute('aria-expanded')==='true','the button opens the tray, and says so');
+      assert(document.activeElement===chip('light:full'),'focus lands on its first chip');
+      const whole=box(document.querySelector('.qf-tray'));
+      assert(whole.width>0&&whole.top>=0&&whole.bottom<=innerHeight+1,'and the whole tray is on screen');
+      assert(document.querySelectorAll('.qf-chip[data-qf^="light:"]').length===2,'two light chips');
+      assert(document.querySelectorAll('.qf-chip[data-qf^="moisture:"]').length===3,'three water chips');
+      const dot=box(chip('colorFamilies:pink').querySelector('i'));
+      assert(dot.width>=10&&dot.height>=10,'a flower colour is a dot, on a mouse as well as a finger');
+      const before=discoveryRefs().length;
+      chip('light:part').click(); await sleep(80);
+      assert(chip('light:part').getAttribute('aria-pressed')==='true','the chip reports it is on');
+      assert(document.activeElement===chip('light:part'),'and keeps focus through the rebuild its press caused');
+      assert(activeDiscovery().light[0]==='part'&&discoveryRefs().length<before,'it applies at once: the list is already shorter');
+      chip('moisture:dry').click(); await sleep(80);
+      assert(document.querySelector('.qf-tray'),'the tray stays open between presses');
+      assert(document.querySelector('.discovery-filter-trigger .filter-count').textContent==='2','the button counts them');
       // a card no longer spells out its site (that is in the chosen plant's detail), so ask the plants
       const left=discoveryRefs().map(refDef);
       assert(document.querySelectorAll('#toolTray .plant-result-card').length>0&&left.length>0
         &&left.every(P=>P.sun==='part'&&P.moist==='dry'&&!P.wades&&P.type!=='water'),'every plant it leaves is for part shade and low water');
-      openDiscoveryFilters(document.querySelector('.discovery-filter-trigger')); await sleep(30);
-      document.getElementById('btnDiscoveryClear').click(); await sleep(10);
-      document.getElementById('btnDiscoveryApply').click(); await sleep(60);
-      assert(activeDiscovery().light.length===0&&activeDiscovery().moisture.length===0,'Clear takes them off');
-      // nothing left to show: the way out has to take these off as well
+      trigger().click(); await sleep(80);
+      assert(!document.querySelector('.qf-tray')&&document.querySelectorAll('.qf-pill').length===2,'shut, the two show as pills');
+      assert(document.activeElement===trigger(),'and focus is back on the button');
+      document.querySelector('.qf-pill').click(); await sleep(80);
+      assert(activeDiscovery().light.length===0&&activeDiscovery().moisture[0]==='dry','a pill removes its own filter and no other');
+      // nothing left to show: the way out drops the filters and keeps the search
       setDiscovery({source:'all',collectionId:null,category:null,query:'zzzznotathing',light:['part'],moisture:['dry']}); buildToolTray(true); await sleep(30);
       const reset=[...document.querySelectorAll('#toolTray button')].find(b=>b.textContent==='Clear filters');
-      assert(reset,'an empty catalog offers to clear');
+      assert(reset,'an empty catalog offers to clear them');
       reset.click(); await sleep(60);
-      assert(activeDiscovery().light.length===0&&activeDiscovery().moisture.length===0,'and that clears these too');
-      setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null}); buildToolTray(true); await sleep(30);
+      assert(activeDiscovery().light.length===0&&activeDiscovery().moisture.length===0,'and that clears them');
+      assert(activeDiscovery().query==='zzzznotathing','leaving the search that was typed');
+      // what the garden asks is a dialog of its own, with its action on screen
+      setDiscovery({query:'',filterOpen:true}); buildToolTray(true); await sleep(30);
+      document.querySelector('.qf-foot .qf-link:last-child').click(); await sleep(260);
+      const screen=document.getElementById('discoveryFilterScreen'), apply=document.getElementById('btnDiscoveryApply');
+      assert(!screen.classList.contains('hidden'),'the foot of the tray opens the garden criteria');
+      assert(box(apply).height>0&&box(document.querySelector('.gc-foot')).bottom<=innerHeight+1,'its one action is on screen, not below a scroll');
+      assert(/^Show \d+ plants?$/.test(apply.textContent),'and says what it will show: '+apply.textContent);
+      const was=activeFilters().nativeMode, next=was==='straight'?'any':'straight', said=apply.textContent;
+      document.querySelector('#discoveryNativeMode [data-v="'+next+'"]').click(); await sleep(40);
+      assert(document.querySelector('#discoveryNativeMode [data-v="'+next+'"]').getAttribute('aria-checked')==='true','a choice is taken');
+      assert(apply.textContent!==said,'and the count moves before anything is applied');
+      assert(activeFilters().nativeMode===was,'while the garden is unchanged');
+      document.getElementById('btnDiscoveryClose').click(); await sleep(40);
+      assert(screen.classList.contains('hidden')&&activeFilters().nativeMode===was,'closing changes nothing');
+      setDiscovery({source:'all',collectionId:null,query:'',category:'grasses',returnCategory:null,filterOpen:false}); buildToolTray(true); await sleep(30);
     });
     await check('Sedges, grasses and shade perennials list by site, and a search flattens the list in place',async()=>{
       setDiscovery({source:'all',collectionId:null,query:'',category:'sedges',returnCategory:null,colorFamilies:[],bloomSeasons:[]});

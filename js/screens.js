@@ -492,7 +492,7 @@ function refreshChallengePalette(){
   $('challengeClimate').textContent=(c.paletteFree?'All plants. ':'Suggested plants. ')+(filters.zone?`Hardiness filter: zone ${filters.zone}.`:'Hardiness filter: all zones.');
   renderDailyPalette($('challengePlantList'),c,filters);
   $('challengePaletteDetails').classList.toggle('hidden',!c.palette);
-  $('challengeAvailability').textContent=c.palette&&!c.paletteFree&&!available.length?'No suggested plants match your filters. Change Plant filters or choose Use all plants in the plant catalog.':'';
+  $('challengeAvailability').textContent=c.palette&&!c.paletteFree&&!available.length?'No suggested plants match your filters. Change the garden criteria or choose Use all plants in the plant catalog.':'';
   $('btnChallengeStudy').classList.toggle('hidden',!c.palette||c.paletteFree||!filters.zone||available.length===c.palette.length);
 }
 function renderDailyGoals(target,c,editable=false){
@@ -1915,7 +1915,7 @@ function openDesignSetup(){
   function updateReadout(){
     $('dgnZoneOut').innerHTML=zipBlocked?'Choose a supported zone to continue.':
       `<b>Zone ${sel.zone}</b> · Average annual winter minimum ${zoneTemperatureText(sel.zone)}. `+
-      'Plant filters use whole zones; soil, summer conditions, and local exposure also matter.';
+      'Garden criteria use whole zones; soil, summer conditions, and local exposure also matter.';
   }
   /* One walk of the catalog answers both figures on this panel, and a pure
      re-render (picking a different starting palette) answers neither anew --
@@ -2628,8 +2628,7 @@ $('btnPrint').onclick=()=>window.print();
 $('btnCsv').onclick=exportCsv;
 $('btnFilters').onclick=()=>{ closeOverlay('gardenMenu'); openFilters(); };
 if ($('btnDiscoveryApply')) $('btnDiscoveryApply').onclick=applyDiscoveryFilters;
-if ($('btnDiscoveryClear')) $('btnDiscoveryClear').onclick=clearDiscoveryFilters;
-if ($('btnDiscoveryClose')) $('btnDiscoveryClose').onclick=()=>{ discoveryFilterDraft=null; discoveryCriteriaDraft=null; discoveryStyleDraft=null; closeOverlay('discoveryFilterScreen'); };
+if ($('btnDiscoveryClose')) $('btnDiscoveryClose').onclick=()=>{ discoveryCriteriaDraft=null; discoveryStyleDraft=null; closeOverlay('discoveryFilterScreen'); };
 if ($('btnPaletteClose')) $('btnPaletteClose').onclick=()=>{ palettePendingRef=null; paletteRenameId=null; closeOverlay('paletteScreen'); };
 if ($('btnPaletteCreate')) $('btnPaletteCreate').onclick=createPaletteFromInput;
 if ($('paletteName')) $('paletteName').onkeydown=e=>{ if (e.key==='Enter'){ e.preventDefault(); createPaletteFromInput(); } };

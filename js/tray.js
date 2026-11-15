@@ -2099,7 +2099,7 @@ function renderGlobalSearchTray(tray,q){
 }
 
 /* ---------- plant discovery: palettes, Find, and result cards ---------- */
-let discoverySearchTimer=0, landscapeSearchTimer=0, discoveryFilterDraft=null, discoveryCriteriaDraft=null, palettePendingRef=null, paletteRenameId=null, sourceMenuOpen=false, sourceMenuCloseListener=null;
+let discoverySearchTimer=0, landscapeSearchTimer=0, discoveryCriteriaDraft=null, palettePendingRef=null, paletteRenameId=null, sourceMenuOpen=false, sourceMenuCloseListener=null;
 let discoveryOpenSpecies=null, discoveryReturnScroll=0;
 function focusDiscoverySourceTrigger(){
   setTimeout(()=>{ const trigger=document.querySelector('.discovery-source'); if (trigger) trigger.focus({preventScroll:true}); },0);
@@ -2523,15 +2523,91 @@ function discoverySourceMenu(d){
     sourceMenuCloseListener=close; document.addEventListener('click',close); },0);
   return wrap;
 }
-function discoveryFilterSummary(d){
-  const colors=d.colorFamilies.map(id=>(DISCOVERY_COLOR_FAMILIES.find(x=>x[0]===id)||[])[1]||id);
-  const named=(rows,ids)=>ids.map(id=>(rows.find(x=>x[0]===id)||[])[1]||id);
-  const labels=[...discoveryCriteriaLabels(),...named(DISCOVERY_LIGHT,d.light),...named(DISCOVERY_MOISTURE,d.moisture),...colors,...d.bloomSeasons];
-  if (!labels.length) return null;
-  const summary=document.createElement('button'); summary.type='button'; summary.className='discovery-filter-summary';
-  const shown=labels.slice(0,2).join(' · '), extra=labels.length>2?` +${labels.length-2}`:'';
-  summary.textContent=`Filters: ${shown}${extra}`; summary.title=`Active filters: ${labels.join(', ')}. Change filters.`;
-  summary.onclick=()=>openDiscoveryFilters(summary); return summary;
+/* FILTERS ARE A TRAY IN THE CATALOG (0.9.116). They were a dialog 1.5 to 3.3
+   screens long whose Apply sat below the fold, opened to change one chip and
+   closed again to see what it did. The four browsing filters (light, water,
+   flower colour, bloom season) now sit in a tray the Filters button opens, and
+   each applies as it is pressed, with the list changing under it. Closed, the
+   ones that are on show as pills, each removed by its own press. What the
+   GARDEN asks of a plant (zone, style, origin, invasive risk, browsing animals)
+   is a different kind of thing and keeps a dialog, reached from the tray's
+   foot and from the garden menu.
+   pulseIs: the one-shot marker of catalogPulse, for things that are not a plant. */
+function pulseIs(kind,key){
+  const p=catalogPulse;
+  return !!(p && p.kind===kind && (key===undefined||p.key===key) && performance.now()-p.t<600);
+}
+function toggleDiscoveryLens(field,id){
+  const d=activeDiscovery(), cur=d[field]||[];
+  discoveryOpenSpecies=null;
+  setDiscovery({[field]:cur.includes(id)?cur.filter(x=>x!==id):[...cur,id],limit:36},true);
+  buildToolTray();
+}
+function clearDiscoveryLens(){
+  discoveryOpenSpecies=null;
+  setDiscovery({colorFamilies:[],bloomSeasons:[],light:[],moisture:[],limit:36},true); buildToolTray();
+}
+function setFilterTrayOpen(open){
+  open=!!open;
+  setDiscovery({filterOpen:open},true);
+  // on the sheet the tray heads the list, and the list is one tap up from half
+  if (open&&mobileSheetUi()&&normalizedSheetState(game.sheetState)!=='full') setSheetState('full');
+  catalogPulse=open?{kind:'filters',t:performance.now()}:null;
+  buildToolTray();
+  const tray=document.getElementById('toolTray');
+  if (open&&mobileSheetUi()&&tray) tray.scrollTop=0;
+  const next=document.querySelector(open?'.qf-tray .qf-chip':'.discovery-filter-trigger');
+  if (next&&next.focus) next.focus({preventScroll:true});
+}
+/* The tray when it is open, the pills when it is shut and something is on,
+   nothing otherwise. The dock mounts it under the control rows; the sheet at
+   the head of the list, where it scrolls away with the plants instead of
+   taking a third of a phone for as long as it is open. */
+function discoveryFilterRegion(d){
+  const n=discoveryLensCount(d);
+  const el=(tag,cls,text)=>{ const e=document.createElement(tag); if (cls) e.className=cls; if (text!=null) e.textContent=text; return e; };
+  const link=(text,fn)=>{ const b=el('button','qf-link',text); b.type='button'; b.onclick=fn; return b; };
+  const refocus=sel=>{ const next=document.querySelector(sel); if (next&&next.focus) next.focus({preventScroll:true}); };
+  if (d.filterOpen){
+    const tray=el('div','qf-tray'+(pulseIs('filters')?' enter':'')); tray.id='qfTray';
+    tray.setAttribute('role','group'); tray.setAttribute('aria-label','Filters');
+    const row=(label,field,rows,dots)=>{
+      const r=el('div','qf-row'+(field==='bloomSeasons'?' keep-lab':'')); r.appendChild(el('span','qf-lab',label));
+      const chips=el('div','qf-chips'+(dots?' qf-dots':'')); chips.setAttribute('role','group'); chips.setAttribute('aria-label',label);
+      rows.forEach(([id,text,color])=>{
+        const on=d[field].includes(id), key=field+':'+id;
+        const b=el('button','qf-chip'+(dots?' qf-dot':'')+(on&&pulseIs('chip',key)?' pop':''));
+        b.type='button'; b.dataset.qf=key; b.setAttribute('aria-pressed',on?'true':'false');
+        if (dots){ const dot=el('i'); dot.style.background=color; b.appendChild(dot); b.title=text; b.setAttribute('aria-label',text); }
+        else b.appendChild(el('span',null,text));
+        b.onclick=()=>{ catalogPulse={kind:'chip',key,t:performance.now()}; toggleDiscoveryLens(field,id); refocus(`[data-qf="${key}"]`); };
+        chips.appendChild(b);
+      });
+      r.appendChild(chips); tray.appendChild(r);
+    };
+    row('Light','light',DISCOVERY_LIGHT);
+    // "Low water" names the row where the sheet drops the row labels
+    row('Water','moisture',DISCOVERY_MOISTURE.map(([id,label],i)=>[id,i?label.replace(/ water$/,''):label]));
+    row('Color','colorFamilies',DISCOVERY_COLOR_FAMILIES,true);
+    row('Blooms','bloomSeasons',DISCOVERY_SEASONS.map(([id])=>[id,id]));
+    const foot=el('div','qf-foot'), line=el('span','qf-garden',discoveryGardenLine());
+    line.title='This garden: '+line.textContent;
+    const clear=link(n?`Clear ${n}`:'Clear',()=>{ clearDiscoveryLens(); refocus('.qf-tray .qf-chip'); }); clear.disabled=!n;
+    const garden=link('Garden criteria',()=>openDiscoveryFilters(garden)); garden.title='Zone, style, native planting, invasive risk and browsing animals';
+    foot.append(line,clear,garden); tray.appendChild(foot);
+    return tray;
+  }
+  if (!n) return null;
+  const act=el('div','qf-active'); act.setAttribute('role','group'); act.setAttribute('aria-label','Filters that are on');
+  discoveryLensPills(d).forEach(p=>{
+    const b=el('button','qf-pill'); b.type='button'; b.title=`Remove ${p.label}`; b.setAttribute('aria-label',`Remove filter: ${p.label}`);
+    if (p.color){ const sw=el('i','sw'); sw.style.background=p.color; b.appendChild(sw); }
+    b.appendChild(el('span',null,p.label)); const x=el('span','x'); x.appendChild(uiIcon('close')); b.appendChild(x);
+    b.onclick=()=>{ toggleDiscoveryLens(p.field,p.id); refocus(discoveryLensCount()?'.qf-pill':'.discovery-filter-trigger'); };
+    act.appendChild(b);
+  });
+  if (n>1) act.appendChild(link('Clear all',()=>{ clearDiscoveryLens(); refocus('.discovery-filter-trigger'); }));
+  return act;
 }
 function catalogMinimizeButton(){
   const b=document.createElement('button'); b.type='button'; b.className='catalog-minimize';
@@ -2636,8 +2712,8 @@ function renderDiscoveryControls(tabs,modeControl){
   filters.append(uiIcon('filter'),filterLabel);
   if (n){ const badge=document.createElement('b'); badge.className='filter-count'; badge.textContent=String(n); filters.appendChild(badge); }
   filters.title=n?`Filters · ${n} on`:'Filters'; filters.setAttribute('aria-label',n?`Filters, ${n} on`:'Filters');
-  filters.setAttribute('aria-expanded','false');
-  filters.onclick=()=>openDiscoveryFilters(filters); filterRow.appendChild(filters);
+  filters.setAttribute('aria-expanded',d.filterOpen?'true':'false'); filters.setAttribute('aria-controls','qfTray');
+  filters.onclick=()=>setFilterTrayOpen(!activeDiscovery().filterOpen); filterRow.appendChild(filters);
   const count=document.createElement('span'); count.className='discovery-result-count'; count.setAttribute('role','status');
   count.textContent=discoveryResultCountText(discoveryRefs()); filterRow.appendChild(count);
   // Row 1: what you're browsing (mode + source). Row 2: how you narrow it
@@ -2650,6 +2726,9 @@ function renderDiscoveryControls(tabs,modeControl){
        buildToolTrayInner), so the three that are left share ONE row. */
     bar.appendChild(catalogControlRow(discoverySourceMenu(d),find,filterRow));
   }
+  // the dock keeps the filter tray (or the pills) under its control rows
+  const region=mobileSheetUi()?null:discoveryFilterRegion(d);
+  if (region) bar.appendChild(region);
   tabs.appendChild(bar);
   return {find,count};
 }
@@ -2704,7 +2783,14 @@ function renderDiscoveryTrayInner(tray){
     count.textContent=` \u00b7 ${shown} plant${shown===1?'':'s'}`;
     if (extra){ const more=document.createElement('span'); more.className='ds-more'; more.textContent=` \u00b7 ${extra} more choice${extra===1?'':'s'}`; count.appendChild(more); }
   }
-  what.append(head,count); summary.append(what,catalogViewToggle());
+  what.append(head,count);
+  /* At half height the sheet shows neither the Filters button nor the pills,
+     so the line that counts the plants says a filter is why, and is the way in. */
+  const lens=discoveryLensCount(d);
+  if (lens){ const on=document.createElement('button'); on.type='button'; on.className='ds-filters';
+    on.textContent=`${lens} filter${lens===1?'':'s'}`; on.title='Show the filters that are on';
+    on.onclick=()=>setFilterTrayOpen(true); what.appendChild(on); }
+  summary.append(what,catalogViewToggle());
   summary.title=`${discoverySourceLabel(d)} \u00b7 ${discoveryResultCountText(refs)}`;
   /* A daily challenge narrows the catalog from inside plantFits, so species
      simply vanish. The only notice was a toast that cleared after 2.6s: open
@@ -2717,7 +2803,11 @@ function renderDiscoveryTrayInner(tray){
   const sites=discoverySiteSections(groups,d);
   const openGroup=refs.length&&discoveryOpenSpecies&&(groups.find(group=>group.id===discoveryOpenSpecies)
     ||(sites&&sites.flatMap(site=>site.groups).find(group=>group.id===discoveryOpenSpecies)));
-  if (!openGroup) tray.appendChild(summary);
+  if (!openGroup){
+    const region=mobileSheetUi()?discoveryFilterRegion(d):null;
+    if (region) tray.appendChild(region);
+    tray.appendChild(summary);
+  }
   if (game.challenge){
     const ch=document.createElement('div'); ch.className='discovery-challenge';
     const txt=document.createElement('button'); txt.type='button'; txt.className='discovery-challenge-clear';
@@ -2744,17 +2834,29 @@ function renderDiscoveryTrayInner(tray){
        typed: sweeping those away as well answers a question they did not ask
        and loses the search they came here with.  Everything else still falls
        through to the general reset. */
-    const styled=activeDesignType(), lensOnly=d.source==='recommended'&&styled;
-    empty.textContent=lensOnly
+    const styled=activeDesignType(), lensOnly=d.source==='recommended'&&styled, lens=discoveryLensCount(d);
+    const button=(text,fn)=>{ const b=document.createElement('button'); b.type='button'; b.className='btn'; b.textContent=text; b.onclick=fn; return b; };
+    const widen=()=>button('Browse all eligible plants',()=>{ setDiscovery({source:'all',collectionId:null},true); buildToolTray(); });
+    if (lens){
+      /* With filters on, the filters are the likelier reason, and the way out
+         is to drop them and keep the list, the category and the search. Blaming
+         the garden style here sent a gardener who pressed Part shade and Purple
+         off to a different list with both still on. */
+      empty.textContent=lensOnly
+        ? `Nothing recommended for a ${designTypeName(styled)} garden matches ${lens===1?'this filter':'these filters'}.`
+        : `Nothing matches ${lens===1?'this filter':'these filters'}.`;
+      empty.appendChild(button(lens===1?'Clear the filter':'Clear filters',clearDiscoveryLens));
+      if (lensOnly) empty.appendChild(widen());
+    } else if (lensOnly){
       // the label as authored: lowercasing gave "a mediterranean garden" and
       // "a japanese garden", and it is the chip the gardener just chose anyway
-      ? `Nothing here is recommended for a ${designTypeName(styled)} garden.`
-      : 'Nothing matches this view.';
-    const reset=document.createElement('button'); reset.type='button'; reset.className='btn';
-    reset.textContent=lensOnly?'Browse all eligible plants':'Clear filters';
-    reset.onclick=()=>{ setDiscovery(lensOnly?{source:'all',collectionId:null}
-      :{source:'all',collectionId:null,category:null,query:'',colorFamilies:[],bloomSeasons:[],light:[],moisture:[],limit:36},true); buildToolTray(); };
-    empty.appendChild(reset); tray.appendChild(empty); return;
+      empty.textContent=`Nothing here is recommended for a ${designTypeName(styled)} garden.`;
+      empty.appendChild(widen());
+    } else {
+      empty.textContent='Nothing matches this view.';
+      empty.appendChild(button('Show all plants',()=>{ setDiscovery({source:'all',collectionId:null,category:null,query:'',limit:36},true); buildToolTray(); }));
+    }
+    tray.appendChild(empty); return;
   }
   // a family filed under two sites is two cards, and each opens on its own choices
   if (openGroup){
@@ -2807,33 +2909,56 @@ function discoveryGroupsInOrder(groups,d){
   return groups.slice().sort((a,b)=>String(a.label).localeCompare(String(b.label)));
 }
 function openDiscoveryFilters(opener){
-  discoveryFilterDraft=normalizeDiscovery(activeDiscovery());
   discoveryCriteriaDraft=activeFilters();
   discoveryStyleDraft=gardenStyleId();
   renderDiscoveryFilterScreen();
-  const screen=openOverlay('discoveryFilterScreen','#discoveryLightChips button'); if (screen) screen._returnFocus=opener||screen._returnFocus;
+  const screen=openOverlay('discoveryFilterScreen','#discoveryZone'); if (screen) screen._returnFocus=opener||screen._returnFocus;
 }
 /* The garden's style lives on game.design, not in the filters: it ranks the
    catalog and decides what `recommended` holds, but it is not an eligibility
    gate. 'any' when a garden predates the questionnaire. */
 let discoveryStyleDraft=null;
 function gardenStyleId(){ return activeDesignType()||'any'; }
+/* The draft IS the criteria being edited: the segments and the resist chips
+   press straight into it. Only the two selects are read back off the DOM. */
+function patchDiscoveryCriteria(patch){
+  discoveryCriteriaDraft=normalizeFilters(Object.assign({},discoveryCriteriaDraft||activeFilters(),patch||{}));
+  renderDiscoveryFilterScreen();
+}
 function readDiscoveryCriteria(){
-  const zoneEl=$('discoveryZone');
-  return normalizeFilters({
+  const zoneEl=$('discoveryZone'), regionEl=$('discoveryNativeRegion'), cur=discoveryCriteriaDraft||activeFilters();
+  return normalizeFilters(Object.assign({},cur,{
     /* Zone is chosen when a garden begins and, since 0.9.29, can be corrected
        here. It used to be carried through untouched ("intentionally not
        editable") while the questionnaire promised "you can change any of this
        later", so a gardener who picked the wrong zone had to start again. It
        only gates what the library OFFERS: nothing planted is ever removed. */
-    zone:zoneEl && zoneEl.value ? +zoneEl.value : (discoveryCriteriaDraft||activeFilters()).zone,
-    nativeMode:$('discoveryNativeMode').value,
-    nativeRegion:$('discoveryNativeRegion').value,
-    invasive:$('discoveryInvasive').value,
-    deer:$('discoveryDeer').checked,
-    rabbit:$('discoveryRabbit').checked,
-    squirrel:$('discoverySquirrel').checked
+    zone:zoneEl && zoneEl.value ? +zoneEl.value : cur.zone,
+    nativeRegion:regionEl && typeof regionEl.value==='string' && regionEl.value ? regionEl.value : cur.nativeRegion
+  }));
+}
+/* A short either/or as one row of buttons: a 3-way and a 2-way choice were two
+   44px selects, each a tap to open and a tap to choose. Arrow keys move it. */
+const GARDEN_NATIVE_MODES=[['any','Any origin','Plants of any origin'],
+  ['regional','Natives + selections','Native to the region, and named selections of those'],
+  ['straight','Straight species','Only the wild species native to the region']];
+const GARDEN_INVASIVE_MODES=[['hide','Hide flagged','Leave out plants with a recorded invasive caution here'],
+  ['show','Show with a caution','List them, marked']];
+const GARDEN_RESIST=[['deer','Deer'],['rabbit','Rabbits'],['squirrel','Squirrels (bulbs)']];
+function criteriaSegment(host,rows,value,field){
+  if (!host) return; host.innerHTML='';
+  const pick=id=>{ patchDiscoveryCriteria({[field]:id});
+    const on=host.querySelector('[aria-checked="true"]'); if (on&&on.focus) on.focus({preventScroll:true}); };
+  rows.forEach(([id,label,title])=>{
+    const on=id===value, b=document.createElement('button'); b.type='button'; b.textContent=label; b.dataset.v=id;
+    b.setAttribute('role','radio'); b.setAttribute('aria-checked',on?'true':'false'); b.tabIndex=on?0:-1; if (title) b.title=title;
+    b.onclick=()=>pick(id); host.appendChild(b);
   });
+  host.onkeydown=e=>{
+    const step=e.key==='ArrowRight'||e.key==='ArrowDown'?1:e.key==='ArrowLeft'||e.key==='ArrowUp'?-1:0; if (!step) return;
+    e.preventDefault(); const at=Math.max(0,rows.findIndex(r=>r[0]===value));
+    pick(rows[(at+step+rows.length)%rows.length][0]);
+  };
 }
 function renderGardenCriteria(f){
   const zone=$('discoveryZone'), style=$('discoveryStyle');
@@ -2860,58 +2985,53 @@ function renderGardenCriteria(f){
 function renderDiscoveryCriteria(){
   const f=discoveryCriteriaDraft||activeFilters();
   renderGardenCriteria(f);
-  const mode=$('discoveryNativeMode'), region=$('discoveryNativeRegion'), regionRow=$('discoveryNativeRegionRow');
-  mode.value=f.nativeMode;
+  const region=$('discoveryNativeRegion');
+  criteriaSegment($('discoveryNativeMode'),GARDEN_NATIVE_MODES,f.nativeMode,'nativeMode');
   region.innerHTML=''; NATIVE_REGIONS.filter(r=>r.selectable!==false).forEach(r=>{
     const o=document.createElement('option'); o.value=r.id; o.textContent=r.label; o.selected=r.id===f.nativeRegion; region.appendChild(o);
   });
+  region.onchange=()=>{ discoveryCriteriaDraft=readDiscoveryCriteria(); renderDiscoveryFilterScreen(); };
   /* The region used to hide itself in Any mode, which is where it now does its
      only work: it scopes which invasive cautions apply, so hiding it would
      leave a European gardener silently filtered against North American lists
      with no control to say otherwise. It stays up, and changes its WORD --
      origin is what a native mode restricts, place is what a caution attaches
      to, and those are two different questions that one control used to fuse. */
-  regionRow.classList.remove('hidden');
   $('discoveryNativeRegionLabel').textContent=f.nativeMode==='any'?'Garden region':'Continent of origin';
   $('discoveryNativeHint').textContent=nativeCriteriaText(f);
-  const invasive=$('discoveryInvasive');
-  invasive.value=normalizeInvasiveMode(f.invasive);
+  criteriaSegment($('discoveryInvasive'),GARDEN_INVASIVE_MODES,normalizeInvasiveMode(f.invasive),'invasive');
   $('discoveryInvasiveHint').textContent=invasiveCriteriaText(f);
-  $('discoveryDeer').checked=!!f.deer;
-  $('discoveryRabbit').checked=!!f.rabbit;
-  $('discoverySquirrel').checked=!!f.squirrel;
-  [mode,region,invasive,$('discoveryDeer'),$('discoveryRabbit'),$('discoverySquirrel')].forEach(el=>el.onchange=()=>{
-    discoveryCriteriaDraft=readDiscoveryCriteria(); renderDiscoveryFilterScreen();
-  });
+  const resist=$('discoveryResist');
+  if (resist){
+    resist.innerHTML='';
+    GARDEN_RESIST.forEach(([id,label])=>{
+      const on=!!f[id], b=document.createElement('button'); b.type='button'; b.className='gc-check'; b.dataset.v=id;
+      b.setAttribute('aria-pressed',on?'true':'false');
+      const box=document.createElement('i'); box.className='gc-box'; const text=document.createElement('span'); text.textContent=label;
+      b.append(box,text);
+      b.onclick=()=>{ patchDiscoveryCriteria({[id]:!on});
+        const again=resist.querySelector(`[data-v="${id}"]`); if (again&&again.focus) again.focus({preventScroll:true}); };
+      resist.appendChild(b);
+    });
+  }
 }
 function renderDiscoveryFilterScreen(){
-  const d=discoveryFilterDraft||normalizeDiscovery(activeDiscovery()), colors=document.getElementById('discoveryColorChips'), seasons=document.getElementById('discoverySeasonChips');
-  if (!colors||!seasons) return; colors.innerHTML=''; seasons.innerHTML='';
+  if (!$('discoveryZone')||!$('btnDiscoveryApply')) return;
   renderDiscoveryCriteria();
-  const siteChips=(id,rows,field)=>{
-    const el=document.getElementById(id); if (!el) return; el.innerHTML='';
-    rows.forEach(([value,label])=>{
-      const on=d[field].includes(value), b=document.createElement('button');
-      b.type='button'; b.className='chip'+(on?' sel':''); b.textContent=label; b.setAttribute('aria-pressed',on?'true':'false');
-      b.onclick=()=>{ discoveryFilterDraft=normalizeDiscovery(Object.assign({},d,{[field]:on?d[field].filter(x=>x!==value):[...d[field],value]})); renderDiscoveryFilterScreen(); };
-      el.appendChild(b);
-    });
-  };
-  siteChips('discoveryLightChips',DISCOVERY_LIGHT,'light');
-  siteChips('discoveryMoistureChips',DISCOVERY_MOISTURE,'moisture');
-  DISCOVERY_COLOR_FAMILIES.forEach(([id,label,color])=>{ const b=document.createElement('button'); b.type='button'; b.className='chip discovery-color-chip'+(d.colorFamilies.includes(id)?' sel':'');
-    b.setAttribute('aria-pressed',d.colorFamilies.includes(id)?'true':'false'); const dot=document.createElement('i'); dot.className='chip-swatch'; dot.style.background=color;
-    b.append(dot,document.createTextNode(label)); b.onclick=()=>{ const next=d.colorFamilies.includes(id)?d.colorFamilies.filter(x=>x!==id):[...d.colorFamilies,id]; discoveryFilterDraft=normalizeDiscovery(Object.assign({},d,{colorFamilies:next})); renderDiscoveryFilterScreen(); }; colors.appendChild(b); });
-  DISCOVERY_SEASONS.forEach(([id])=>{ const b=document.createElement('button'); b.type='button'; b.className='chip'+(d.bloomSeasons.includes(id)?' sel':''); b.textContent=id;
-    b.setAttribute('aria-pressed',d.bloomSeasons.includes(id)?'true':'false'); b.onclick=()=>{ const next=d.bloomSeasons.includes(id)?d.bloomSeasons.filter(x=>x!==id):[...d.bloomSeasons,id]; discoveryFilterDraft=normalizeDiscovery(Object.assign({},d,{bloomSeasons:next})); renderDiscoveryFilterScreen(); }; seasons.appendChild(b); });
   // count against the DRAFT, style included: `recommended` is the style's list
-  const savedDiscovery=game.discovery, savedCriteria=game.filters, savedDesign=game.design;
-  game.discovery=normalizeDiscovery(d); game.filters=normalizeFilters(discoveryCriteriaDraft||savedCriteria);
+  const savedCriteria=game.filters, savedDesign=game.design;
+  game.filters=normalizeFilters(discoveryCriteriaDraft||savedCriteria);
   if (discoveryStyleDraft) game.design=Object.assign({},savedDesign||{},{type:discoveryStyleDraft});
-  let refs, countText;
-  try { refs=discoveryRefs(); countText=discoveryResultCountText(refs); }
-  finally { game.discovery=savedDiscovery; game.filters=savedCriteria; game.design=savedDesign; }
-  document.getElementById('discoveryFilterCount').textContent=`${countText} match these filters.`;
+  let shown=0, extra=0;
+  try { const groups=groupDiscoveryRefs(discoveryRefs()); shown=groups.length;
+    extra=groups.reduce((n,group)=>n+Math.max(0,group.refs.length-1),0); }
+  finally { game.filters=savedCriteria; game.design=savedDesign; }
+  /* The button says what pressing it gives. With nothing to show it still
+     applies -- a gardener may be setting the zone before choosing a list. */
+  $('btnDiscoveryApply').textContent=shown?`Show ${shown} plant${shown===1?'':'s'}`:'Apply anyway';
+  $('discoveryFilterCount').textContent=shown
+    ? (extra?`${extra} more choice${extra===1?'':'s'} inside them`:'')
+    : `No plants match in ${discoverySourceLabel(activeDiscovery())}.`;
 }
 /* The style is not a filter, so it rides game.design alone; a garden older
    than the questionnaire has no design and gets one, built from its filters. */
@@ -2929,11 +3049,15 @@ function applyDiscoveryFilters(){
   // device-wide hortus:filters, so an apply has to reach the autosave
   if (game.inGarden) markModelChanged();
   discoveryOpenSpecies=null;
-  setDiscovery(Object.assign({},discoveryFilterDraft||{}, {limit:36}),true); discoveryFilterDraft=null; discoveryCriteriaDraft=null;
+  setDiscovery({limit:36},true); discoveryCriteriaDraft=null;
   closeOverlay('discoveryFilterScreen'); buildToolTray();
-  toast(`${discoveryResultCountText(discoveryRefs())} match these filters.`);
+  // the rebuild replaced the link that opened this: hand focus to what stands in its place
+  if (!document.activeElement||document.activeElement===document.body){
+    const back=document.querySelector('.qf-foot .qf-link:last-child')||document.querySelector('.discovery-filter-trigger');
+    if (back&&back.focus) back.focus({preventScroll:true});
+  }
+  toast(`${discoveryResultCountText(discoveryRefs())} match this garden's criteria.`);
 }
-function clearDiscoveryFilters(){ discoveryFilterDraft=normalizeDiscovery(Object.assign({},activeDiscovery(),{colorFamilies:[],bloomSeasons:[],light:[],moisture:[]})); renderDiscoveryFilterScreen(); }
 function openPaletteManager(ref){
   palettePendingRef=ref||null; paletteRenameId=null; renderPaletteManager();
   openOverlay('paletteScreen','#paletteName');
@@ -3295,7 +3419,7 @@ function trayStateSig(ignoreDiscoverySearch=false){
     ignoreDiscoverySearch?'':discoveryOpenSpecies||'', sourceMenuOpen?1:0, paletteRenameId||'',
     j(palettePendingRef), j(ignoreDiscoverySearch?null:catalogCategoryFocus), j(lastCatByGroup),
     replacePlantContext?1:0, sitePhotoEditState?1:0,
-    j(discoveryFilterDraft), j(discoveryCriteriaDraft),
+    j(discoveryCriteriaDraft), landscapeShelfOpen||'',
     // Favorites and palettes live outside `game`, and the heart on every card
     // reads them.
     typeof plantCollectionsRevision==='function'?plantCollectionsRevision():0,
@@ -3446,6 +3570,8 @@ function verifyTrayCache(){
     ['bedStyle',    ()=>{ const o=g.bedStyle; g.bedStyle=(o==='soil'?'gravel':'soil'); return ()=>{ g.bedStyle=o; }; }],
     ['waterStyle',  ()=>{ const o=g.waterStyle; g.waterStyle=(o==='pond'?'lake':'pond'); return ()=>{ g.waterStyle=o; }; }],
     ['lawnStyle',   ()=>{ const o=g.lawnStyle; g.lawnStyle=(o==='meadow'?'moss':'meadow'); return ()=>{ g.lawnStyle=o; }; }],
+    ['landscapeShelf',()=>{ const o=landscapeShelfOpen; landscapeShelfOpen=(o==='path'?'bed':'path'); return ()=>{ landscapeShelfOpen=o; }; }],
+    ['edgingDraft', ()=>{ const o=g.edgingDraft; g.edgingDraft=(edgingDraft()==='steel'?'brick':'steel'); return ()=>{ g.edgingDraft=o; }; }],
     ['sel',         ()=>{ const o=g.sel; g.sel=o?null:{x0:1,y0:1,x1:3,y1:3}; return ()=>{ g.sel=o; }; }],
     ['selMode',     ()=>{ const o=g.selMode; g.selMode=(o==='copy'?'move':'copy'); return ()=>{ g.selMode=o; }; }],
     ['layerFocus',  ()=>{ const o=g.layerFocus; g.layerFocus=(o==='bulbs'?'all':'bulbs'); return ()=>{ g.layerFocus=o; }; }],
@@ -3503,6 +3629,277 @@ function verifyTrayCache(){
                     '\n    (safe — costs an extra rebuild, never a stale one)' : ''));
   return {misses, inert, checked:cases.length};
 }
+/* ---- The Landscape library's opening pages (0.9.116) -----------------------
+   Ground, Grade and Hardscape each opened on a row of five to seven small
+   icons over an empty panel: measured, 53 to 72% of it unused on a phone and on
+   the dock alike. What a tool does was in a tooltip, which a finger never sees,
+   and every material was an arm-then-scroll away (a bluestone path: three taps
+   and a scroll). Now Ground is a SHELF per tool with its surfaces face up,
+   Grade a described row per tool, and Hardscape a picture card per tool under
+   four things people place most. Every picture is painted by the app's own
+   painters, as the chips always were. The sub-pages are unchanged. */
+let landscapeShelfOpen=null;   // the Ground shelf showing every surface; in trayStateSig
+function trayEl(tag,cls,text){ const e=document.createElement(tag); if (cls) e.className=cls; if (text!=null) e.textContent=text; return e; }
+/* A canvas w x h CSS px at the device's scale (capped at 2). scaled: the context
+   is pre-scaled, for vector painters; the chip painters take real pixels. */
+function trayCanvas(w,h,scaled){
+  const dpr=Math.min(2,(typeof devicePixelRatio==='number'&&devicePixelRatio)||1);
+  const c=document.createElement('canvas'); c.width=Math.round(w*dpr); c.height=Math.round(h*dpr);
+  const x=c.getContext('2d'); if (scaled&&x&&x.scale) x.scale(dpr,dpr);
+  return {c,x,dpr,pw:c.width,ph:c.height};
+}
+// always in the chip, shown by .sel: refreshTray moves the class without a rebuild
+function trayTick(){ const t=trayEl('i','lg-tick'); t.appendChild(uiIcon('check')); return t; }
+
+const GROUND_SHELVES=[
+  {k:'lawn',  name:'Lawn',  desc:'Long grass, clover or moss, or mow a path back', pop:['mown','meadow','clover']},
+  {k:'path',  name:'Path',  desc:'Gravel, stone, paving and decking',              pop:['warm','bluestone','brick']},
+  {k:'bed',   name:'Bed',   desc:'Soil, mulch or gravel to plant into',            pop:['soil','mulch','pea']},
+  {k:'water', name:'Water', desc:'Paint a pond, a river or a lake',                pop:['pond','river','lake']},
+  {k:'edging',name:'Edging',desc:'A strip between a bed or path and the lawn',     pop:['steel','brick','timber']}
+];
+function groundShelf(k){
+  if (k==='lawn')   return {table:LAWN_STYLES,  cur:lawnStyle(game.lawnStyle).id,   data:'lawnStyle',  set:id=>{ game.lawnStyle=id; }};
+  if (k==='path')   return {table:PATH_COLORS,  groups:PATH_GROUPS, cur:pathColor(game.pathColor).id, data:'pathColor', set:id=>{ game.pathColor=id; }};
+  if (k==='bed')    return {table:BED_STYLES,   groups:BED_GROUPS,  cur:bedStyle(game.bedStyle).id,   data:'bedStyle',  set:id=>{ game.bedStyle=id; }};
+  if (k==='water')  return {table:WATER_STYLES, cur:waterStyle(game.waterStyle).id, data:'waterStyle', set:id=>{ game.waterStyle=id; }};
+  if (k==='edging') return {table:EDGING_STYLES,cur:edgingDraft(),                  data:'edging',     set:id=>{ game.edgingDraft=edgingStyleId(id); }};
+  return null;
+}
+/* What a shut shelf shows: the surface in hand first, then the common ones. */
+function groundShelfFace(shelf,spec,n){
+  const ids=[spec.cur,...shelf.pop,...spec.table.map(m=>m.id)];
+  return ids.filter((id,i)=>ids.indexOf(id)===i&&spec.table.some(m=>m.id===id)).slice(0,n);
+}
+function renderGroundShelves(tray,cat){
+  tray.classList.add('lg-page');
+  GROUND_SHELVES.filter(s=>cat.tools.includes(s.k)).forEach(shelf=>{
+    const spec=groundShelf(shelf.k), armed=game.tool===shelf.k, open=landscapeShelfOpen===shelf.k, more=spec.table.length>4;
+    const head=trayEl('div','lg-head'); head.append(trayEl('b',null,shelf.name),trayEl('span',null,shelf.desc)); tray.appendChild(head);
+    const chip=m=>{
+      const on=armed&&spec.cur===m.id, b=trayEl('button','lg-chip'+(on?' sel':'')); b.type='button';
+      b.dataset.k=shelf.k; b.dataset[spec.data]=m.id; b.setAttribute('aria-pressed',on?'true':'false');
+      b.title=shelf.k==='lawn'&&m.none?'Mow back to plain lawn: lifts a meadow, and turfs over a bed or a path'
+        :shelf.k==='edging'&&m.id==='none'?'Lift the edging back off':m.label;
+      const {c,x}=trayCanvas(72,42,true);
+      // nearly the whole tile at true scale, where the old chip showed a 36x22 crop
+      if (shelf.k==='edging'){ x.save(); x.translate(15,0); x.scale(.88,.88); drawEdgingIcon(x,m.id); x.restore(); }
+      else drawMaterialIcon(x,36,21,34,17,shelf.k,m.id);
+      b.append(c,trayEl('span',null,m.short||m.label),trayTick());
+      b.onclick=()=>{ spec.set(m.id); setTool(shelf.k,null); buildToolTray(); };
+      tray.appendChild(b);
+    };
+    const toggle=(text,icon,title)=>{
+      const b=trayEl('button','lg-chip lg-all'); b.type='button'; b.dataset.shelf=shelf.k; b.title=title;
+      b.setAttribute('aria-expanded',open?'true':'false');
+      b.append(trayEl('b',null,text),uiIcon(icon));
+      b.onclick=()=>{ landscapeShelfOpen=open?null:shelf.k; buildToolTray();
+        const again=document.querySelector('.lg-all[data-shelf="'+shelf.k+'"]'); if (again&&again.focus) again.focus({preventScroll:true}); };
+      tray.appendChild(b);
+    };
+    if (open){
+      /* Path and bed surfaces sit under a heading per GROUP (PATH_GROUPS,
+         BED_GROUPS): twenty-odd chips in one run was a wall to read, and the
+         heading says what kind of surface a chip is before its swatch does. */
+      (spec.groups||[[null,null]]).forEach(([gid,gname])=>{
+        if (gname) tray.appendChild(trayEl('p','lg-group',gname));
+        spec.table.filter(m=>!gid||m.group===gid).forEach(chip);
+      });
+      toggle('Fewer','chevron-up','Show the common ones only');
+    } else {
+      groundShelfFace(shelf,spec,more?3:4).forEach(id=>chip(spec.table.find(m=>m.id===id)));
+      if (more) toggle(`All ${spec.table.length}`,'chevron-down',`Every ${shelf.name.toLowerCase()} ${shelf.k==='edging'?'style':'surface'}`);
+    }
+  });
+  /* Edge look for the whole garden — organic curves vs crisp tile edges
+     (per-garden, defaulted from the questionnaire style, and it governs how
+     edging draws as much as beds and paths). Rebuilds the ground cache so the
+     change shows immediately.
+     It hangs off the Ground TAB, not off an armed tool. Gated on
+     game.tool==='path'||'bed'||'water' it vanished the moment you armed
+     Edging — and, because entering a garden arms Hand, it was simply absent
+     every time you reopened one, with no hint that arming Path was the way
+     back to a garden-wide setting. */
+  if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')||cat.tools.includes('edging')){
+    const edge=trayEl('div','lg-edge'), text=trayEl('div');
+    text.append(trayEl('b',null,'Edges'),trayEl('small',null,game.edgeStyle==='organic'?'Beds and paths curve':'Crisp, straight tile edges'));
+    const seg=trayEl('div','lg-seg'); seg.setAttribute('role','group'); seg.setAttribute('aria-label','Edge style for the whole garden');
+    [['organic','Organic','Curved, naturalistic bed and path edges'],['formal','Formal','Crisp, straight tile edges']].forEach(([id,label,tip])=>{
+      const on=game.edgeStyle===id, b=trayEl('button',on?'sel':'',label); b.type='button'; b.dataset.k='edge_'+id; b.title=tip;
+      b.setAttribute('aria-pressed',on?'true':'false');
+      b.onclick=()=>{ game.edgeStyle=id; if (typeof groundKey!=='undefined') groundKey='';
+        buildToolTray(); toast(id==='organic'?'Organic edges — beds and paths curve.':'Formal edges — crisp tile edges.');
+        const again=document.querySelector('.lg-seg [data-k="edge_'+id+'"]'); if (again&&again.focus) again.focus({preventScroll:true}); };
+      seg.appendChild(b);
+    });
+    edge.append(text,seg); tray.appendChild(edge);
+  }
+}
+
+/* Grade: a row per tool that says what it does. Those sentences were the
+   buttons' tooltips, so on a phone nobody had read them. The armed tool's
+   options open under its own row. */
+const GRADE_TOOLS=[
+  {k:'terrace',name:'Terrace',desc:'A raised bed, terrace or sunken patio, built with its wall. Drag corner to corner, or tap.'},
+  {k:'raise',  name:'Raise',  desc:'Lift the ground a step. Drag to shape a berm.'},
+  {k:'lower',  name:'Lower',  desc:'Dig the ground down a step, for a swale or a basin.'},
+  {k:'level',  name:'Level',  desc:'Put the ground back to grade.'},
+  {k:'wall',   name:'Wall',   desc:'Face the edge of a terrace with stone, brick or timber. Drag along it.'}
+];
+function drawGradeIcon(tc,kind){
+  const high=kind==='raise', low=kind==='lower';
+  tc.fillStyle=low?'#6f7f83':'#8ba263';
+  tc.beginPath(); tc.moveTo(24,10+(low?9:0)); tc.lineTo(42,21+(low?9:0)); tc.lineTo(24,32+(low?9:0)); tc.lineTo(6,21+(low?9:0));
+  tc.closePath(); tc.fill();
+  if (high){
+    tc.fillStyle='#5c6f46';
+    tc.beginPath(); tc.moveTo(6,21); tc.lineTo(24,32); tc.lineTo(24,40); tc.lineTo(6,29); tc.closePath(); tc.fill();
+    tc.fillStyle='#42563e';
+    tc.beginPath(); tc.moveTo(42,21); tc.lineTo(24,32); tc.lineTo(24,40); tc.lineTo(42,29); tc.closePath(); tc.fill();
+  }
+  tc.strokeStyle='rgba(239,230,211,.55)'; tc.lineWidth=1.3; tc.stroke();
+  tc.fillStyle=uiInk('--icon-ink'); tc.font='700 18px IBM Plex Sans'; tc.textAlign='center';
+  tc.fillText(kind==='level'?'0':(high?'+':'-'),24,26+(low?8:0));
+}
+function renderGradeTools(tray,cat){
+  tray.classList.add('lg-page');
+  const sep=t=>tray.appendChild(trayEl('span','tray-sep',t));
+  const optionBtn=(k,label,sel,draw,fn,tip)=>{
+    const b=trayEl('button','tool'+(sel?' sel':'')); b.dataset.k=k;
+    const c=document.createElement('canvas'); c.width=48; c.height=44; draw(c.getContext('2d'));
+    b.append(c,trayEl('span',null,label)); b.title=tip||label; b.onclick=fn;
+    tray.appendChild(b); return b;
+  };
+  GRADE_TOOLS.filter(t=>cat.tools.includes(t.k)).forEach(t=>{
+    const on=game.tool===t.k, b=trayEl('button','lt-row'+(on?' sel':'')); b.type='button'; b.dataset.k=t.k;
+    b.setAttribute('aria-pressed',on?'true':'false');
+    const {c,x}=trayCanvas(48,44,true);
+    if (t.k==='terrace') drawTerraceIcon(x,terraceDraft()); else if (t.k==='wall') drawWallIcon(x,wallDraft()); else drawGradeIcon(x,t.k);
+    const text=trayEl('span','lt-text'); text.append(trayEl('b',null,t.name),trayEl('small',null,t.desc));
+    const cur=t.k==='terrace'?terraceLabel():t.k==='wall'?wallLabel():'';
+    if (cur) text.appendChild(trayEl('em',null,cur));
+    b.append(c,text); b.onclick=()=>{ setTool(t.k,null); buildToolTray(); };
+    tray.appendChild(b);
+    if (on&&t.k==='terrace'){
+      const td=terraceDraft();
+      const arm=next=>{ game.terraceDraft=normalizeTerraceDraft(Object.assign({},terraceDraft(),next));
+        setTool('terrace',null); buildToolTray(); };
+      sep('Height');
+      TERRACE_LEVELS.forEach(h=>optionBtn('terrace',terraceHeightText(h),td.h===h,
+        tc=>drawTerraceIcon(tc,{h,w:td.w}),()=>arm({h}),
+        h<0?`Sink a patio ${fmtLengthIn(-h*ELEV_RISER_IN)} below the ground around it`
+           :`Raise it ${fmtLengthIn(h*ELEV_RISER_IN)}`).dataset.terraceH=String(h));
+      sep('Wall');
+      WALL_STYLES.forEach(ws=>optionBtn('terrace',ws.face?(ws.short||ws.label):'Bank',td.w===ws.id,
+        tc=>drawTerraceIcon(tc,{h:td.h,w:ws.id}),()=>arm({w:ws.id}),
+        ws.face?ws.label:'A grass bank — no wall').dataset.terraceW=ws.id);
+    }
+    if (on&&t.k==='wall'){
+      sep('Wall material');
+      WALL_STYLES.forEach(ws=>optionBtn('wall',ws.short||ws.label,
+        wallDraft()===ws.id, tc=>drawWallIcon(tc,ws.id),
+        ()=>{ game.wallDraft=wallStyleId(ws.id); setTool('wall',null); buildToolTray(); },
+        ws.id==='none'?'Strip the facing back to bare earth':ws.label).dataset.wallStyle=ws.id);
+    }
+  });
+}
+
+/* Hardscape: what people place most, armed in one tap, then a card per tool. */
+const HARDSCAPE_CARDS=[
+  {k:'fence',       name:'Fence',        desc:'Fences, walls and gates, 3 to 8 ft'},
+  {k:'seat',        name:'Seating',      desc:'Benches, chairs, tables and loungers'},
+  {k:'pergola',     name:'Pergola',      desc:'A roof over a patio, for climbers'},
+  {k:'firepit',     name:'Fire pit',     desc:'Stone, brick, steel or a fire bowl'},
+  {k:'waterfeature',name:'Water feature',desc:'A birdbath, urn, fountain or basin'},
+  {k:'boulder',     name:'Boulder',      desc:'Rocks, ledges and standing stones'},
+  {k:'support',     name:'Support',      desc:'An obelisk, trellis or arch for a climber'}
+];
+const HARDSCAPE_PICKS=[
+  {k:'fence',  label:'Cedar fence',   d:{style:'privacy',height:6,gate:false}},
+  {k:'fence',  label:'Stone wall',    d:{style:'stone',height:3,gate:false}},
+  {k:'seat',   label:'Teak bench',    d:{type:'bench6',finish:'teak',face:0}},
+  {k:'firepit',label:'Brick fire pit',d:{style:'brick',finish:'tumbled',shape:'round',size:'round36',face:0}}
+];
+// tool k's draft, normalised: the one in hand, or d
+function hardscapeDraft(k,d){
+  if (k==='fence') return normalizeFenceDraft(d||fenceDraft());
+  if (k==='seat') return normalizeSeatDraft(d||seatDraft());
+  if (k==='firepit') return normalizeFirepitDraft(d||firepitDraft());
+  if (k==='pergola') return normalizePergolaDraft(d||pergolaDraft());
+  if (k==='support') return normalizeSupportDraft(d||supportDraft());
+  if (k==='waterfeature') return normalizeWaterFeatureDraft(d||waterFeatureDraft());
+  if (k==='boulder') return normalizeBoulderDraft(d||boulderDraft());
+  return d||null;
+}
+function hardscapeLabel(k){
+  return k==='fence'?fenceLabel():k==='seat'?seatLabel():k==='firepit'?firepitLabel():k==='pergola'?pergolaLabel()
+    :k==='support'?supportLabel():k==='waterfeature'?waterFeatureLabel():k==='boulder'?boulderLabel():'';
+}
+// which way a piece is turned is not which piece it is
+function hardscapePickOn(i){
+  const p=HARDSCAPE_PICKS[i]; if (!p||game.tool!==p.k) return false;
+  const same=d=>JSON.stringify(Object.assign({},d,{face:0}));
+  return same(hardscapeDraft(p.k))===same(hardscapeDraft(p.k,p.d));
+}
+function armHardscapePick(i){
+  const p=HARDSCAPE_PICKS[i]; if (!p) return;
+  const d=hardscapeDraft(p.k,p.d);
+  if (p.k==='fence') game.fenceDraft=d; else if (p.k==='seat') game.seatDraft=d; else if (p.k==='firepit') game.firepitDraft=d;
+  game.drill=null; setTool(p.k,null); rememberBrushMenu(game.trayCat,null); buildToolTray();
+}
+/* The tool's draft, drawn w x h by the painter the garden uses for it. */
+function hardscapeArt(k,w,h,d){
+  d=hardscapeDraft(k,d);
+  if (k==='firepit'||k==='pergola'||k==='boulder'||k==='seat'){
+    const {c,x,dpr,pw,ph}=trayCanvas(w,h,false);
+    if (k==='firepit') drawFirepitChip(x,d,pw,ph,0.62*dpr);
+    else if (k==='pergola') drawPergolaChip(x,d,pw,ph);
+    else if (k==='boulder') drawBoulderChip(x,d,pw,ph,0.95*dpr);
+    else drawSeatChip(x,d,pw,ph,0.7*dpr);
+    return c;
+  }
+  const {c,x}=trayCanvas(w,h,true);
+  if (!x) return c;
+  if (k==='fence'){
+    // three panels at the draft's real height, posts between them
+    const st=fenceStyle(d.style), y=h-9, ph=Math.round(Math.min(h-16,7*d.height)), n=3, x0=12, seg=(w-24)/n;
+    x.lineCap='round'; x.lineJoin='round';
+    for (let i=0;i<n;i++) fencePanel(x,x0+i*seg,y,x0+(i+1)*seg,y,ph,st,st.infill,7+i);
+    x.strokeStyle=st.post; x.lineWidth=st.infill==='masonry'?6:3.4;
+    for (let i=0;i<=n;i++){ x.beginPath(); x.moveTo(x0+i*seg,y); x.lineTo(x0+i*seg,y-ph); x.stroke(); }
+  } else if (k==='support'){
+    const sp=supportStyle(d.style), s=Math.min(0.5,(w-12)/(inchesToTiles(sp.wIn)*Math.SQRT2*TILE_W),(h-10)/feetToPx(sp.ft));
+    x.save(); x.translate(w/2,h-6); x.scale(s,s);
+    drawSupportArt(x,0,0,Object.assign({},d,{face:0}),'Summer',ISO_AXES_FLAT,0x3c1d); x.restore();
+  } else if (k==='waterfeature'){
+    const sp=waterFeature(d.form);
+    const wPx=inchesToTiles(sp.wIn)*Math.SQRT2*TILE_W*(sp.bed?1.32:1.06), hPx=feetToPx(sp.hIn/12)+inchesToTiles(sp.dIn)*Math.SQRT2*TILE_H*0.62;
+    const s=Math.min(0.5,(w-10)/wPx,(h-8)/hPx);
+    x.save(); x.translate(w/2,h*0.8); x.scale(s,s);
+    drawWaterFeatureArt(x,0,0,Object.assign({},d,{face:0}),'Summer',ISO_AXES_FLAT,0x5eed); x.restore();
+  }
+  return c;
+}
+function renderHardscapeHome(tray,cat){
+  tray.classList.add('lg-page');
+  const picks=trayEl('div','lg-picks');
+  HARDSCAPE_PICKS.forEach((p,i)=>{
+    if (!cat.tools.includes(p.k)) return;
+    const on=hardscapePickOn(i), b=trayEl('button','lg-chip lg-pick'+(on?' sel':'')); b.type='button'; b.dataset.pick=String(i);
+    b.setAttribute('aria-pressed',on?'true':'false'); b.title=`${p.label}: armed in one tap`;
+    b.append(hardscapeArt(p.k,72,42,p.d),trayEl('span',null,p.label),trayTick());
+    b.onclick=()=>armHardscapePick(i); picks.appendChild(b);
+  });
+  if (picks.children.length){ tray.appendChild(trayEl('p','lh-label','Popular')); tray.appendChild(picks); tray.appendChild(trayEl('p','lh-label','All hardscape')); }
+  HARDSCAPE_CARDS.filter(t=>cat.tools.includes(t.k)).forEach(t=>{
+    const on=game.tool===t.k, label=hardscapeLabel(t.k), b=trayEl('button','lh-card has-sub'+(on?' sel':'')); b.type='button'; b.dataset.k=t.k;
+    const title=trayEl('span','lh-t'); title.append(trayEl('b',null,t.name),uiIcon('chevron-right'));
+    b.append(hardscapeArt(t.k,150,62),title,trayEl('small',null,t.desc),trayEl('em',null,label));
+    b.title=`${t.name}: ${label}. Open to choose.`;
+    b.onclick=()=>{ setTool(t.k,null); game.drill=t.k; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
+    tray.appendChild(b);
+  });
+}
 function buildToolTrayInner(){
   clearTimeout(discoverySearchTimer); discoverySearchView=null;
   saveTrayScroll();
@@ -3514,7 +3911,7 @@ function buildToolTrayInner(){
   const isPlantGroup=activeGroup==='plants';
   tabs.classList.toggle('has-discovery',isPlantGroup);
   lastCatByGroup[activeGroup]=game.trayCat;
-  const selectCat=(id)=>{ saveTrayScroll(); game.toolMenu=null; game.drill=null; discoveryOpenSpecies=null; closeDiscoverySourceMenu();
+  const selectCat=(id)=>{ saveTrayScroll(); game.toolMenu=null; game.drill=null; discoveryOpenSpecies=null; landscapeShelfOpen=null; closeDiscoverySourceMenu();
     const currentDiscovery=activeDiscovery(), searchActive=!!currentDiscovery.query.trim();
     /* The strip offers its All row in the plants branch ONLY, so this is only
        ever reached from a plant tab, and there it just clears the category. */
@@ -3577,7 +3974,6 @@ function buildToolTrayInner(){
       if (target) target.focus({preventScroll:true});
     }
   });
-  if (isPlantGroup){ const summary=discoveryFilterSummary(activeDiscovery()); if (summary) tabs.appendChild(summary); }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   tray.classList.remove('discovery-results','cultivar-drill','landscape-results','view-grid','view-list');
   if (isPlantGroup){
@@ -3677,152 +4073,11 @@ function buildToolTrayInner(){
   if ((game.traySearch||'').trim()){
     renderLandscapeSearchTray(tray,game.traySearch); finishToolTrayRender(); return;
   }
-  if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')||
-      cat.tools.includes('lawn')||cat.tools.some(isElevationTool)){
-    const lawnCol=lawnStyle(game.lawnStyle);
-    const pathCol=pathColor(game.pathColor);
-    const bedCol=bedStyle(game.bedStyle);
-    const waterCol=waterStyle(game.waterStyle);
-    const drawMat=(tc,kind,id)=>drawMaterialIcon(tc,24,23,18,11,kind,id);
-    const drawElev=(tc,kind)=>{
-      const high=kind==='raise', low=kind==='lower';
-      tc.fillStyle=low?'#6f7f83':'#8ba263';
-      tc.beginPath(); tc.moveTo(24,10+(low?9:0)); tc.lineTo(42,21+(low?9:0)); tc.lineTo(24,32+(low?9:0)); tc.lineTo(6,21+(low?9:0));
-      tc.closePath(); tc.fill();
-      if (high){
-        tc.fillStyle='#5c6f46';
-        tc.beginPath(); tc.moveTo(6,21); tc.lineTo(24,32); tc.lineTo(24,40); tc.lineTo(6,29); tc.closePath(); tc.fill();
-        tc.fillStyle='#42563e';
-        tc.beginPath(); tc.moveTo(42,21); tc.lineTo(24,32); tc.lineTo(24,40); tc.lineTo(42,29); tc.closePath(); tc.fill();
-      }
-      tc.strokeStyle='rgba(239,230,211,.55)'; tc.lineWidth=1.3; tc.stroke();
-      tc.fillStyle=uiInk('--icon-ink'); tc.font='700 18px IBM Plex Sans'; tc.textAlign='center';
-      tc.fillText(kind==='level'?'0':(high?'+':'-'),24,26+(low?8:0));
-    };
-    const materialBtn=(k,label,sel,draw,fn,tip)=>{
-      const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
-      if (sel!==undefined) b.className='tool'+(sel?' sel':'');
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      draw(c.getContext('2d'));
-      const sp=document.createElement('span'); sp.textContent=label;
-      b.append(c,sp); b.title=tip||label; b.onclick=fn;
-      tray.appendChild(b);
-      return b;
-    };
-    [
-      ['lawn','Lawn',tc=>drawMat(tc,'lawn',lawnCol.id), lawnCol.none
-        ? 'Mown lawn: drag to mow a path back through a meadow.'
-        : `${lawnCol.label}: drag to lay long grass, clover, moss or turf.`],
-      ['path','Path',tc=>drawMat(tc,'path',pathCol.id),`${pathCol.label} path: drag or act to lay paths.`],
-      ['bed','Bed',tc=>drawMat(tc,'bed',bedCol.id),`${bedCol.label} bed: drag or act to prepare planting beds.`],
-      ['water','Water',tc=>drawMat(tc,'water',waterCol.id),`${waterCol.label}: drag to paint ponds, rivers, or lakes.`],
-      ['edging','Edging',tc=>drawEdgingIcon(tc,edgingDraft()),'Edge a bed or path against the lawn. Fill the whole bed — it only draws where it meets grass.'],
-      ['terrace','Terrace',tc=>drawTerraceIcon(tc,terraceDraft()),
-        'Build a raised bed, terrace or sunken patio with its wall in one go. Drag corner to corner, or tap.'],
-      ['raise','Raise',tc=>drawElev(tc,'raise'),'Raise ground one step. Drag to shape a berm.'],
-      ['lower','Lower',tc=>drawElev(tc,'lower'),'Lower ground one step. Drag to shape a swale or basin.'],
-      ['level','Level',tc=>drawElev(tc,'level'),'Return ground to level grade.'],
-      ['wall','Wall',tc=>drawWallIcon(tc,wallDraft()),'Face a terrace with a retaining wall. Drag along the edge.'],
-    ].filter(([k])=>cat.tools.includes(k))
-    .forEach(([k,label,draw,hint])=>{
-      materialBtn(k,label,game.tool===k,draw,()=>{ setTool(k,null); buildToolTray(); },hint);
-    });
-    if (game.tool==='edging' && cat.tools.includes('edging')){
-      const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent='Edging'; tray.appendChild(sep);
-      EDGING_STYLES.forEach(es=>materialBtn('edging',es.short||es.label,
-        edgingDraft()===es.id, tc=>drawEdgingIcon(tc,es.id),
-        ()=>{ game.edgingDraft=edgingStyleId(es.id); setTool('edging',null); buildToolTray(); },
-        es.id==='none'?'Lift the edging back off':es.label));
-    }
-    if (game.tool==='terrace' && cat.tools.includes('terrace')){
-      const td=terraceDraft(), sep=t=>{ const s=document.createElement('span'); s.className='tray-sep';
-        s.textContent=t; tray.appendChild(s); };
-      const arm=next=>{ game.terraceDraft=normalizeTerraceDraft(Object.assign({},terraceDraft(),next));
-        setTool('terrace',null); buildToolTray(); };
-      sep('Height');
-      TERRACE_LEVELS.forEach(h=>materialBtn('terrace',terraceHeightText(h),td.h===h,
-        tc=>drawTerraceIcon(tc,{h,w:td.w}),()=>arm({h}),
-        h<0?`Sink a patio ${fmtLengthIn(-h*ELEV_RISER_IN)} below the ground around it`
-           :`Raise it ${fmtLengthIn(h*ELEV_RISER_IN)}`).dataset.terraceH=String(h));
-      sep('Wall');
-      WALL_STYLES.forEach(ws=>materialBtn('terrace',ws.face?(ws.short||ws.label):'Bank',td.w===ws.id,
-        tc=>drawTerraceIcon(tc,{h:td.h,w:ws.id}),()=>arm({w:ws.id}),
-        ws.face?ws.label:'A grass bank — no wall').dataset.terraceW=ws.id);
-    }
-    if (game.tool==='wall' && cat.tools.includes('wall')){
-      const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent='Wall material'; tray.appendChild(sep);
-      WALL_STYLES.forEach(ws=>materialBtn('wall',ws.short||ws.label,
-        wallDraft()===ws.id, tc=>drawWallIcon(tc,ws.id),
-        ()=>{ game.wallDraft=wallStyleId(ws.id); setTool('wall',null); buildToolTray(); },
-        ws.id==='none'?'Strip the facing back to bare earth':ws.label));
-    }
-    /* Path and bed materials sit under a heading per GROUP (PATH_GROUPS,
-       BED_GROUPS): twenty-odd chips in one row was a wall to read, and the
-       heading says what kind of surface a chip is before its swatch does. */
-    const groupSep=t=>{ const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent=t; tray.appendChild(sep); };
-    if (game.tool==='path' && cat.tools.includes('path')){
-      for (const [gid,gname] of PATH_GROUPS){
-        groupSep(gname);
-        PATH_COLORS.filter(pc=>pc.group===gid).forEach(pc=>materialBtn('path',pc.short||pc.label,
-          game.tool==='path'&&game.pathColor===pc.id,
-          tc=>drawMat(tc,'path',pc.id),
-          ()=>{ game.pathColor=pc.id; setTool('path',null); buildToolTray(); },
-          pc.label).dataset.pathColor=pc.id);
-      }
-    }
-    if (game.tool==='bed' && cat.tools.includes('bed')){
-      for (const [gid,gname] of BED_GROUPS){
-        groupSep(gname);
-        BED_STYLES.filter(bs=>bs.group===gid).forEach(bs=>materialBtn('bed',bs.short||bs.label,
-          game.tool==='bed'&&game.bedStyle===bs.id,
-          tc=>drawMat(tc,'bed',bs.id),
-          ()=>{ game.bedStyle=bs.id; setTool('bed',null); buildToolTray(); },
-          bs.label).dataset.bedStyle=bs.id);
-      }
-    }
-    if (game.tool==='lawn' && cat.tools.includes('lawn')){
-      const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent='Lawn surface'; tray.appendChild(sep);
-      LAWN_STYLES.forEach(ls=>materialBtn('lawn',ls.short||ls.label,
-        game.tool==='lawn'&&game.lawnStyle===ls.id,
-        tc=>drawMat(tc,'lawn',ls.id),
-        ()=>{ game.lawnStyle=ls.id; setTool('lawn',null); buildToolTray(); },
-        ls.none?'Mow back to plain lawn — lifts a meadow, and turfs over a bed or a path':ls.label)
-        .dataset.lawnStyle=ls.id);
-    }
-    if (game.tool==='water' && cat.tools.includes('water')){
-      const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent='Water'; tray.appendChild(sep);
-      WATER_STYLES.forEach((ws,i)=>materialBtn('water',ws.label,
-        game.tool==='water'&&game.waterStyle===ws.id,
-        tc=>drawMat(tc,'water',ws.id),
-        ()=>{ game.waterStyle=ws.id; setTool('water',null); buildToolTray(); },
-        ws.label).dataset.waterStyle=ws.id);
-    }
-    /* Edge look for the whole garden — organic curves vs crisp tile edges
-       (per-garden, defaulted from the questionnaire style, and it governs how
-       edging draws as much as beds and paths). Rebuilds the ground cache so the
-       change shows immediately.
-       It hangs off the Ground TAB, not off an armed tool. Gated on
-       game.tool==='path'||'bed'||'water' it vanished the moment you armed
-       Edging — and, because entering a garden arms Hand, it was simply absent
-       every time you reopened one, with no hint that arming Path was the way
-       back to a garden-wide setting. */
-    if (cat.tools.includes('path')||cat.tools.includes('bed')||
-        cat.tools.includes('water')||cat.tools.includes('edging')){
-      const sep=document.createElement('span'); sep.className='tray-sep'; sep.textContent='Edge'; tray.appendChild(sep);
-      [['organic','Organic'],['formal','Formal']].forEach(([id,label])=>{
-        materialBtn('edge_'+id, label, game.edgeStyle===id,
-          tc=>drawEdgeStyleIcon(tc,id),
-          ()=>{ game.edgeStyle=id; if (typeof groundKey!=='undefined') groundKey='';
-            buildToolTray(); toast(id==='organic'?'Organic edges — beds and paths curve.':'Formal edges — crisp tile edges.'); },
-          id==='organic'?'Curved, naturalistic bed and path edges':'Crisp, straight tile edges');
-      });
-    }
-  }
+  /* The opening page of a Landscape tab says what its tools are and shows
+     what they lay (see renderGroundShelves). The sub-pages are as they were. */
+  if (cat.id==='landscape'){ renderGroundShelves(tray,cat); finishToolTrayRender(); return; }
+  if (cat.id==='structures' && !game.drill){ renderHardscapeHome(tray,cat); finishToolTrayRender(); return; }
+  if (cat.tools.some(isElevationTool)) renderGradeTools(tray,cat);
   /* One Back button for all four Hardscape sub-pages. It was three
      byte-identical closures, and adding the water feature would have made it
      four — the restated-table smell this file has been bitten by before. */
@@ -3872,18 +4127,6 @@ function buildToolTrayInner(){
         post(9,h); post(39,h);
       }
     };
-    const mainFenceBtn=()=>{
-      const b=document.createElement('button');
-      b.className='tool has-sub'+(game.tool==='fence'?' sel':'');
-      b.dataset.k='fence';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      miniFence(c.getContext('2d'),fd);
-      const sp=document.createElement('span'); sp.textContent='Fence';
-      b.append(c,sp);
-      b.title=`Fence: ${fenceLabel()}. Open to choose gate, height, and material.`;
-      b.onclick=()=>{ setTool('fence',null); game.drill='fence'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
-      tray.appendChild(b);
-    };
     const toolBtn=(label,sel,draftPatch,tip)=>{
       const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
       b.dataset.k='fence';
@@ -3898,9 +4141,7 @@ function buildToolTrayInner(){
         setTool('fence',null); rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
       tray.appendChild(b); return b;
     };
-    if (!game.drill){
-      mainFenceBtn();
-    } else if (game.drill==='fence'){
+    if (game.drill==='fence'){
       backBtn();
       sep('Place');
       toolBtn('Fence', game.tool==='fence'&&!fd.gate, {gate:false}, 'Draw connected fence tiles');
@@ -3945,18 +4186,7 @@ function buildToolTrayInner(){
       b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
       tray.appendChild(b); return b;
     };
-    if (!game.drill){
-      const b=document.createElement('button');
-      b.className='tool has-sub'+(game.tool==='firepit'?' sel':'');
-      b.dataset.k='firepit';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      drawFirepitChip(c.getContext('2d'),fd,48,44);
-      const sp=document.createElement('span'); sp.textContent='Fire Pit';
-      b.append(c,sp);
-      b.title=`Fire Pit: ${firepitLabel()}. Open to choose the style, material and size.`;
-      b.onclick=()=>{ setTool('firepit',null); game.drill='firepit'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
-      tray.appendChild(b);
-    } else if (game.drill==='firepit'){
+    if (game.drill==='firepit'){
       backBtn();
       /* Style is how it is built, material what it is built in — each chip is
          the pit itself, so choosing is looking, the pots' and pets' rule. */
@@ -4006,19 +4236,7 @@ function buildToolTrayInner(){
       b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
       tray.appendChild(b); return b;
     };
-    if (!game.drill){
-      const b=document.createElement('button');
-      b.className='tool has-sub'+(game.tool==='pergola'?' sel':'');
-      b.dataset.k='pergola';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      miniPergola(c.getContext('2d'),gd);
-      const sp=document.createElement('span'); sp.textContent='Pergola';
-      b.append(c,sp);
-      b.title=`${pergolaLabel()}. Tap for one ${pergolaSizeText(PERGOLA_TAP_TILES,PERGOLA_TAP_TILES)}, or drag corner to corner; a climber grows on it.`;
-      b.onclick=()=>{ setTool('pergola',null); game.drill='pergola';
-        rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
-      tray.appendChild(b);
-    } else if (game.drill==='pergola'){
+    if (game.drill==='pergola'){
       backBtn();
       sep('Material');
       PERGOLA_MATERIALS.forEach(m=>toolBtn(m.short||m.label, gd.mat===m.id, {mat:m.id}, m.label));
@@ -4066,19 +4284,7 @@ function buildToolTrayInner(){
       b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
       tray.appendChild(b); return b;
     };
-    if (!game.drill){
-      const b=document.createElement('button');
-      b.className='tool has-sub'+(game.tool==='support'?' sel':'');
-      b.dataset.k='support';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      miniSupport(c.getContext('2d'),sd);
-      const sp=document.createElement('span'); sp.textContent='Support';
-      b.append(c,sp);
-      b.title=`Support: ${supportLabel()}. Something for a climber to grow on.`;
-      b.onclick=()=>{ setTool('support',null); game.drill='support';
-        rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
-      tray.appendChild(b);
-    } else if (game.drill==='support'){
+    if (game.drill==='support'){
       backBtn();
       sep('Support');
       SUPPORT_STYLES.forEach(s=>toolBtn(s.short||s.label, sd.style===s.id, {style:s.id},
@@ -4144,19 +4350,7 @@ function buildToolTrayInner(){
       b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
       tray.appendChild(b); return b;
     };
-    if (!game.drill){
-      const b=document.createElement('button');
-      b.className='tool has-sub'+(game.tool==='waterfeature'?' sel':'');
-      b.dataset.k='waterfeature';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      miniWater(c.getContext('2d'),wd);
-      const sp=document.createElement('span'); sp.textContent='Water Feature';
-      b.append(c,sp);
-      b.title=`Water feature: ${waterFeatureLabel()}. Open to choose the piece and its finish.`;
-      b.onclick=()=>{ setTool('waterfeature',null); game.drill='waterfeature';
-        rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
-      tray.appendChild(b);
-    } else if (game.drill==='waterfeature'){
+    if (game.drill==='waterfeature'){
       backBtn();
       sep('Water feature');
       WATER_FEATURES.forEach(w=>toolBtn(w.short||w.label, wd.form===w.id, {form:w.id},
@@ -4197,18 +4391,7 @@ function buildToolTrayInner(){
       b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
       tray.appendChild(b); return b;
     };
-    if (!game.drill){
-      const b=document.createElement('button');
-      b.className='tool has-sub'+(game.tool==='boulder'?' sel':'');
-      b.dataset.k='boulder';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      drawBoulderChip(c.getContext('2d'),bd,48,44);
-      const sp=document.createElement('span'); sp.textContent='Boulder';
-      b.append(c,sp);
-      b.title=`Boulder: ${boulderLabel()}. Open to choose the form, size and stone.`;
-      b.onclick=()=>{ setTool('boulder',null); game.drill='boulder'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
-      tray.appendChild(b);
-    } else if (game.drill==='boulder'){
+    if (game.drill==='boulder'){
       backBtn();
       sep('Form');
       BOULDER_FORMS.forEach(f=>toolBtn(f.label, spec.form===f.id, {form:f.id},
@@ -4309,6 +4492,8 @@ function buildToolTrayInner(){
         setTool('pot',null); buildToolTray(); };
       tray.appendChild(b); return b;
     };
+    // the tab's two kinds of thing each say what they are, as the Ground shelves do
+    { const head=trayEl('div','lg-head'); head.append(trayEl('b',null,'Containers'),trayEl('span',null,'A pot can be planted anywhere, paving included')); tray.appendChild(head); }
     POT_STYLES.forEach(st=>toolBtn(st.short||st.label, armed&&cd.style===st.id, {style:st.id},
       `${st.label} — plant it anywhere, including paving`));
     if (armed){
@@ -4356,18 +4541,7 @@ function buildToolTrayInner(){
       b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
       tray.appendChild(b); return b;
     };
-    if (!game.drill){
-      const b=document.createElement('button');
-      b.className='tool has-sub'+(game.tool==='seat'?' sel':'');
-      b.dataset.k='seat';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      drawSeatChip(c.getContext('2d'),sd,48,44);
-      const sp=document.createElement('span'); sp.textContent='Seating';
-      b.append(c,sp);
-      b.title=`Seating: ${seatLabel()}. Open to choose the piece, its finish and which way it faces.`;
-      b.onclick=()=>{ setTool('seat',null); game.drill='seat'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
-      tray.appendChild(b);
-    } else if (game.drill==='seat'){
+    if (game.drill==='seat'){
       backBtn();
       sep('Seating');
       SEAT_TYPES.forEach(t=>toolBtn(t.short||t.label, sd.type===t.id, {type:t.id},
@@ -4390,8 +4564,7 @@ function buildToolTrayInner(){
        chips sat straight under the pot Size row with nothing between them and
        read as two more pot sizes. */
     if (cat.tools.includes('pot')){
-      const s2=document.createElement('span'); s2.className='tray-sep';
-      s2.textContent='Pets'; tray.appendChild(s2);
+      const head=trayEl('div','lg-head'); head.append(trayEl('b',null,'Pets'),trayEl('span',null,'A cat or a dog, for company. They take up no ground.')); tray.appendChild(head);
     }
     // Contextual like the Ground tab: Cat / Dog are always up, and the coat,
     // marking and sock rows only unfold once a pet is armed — the same shape
@@ -4553,8 +4726,13 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
 }
 function refreshTray(){
   const cur=PLANTS[game.tool];
-  document.querySelectorAll('.tool').forEach(el=>{
-    const sel=el.dataset.pathColor
+  document.querySelectorAll('.tool,.lg-chip,.lh-card,.lt-row').forEach(el=>{
+    if (el.dataset.shelf) return;                      // "All 20" / "Fewer": a toggle, not a choice
+    const sel=el.dataset.pick!==undefined
+      ? hardscapePickOn(+el.dataset.pick)
+      : el.dataset.edging
+      ? game.tool==='edging' && edgingDraft()===el.dataset.edging
+      : el.dataset.pathColor
       ? game.tool==='path' && game.pathColor===el.dataset.pathColor
       : el.dataset.bedStyle
       ? game.tool==='bed' && game.bedStyle===el.dataset.bedStyle

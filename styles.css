@@ -1471,10 +1471,9 @@ canvas.layer-eye{display:block}
 .discovery-controls{display:flex;align-items:center;gap:6px;flex:1 0 100%;min-width:0;padding:1px 0 5px}
 .landscape-controls{display:flex;align-items:stretch;gap:6px;flex:1 0 100%;min-width:0;padding:1px 0 5px;flex-wrap:wrap}
 .catalog-minimize{display:flex;align-items:center;justify-content:center;flex:0 0 36px;width:36px;min-height:34px;margin-left:auto;padding:0;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-control);color:var(--bronze)}.catalog-minimize:hover{background:var(--surface-control-hover);border-color:var(--border-active);color:var(--text-primary)}.catalog-minimize .ui-icon{width:16px;height:16px}
-.discovery-source,.discovery-filter-trigger,.discovery-filter-summary{min-height:34px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary);font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif;white-space:nowrap;padding:0 10px}
-.discovery-source-wrap{position:relative;flex:0 0 auto;max-width:210px}.discovery-source{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:132px;max-width:210px;width:100%;overflow:hidden;cursor:pointer}.discovery-source span{overflow:hidden;text-overflow:ellipsis}.discovery-source i{display:flex;flex:0 0 auto;color:var(--bronze)}.discovery-source i .ui-icon{width:14px;height:14px}.discovery-source:hover,.discovery-filter-trigger:hover,.discovery-filter-summary:hover{background:var(--surface-control-hover);border-color:var(--border-strong)}
+.discovery-source,.discovery-filter-trigger{min-height:34px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary);font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif;white-space:nowrap;padding:0 10px}
+.discovery-source-wrap{position:relative;flex:0 0 auto;max-width:210px}.discovery-source{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:132px;max-width:210px;width:100%;overflow:hidden;cursor:pointer}.discovery-source span{overflow:hidden;text-overflow:ellipsis}.discovery-source i{display:flex;flex:0 0 auto;color:var(--bronze)}.discovery-source i .ui-icon{width:14px;height:14px}.discovery-source:hover,.discovery-filter-trigger:hover{background:var(--surface-control-hover);border-color:var(--border-strong)}
 .discovery-source-menu{position:absolute;top:calc(100% + 5px);left:0;z-index:56;display:flex;flex-direction:column;min-width:220px;max-width:min(320px,calc(100vw - 28px));max-height:min(54vh,330px);overflow-y:auto;padding:6px;background:var(--surface-dialog);border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);box-shadow:var(--shadow-overlay);animation:popoverEnter var(--motion-menu) var(--ease-emphasized)}.discovery-source-label{margin:6px 7px 3px;color:var(--bronze);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.discovery-source-label:first-child{margin-top:2px}.discovery-source-item{min-height:34px;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-secondary);font:700 11px/1.1 'IBM Plex Sans',system-ui,sans-serif;padding:7px 9px;text-align:left}.discovery-source-item:hover{background:var(--surface-control-hover);color:var(--text-primary)}.discovery-source-item.sel{border-color:var(--border-active);background:var(--surface-active);color:var(--text-primary)}
-.discovery-filter-summary{max-width:190px;overflow:hidden;text-overflow:ellipsis;color:var(--bronze);cursor:pointer}
 #trayFind,.catalog-search{min-width:120px;flex:1;padding:7px 10px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:12px}
 #trayFind:focus,.catalog-search:focus{outline:none;border-color:var(--focus-ring)}
 .discovery-filter-trigger{color:var(--bronze)}
@@ -1684,8 +1683,6 @@ canvas.daily-history-thumb{object-fit:contain}
 .discovery-load-more{display:block;min-height:40px;margin:10px auto 1px;padding:0 14px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary);font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif}.discovery-load-more:hover{background:var(--surface-control-hover);border-color:var(--border-strong)}
 .discovery-empty{display:flex;min-height:140px;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-muted);font-size:12px;text-align:center}.discovery-empty .btn{font-size:12px;padding:9px 12px}
 .discovery-color-chip{display:inline-flex;align-items:center;gap:5px}
-.discovery-clear{margin:4px 0 16px}
-.discovery-criteria{padding:11px 12px;border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control)}.native-criteria{display:grid;gap:7px;margin-bottom:8px;padding-bottom:10px;border-bottom:1px solid var(--border-quiet)}.native-criteria .criteria-label{font-size:11px;font-weight:700;color:var(--text-primary)}.native-criteria select{width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:12px}.native-criteria label{margin:0;color:var(--text-secondary);font-size:10px;letter-spacing:.06em;text-transform:uppercase}.native-criteria label select{display:block;margin-top:5px;text-transform:none;letter-spacing:normal}.native-criteria .field-hint{margin:0}.discovery-criteria-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px}.discovery-criteria-checks .check-row{margin:0;font-size:11px}
 .palette-list{display:flex;flex-direction:column;gap:7px;margin-top:12px}.palette-manager-row{display:flex;align-items:stretch;gap:5px}.palette-row-action{min-width:58px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary);font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif}.palette-row-action:hover{background:var(--surface-control-hover);color:var(--text-primary)}.palette-row-action.add{color:#dff2d2;border-color:rgba(133,186,108,.7);background:rgba(79,127,67,.36)}.palette-row-action.remove,.palette-row-action.danger{color:var(--action-danger-text);border-color:rgba(224,138,122,.4);background:var(--surface-danger)}.palette-assignment-name{display:flex;flex:1;flex-direction:column;justify-content:center;min-width:0;padding:8px 10px;border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary)}.palette-assignment-name b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.palette-assignment-name small{margin-top:2px;color:var(--text-muted);font-size:10px}
 .palette-create{margin-top:16px;padding-top:14px;border-top:1px solid var(--border-quiet)}.palette-create>label{display:block;margin-bottom:6px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--bronze)}.palette-create input{min-width:0;flex:1;padding:10px 11px;border:1.5px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:14px}.palette-create .row{flex-wrap:nowrap}.palette-create .btn{min-width:84px;padding:10px 12px;font-size:13px}
 .palette-unavailable{display:flex;flex-direction:column;gap:5px;padding:9px 10px;border:1px dashed var(--border-quiet);border-radius:var(--radius-control);background:rgba(34,24,19,.28)}.palette-unavailable>p{margin:0;color:var(--text-muted);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.palette-unavailable-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--text-secondary)}.palette-unavailable-info{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}.palette-unavailable-info>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.palette-unavailable-info>small{color:var(--text-muted);font-size:9px;line-height:1.2}.palette-unavailable-row button,.palette-rename button{min-height:30px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary);font:700 10px/1 'IBM Plex Sans',system-ui,sans-serif;padding:0 9px}.palette-rename{display:flex;gap:5px;padding:7px 0}.palette-rename input{min-width:0;flex:1;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:12px;padding:7px 9px}
@@ -2384,7 +2381,6 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .catalog-mode{flex:0 0 auto;width:auto;min-height:44px}.catalog-mode button{min-height:44px;padding:0 9px}
   .discovery-source-wrap{flex:1 1 0;min-width:0;max-width:none}.discovery-source{width:100%;min-width:0;max-width:none;min-height:44px;padding:0 10px}
   .discovery-source-menu{min-width:min(250px,calc(100vw - 26px));max-width:calc(100vw - 26px)}
-  .discovery-filter-summary{max-width:120px;min-height:44px;padding:0 8px}
   #trayFind{flex:1 1 auto;width:auto;min-width:0;min-height:44px;font-size:14px}
   .discovery-filter-row{flex:0 0 auto}
   .discovery-filter-trigger{min-height:44px;padding:0 12px}
@@ -2427,7 +2423,6 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
     padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   #toolTray.discovery-results{display:block;max-height:min(50vh,440px);padding:9px max(10px,env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));overflow-y:auto}
   .plant-result-grid,.plant-variant-grid{grid-template-columns:1fr;gap:7px}.plant-result-card{min-height:104px}.plant-result-main{padding-right:94px}.plant-result-art{width:70px;height:74px;flex-basis:70px}.plant-result-copy>b{font-size:17px}.plant-result-copy>em{font-size:12px}.plant-result-meta{font-size:11px}.plant-result-actions{right:7px;top:7px}.plant-result-heart,.plant-result-add{width:44px;height:44px}.plant-result-heart .ui-icon,.plant-result-add .ui-icon{width:18px;height:18px}.cultivar-drill-head{top:-9px;margin:-9px -10px 8px}.cultivar-drill-back{min-height:44px}.cultivar-drill-back span{display:none}
-  .discovery-criteria-checks{grid-template-columns:1fr}.discovery-criteria-checks .check-row{min-height:44px}
   .hud-bottom.sheet-collapsed #sheetCatalog{max-height:0;overflow:hidden;opacity:0;transform:translateY(8px);visibility:hidden;pointer-events:none;
     transition:max-height var(--motion-panel) var(--ease-emphasized),opacity var(--motion-menu),transform var(--motion-panel) var(--ease-emphasized),visibility 0s linear var(--motion-panel)}
   .hud-bottom.sheet-full{height:calc(100vh - var(--sheet-safe-top));height:calc(100dvh - var(--sheet-safe-top));max-height:calc(100dvh - var(--sheet-safe-top));overflow:hidden}
@@ -2649,7 +2644,7 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
 .catalog-mode button{border:0!important;border-radius:var(--radius-pill);color:var(--text-secondary);font:700 13px/1 var(--font-body);transition:background var(--motion-control),transform var(--motion-control) var(--ease-standard),box-shadow var(--motion-control)}
 .catalog-mode button.sel{background:var(--color-neutral-100);color:var(--color-text);box-shadow:0 2px 7px rgba(0,0,0,.22)}
 .catalog-mode button:active{transform:scale(.98)}
-.discovery-source,.discovery-filter-trigger,.discovery-filter-summary{border-color:var(--color-divider);background:var(--color-neutral-100);color:var(--color-text);font-family:var(--font-body);border-radius:var(--radius-pill)}
+.discovery-source,.discovery-filter-trigger{border-color:var(--color-divider);background:var(--color-neutral-100);color:var(--color-text);font-family:var(--font-body);border-radius:var(--radius-pill)}
 .discovery-source i{color:var(--color-accent)}
 .discovery-source-menu{background:var(--surface-dialog);border-color:var(--color-divider);box-shadow:var(--shadow-overlay)}
 .discovery-source-label{color:var(--color-accent)}
@@ -2808,7 +2803,6 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
   .landscape-controls .catalog-search{flex:1 1 auto;min-height:40px;width:auto}
   .discovery-filter-row{flex:0 0 auto;width:auto}
   .discovery-filter-trigger{min-height:40px}.discovery-result-count{display:none}
-  .discovery-filter-summary{display:none}
   /* width:100% would out-size the arrow gutters it now shares the nav with. */
   .catalog-category-strip{display:flex}
   .plant-result-grid,.plant-variant-grid{grid-template-columns:minmax(0,1fr)}
@@ -2924,8 +2918,6 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
   #toolTray.discovery-results{padding:10px 10px calc(12px + env(safe-area-inset-bottom))}
   .plant-result-card{min-height:110px}.plant-result-main,.plant-result-card.sel .plant-result-main{padding-right:58px}.plant-result-copy>b{font-size:16px}
   .plant-result-heart,.plant-result-add{width:44px;height:44px}.plant-result-card.sel .plant-result-actions{top:42px}
-  .discovery-filter-panel .chip{display:inline-flex;align-items:center;min-height:44px}
-  .discovery-filter-panel .check-row input{width:20px;height:20px}
   .modal-screen .back-link{min-height:44px}
   #brushBar{width:100%;max-width:none;margin:0;padding:10px max(12px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));border:0;border-top:1px solid var(--color-divider);border-radius:0;flex-direction:column;align-items:stretch;gap:7px;background:var(--color-neutral-100)}
   .placing-controls{justify-content:flex-start}.placing-summary>canvas{width:42px;height:38px;flex-basis:42px}
@@ -2941,12 +2933,12 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
    min-height, so emptying them left a band of nothing across the state whose
    whole point is seeing the garden. Filters went with them — a lone full-width
    trigger was the last 50px of chrome standing between the strip and the
-   results, and .discovery-filter-summary would have re-opened the same band the
-   moment a filter was active. The strip's own counts already report the
-   narrowed set. */
+   results, and a row of the filters that are on would have re-opened the same
+   band the moment one was active. (0.9.116: the filter tray and its pills are
+   hidden at half for that reason, and the line that counts the plants names
+   them instead.) */
 @media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
-  .hud-bottom.sheet-half .catalog-header,
-  .hud-bottom.sheet-half .discovery-filter-summary{display:none}
+  .hud-bottom.sheet-half .catalog-header{display:none}
   /* Half keeps exactly ONE thing from the control stack: the Plants/Landscape
      switch. It is built inside .discovery-controls (tray.js), so hiding that
      whole stack — which is what used to happen — took the switch with it. And
@@ -3181,10 +3173,9 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
   .selection-more button{min-height:44px}
   .plant-result-heart,.plant-result-add,
   .catalog-category-strip button,.discovery-source,.discovery-filter-trigger,
-  .discovery-filter-summary,.palette-unavailable-row button,.palette-rename button,
+  .palette-unavailable-row button,.palette-rename button,
   .discovery-load-more,.catalog-mode button,.modal-screen .chip,.modal-screen .back-link{min-width:44px;min-height:44px}
   .palette-row-action{min-height:44px}
-  .discovery-criteria-checks .check-row{min-height:44px}
   /* Swept Aug 2026 by walking every reachable surface at a coarse pointer and
      measuring each interactive element, rather than fixing them as they were
      noticed one at a time. Measured heights before: .card-x 23 (a CLOSE button,
@@ -3217,7 +3208,6 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
   .scheme-name,.scheme-pick,.scheme-act{min-height:44px}
   .bloom-cell{min-height:44px}
   #cvRow .chip{min-height:44px}
-  .discovery-criteria-checks .check-row input{width:20px;height:20px}
 }
 
 /* ---------- settings ----------
@@ -3583,4 +3573,247 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
   .catalog-view button.sel,.pcd-actions .plant-result-heart.on{border:2px solid Highlight!important;forced-color-adjust:none;background:Highlight!important;color:HighlightText!important}
   .plant-card-detail,.pc-chip{border:1px solid CanvasText}
   .filter-count{forced-color-adjust:none;background:Highlight;color:HighlightText}
+}
+
+/* ============================================================================
+   Filters in the catalog, and the garden criteria dialog (0.9.116)
+   The Filters button opens a tray of live chips (.qf-tray); shut, what is on
+   shows as pills (.qf-active). The dock keeps either under its control rows;
+   the sheet at the head of the list, where it scrolls away with the plants.
+   The dialog (.gc-*) holds only what the GARDEN asks of a plant, with its one
+   action pinned in a footer. Last in the file for the reason the 0.9.115 block
+   is: a media query adds no specificity.
+   ========================================================================== */
+.discovery-filter-trigger[aria-expanded="true"]{border-color:var(--color-accent);box-shadow:inset 0 0 0 1px var(--color-accent)}
+.qf-tray,.qf-active{min-width:0;order:2;flex:0 0 auto}
+.qf-tray{display:grid;gap:6px;padding:9px 10px 7px;border:1px solid var(--color-divider);border-radius:14px;background:var(--color-neutral-100)}
+.qf-row{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;column-gap:6px}
+.qf-lab{font-size:11.5px;font-weight:500;line-height:1;color:var(--text-secondary)}
+.qf-chips{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.qf-chip{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:28px;padding:0 10px;
+  border:1px solid var(--border-control);border-radius:var(--radius-pill);background:var(--surface-input);color:var(--text-primary);
+  font:600 12px/1 var(--font-body);white-space:nowrap;cursor:pointer;
+  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.qf-chip:hover{border-color:var(--border-strong)}
+.qf-chip:active{transform:scale(.96)}
+.qf-chip[aria-pressed="true"]{background:var(--bronze);border-color:var(--bronze);color:var(--ink)}
+/* on is said by a tick as well as a fill: forced colours discard the fill */
+.qf-chip[aria-pressed="true"]:not(.qf-dot)::before{content:'';width:8px;height:4px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg) translateY(-1px)}
+.qf-dots{flex-wrap:nowrap}
+.qf-dot{position:relative;flex:0 0 auto;width:28px;min-width:28px;padding:0}
+.qf-dot i{width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,.4)}
+.qf-dot[aria-pressed="true"]{background:var(--surface-input);border-color:var(--text-primary);box-shadow:inset 0 0 0 1.5px var(--text-primary)}
+.qf-dot[aria-pressed="true"]::after{content:'';position:absolute;left:50%;top:50%;width:8px;height:4px;margin:-4px 0 0 -5px;
+  border-left:2px solid #19120f;border-bottom:2px solid #19120f;transform:rotate(-45deg)}
+.qf-foot{display:flex;align-items:center;gap:8px;min-width:0;padding-top:6px;border-top:1px solid var(--color-divider);
+  font-size:11.5px;line-height:1.3;color:var(--text-secondary)}
+.qf-garden{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qf-link{flex:0 0 auto;min-height:24px;padding:0 2px;border:0;background:none;color:var(--text-primary);
+  font:600 11.5px/1 var(--font-body);text-decoration:underline;text-underline-offset:2px;white-space:nowrap;cursor:pointer}
+.qf-link:disabled{opacity:.4;text-decoration:none;cursor:default}
+.qf-active{display:flex;align-items:center;gap:5px;overflow-x:auto;scrollbar-width:none;padding:1px 0}
+.qf-active::-webkit-scrollbar{display:none}
+.qf-pill{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:0 6px 0 10px;
+  border:1px solid var(--bronze);border-radius:var(--radius-pill);background:var(--surface-active);color:var(--text-primary);
+  font:600 12px/1 var(--font-body);white-space:nowrap;cursor:pointer;transition:transform var(--motion-control) var(--ease-standard)}
+.qf-pill:active{transform:scale(.96)}
+.qf-pill i.sw{width:10px;height:10px;border-radius:50%;border:1px solid rgba(0,0,0,.4)}
+.qf-pill .x{display:grid;place-items:center;width:16px;height:16px;border-radius:50%;background:rgba(var(--ink-rgb),.14)}
+.qf-pill .x .ui-icon{width:9px;height:9px}
+/* "2 filters" in the line that counts the plants: the half sheet's way in */
+.ds-filters{display:none;margin-left:6px;padding:0;border:0;background:none;color:var(--color-accent-700);font:inherit;font-weight:700;
+  text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+@keyframes qfIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.qf-tray.enter{animation:qfIn var(--motion-menu) var(--ease-emphasized)}
+@keyframes chipPop{0%{transform:scale(.9)}60%{transform:scale(1.06)}100%{transform:none}}
+.qf-chip.pop{animation:chipPop 220ms var(--ease-emphasized)}
+
+/* -- the garden criteria dialog -- */
+#discoveryFilterScreen .panel.gc-panel{--panel-pad:0px;display:flex;flex-direction:column;width:100%;max-width:min(94vw,460px);
+  max-height:min(92dvh,720px);padding:0;overflow:hidden}
+.gc-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 10px 10px 18px;border-bottom:1px solid var(--border-quiet)}
+.gc-head h2{margin:0;font-size:21px;line-height:1.1}
+.gc-x{flex:0 0 auto;display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--border-control);border-radius:var(--radius-pill);
+  background:var(--surface-control);color:var(--text-primary);cursor:pointer}
+.gc-x:hover{background:var(--surface-control-hover)}
+.gc-x .ui-icon{width:16px;height:16px}
+.gc-body{position:relative;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:13px;padding:12px 18px 14px}
+.gc-note{margin:0;font-size:12.5px;line-height:1.4;color:var(--text-secondary)}
+.gc-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.gc-pair label,.gc-inline{display:grid;gap:4px;margin:0;font-size:12px;line-height:1.2;letter-spacing:0;text-transform:none;color:var(--text-secondary)}
+.gc-inline{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:10px}
+.gc-panel select{width:100%;min-height:38px;padding:6px 9px;border:1px solid var(--border-control);border-radius:var(--radius-control);
+  background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:13px}
+.gc-group{display:grid;gap:7px;padding-top:12px;border-top:1px solid var(--border-quiet)}
+.gc-label{font-size:12px;font-weight:700;line-height:1.2;color:var(--text-primary)}
+.gc-hint{margin:0;font-size:12px;line-height:1.45;color:var(--text-secondary)}
+.gc-fine{padding-top:10px;border-top:1px solid var(--border-quiet)}
+.gc-seg{display:flex;padding:2px;border:1px solid var(--border-control);border-radius:var(--radius-pill);background:var(--surface-input)}
+.gc-seg button{flex:1 1 0;min-width:0;min-height:32px;padding:2px 6px;border:0;border-radius:var(--radius-pill);background:none;color:var(--text-secondary);
+  font:600 12px/1.15 var(--font-body);cursor:pointer;transition:background var(--motion-control),color var(--motion-control)}
+.gc-seg button:hover{color:var(--text-primary)}
+.gc-seg button[aria-checked="true"]{background:var(--bronze);color:var(--ink)}
+.gc-checks{display:flex;flex-wrap:wrap;gap:6px}
+.gc-check{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 12px 0 9px;border:1px solid var(--border-control);border-radius:var(--radius-pill);
+  background:var(--surface-input);color:var(--text-primary);font:600 12.5px/1 var(--font-body);cursor:pointer;
+  transition:background var(--motion-control),border-color var(--motion-control)}
+.gc-box{position:relative;flex:0 0 auto;width:15px;height:15px;border:1.5px solid var(--border-strong);border-radius:4px}
+.gc-check[aria-pressed="true"]{border-color:var(--bronze);background:var(--surface-active)}
+.gc-check[aria-pressed="true"] .gc-box{border-color:var(--bronze);background:var(--bronze)}
+.gc-check[aria-pressed="true"] .gc-box::after{content:'';position:absolute;left:2.5px;top:3px;width:7px;height:3.5px;
+  border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(-45deg)}
+.gc-foot{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border-quiet)}
+.gc-status{flex:1 1 auto;min-width:0;font-size:12px;line-height:1.3;color:var(--text-secondary)}
+.gc-foot .btn.primary{flex:0 0 auto;width:auto;min-width:150px;min-height:40px;margin:0;padding:0 18px;font-size:14px}
+
+@media (pointer:coarse){
+  .qf-chip{min-height:44px;padding:0 13px;font-size:13.5px}
+  /* seven colours across whatever the row has, each a full-height target */
+  .qf-dots{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+  .qf-dot{width:auto;min-width:0}
+  .qf-dot i{width:22px;height:22px}
+  .qf-pill{position:relative;min-height:36px;padding:0 8px 0 12px;font-size:13px}
+  .qf-pill::after{content:'';position:absolute;inset:-4px -2px}
+  .qf-pill .x{width:20px;height:20px}.qf-pill .x .ui-icon{width:10px;height:10px}
+  .qf-link{min-height:44px;padding:0 6px;font-size:13px}
+  .qf-foot{padding-top:0;font-size:12.5px}
+  .gc-x{width:44px;height:44px}
+  .gc-panel select,.gc-seg button,.gc-check{min-height:44px}
+  .gc-seg{padding:0}
+  .gc-check{padding:0 14px 0 11px;font-size:14px}
+  .gc-foot .btn.primary{min-height:48px}
+}
+@media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
+  /* at the head of the list: no box of its own, the list is the surface */
+  #toolTray>.qf-tray{margin:0 0 10px;padding:0 0 4px;border:0;border-bottom:1px solid var(--color-divider);border-radius:0;background:none}
+  #toolTray>.qf-active{margin:0 0 6px}
+  .qf-row{display:flex;gap:8px}
+  .qf-row .qf-lab{display:none}
+  .qf-row.keep-lab .qf-lab{display:block;flex:0 0 auto;font-size:13px}
+  .qf-row .qf-chips{flex:1 1 auto}
+  .qf-foot{border-top:0}
+  .hud-bottom.sheet-half .qf-tray,.hud-bottom.sheet-half .qf-active{display:none}
+  .hud-bottom.sheet-half .ds-filters{display:inline}
+  /* the dialog is a sheet from the bottom edge, under the top bar */
+  #discoveryFilterScreen{align-items:stretch;justify-content:flex-end;padding:0}
+  /* opaque: at .97 the catalog's own chips read through a panel this size */
+  #discoveryFilterScreen .panel.gc-panel{max-width:none;max-height:calc(100dvh - var(--hud-top-h,61px) - 8px);border-radius:22px 22px 0 0;border-width:1.5px 0 0;background:var(--color-bg)}
+  .gc-head{position:relative;padding:16px 10px 8px 16px}
+  .gc-head::before{content:'';position:absolute;left:50%;top:6px;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:var(--border-control)}
+  .gc-body{padding:12px 16px 12px}
+  .gc-foot{padding:8px 12px calc(8px + env(safe-area-inset-bottom))}
+  .gc-foot .btn.primary{flex:1 1 auto}
+  .gc-status{flex:0 1 auto;max-width:42%}
+  .gc-status:empty{display:none}
+}
+/* a 320px phone: seven 44px colours do not fit one row */
+@media (max-width:359px){ .qf-dots{grid-template-columns:repeat(4,minmax(0,1fr))} }
+@media (forced-colors: active){
+  .qf-chip,.qf-pill,.gc-check,.gc-seg button{border:1px solid ButtonBorder}
+  .qf-chip[aria-pressed="true"],.gc-check[aria-pressed="true"],.gc-seg button[aria-checked="true"],
+  .discovery-filter-trigger[aria-expanded="true"]{forced-color-adjust:none;border:2px solid Highlight!important;background:Highlight!important;color:HighlightText!important}
+  .qf-dot i,.qf-pill i.sw{forced-color-adjust:none}
+  .qf-dot[aria-pressed="true"]::after{border-color:HighlightText}
+  .gc-check[aria-pressed="true"] .gc-box{forced-color-adjust:none;border-color:HighlightText;background:Highlight}
+  .gc-check[aria-pressed="true"] .gc-box::after{border-color:HighlightText}
+}
+
+/* ============================================================================
+   The Landscape library's opening pages (0.9.116)
+   Ground is a shelf per tool (.lg-head, .lg-chip), Grade a described row per
+   tool (.lt-row), Hardscape four quick picks (.lg-picks) over a picture card
+   per tool (.lh-card). They are items of #toolTray.landscape-results' own
+   grid, so the sub-pages' .tool chips and .tray-sep headings sit beside them.
+   ========================================================================== */
+#toolTray.lg-page{gap:8px}
+.lg-head{grid-column:1/-1;display:flex;align-items:baseline;gap:8px;min-width:0;margin:8px 2px 0}
+.lg-head:first-child{margin-top:0}
+.lg-head b{flex:0 0 auto;font-family:var(--font-heading);font-size:16px;font-weight:600;color:var(--color-text)}
+.lg-head span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--text-secondary)}
+.lg-chip{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;min-width:0;min-height:70px;padding:5px 3px 6px;
+  border:1.5px solid transparent;border-radius:16px;background:var(--color-surface);color:var(--text-secondary);font:inherit;cursor:pointer;
+  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.lg-chip:hover{background:var(--color-neutral-200)}
+.lg-chip:active{transform:scale(.97)}
+.lg-chip canvas{display:block;width:72px;max-width:100%;height:auto;aspect-ratio:72/42;pointer-events:none}
+.lg-chip>span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;line-height:1.15}
+.lg-chip.sel{border-color:var(--border-active);background:var(--surface-active);color:var(--color-text)}
+/* chosen is a tick as well as a fill: forced colours discard the fill */
+.lg-tick{position:absolute;top:5px;right:5px;display:none;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;
+  background:var(--color-accent);color:var(--ink)}
+.lg-chip.sel .lg-tick{display:flex}
+.lg-tick .ui-icon{width:12px;height:12px;stroke-width:3}
+.lg-chip.lg-all{justify-content:center;gap:5px;border:1.5px dashed var(--border-subtle);background:transparent}
+.lg-chip.lg-all b{font-size:13px;font-weight:700;color:var(--color-text)}
+.lg-chip.lg-all .ui-icon{width:15px;height:15px;color:var(--color-accent-700)}
+.lg-chip.lg-all:hover{border-color:var(--color-accent)}
+.lg-group{grid-column:1/-1;margin:4px 2px 0;font-size:12px;font-weight:600;color:var(--text-muted)}
+.lg-edge{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;border-radius:16px;background:var(--color-surface)}
+.lg-edge>div:first-child{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lg-edge b{font-size:13.5px;color:var(--color-text)}
+.lg-edge small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text-secondary)}
+.lg-seg{flex:0 0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:3px;border-radius:var(--radius-pill);background:var(--color-neutral-100)}
+.lg-seg button{min-height:36px;padding:0 12px;border:0;border-radius:var(--radius-pill);background:transparent;color:var(--text-secondary);
+  font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.lg-seg button.sel{background:var(--color-neutral-200);color:var(--color-text);box-shadow:inset 0 0 0 1.5px var(--border-active)}
+
+.lt-row{grid-column:1/-1;display:flex;align-items:center;gap:12px;min-width:0;min-height:64px;padding:7px 12px 7px 8px;border:1.5px solid transparent;border-radius:16px;
+  background:var(--color-surface);color:var(--color-text);font:inherit;text-align:left;cursor:pointer;
+  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.lt-row:hover{background:var(--color-neutral-200)}
+.lt-row:active{transform:scale(.99)}
+.lt-row.sel{border-color:var(--border-active);background:var(--surface-active)}
+.lt-row canvas{flex:0 0 auto;width:54px;height:49.5px;pointer-events:none}
+.lt-text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lt-text b{font-family:var(--font-heading);font-size:16px;font-weight:600;line-height:1.15}
+.lt-text small{font-size:12.5px;line-height:1.3;color:var(--text-secondary)}
+.lt-text em{font-style:normal;font-size:12px;font-weight:600;line-height:1.3;color:var(--color-accent-700)}
+
+.lh-label{grid-column:1/-1;margin:2px 2px 0;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.lg-picks{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:6px}
+/* A lawn-green plate, the same in both themes: it is world art, and a black
+   aluminium fence drawn on loam is invisible. */
+.lg-pick canvas{border-radius:10px;background:linear-gradient(#9db184,#869b6c)}
+.lh-card{position:relative;grid-column:span 2;display:flex;flex-direction:column;align-items:stretch;gap:1px;min-width:0;padding:8px 10px 10px;
+  border:1.5px solid transparent;border-radius:18px;background:var(--color-surface);color:var(--color-text);font:inherit;text-align:left;cursor:pointer;
+  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.lh-card:hover{background:var(--color-neutral-200)}
+.lh-card:active{transform:scale(.98)}
+.lh-card.sel{border-color:var(--border-active);background:var(--surface-active)}
+.lh-card canvas{display:block;width:100%;height:62px;object-fit:contain;border-radius:12px;background:linear-gradient(#9db184,#869b6c);pointer-events:none}
+.lh-t{display:flex;align-items:center;gap:4px;margin-top:6px}
+.lh-t b{flex:1 1 auto;min-width:0;font-family:var(--font-heading);font-size:16px;font-weight:600;line-height:1.15}
+.lh-t .ui-icon{flex:0 0 auto;width:14px;height:14px;color:var(--color-accent-700)}
+.lh-card small{display:block;font-size:12.5px;line-height:1.25;color:var(--text-secondary)}
+.lh-card em{display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:normal;font-size:12px;font-weight:600;color:var(--color-accent-700)}
+
+@media (pointer:coarse){
+  .lg-chip{min-height:78px}
+  .lg-seg button{min-height:44px}
+}
+@media (forced-colors: active){
+  .lg-chip,.lh-card,.lt-row{border:1px solid ButtonBorder}
+  .lg-chip.sel,.lh-card.sel,.lt-row.sel,.lg-seg button.sel{border:2px solid Highlight!important}
+  .lg-chip canvas,.lh-card canvas,.lt-row canvas{forced-color-adjust:none}
+  .lg-tick{forced-color-adjust:none;background:Highlight;color:HighlightText}
+}
+
+/* ============================================================================
+   A slimmer "Now placing" footer on the sheet (0.9.116)
+   It was 132px with a plant armed: two rows of 50 and 54px for 44px targets,
+   under and over 10px of padding, and on a 320x568 phone that left 155px of
+   list. Now two 44px rows: 107px with a plant, 97px with a surface.
+   ========================================================================== */
+@media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
+  #brushBar{padding-top:7px;padding-bottom:calc(7px + env(safe-area-inset-bottom));gap:5px}
+  /* "Now placing" over the name said what the row's own place says; it stays
+     for a screen reader */
+  .placing-copy small{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .placing-summary{min-height:36px}
+  .placing-summary>canvas{width:36px;height:33px;flex-basis:36px}
+  .placing-controls{padding:0}
+  /* 44px to press, 40 to look at: the track's own inset is part of the target */
+  #brushBar .seg{padding:2px}
+  #brushBar .seg .seg-opt{position:relative;min-height:40px;padding-top:6px;padding-bottom:6px}
+  #brushBar .seg .seg-opt::after{content:'';position:absolute;inset:-2px 0}
 }
