@@ -171,6 +171,35 @@ and piggyback plant (*Tolmiea menziesii*). Yellow archangel (*Lamium galeobdolon
 and creeping Jenny (*Lysimachia nummularia*) are widely sold and invasive in parts
 of North America; leave them out or add them with cautions.
 
+**Added in 0.9.107**: all 29 species above, with 'Sun King', lilyturf 'Big Blue' and 'Variegata',
+and four foamy bells ('Alabama Sunrise', 'Sweet Tea', 'Stoplight', 'Kimono'). They are in
+`shade-sources.json` as batch `add-next`, read against the Wildflower Center and the Missouri
+Botanical Garden Plant Finder, with New Moon, NC State, Fine Gardening, Oregon State, the
+University of Washington, Lurie Garden, the RHS and Walters Gardens where the Plant Finder had no
+page. New cards: Hellebore (Lenten rose, Christmas rose, stinking hellebore), Violet (common blue,
+Canada) and Spikenard (American, Japanese). Dutchman's breeches and western bleeding heart join the
+Bleeding Heart card, western wild ginger the Wild Ginger card, English primrose and cowslip the
+Primrose card. The two geraniums keep cards of their own like the other geraniums; knotted cranesbill
+files under Dry shade.
+Decisions while reading: **lily of the valley** is Eurasian (Go Botany treats the Appalachian plant
+as its own species) and carries two North American cautions, NC State's report of it as invasive
+in Wisconsin and Arkansas and Go Botany's note that it has naturalized across eastern North
+America, so the invasive filter hides it there by default. Wisconsin's NR 40 list was read and does
+not name it; the note says so rather than repeat the claim as Wisconsin's. **Lilyturf** carries no
+caution: NC State calls *L. muscari* a clump-former and *L. spicata* the invasive one, and the
+blurb names the difference. **Yellow archangel and creeping Jenny** were left out: NR 40 lists
+creeping Jenny but exempts the gold-leaved forms, which are the ones sold, and a species caution
+cannot express that. **Western wild ginger** is zones 6-9: the Plant Finder says 7-10, but the plant
+ranges into British Columbia and Montana, and two nursery sources say 6-9. **Foamy bells** follow
+the heuchera rule, the card giving the leaf mound; Walters quotes height in flower, so each mound
+is estimated at the Plant Finder's ratio for the group and the estimate says so.
+Drawing: doll's eyes and blue cohosh carry their fruit on stalks round the stem top
+(`seedStyle:'berryRaceme'`; doll's eyes' stalks red and each berry with its black eye), and bellwort
+hangs long bells from the end of each arch (`bellAt`, `bellW`, `bellH`). Both are opt-in, and every
+other plant draws call for call as before. Seen and left for later: a plant whose flower stems
+stand only in flower (foamflower before this batch; fringecups, piggyback plant and others now)
+catches its winter snow in the air where the stems would be.
+
 ## Missing cultivars
 
 **Added in 0.9.106**: everything in this table, 75 choices on 24 plants, plus four lungwort records

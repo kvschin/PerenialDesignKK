@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,782,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,811,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),634,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),641,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -280,7 +280,7 @@ test("the grass audit's missing species are in, as reviewed, with their sources"
 });
 
 test("the shade audit's first batch is in, as reviewed, with its sources", () => {
-  const doc=JSON.parse(readRepoFile('docs/plant-data/shade-sources.json')), rows=doc.plants;
+  const doc=JSON.parse(readRepoFile('docs/plant-data/shade-sources.json')), rows=doc.plants.filter(p=>p.batch==='add-first');
   assertEqual(rows.length,21,"the audit's 'Add first' table is twenty-one species");
   for(const row of rows){
     const P=PLANTS[row.suggestedKey], R=row.proposed;
@@ -297,14 +297,15 @@ test("the shade audit's first batch is in, as reviewed, with its sources", () =>
     assertEqual(P.type,'forb',row.suggestedKey+': on the Shade Perennials tab');
     assert(P.blurb&&P.blurb.length>60,row.suggestedKey+': says something');
   }
-  assertEqual(doc.cultivars.length,4,'four cultivars came with them');
-  for(const c of doc.cultivars){ const [k,v]=c.ref.split('|'); assert(PLANTS[k].cv&&PLANTS[k].cv[v],c.ref+': cultivar exists');
+  const firstCvs=doc.cultivars.filter(c=>!c.batch);
+  assertEqual(firstCvs.length,4,'four cultivars came with them');
+  for(const c of firstCvs){ const [k,v]=c.ref.split('|'); assert(PLANTS[k].cv&&PLANTS[k].cv[v],c.ref+': cultivar exists');
     assertEqual(PLANTS[k].cv[v].latin,c.latin,c.ref+': reviewed name'); }
   // the new species join their relatives' cards, and the old ones keep their names
   const members=g=>keys.filter(k=>PLANTS[k].group===g).sort().join(',');
-  assertEqual(members('wildginger'),'europeanginger,wildginger','wild ginger: Canadian and European');
+  for (const k of ['wildginger','europeanginger']) assertEqual(PLANTS[k].group,'wildginger',k+': on the Wild Ginger card');
   assertEqual(members('solomonsseal'),'solomonsseal,variegatedsolomonsseal',"Solomon's seal: great and variegated");
-  assertEqual(members('bleedingheart'),'bleedingheart,fringedbleedingheart','bleeding heart: old-fashioned and fringed');
+  for (const k of ['bleedingheart','fringedbleedingheart']) assertEqual(PLANTS[k].group,'bleedingheart',k+': on the Bleeding Heart card');
   assertEqual(members('jacobsladder'),'creepingjacobsladder,jacobsladder',"Jacob's ladder: European and creeping");
   for (const k of ['bluewoodaster','bigleafaster']) assertEqual(PLANTS[k].group,'aster',k+': with the asters');
   assertEqual(PLANTS.zigzaggoldenrod.group,'goldenrod','zigzag goldenrod with the goldenrods');
@@ -318,6 +319,52 @@ test("the shade audit's first batch is in, as reviewed, with its sources", () =>
   // a selection keeps its species' wild range; the variegated Solomon's seal is a selection of an Asian plant
   assertEqual(PLANTS.variegatedsolomonsseal.provenance,'selection',"'Variegatum' is a selection");
   assert(PLANTS.bergenia.synonyms.includes('Bergenia crassifolia'),'bergenia is findable under the name Wikipedia uses');
+});
+
+// The audit's 'Worth adding next' list (0.9.107), in the same sources file as batch add-next.
+test("the shade audit's second batch is in, as reviewed, with its sources", () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/shade-sources.json'));
+  const rows=doc.plants.filter(p=>p.batch==='add-next'), keys=PLANT_KEYS;
+  assertEqual(rows.length,29,"the audit's 'Worth adding next' list is twenty-nine species");
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], R=row.proposed;
+    assert(P,row.suggestedKey+': missing species');
+    for(const f of ['name','latin','type','form','heightIn','spread','space','sun','moist','phen','provenance'])
+      assertEqual(P[f],R[f],row.suggestedKey+': reviewed '+f);
+    assertEqual(P.zones.join(','),R.zones.join(','),row.suggestedKey+': reviewed zones');
+    assertEqual(P.nativeTo.join(','),R.nativeTo.join(','),row.suggestedKey+': reviewed range');
+    assertEqual(P.bloomMonths.join(','),R.bloomMonths.join(','),row.suggestedKey+': reviewed bloom months');
+    assert(row.sources.length>=2,row.suggestedKey+': read against two sources at least');
+    row.sources.forEach(u=>assert(/^https?:\/\//.test(u),row.suggestedKey+': source is a URL'));
+    assert(row.estimates&&row.estimates.heightIn&&row.estimates.spread&&row.estimates.zones,row.suggestedKey+': says how its size and zones were chosen');
+    assertEqual(P.sun,'part',row.suggestedKey+': a shade plant');
+    assertEqual(P.type,'forb',row.suggestedKey+': on the Shade Perennials tab');
+    assert(P.blurb&&P.blurb.length>60,row.suggestedKey+': says something');
+    assert(!P.bloomMonths.some(m=>m<1||m>12),row.suggestedKey+': real months');
+  }
+  const cvs=doc.cultivars.filter(c=>c.batch==='add-next');
+  assertEqual(cvs.length,7,'seven cultivars came with them');
+  for(const c of cvs){ const [k,v]=c.ref.split('|'); assert(PLANTS[k].cv&&PLANTS[k].cv[v],c.ref+': cultivar exists');
+    assertEqual(PLANTS[k].cv[v].latin,c.latin,c.ref+': reviewed name'); assert(c.sources.length>=1,c.ref+': sourced'); }
+  // they join their relatives' cards; the cards' older members keep their names
+  const members=g=>keys.filter(k=>PLANTS[k].group===g).sort().join(',');
+  assertEqual(members('wildginger'),'europeanginger,westernginger,wildginger','wild ginger: Canadian, European and western');
+  assertEqual(members('bleedingheart'),'bleedingheart,dutchmansbreeches,fringedbleedingheart,westernbleedingheart','bleeding heart: four');
+  assertEqual(members('hellebore'),'christmasrose,lentenrose,stinkinghellebore','a Hellebore card');
+  assertEqual(PLANTS.lentenrose.chip,'Lenten Rose','the Lenten rose keeps its name on the card');
+  for (const k of ['englishprimrose','cowslip']) assertEqual(PLANTS[k].group,'bogprimrose',k+': on the Primrose card');
+  assertEqual(members('violet'),'canadaviolet,commonblueviolet','a Violet card');
+  assertEqual(members('aralia'),'americanspikenard,japanesespikenard','a Spikenard card');
+  // what the ranges say
+  assertEqual(rows.filter(r=>PLANTS[r.suggestedKey].nativeTo.includes('north-america')).length,17,'seventeen are North American natives');
+  assertEqual(PLANTS.heucherella.provenance,'hybrid','foamy bells is a garden cross');
+  assertEqual(PLANTS.heucherella.nativeTo.length,0,'a garden cross has no wild range');
+  assertEqual(PLANTS.lilyofthevalley.nativeTo.join(','),'europe,asia','the garden lily of the valley is Eurasian');
+  for (const k of ['christmasrose','stinkinghellebore','liriope','westernginger','strawberrybegonia'])
+    assert((PLANTS[k].roles||[]).includes('evergreen') && PLANTS[k].sea.Winter.fol, k+': keeps its leaves through winter');
+  // the two the audit said to leave out, or add only with cautions
+  for (const latin of ['Lamium galeobdolon','Lysimachia nummularia'])
+    assert(!keys.some(k=>PLANTS[k].latin===latin),latin+': left out, invasive in parts of North America');
 });
 
 // The shade audit's missing cultivars (0.9.106): docs/plant-data/shade-cultivars.json.

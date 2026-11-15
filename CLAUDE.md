@@ -7154,6 +7154,21 @@ square root, or the same spray crowds into a smaller plant and reads as a blob. 
 about a third of its height, which the fixed allowance held at 30 in and clipped at 'Empress Wu';
 it changes sprite boxes, never drawings.
 
+**The audit's second batch (0.9.107)**: its "worth adding next" list, 29 species and 7 cultivars,
+sourced in `docs/plant-data/shade-sources.json` as batch `add-next`. New cards: Hellebore (the Lenten
+rose joined it), Violet and Spikenard; the bleeding hearts, wild gingers and primroses gained members.
+× Heucherella is a hybrid with no wild range and, like heuchera, its card height is the leaf mound.
+**Lily of the valley carries two North American cautions** (NC State, Go Botany), so the invasive
+filter hides it there; Wisconsin's NR 40 was read and does not list it, and the note says so instead
+of repeating the claim. Yellow archangel and creeping Jenny were left out (NR 40 exempts only the gold
+creeping Jenny that is sold, which a species caution cannot say). Two opt-in drawing options:
+`seedStyle:'berryRaceme'` on a spike (`drawBerryRaceme`: fruit on stalks round the stem top, the
+stalks in the season's `eye`, `berryEye` for doll's eyes' black dots, `berries`/`berryR`/`pedicel`/
+`berrySpan`), and `bellAt`/`bellW`/`bellH` on an archbell, hanging long bells from the end of the
+arch (bellwort). Every existing plant draws call for call as before. Seen and left: a spike or leaf
+mound whose flower stems stand only in flower catches winter snow in the air above it, since
+`snowCrownFrac` places it at full height (foamflower showed it first).
+
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
 separate carpet, meadow, broad woodland, wet upright, and arching sedges; shared

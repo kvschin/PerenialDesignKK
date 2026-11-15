@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.106';
+const APP_VERSION = '0.9.107';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -2304,8 +2304,15 @@ const PLANT_GUIDANCE_SOURCES=Object.freeze({
   meadowsweetNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/filipendula-ulmaria/'},
   gunneraRHS:{label:'Royal Horticultural Society',url:'https://www.rhs.org.uk/plants/gunnera/gunnera-questions-answered'},
   gunneraGW:{label:'Gardeners\' World',url:'https://www.gardenersworld.com/how-to/grow-plants/how-to-grow-gunnera/'},
+  lilyOfTheValleyNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/convallaria-majalis/'},
+  lilyOfTheValleyNewEngland:{label:'Native Plant Trust, Go Botany',url:'https://gobotany.nativeplanttrust.org/species/convallaria/majalis/'},
 });
 const PLANT_GUIDANCE=Object.freeze({
+  // Reviewed for the shade audit's second batch (0.9.107). Wisconsin's NR 40 list was read
+  // too and does not name it, so the Wisconsin claim stays NC State's, said as theirs.
+  lilyofthevalley:{taxon:'Convallaria majalis',reviewed:'2026-11-14',invasive:[
+    {area:'Wisconsin and Arkansas',region:'north-america',severity:'caution',source:'lilyOfTheValleyNC',text:'NC State reports it as invasive in Wisconsin and Arkansas and says it can turn weedy and aggressive where winters are cool and moist; it suggests native alternatives. Wisconsin\'s own invasive plant list, NR 40, does not name it.'},
+    {area:'New England',region:'north-america',severity:'caution',source:'lilyOfTheValleyNewEngland',text:'Introduced from Europe and naturalized in many areas of eastern North America, in woods, roadsides and forest openings. Go Botany says it needs to be kept in check.'}]},
   weepingsedge:{taxon:'Carex pendula',reviewed:'2026-11-07',invasive:[
     {area:'Pacific Northwest',region:'north-america',severity:'avoid',source:'pendulousSedgeWA',text:'A county weed assessment quotes the Field Guide to the Sedges of the Pacific Northwest: it should not be planted in the region, because it seeds abundantly, invades shaded stream banks and is nearly impossible to remove. The assessor recommends Class C Select.'},
     {area:'California',region:'north-america',severity:'caution',source:'pendulousSedgeCA',text:'On the Cal-IPC Watch list. Its 2016 risk evaluation scored it high risk, after several thousand plants were removed along a Marin County stream, two miles downstream of a garden planting.'},

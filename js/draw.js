@@ -726,6 +726,29 @@ function drawJackSpathe(ctx,cx,cy,sc,L,S){
   const w=(L.spatheW||2.2)*sc, h=(L.spatheH||9)*sc, side=L.spatheSide||1;
   drawPitcher(ctx,cx,cy+h*0.42,cx+side*w*0.3,cy,cx+side*w*0.15,cy-h*0.48,w,S.bloom,S.eye||shade(S.bloom,-40),side);
 }
+/* Fruit on stalks round the top of a stem, for a spike whose fruit is the reason to grow it
+   (0.9.107, `seedStyle:'berryRaceme'`): doll's eyes' white berries on thick red stalks, each
+   with its black eye (`berryEye`), and blue cohosh's blue seeds. The stalk colour is the
+   season's `eye`; the berries spiral round the stem from the tip down `span`, far side first. */
+function drawBerryRaceme(ctx,hx,hy,span,L,S,rnd){
+  const n=Math.max(4,Math.min(20,Math.round(L.berries||10))), r=L.berryR||1.3, ped=L.pedicel||2.2;
+  ctx.strokeStyle=S.eye||shade(S.fol||S.seed,-30); ctx.lineWidth=L.pedicelW||0.8; ctx.lineCap='round'; ctx.beginPath();
+  const pts=[];
+  for(let f=0;f<n;f++){
+    const u=(f+0.5)/n, y0=hy+u*span, a=f*2.39996, s=Math.cos(a), d=Math.sin(a);
+    const x1=hx+s*ped*(0.65+0.35*u), y1=y0-ped*(0.45-0.2*u)+d*ped*0.22;
+    ctx.moveTo(hx,y0); ctx.lineTo(x1,y1); pts.push([x1,y1,d]);
+  }
+  ctx.stroke(); ctx.lineCap='butt';
+  pts.sort((a,b)=>a[2]-b[2]);
+  for(const p of pts) fcPush(p[0],p[1],r*(0.88+rnd()*0.24),1);
+  fcDraw(ctx,S.seed,24,-20);
+  if(L.berryEye){
+    ctx.fillStyle=L.berryEye; ctx.beginPath();
+    for(const p of pts){ ctx.moveTo(p[0]+r*0.5,p[1]-r*0.2); ctx.arc(p[0]+r*0.2,p[1]-r*0.2,r*0.3,0,7); }
+    ctx.fill();
+  }
+}
 function drawBerryClub(ctx,cx,cy,sc,L,col){
   const n=Math.max(5,Math.min(24,Math.round(L.berries||14))), h=(L.spatheH||9)*sc*0.6, r=(L.berryR||1.1)*sc;
   for(let i=0;i<n;i++){
@@ -7770,7 +7793,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const col=(headOn?S.bloom:null)||S.seed;
         const a2=art2On(L);
         if (col){
-          if (L.spikeStyle==='bellCyme'){
+          if (!headOn && L.seedStyle==='berryRaceme' && S.seed){
+            drawBerryRaceme(ctx,hx,hy,H*(L.berrySpan||L.racemeSpan||0.12),L,S,rnd);
+          } else if (L.spikeStyle==='bellCyme'){
             const side=i%2?-1:1,reach=L.cymeReach||9,n=Math.max(3,Math.min(8,L.florets||5));
             ctx.strokeStyle=shade(S.fol||col,-20);ctx.lineWidth=0.85;ctx.beginPath();ctx.moveTo(hx,hy);
             ctx.quadraticCurveTo(hx+side*reach*0.6,hy-3,hx+side*reach,hy+5);ctx.stroke();
@@ -8551,7 +8576,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const bells=headOn ? Math.max(2,Math.ceil((L.bells||5)*blv)) : (S.seed?Math.min(4,L.bells||5):0);
         ctx.fillStyle=(headOn?S.bloom:null)||S.seed;
         for (let b=0;b<bells;b++){
-          const f=0.36+b*0.1, p=bez(f);
+          // `bellAt` hangs the bells from the far end of the arch instead (bellwort, 0.9.107)
+          const f=L.bellAt?Math.min(0.97,L.bellAt+b*0.08):0.36+b*0.1, p=bez(f);
           if (L.archStyle==='bleedingHeart' && headOn){
             const cx=p[0]+3, cy=p[1]+2.4, hw=L.heartW||2.8, hh=L.heartH||3.8;
             ctx.strokeStyle=stemCol; ctx.lineWidth=0.7;
@@ -8568,7 +8594,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             continue;
           }
           ctx.beginPath();
-          ctx.ellipse(p[0]+3, p[1]+4, headOn?2.1:1.8, headOn?3.3:2.1, -0.2, 0, 7); ctx.fill();
+          if (L.bellH && headOn) ctx.ellipse(p[0]+2, p[1]+L.bellH*0.9, L.bellW||2.1, L.bellH, -0.15, 0, 7);
+          else ctx.ellipse(p[0]+3, p[1]+4, headOn?2.1:1.8, headOn?3.3:2.1, -0.2, 0, 7);
+          ctx.fill();
         }
       }
     }

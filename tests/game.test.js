@@ -595,6 +595,28 @@ test('the shade cultivars draw what sets them apart', () => {
   assertEqual(shadeSiteOf(PLANTS.goldenragwort),'moistshade','golden ragwort: Moist shade');
 });
 
+test("the shade audit's second batch draws its fruit and its bells where they are", () => {
+  // doll's eyes: white berries, each with a black eye, on thick red stalks, after the flowers
+  const L=PLANTS.dollseyes.look, S=PLANTS.dollseyes.sea.Summer, ops=shadeOps('dollseyes','Summer');
+  assert(ops.some(o=>o.op==='stroke' && o.stroke===S.eye),"doll's eyes: red stalks");
+  const eyes=ops.filter(o=>o.op==='arc' && o.fill===L.berryEye).length;
+  assert(eyes>=L.berries,`doll's eyes: a black eye on every berry (${eyes})`);
+  assert(!shadeOps('dollseyes','Spring').some(o=>o.fill===L.berryEye),"doll's eyes: no berries while it flowers");
+  // bellwort hangs long bells from the far end of each arch, not along it
+  const B=PLANTS.bellwort.look, bells=shadeOps('bellwort','Spring').filter(o=>o.op==='ellipse' && o.a[3]===B.bellH);
+  assert(bells.length>=B.stems,`bellwort: a long bell on each stem (${bells.length})`);
+  // where they file on the Shade Perennials tab
+  assertEqual(shadeSiteOf(PLANTS.knottedcranesbill),'dryshade','knotted cranesbill: Dry shade');
+  assertEqual(shadeSiteOf(PLANTS.bellwort),'woodland','bellwort: Woodland');
+  assertEqual(shadeSiteOf(PLANTS.redwoodsorrel),'moistshade','redwood sorrel: Moist shade');
+  // lily of the valley carries two cautions in North America and none in Europe, where it is native
+  assertEqual(invasiveCautionsFor({s:'lilyofthevalley'},'north-america').length,2,'two North American cautions');
+  assert(invasiveFilterHides({s:'lilyofthevalley'},'north-america'),'hidden by default in a North American garden');
+  assert(!invasiveFilterHides({s:'lilyofthevalley'},'europe'),'kept in a European garden');
+  for (const n of invasiveCautionsFor({s:'lilyofthevalley'},'north-america'))
+    assert(PLANT_GUIDANCE_SOURCES[n.source] && /^https:\/\//.test(PLANT_GUIDANCE_SOURCES[n.source].url),n.area+': a source that can be read');
+});
+
 test('the maidenhair holds flat fans of fingers on dark wires', () => {
   const L=PLANTS.maidenhairfern.look, ops=shadeOps('maidenhairfern','Summer');
   const wires=ops.filter(o=>o.op==='stroke' && o.stroke===L.stipe).length;
@@ -18496,9 +18518,9 @@ test('a plant native to the region is not hidden by that region\'s own caution',
 
   // The hint must promise what the filter delivers, not what the table holds.
   const counts=invasiveFilterCounts('north-america');
-  assertEqual(counts.hidden+counts.keptNative,19,'nineteen plants carry a caution for North America');
+  assertEqual(counts.hidden+counts.keptNative,20,'twenty plants carry a caution for North America');
   assertEqual(counts.keptNative,2,'two of them are on plants native to it');
-  assert(invasiveCriteriaText(na).includes('Hides the 17 introduced plants'),'and the copy states the seventeen it actually hides');
+  assert(invasiveCriteriaText(na).includes('Hides the 18 introduced plants'),'and the copy states the eighteen it actually hides');
   assert(/native to North America keep their place/.test(invasiveCriteriaText(na)),'and says why the other two are still listed');
   assertEqual(invasiveFilterCounts('europe').keptNative,0,'Europe has no native-and-flagged plant, so its copy says nothing about one');
   assert(!/keep their place/.test(invasiveCriteriaText({nativeRegion:'europe',invasive:'hide'})),'the clause appears only where it applies');
