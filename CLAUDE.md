@@ -198,7 +198,17 @@ and the daily challenge and a chevron at the head of the Library, so leaving
 meant looking in a different place on each. It is a labelled pill on DOCK and a
 44px circle on SHEET, its label clipped and never `display:none`. Escape leaves
 the two panels as it leaves the Library (input.js, above the hidden-HUD guard,
-after a confirm has had its turn). `.page-sub .daily-theme` is styled with
+after a confirm has had its turn). **The tool guidebook has that header as
+well** (0.9.109; `guideHeadText`, `renderGuideHead`, guide.js). It had a square
+chevron that existed only on a phone's tool page, a title clipped away on a
+phone, and a text link at the far right as the way out, so leaving meant the
+right edge there and the left edge everywhere else. There is one back control
+(`#btnGuideBack`; `#btnGuideClose` is gone): on DOCK and on a phone's contents
+list it leaves, and its label says where to, Menu or Garden (`guideFrom`); on a
+phone's tool page it goes back to the list. The title is the guidebook's name
+over a count of its tools, or on a phone's tool page the tool over its chapter.
+`guideHeadText` is pure for the reason `libraryHeadText` is. The old
+`.library-back` and `.library-head-title` rules went with it. `.page-sub .daily-theme` is styled with
 `.page-sub` and not with the daily rules, because its phone override has to
 come after it. **A pane that scrolls must be POSITIONED** (`.library-list`,
 `.library-detail`, `.page-panel`, `.daily-panel`): `.sr-only` is
@@ -1111,7 +1121,7 @@ logic is split across ordered modules. They map onto the section list below
   size. The Bloom fact carries the catalog's own 12-month strip.
 - **`guide.js`** — the **tool guidebook** (`#guideScreen`, the book beside the
   gear on the title screen, and since 0.9.29 the **Tool guide** row of a
-  garden's menu — `guideFrom` sends Close back to the garden rather than the
+  garden's menu — `guideFrom` sends its Back to the garden rather than the
   title screen, and the menu's **Tour the controls** row sits beside it), in which every tool is shown DOING its job rather
   than described. Drift is the case that justifies it: "a loose cluster sized by
   spacing" is three abstractions deep, and one tap dropping five coneflowers in

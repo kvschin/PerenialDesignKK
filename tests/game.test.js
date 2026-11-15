@@ -6234,8 +6234,9 @@ test('the guidebook and the tour are in the garden menu, and the guidebook retur
   // does not stub; pin what it records, then exercise the return for real
   const open = String(openGuide);
   assert(/guideFrom=game\.inGarden \? 'garden' : 'menu'/.test(open), 'opening records where it came from');
-  assert(/'Back to garden'/.test(open), 'and relabels its way out');
   guideFrom = 'garden';
+  assertEqual(guideHeadText(false).back, 'Garden', 'and its way out says where it leads');
+  assertEqual(guideHeadText(false).backName, 'Back to the garden', 'to a screen reader as well');
   closeGuide();
   assert(document.getElementById('menuScreen').classList.contains('hidden'), 'closing it does not drop the title screen over the garden');
   assert(document.getElementById('guideScreen').classList.contains('hidden'), 'it closes');
@@ -11221,8 +11222,9 @@ test('the three screens the menu opens share one header, with the way back in it
   // On a phone the label is clipped, never removed: display:none leaves a button with no name.
   const sheetAt = css.indexOf('.page-back span{'), rule = css.slice(sheetAt, css.indexOf('}', sheetAt));
   assert(sheetAt > 0 && /clip:rect\(0 0 0 0\)/.test(rule) && !/display:none/.test(rule), 'the phone clips the label rather than hiding it');
-  const coarse = css.slice(css.lastIndexOf('.library-back{min-height:44px;min-width:44px}'));
-  assert(/\.page-back\{min-height:44px;min-width:44px\}/.test(coarse.slice(0, 600)), 'and the control is finger-sized on a touch screen');
+  const touchAt = css.indexOf('.page-back{min-height:44px;min-width:44px}');
+  assert(touchAt > 0 && css.lastIndexOf('@media', touchAt) === css.lastIndexOf('@media (pointer:coarse)', touchAt),
+    'and the control is finger-sized on a touch screen: the rule sits in a pointer block, not a width one');
   /* The theme beside the daily date is styled with .page-sub, above its phone
      override. Down with the daily rules it would come later in the file and
      outrank the override: a media query adds no specificity. */
@@ -11234,6 +11236,59 @@ test('the three screens the menu opens share one header, with the way back in it
   const esc = input.indexOf("for (const id of ['worldsScreen','dailyScreen'])"), guard = input.indexOf("getElementById('hud').classList.contains('hidden')");
   assert(esc > 0 && esc < guard, 'Escape reaches Your gardens and the daily challenge, where the HUD is hidden');
   assert(esc > input.indexOf("getElementById('confirmPop')"), 'after a confirm or a rename has had its turn');
+});
+
+test('the guidebook has that header too, and its one back control goes where the reader came from', () => {
+  /* It had a square chevron that existed only on a phone's tool page, a title
+     clipped away on a phone, and a text link at the far right as the way out:
+     leaving meant the right edge here and the left edge on every other screen. */
+  const html = readRepoFile('index.html'), css = readRepoFile('styles.css');
+  const part = html.slice(html.indexOf('id="guideScreen"'), html.indexOf('<script src="js/plants.js">'));
+  assertEqual((part.match(/class="page-back"/g) || []).length, 1, 'exactly one back control');
+  assert(!/btnGuideClose|class="back-link"|library-back|library-head-title/.test(part), 'and no second way out beside it');
+  assert(/class="page-back"[^>]*id="btnGuideBack"/.test(part) && /#ui-chevron-right/.test(part), 'it is the shared pill, with its chevron');
+  assert(/<span id="guideBackLabel">Menu<\/span>/.test(part), 'and a label the script can rewrite');
+  assert(part.indexOf('class="page-back"') < part.indexOf('class="page-title"'), 'back comes before the title');
+  assert(/class="page-title">\s*<h2 id="guideHeadTitle">/.test(part), 'the title is the heading');
+  assert(/class="page-sub" id="guideHeadSub"/.test(part), 'with a line under it');
+  assert(!/\.library-back|\.library-head-title/.test(css), 'the old square back control and its title are gone from the styles');
+  /* The phone used to clip the h2 and hide one of two buttons by view. There is
+     one button now, and a rule hiding it would leave a tool page with no way back. */
+  assert(!/#btnGuideBack\{display:none\}/.test(css) && !/\.guide-head h2\{position:absolute/.test(css),
+    'nothing hides the back control or the title on a phone');
+  const src = readRepoFile('js/guide.js');
+  assert(/\$\('btnGuideBack'\)\.onclick=guideBack/.test(src), 'back is wired to the one function Escape uses');
+  const sync = src.slice(src.indexOf('function syncGuideView'), src.indexOf('function guideHeadText'));
+  assert(/renderGuideHead\(\)/.test(sync), 'and the header is rewritten whenever the view or the tier changes');
+
+  const was = { sel: guideSel, view: guideView, from: guideFrom };
+  try {
+    guideFrom = 'menu'; guideSel = 'drift'; guideView = 'detail';
+    const e = guideEntry('drift'), n = guideEntries().length;
+    assert(e && e.chapterTitle, 'the entry knows its chapter');
+    const dock = guideHeadText(false);
+    assertEqual(dock.title, 'How the tools work', 'a wide screen keeps the list beside the tool, so the header names the guidebook');
+    assert(dock.sub.indexOf(n + ' tools') === 0, `and counts what is in it (${dock.sub})`);
+    assertEqual(dock.back, 'Menu', 'back leaves, and says where to');
+    assertEqual(dock.backName, 'Back to the menu', 'by name too');
+    const tool = guideHeadText(true);
+    assertEqual(tool.title, e.title, 'a phone reading one tool names the tool');
+    assertEqual(tool.sub, e.chapterTitle, 'and the chapter it is in');
+    assertEqual(tool.backName, 'Back to the list of tools', 'and back is the contents list');
+    guideView = 'list';
+    const list = guideHeadText(true);
+    assertEqual(list.title, 'How the tools work', 'the phone\'s contents list names the guidebook');
+    assertEqual(list.backName, 'Back to the menu', 'and back leaves it');
+    guideFrom = 'garden';
+    assertEqual(guideHeadText(true).backName, 'Back to the garden', 'opened over a garden, leaving goes back to the garden');
+    guideView = 'detail';
+    assertEqual(guideHeadText(true).backName, 'Back to the list of tools', 'but a tool page still goes to the list first');
+    // guideBack is that same decision, acted on
+    const back = String(guideBack);
+    assert(/guideView==='detail'/.test(back) && /closeGuide\(\)/.test(back), 'the button walks the views back and then closes');
+  } finally {
+    guideSel = was.sel; guideView = was.view; guideFrom = was.from;
+  }
 });
 
 test('a scrolling pane contains the screen-reader labels inside it', () => {
@@ -17774,7 +17829,7 @@ test('the phone library chrome exists and is wired', () => {
   const css = readRepoFile('styles.css');
   const coarse = css.slice(css.indexOf('@media (pointer:coarse)'));
   assert(/\.lib-catcard\{min-height/.test(coarse), 'the category cards are touch-sized');
-  assert(/\.library-back\{min-height:44px;min-width:44px\}/.test(coarse), 'and so is the back control');
+  assert(/\.page-back\{min-height:44px;min-width:44px\}/.test(coarse), 'and so is the back control');
 });
 
 /* ---------- the variety card says the mature size once ----------
@@ -17852,7 +17907,7 @@ test('only the variety card wraps its site line; the browse list still truncates
    not: .cultivar-drill-back asked for 'chevron-left', which the sprite has
    never had, and the SHEET tier hides that button's label, so the varieties
    back button was a blank 34x44 box on every phone while desktop read fine.
-   The sprite deliberately carries no chevron-left — .library-back rotates the
+   The sprite deliberately carries no chevron-left — .page-back rotates the
    right one, and so does the drill-in now — so this pins the reference, not
    the drawing. */
 
@@ -17885,7 +17940,7 @@ test('the varieties back button is legible with its label hidden', () => {
     'and carries a name for the state where the label is hidden');
   const css = readRepoFile('styles.css');
   assert(/\.cultivar-drill-back \.ui-icon\{[^}]*rotate\(180deg\)/.test(css),
-    'turned around, the way .library-back does it');
+    'turned around, the way .page-back does it');
   assert(/\.cultivar-drill-back span\{display:none\}/.test(css),
     'the label is still what SHEET hides — which is why the icon has to carry it');
 });

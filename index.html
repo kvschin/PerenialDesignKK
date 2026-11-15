@@ -916,13 +916,20 @@ if ('serviceWorker' in navigator)
      Dynamic Island. -->
 <div class="screen hidden" id="guideScreen" data-guideview="list">
   <div class="guide-wrap">
+    <!-- The header the menu's other screens have (.page-back, .page-title: see
+         "pages" in styles.css), with one way back, top left. On a wide screen,
+         and on a phone's contents list, it leaves the guidebook: for the title
+         screen, or for the garden it was opened over. Reading one tool on a
+         phone it goes back to the list. renderGuideHead (guide.js) writes the
+         title, the line under it and the button's label and name. -->
     <div class="guide-head">
-      <button class="library-back" type="button" id="btnGuideBack" aria-label="Back to the list of tools">
-        <svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
+      <button class="page-back" type="button" id="btnGuideBack" aria-label="Back to the menu">
+        <svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-right"></use></svg><span id="guideBackLabel">Menu</span>
       </button>
-      <h2>How the tools work</h2>
-      <span class="library-head-title" id="guideHeadTitle"></span>
-      <button class="back-link" id="btnGuideClose">Menu</button>
+      <div class="page-title">
+        <h2 id="guideHeadTitle">How the tools work</h2>
+        <p class="page-sub" id="guideHeadSub"></p>
+      </div>
     </div>
     <div class="guide-body">
       <div class="guide-list" id="guideList"></div>

@@ -3107,7 +3107,6 @@ let guideFrom='menu';
 function openGuide(){
   funnel(FUNNEL_EVENTS.guideOpened);
   guideFrom=game.inGarden ? 'garden' : 'menu';
-  const back=$('btnGuideClose'); if (back) back.textContent=guideFrom==='garden' ? 'Back to garden' : 'Menu';
   guideSel=guideSel||guideEntries()[0].id;
   guideView=guideSheetUi()?'list':'detail';
   guidePlaying=!reducedMotion();
@@ -3142,12 +3141,38 @@ function syncGuideView(){
   const el=$('guideScreen'); if (!el) return;
   const sheet=guideSheetUi();
   el.setAttribute('data-guideview',sheet?guideView:'detail');
-  /* On SHEET the h2 is clipped to the screen reader, so this line IS the
-     header: the screen's own name on the list, the tool's name once you are
-     reading one. Left to the h2 alone the list header held nothing but a
-     "Menu" link floating against the left edge. */
-  const e=guideEntry(guideSel);
-  hudText('guideHeadTitle', sheet&&guideView==='list' ? 'How the tools work' : (e?e.title:''));
+  renderGuideHead();
+}
+/* What the header says, and where its one back control goes. Pure, so it can be
+   tested without a layout: the sandbox has no selector engine to render into.
+
+   The guidebook has the header the menu's other screens have (0.9.109): the way
+   back top left, the name, a line under it. It had a square chevron that only
+   existed on a phone's tool page, a title that was clipped away on a phone, and
+   a text link on the far right as the way out, so leaving meant the right edge
+   here and the left edge everywhere else.
+
+   On a wide screen the list stays beside the tool, so the header names the
+   guidebook and back leaves it. A phone reading one tool names the tool and
+   the chapter it is in, and back is the contents list. Leaving goes where the
+   guidebook was opened from, and the pill says which. */
+function guideHeadText(sheet){
+  const garden=guideFrom==='garden';
+  const out={title:'How the tools work',
+    sub:`${guideEntries().length} tools, each shown at work`,
+    back:garden?'Garden':'Menu',
+    backName:garden?'Back to the garden':'Back to the menu'};
+  const e=sheet && guideView==='detail' ? guideEntry(guideSel) : null;
+  if (e){ out.title=e.title; out.sub=e.chapterTitle; out.backName='Back to the list of tools'; }
+  return out;
+}
+function renderGuideHead(){
+  const text=guideHeadText(guideSheetUi());
+  hudText('guideHeadTitle',text.title);
+  hudText('guideHeadSub',text.sub);
+  hudText('guideBackLabel',text.back);
+  const back=$('btnGuideBack');
+  if (back) back.setAttribute('aria-label',text.backName);
 }
 function selectGuideEntry(id){
   if (guideSel===id && guideView==='detail') return;
@@ -3414,5 +3439,4 @@ addEventListener('resize',function(){
 });
 
 if ($('btnGuide')) $('btnGuide').onclick=openGuide;
-if ($('btnGuideClose')) $('btnGuideClose').onclick=closeGuide;
 if ($('btnGuideBack')) $('btnGuideBack').onclick=guideBack;
