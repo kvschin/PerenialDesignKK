@@ -5,10 +5,11 @@
 const TRAY_CATS=[
   {id:'grasses',  label:'Grasses',          types:['grass'], sites:'grass'},
   {id:'sedges',   label:'Sedges',           types:['sedge'], sites:'sedge'},
-  {id:'sunper',   label:'Sun Perennials',   types:['forb'], sunFilter:'full'},
-  {id:'shadeper', label:'Shade Perennials', types:['forb'], sunFilter:'part', sites:'shade'},
+  // `short` is what a cell of the category grid says; the label is its title
+  {id:'sunper',   label:'Sun Perennials',   short:'Sun',   types:['forb'], sunFilter:'full'},
+  {id:'shadeper', label:'Shade Perennials', short:'Shade', types:['forb'], sunFilter:'part', sites:'shade'},
   {id:'bulbs',    label:'Bulbs',            types:['bulb']},
-  {id:'waterplants',label:'Water Plants',   types:['water']},
+  {id:'waterplants',label:'Water Plants',   short:'Water', types:['water']},
   {id:'climbers', label:'Climbers',         types:['vine']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
@@ -31,7 +32,7 @@ const TRAY_GROUPS=[
 ];
 function trayGroupOf(catId){ const g=TRAY_GROUPS.find(g=>g.cats.includes(catId)); return g?g.id:'plants'; }
 let lastCatByGroup={plants:'grasses', build:'landscape'}; // remember the sub-tab per group
-let catalogCategoryScroll={plants:0,build:0}, catalogCategoryFocus=null;
+let catalogCategoryFocus=null;
 // A catalogue icon should show the plant at its representative flower moment,
 // not silently force a spring or fall species into a flowerless Summer frame.
 function plantIconSeason(P){
@@ -2184,9 +2185,57 @@ function discoverySiteMeta(P){
     meta.append(meta.textContent?' \u00b7 ':'',s); }
   return meta;
 }
-function discoveryPlacingBadge(row,selected){
+/* A press inside the catalog rebuilds it, so an animation keyed on a class the
+   rebuild re-applies would replay on every later rebuild. The press leaves a
+   marker instead and the rebuild it causes consumes it: one heart pops, one
+   badge drops in, and an unrelated rebuild moves nothing. */
+let catalogPulse=null;
+/* A chosen card's detail panel, handed from the card builder to the list that
+   mounts it. A WeakMap rather than a property on the card: the test sandbox's
+   stub element answers any unknown property with a function, so `card._detail`
+   read as true for every card there. */
+const cardDetails=new WeakMap();
+function catalogPulsed(ref,kind){
+  const p=catalogPulse;
+  return !!(p && ref && p.kind===kind && p.s===ref.s && (p.v||null)===(ref.v||null) && performance.now()-p.t<600);
+}
+function discoveryPlacingBadge(row,selected,ref){
   if (!selected) return;
-  const badge=document.createElement('span'); badge.className='placing-badge'; badge.textContent='Placing'; row.appendChild(badge);
+  const badge=document.createElement('span'); badge.className='placing-badge'+(catalogPulsed(ref,'placing')?' enter':'');
+  badge.textContent='Placing'; row.appendChild(badge);
+}
+/* ---------- the catalog's two views ----------
+   Pictures (a grid of tiles: the plant, its name, when it flowers) or a list of
+   compact rows. Either way a card says only what you choose a plant BY; the
+   rest opens under the one you choose (plantCardDetail). A card used to carry
+   eight runs of text, six of them under 12px, beside a picture whose plant
+   measured a median 22x34px: on a 375x812 phone three plants fitted, and one
+   at half height. A device preference, like the theme: it is how this person
+   browses, not a fact about a garden. */
+const CATALOG_VIEW_KEY='hortus:catalogView';
+let catalogViewPref=null;   // null: not read yet; '': no choice made, so the default
+function catalogView(){
+  if (catalogViewPref===null){
+    try{ const v=localStorage.getItem(CATALOG_VIEW_KEY); catalogViewPref=(v==='grid'||v==='list')?v:''; }
+    catch(_){ catalogViewPref=''; }
+  }
+  return catalogViewPref||'grid';
+}
+function setCatalogView(v){
+  catalogViewPref=v==='list'?'list':'grid';
+  try{ localStorage.setItem(CATALOG_VIEW_KEY,catalogViewPref); }catch(_){ }
+  buildToolTray();
+}
+function catalogViewToggle(){
+  const view=catalogView(), seg=document.createElement('span'); seg.className='catalog-view';
+  seg.setAttribute('role','group'); seg.setAttribute('aria-label','How the plants are shown');
+  [['grid','Pictures'],['list','List']].forEach(([id,label])=>{
+    const b=document.createElement('button'); b.type='button'; b.className=view===id?'sel':''; b.dataset.view=id;
+    b.title=label; b.setAttribute('aria-label',label+' view'); b.setAttribute('aria-pressed',view===id?'true':'false');
+    b.appendChild(uiIcon(id)); b.onclick=()=>{ if (catalogView()!==id) setCatalogView(id); };
+    seg.appendChild(b);
+  });
+  return seg;
 }
 /* ---------- catalog card art cache (perf) ----------
    Every result card redrew its species from scratch on every tray rebuild, and
@@ -2203,19 +2252,28 @@ function discoveryPlacingBadge(row,selected){
    only one card at a time, so the cached canvas itself can be mounted there.
    Detach mounted art when retiring a view so the cache never retains old card
    parents. Offscreen cards reserve their space without allocating a bitmap. */
-const TRAY_ART=new Map(), TRAY_ART_MAX=128;   // ~55KB each, so ~7MB at the cap
-const TRAY_ART_W=112, TRAY_ART_H=124;
-function trayPlantArt(species,variant,season,D){
-  const k=species+'|'+(variant||'')+'|'+season;
+/* Two sizes, in CSS px: a list row's picture and a tile's. The plant is FITTED
+   to its box (paintLibCanvas, the Plant Library's own fit) and may be enlarged
+   to fill it, up to `max`: at the old fixed 1.15 a 24in forb was 27px of a
+   124px canvas. Relative size is lost that way, so a tile states the height.
+   A tile is 161KB against a row's 55KB, so the cache is bounded by bytes as
+   well as by count: about 74 tiles, or the 128 rows it always held. */
+const TRAY_ART=new Map(), TRAY_ART_MAX=128, TRAY_ART_BYTES=12*1024*1024;
+const TRAY_ART_KINDS={ row:{w:56,h:62,max:1.7}, tile:{w:112,h:90,max:2.6} };
+function trayPlantArt(species,variant,season,D,kind){
+  const spec=TRAY_ART_KINDS[kind]||TRAY_ART_KINDS.row;
+  const k=species+'|'+(variant||'')+'|'+season+(spec===TRAY_ART_KINDS.row?'':'|'+kind);
   let cv=TRAY_ART.get(k);
   if (cv){ TRAY_ART.delete(k); TRAY_ART.set(k,cv); return cv; }   // LRU: re-insert at the end
-  cv=document.createElement('canvas'); cv.width=TRAY_ART_W; cv.height=TRAY_ART_H;
-  const side=plantVisualH(D)*Math.max(0,(D.look||{}).sideScale||0);
-  const g=cv.getContext('2d'), scale=Math.min(1.15,88/(plantArtTop(D)||40),side?(TRAY_ART_W-8)/(side*2):1.15);
-  g.scale(scale,scale);
-  drawPlant(g,56/scale,110/scale,species,1,season,tileSeed(3,7),0,variant||undefined,1);
+  cv=libCanvasBlank(spec.w,spec.h);
+  if (cv.style) cv.style.width=cv.style.height='';               // the card's CSS sizes it
+  paintLibCanvas(cv,species,variant||null,season,spec.w,spec.h,spec.max);
   TRAY_ART.set(k,cv);
-  if (TRAY_ART.size>TRAY_ART_MAX) TRAY_ART.delete(TRAY_ART.keys().next().value);
+  let bytes=0; for (const c of TRAY_ART.values()) bytes+=(c.width|0)*(c.height|0)*4;
+  while (TRAY_ART.size>1 && (TRAY_ART.size>TRAY_ART_MAX || bytes>TRAY_ART_BYTES)){
+    const [k0,c0]=TRAY_ART.entries().next().value;
+    TRAY_ART.delete(k0); bytes-=(c0.width|0)*(c0.height|0)*4;
+  }
   return cv;
 }
 let discoveryArtView=null;
@@ -2255,21 +2313,97 @@ function syncDiscoveryArtVisibility(){
     view.observer=null;
   } else if (!view.observer) observeDiscoveryArt(view);
 }
-function plantArtCanvas(species,variant,season,D){
+function plantArtCanvas(species,variant,season,D,kind){
   const slot=document.createElement('span'); slot.className='plant-result-art';
   slot.dataset.artKey=species+'|'+(variant||'')+'|'+season; slot.setAttribute('aria-hidden','true');
-  if (discoveryArtView){ discoveryArtView.pending.set(slot,[species,variant,season,D]); return slot; }
-  const art=trayPlantArt(species,variant,season,D); art.className='plant-result-art'; return art;
+  if (discoveryArtView){ discoveryArtView.pending.set(slot,[species,variant,season,D,kind]); return slot; }
+  const art=trayPlantArt(species,variant,season,D,kind); art.className='plant-result-art'; return art;
+}
+function plantHeartButton(ref,P,labelled){
+  const on=isFavorite(ref), heart=document.createElement('button'); heart.type='button';
+  heart.className='plant-result-heart'+(on?' on':'')+(on&&catalogPulsed(ref,'heart')?' pop':'');
+  heart.title=on?`Remove ${P.name} from Favorites`:`Add ${P.name} to Favorites`;
+  heart.setAttribute('aria-label',heart.title); heart.setAttribute('aria-pressed',on?'true':'false');
+  heart.appendChild(uiIcon('heart'));
+  if (labelled){ const t=document.createElement('span'); t.textContent='Favorite'; heart.appendChild(t); }
+  heart.onclick=()=>{ catalogPulse={s:ref.s,v:ref.v||null,kind:'heart',t:performance.now()}; toggleFavorite(ref); buildToolTray(); };
+  return heart;
+}
+// "Little Bluestem 'Carousel'" under a Little Bluestem heading is 'Carousel'
+function plantVariantLabel(P,groupLabel){
+  const name=P.name||'', g=groupLabel||'';
+  if (g && name.length>g.length+1 && name.toLowerCase().startsWith(g.toLowerCase()+' ')) return name.slice(g.length+1);
+  return name;
+}
+/* The one line under a card's name: what you choose a plant by. A tile says
+   when it flowers (its height is on the picture); a row adds the size and the
+   light; a variety states its size, the fact you are choosing between. The
+   size sits alone in .plant-site-size so a wrap cannot split it. */
+function plantCardLine(P,o){
+  const line=document.createElement('span'); line.className='pc-line';
+  (o.families||[]).forEach(family=>{ const dot=document.createElement('i'); dot.className='plant-result-dot';
+    dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); line.appendChild(dot); });
+  const parts=[];
+  if (o.bloom!==null) parts.push(o.bloom||'Foliage');
+  if (o.size){ const s=document.createElement('span'); s.className='plant-site-size'; s.textContent=o.size; parts.push(s); }
+  if (o.light) parts.push(o.light);
+  (o.tags||[]).forEach(t=>parts.push(t));
+  parts.forEach((part,i)=>{
+    if (i) line.appendChild(document.createTextNode(' \u00b7 '));
+    if (typeof part==='string'){ const t=document.createElement('span'); t.textContent=part; line.appendChild(t); }
+    else line.appendChild(part);
+  });
+  return line;
 }
 function discoveryResultCard(ref,d,opts={}){
-  const P=refDef(ref), row=document.createElement('article'), selected=activePlantRef(ref); row.className='plant-result-card'+(selected?' sel':'');
+  const P=refDef(ref), row=document.createElement('article'), selected=activePlantRef(ref), grid=catalogView()==='grid';
+  row.className='plant-result-card '+(grid?'pc-tile':'pc-row')+(selected?' sel':'');
   if (opts.variant) row.classList.add('plant-variant-card');
-  const main=document.createElement('button'); main.type='button'; main.className='plant-result-main';
+  const main=document.createElement('button'); main.type='button'; main.className='pc-main';
   main.title=`Choose ${P.name}`; main.setAttribute('aria-label',`Choose ${P.name}`); main.setAttribute('aria-pressed',selected?'true':'false');
-  const art=plantArtCanvas(ref.s,ref.v,previewSeasonForRef(ref,d),P);
-  const copy=document.createElement('span'); copy.className='plant-result-copy';
+  const art=plantArtCanvas(ref.s,ref.v,previewSeasonForRef(ref,d),P,grid?'tile':'row');
+  const copy=document.createElement('span'); copy.className='pc-copy';
+  const name=document.createElement('b'); name.textContent=opts.variant?plantVariantLabel(P,opts.groupLabel):P.name;
+  copy.appendChild(name);
+  if (!grid){ const latin=document.createElement('em'); latin.textContent=P.latin||''; copy.appendChild(latin); }
+  const family=resultFlowerFamily(ref,d), blooms=bloomMonthsFor(P).length?bloomRangeText(P):'';
+  const size=typeof matureSizeText==='function'?matureSizeText(P):'';
+  copy.appendChild(plantCardLine(P,{
+    families:family?[family]:[],
+    bloom:grid&&opts.variant?null:blooms,
+    size:(!grid||opts.variant)?size:'',
+    light:!grid&&!opts.variant?(P.sun==='full'?'Full sun':P.sun==='part'?'Part shade':'Shade'):'',
+    tags:P.spreadHabit==='colony'?['Spreads']:[]}));
+  /* The note is what tells two varieties apart, so it stays on a variety's card. */
+  if (opts.variant&&P.note){ const details=document.createElement('span'); details.className='plant-variant-details'; details.textContent=P.note; copy.appendChild(details); }
+  const artBox=document.createElement('span'); artBox.className='pc-art'; artBox.appendChild(art);
+  if (grid&&!opts.variant){ const chip=document.createElement('span'); chip.className='pc-chip';
+    chip.textContent=plantMeasure(P.heightIn||P.h); chip.title='Mature height'; artBox.appendChild(chip); }
+  main.append(artBox,copy);
+  main.onclick=()=>{ game.drill=null; catalogPulse={s:ref.s,v:ref.v||null,kind:'placing',t:performance.now()};
+    setTool(ref.s,ref.v||null); buildToolTray(); toast(`${P.name} selected.`); };
+  row.appendChild(main);
+  if (!grid) row.appendChild(plantHeartButton(ref,P,false));
+  /* A caution recorded for this garden's region is on the card itself, chosen
+     or not. Neutral notes wait in the detail. */
+  const caution=plantGuidanceButton(ref);
+  if (caution&&/\bhas-caution\b/.test(caution.className)){ row.classList.add('pc-flagged'); row.appendChild(caution); }
+  discoveryPlacingBadge(row,selected,ref);
+  if (selected) cardDetails.set(row,plantCardDetail(ref,d,opts));
+  return row;
+}
+/* Everything else about the chosen plant, in a panel under its card: the Latin
+   name, what kind of plant it is, the twelve-month bloom strip, where it grows
+   and how big it gets, the site notes, and the two things you do WITH a plant
+   besides placing it. It is a sibling of the card, not a child, so in the
+   picture grid it can take a whole row (grid-column:1/-1). */
+function plantCardDetail(ref,d,opts={}){
+  const P=refDef(ref), box=document.createElement('div'); box.className='plant-card-detail'+(catalogPulsed(ref,'placing')?' enter':'');
+  box.setAttribute('role','group'); box.setAttribute('aria-label',`${P.name}: details`);
+  const title=document.createElement('div'); title.className='pcd-title';
   const name=document.createElement('b'); name.textContent=P.name;
-  const latin=document.createElement('em'); latin.textContent=P.latin||'';
+  const latin=document.createElement('em'); latin.textContent=P.latin||''; title.append(name,latin);
+  box.appendChild(title);
   const meta=document.createElement('span'); meta.className='plant-result-meta';
   const family=resultFlowerFamily(ref,d);
   if (family){ const dot=document.createElement('i'); dot.className='plant-result-dot'; dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); meta.appendChild(dot); }
@@ -2280,57 +2414,39 @@ function discoveryResultCard(ref,d,opts={}){
   if (activeFilters().nativeMode==='any' && relation.regional){
     const nativeTag=document.createElement('small'); nativeTag.textContent=nativeRegionLabel(activeFilters().nativeRegion)+' origin'; meta.appendChild(nativeTag);
   }
-  copy.append(name,latin,meta);
-  const timeline=discoveryBloomTimeline(P); if (timeline) copy.appendChild(timeline);
-  copy.appendChild(discoverySiteMeta(P)); main.append(art,copy);
-  if (opts.variant){
-    /* The note ALONE. This used to lead with matureSizeText(P), which the site
-       line one row above already carries — every one of the 377 cultivars
-       printed its size twice, and on the 44% whose site line overflows it was
-       the size that got ellipsised, so the duplicate read as the only copy. */
-    const details=document.createElement('span'); details.className='plant-variant-details';
-    details.textContent=P.note||'';
-    if (details.textContent) copy.appendChild(details);
-  }
-  main.onclick=()=>{ game.drill=null; setTool(ref.s,ref.v||null); buildToolTray(); toast(`${P.name} selected.`); };
-  const actions=document.createElement('span'); actions.className='plant-result-actions';
-  const heart=document.createElement('button'); heart.type='button'; heart.className='plant-result-heart'+(isFavorite(ref)?' on':'');
-  heart.title=isFavorite(ref)?`Remove ${P.name} from Favorites`:`Add ${P.name} to Favorites`;
-  heart.setAttribute('aria-label',heart.title); setUiIcon(heart,'heart');
-  heart.onclick=()=>{ toggleFavorite(ref); buildToolTray(); };
+  box.appendChild(meta);
+  const timeline=discoveryBloomTimeline(P); if (timeline) box.appendChild(timeline);
+  box.appendChild(discoverySiteMeta(P));
+  const guidance=plantGuidanceButton(ref);
+  if (guidance&&!/\bhas-caution\b/.test(guidance.className)) box.appendChild(guidance);
+  const actions=document.createElement('div'); actions.className='pcd-actions';
   const inPalette=d.source==='palette' && d.collectionId;
   const add=document.createElement('button'); add.type='button'; add.className='plant-result-add';
   add.title=inPalette?`Remove ${P.name} from this palette`:`Add ${P.name} to a palette`;
-  add.setAttribute('aria-label',add.title); setUiIcon(add,inPalette?'minus':'plus');
+  add.setAttribute('aria-label',add.title); add.appendChild(uiIcon(inPalette?'minus':'plus'));
+  const addText=document.createElement('span'); addText.textContent=inPalette?'Remove from palette':'Add to palette'; add.appendChild(addText);
   add.onclick=()=>{ if (inPalette){ removePaletteRef(d.collectionId,ref); buildToolTray(); } else openPaletteManager(ref); };
-  actions.append(heart,add); row.append(main,actions);
-  const guidance=plantGuidanceButton(ref); if (guidance){ row.classList.add('has-guidance'); row.appendChild(guidance); }
-  discoveryPlacingBadge(row,selected); return row;
+  actions.append(plantHeartButton(ref,P,true),add); box.appendChild(actions);
+  return box;
 }
 function discoveryFamilyCard(group,d){
   if (group.refs.length===1) return discoveryResultCard(group.refs[0],d);
   const base=PLANTS[group.s], active=group.refs.find(activePlantRef), rep=active||group.representativeRef;
-  const R=refDef(rep)||base, row=document.createElement('article');
-  row.className='plant-result-card plant-family-card'+(active?' sel':''); row.id=`plant-family-${group.domId}`;
-  const main=document.createElement('button'); main.type='button'; main.className='plant-result-main plant-family-main';
-  main.title=`View ${group.label} choices`; main.setAttribute('aria-label',`View ${group.label} choices`);
+  const R=refDef(rep)||base, row=document.createElement('article'), grid=catalogView()==='grid';
+  row.className='plant-result-card plant-family-card '+(grid?'pc-tile':'pc-row')+(active?' sel':''); row.id=`plant-family-${group.domId}`;
+  const main=document.createElement('button'); main.type='button'; main.className='pc-main';
+  main.title=`View ${group.label} choices`; main.setAttribute('aria-label',`View ${group.label}: ${group.refs.length} choices`);
   main.setAttribute('aria-expanded','false'); main.setAttribute('aria-controls',`plant-varieties-${group.domId}`);
-  const art=plantArtCanvas(rep.s,rep.v,previewSeasonForRef(rep,d),R);
-  const copy=document.createElement('span'); copy.className='plant-result-copy';
+  const art=plantArtCanvas(rep.s,rep.v,previewSeasonForRef(rep,d),R,grid?'tile':'row');
+  const copy=document.createElement('span'); copy.className='pc-copy';
   const name=document.createElement('b'); name.textContent=group.label;
-  const latin=document.createElement('em'); latin.textContent=group.crossSpecies?'Grouped species and cultivars':base.latin||'';
-  const meta=document.createElement('span'); meta.className='plant-result-meta';
-  discoveryGroupFamilies(group,d).forEach(family=>{ const dot=document.createElement('i'); dot.className='plant-result-dot'; dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); meta.appendChild(dot); });
-  const varieties=document.createElement('span'); varieties.textContent=`${group.refs.length} choice${group.refs.length===1?'':'s'}`;
-  const groupBloom=discoveryGroupBloomText(group);
-  const bloom=document.createElement('span'); bloom.textContent=groupBloom?`Blooms ${groupBloom}`:'Grown for foliage';
-  varieties.className='plant-variety-tag';
-  meta.append(bloom,varieties);
+  copy.appendChild(name);
+  if (!grid){ const latin=document.createElement('em'); latin.textContent=group.crossSpecies?'Grouped species and cultivars':base.latin||''; copy.appendChild(latin); }
+  const choices=`${group.refs.length} choice${group.refs.length===1?'':'s'}`, tags=[];
+  if (!grid) tags.push(choices);
   // on a mixed card the tag would be true of only some of its choices
-  if (group.refs.every(ref=>{ const D=refDef(ref); return D&&D.spreadHabit==='colony'; })){
-    const runs=document.createElement('small'); runs.textContent='Spreads'; meta.appendChild(runs);
-  }
-  copy.append(name,latin,meta);
+  if (group.refs.every(ref=>{ const D=refDef(ref); return D&&D.spreadHabit==='colony'; })) tags.push('Spreads');
+  copy.appendChild(plantCardLine(R,{families:discoveryGroupFamilies(group,d),bloom:discoveryGroupBloomText(group),tags}));
   /* Scoped to the garden's own region, like the exact row's button: unscoped,
      a family card warned a European garden about North Carolina. */
   const groupCautions=group.refs.flatMap(ref=>invasiveCautionsFor(ref,activeFilters().nativeRegion));
@@ -2339,16 +2455,16 @@ function discoveryFamilyCard(group,d){
     caution.className='plant-caution-tag is-'+(groupCautions.some(n=>n.severity==='avoid')?'avoid':'caution');
     caution.textContent='Regional cautions · check individual choices'; copy.appendChild(caution);
   }
-  const timeline=discoveryBloomTimeline(R); if (timeline) copy.appendChild(timeline);
-  copy.appendChild(discoverySiteMeta(R)); main.append(art,copy);
-  const open=document.createElement('span'); open.className='plant-family-open'; open.textContent='View'; const arrow=document.createElement('i'); setUiIcon(arrow,'chevron-right'); open.appendChild(arrow);
-  main.appendChild(open);
+  const artBox=document.createElement('span'); artBox.className='pc-art'; artBox.appendChild(art);
+  if (grid){ const chip=document.createElement('span'); chip.className='pc-chip pc-choices'; chip.textContent=choices; artBox.appendChild(chip); }
+  main.append(artBox,copy);
+  if (!grid){ const open=document.createElement('span'); open.className='pc-open'; open.appendChild(uiIcon('chevron-right')); main.appendChild(open); }
   main.onclick=()=>{
     const tray=document.getElementById('toolTray'); discoveryReturnScroll=tray?tray.scrollTop:0;
     discoveryOpenSpecies=group.id; setSheetState('full'); buildToolTray();
     setTimeout(()=>{ const head=document.querySelector('.cultivar-drill-back'); if (head) head.focus({preventScroll:true}); },0);
   };
-  row.appendChild(main); discoveryPlacingBadge(row,!!active); return row;
+  row.appendChild(main); discoveryPlacingBadge(row,!!active,active); return row;
 }
 function discoverySourceValue(d=activeDiscovery()){
   return d.source==='palette'&&d.collectionId ? `palette:${d.collectionId}` : d.source;
@@ -2437,97 +2553,45 @@ function discoverySearchSelection(d,query){
   const fallback=prior||d.returnCategory||(discoveryCollectionView(d)?null:game.trayCat);
   return {query:q,category:searching?null:fallback,returnCategory:searching?fallback:null,limit:36};
 }
-function categoryDragScrollLeft(startScroll,startX,currentX){
-  return startScroll+startX-currentX;
-}
-function categoryKeyIndex(key,current,length){
+/* The category control is a GRID (0.9.115): every category in one place, one
+   tap away. It was one scrolling row of pills, and on every phone and every
+   dock width only 3 of the 10 fitted: reaching Trees was a 700px swipe on a
+   phone or four chevron presses on a desktop, the wheel did nothing over it,
+   and a category with nothing in it was REMOVED, so the cells moved whenever
+   the source or a search changed. Now the cells never move: an empty one is
+   dimmed in place. The fades, the chevron gutters and the drag scroll went
+   with the row; arrow keys still rove, and Up and Down move a row. */
+function categoryKeyIndex(key,current,length,cols){
   if (!length) return -1;
   if (key==='Home') return 0;
   if (key==='End') return length-1;
   if (key==='ArrowRight') return current<0?0:(current+1)%length;
   if (key==='ArrowLeft') return (current<=0?length:current)-1;
+  if ((key==='ArrowDown'||key==='ArrowUp') && cols>0){
+    if (current<0) return 0;
+    const next=current+(key==='ArrowDown'?cols:-cols);
+    return next>=0&&next<length ? next : current;   // no cell that way: stay put
+  }
   return -1;
 }
-/* The strip holds ~940px of categories in a ~330px column, so most of them sit
-   off-screen. The scrollbar is hidden and drag-scroll is invisible to a mouse,
-   which left 6 of 9 plant categories undiscoverable. Edge fades show that more
-   exists; the chevrons give pointer users something to click. */
 function wrapCategoryStrip(strip){
   const wrap=document.createElement('div'); wrap.className='catalog-category-nav';
-  const page=dir=>()=>{
-    const step=Math.max(120,Math.round(strip.clientWidth*.8));
-    strip.scrollBy({left:dir*step,behavior:catalogReducedMotion()?'auto':'smooth'});
-  };
-  const arrow=(dir,icon,label)=>{
-    const b=document.createElement('button'); b.type='button'; b.className='catalog-strip-arrow '+(dir<0?'start':'end');
-    b.title=label; b.setAttribute('aria-label',label); b.tabIndex=-1; setUiIcon(b,icon); b.onclick=page(dir); return b;
-  };
-  wrap.append(arrow(-1,'chevron-up','Scroll categories left'),strip,arrow(1,'chevron-up','Scroll categories right'));
-  return wrap;
+  wrap.appendChild(strip); return wrap;
 }
-function catalogReducedMotion(){ return reducedMotion(); }
-function updateCatalogStripAffordance(strip){
-  const max=strip.scrollWidth-strip.clientWidth, at=strip.scrollLeft;
-  const scrollable=max>1, start=scrollable&&at>1, end=scrollable&&at<max-1;
-  // The fade lives on the strip; the arrows live on the wrapper, so both need it.
-  // `can-scroll` is deliberately separate from the two directional flags: the
-  // arrows sit in their own in-flow gutters now, and a gutter that appeared and
-  // vanished as you scrolled past either end would shunt the chips sideways
-  // mid-gesture. It reserves the gutters; the directional flags only decide
-  // whether an arrow is visible in one.
-  [strip,strip.parentElement].forEach(el=>{
-    if (!el||!el.classList) return;
-    el.classList.toggle('can-scroll',scrollable);
-    el.classList.toggle('can-scroll-start',start);
-    el.classList.toggle('can-scroll-end',end);
-  });
+// how many cells the first row holds, read off the laid-out grid
+function categoryGridColumns(strip){
+  const kids=[...strip.children]; if (!kids.length) return 0;
+  const top=kids[0].offsetTop; let n=0;
+  for (const k of kids){ if (k.offsetTop!==top) break; n++; }
+  return n;
 }
-function enableCatalogDragScroll(strip,groupId){
-  let drag=null, suppressClick=false;
-  strip.scrollLeft=catalogCategoryScroll[groupId]||0;
-  strip.addEventListener('scroll',()=>{ catalogCategoryScroll[groupId]=strip.scrollLeft; updateCatalogStripAffordance(strip); },{passive:true});
-  // The strip is measured after it is appended (see below) — scrollWidth is 0
-  // while it is still detached. The observer keeps it honest as widths change.
-  if (typeof ResizeObserver==='function') new ResizeObserver(()=>updateCatalogStripAffordance(strip)).observe(strip);
-  strip.addEventListener('pointerdown',e=>{
-    if (e.pointerType==='touch'||e.button!==0||strip.scrollWidth<=strip.clientWidth) return;
-    drag={id:e.pointerId,startX:e.clientX,startScroll:strip.scrollLeft,moved:false,captured:false};
-  });
-  strip.addEventListener('pointermove',e=>{
-    if (!drag||e.pointerId!==drag.id) return;
-    if (!drag.moved&&Math.abs(e.clientX-drag.startX)>8){
-      drag.moved=true;
-      if (strip.setPointerCapture){ strip.setPointerCapture(e.pointerId); drag.captured=true; }
-      strip.classList.add('dragging');
-    }
-    if (!drag.moved) return;
-    strip.scrollLeft=categoryDragScrollLeft(drag.startScroll,drag.startX,e.clientX);
-    e.preventDefault();
-  });
-  const finish=(e,cancelled=false)=>{
-    if (!drag||e.pointerId!==drag.id) return;
-    const moved=drag.moved, captured=drag.captured, id=drag.id;
-    drag=null; strip.classList.remove('dragging');
-    if (captured&&strip.hasPointerCapture&&strip.hasPointerCapture(id)) strip.releasePointerCapture(id);
-    if (moved&&!cancelled){
-      suppressClick=true;
-      setTimeout(()=>{ suppressClick=false; },0);
-    }
-  };
-  strip.addEventListener('pointerup',e=>finish(e));
-  strip.addEventListener('pointercancel',e=>finish(e,true));
-  strip.addEventListener('lostpointercapture',e=>finish(e,true));
-  strip.addEventListener('click',e=>{
-    if (!suppressClick) return;
-    e.preventDefault(); e.stopImmediatePropagation(); suppressClick=false;
-  },true);
+function enableCategoryKeys(strip){
   strip.addEventListener('keydown',e=>{
     const buttons=[...strip.querySelectorAll('button')], current=buttons.indexOf(document.activeElement);
-    const next=categoryKeyIndex(e.key,current,buttons.length);
+    const next=categoryKeyIndex(e.key,current,buttons.length,categoryGridColumns(strip));
     if (next<0) return;
     e.preventDefault();
     buttons[next].focus({preventScroll:true});
-    buttons[next].scrollIntoView({block:'nearest',inline:'nearest'});
   });
 }
 /* The five discovery controls used to stack as five full-width rows — 268px of
@@ -2542,7 +2606,8 @@ function catalogControlRow(...kids){
 function renderDiscoveryControls(tabs,modeControl){
   const d=activeDiscovery(), bar=document.createElement('div'); bar.className='discovery-controls';
   const find=document.createElement('input'); find.id='trayFind'; find.type='search'; find.autocomplete='off';
-  find.placeholder='Find a plant'; find.value=d.query; find.setAttribute('aria-label','Find a plant');
+  find.placeholder=!modeControl&&typeof innerWidth==='number'&&innerWidth<360?'Find':'Find a plant';
+  find.value=d.query; find.setAttribute('aria-label','Find a plant');
   find.maxLength=120;
   let composing=false;
   const search=(immediate=false)=>{
@@ -2565,14 +2630,26 @@ function renderDiscoveryControls(tabs,modeControl){
   };
   const filterRow=document.createElement('div'); filterRow.className='discovery-filter-row';
   const filters=document.createElement('button'); filters.type='button'; filters.className='discovery-filter-trigger';
-  const n=discoveryFilterCount(); filters.textContent=n?`Filters · ${n}`:'Filters'; filters.setAttribute('aria-expanded','false');
+  // An icon, the word and how many are on. The sheet hides the word: its one
+  // control row has no room for it, and the count is what changes.
+  const n=discoveryFilterCount(), filterLabel=document.createElement('span'); filterLabel.className='filter-label'; filterLabel.textContent='Filters';
+  filters.append(uiIcon('filter'),filterLabel);
+  if (n){ const badge=document.createElement('b'); badge.className='filter-count'; badge.textContent=String(n); filters.appendChild(badge); }
+  filters.title=n?`Filters · ${n} on`:'Filters'; filters.setAttribute('aria-label',n?`Filters, ${n} on`:'Filters');
+  filters.setAttribute('aria-expanded','false');
   filters.onclick=()=>openDiscoveryFilters(filters); filterRow.appendChild(filters);
   const count=document.createElement('span'); count.className='discovery-result-count'; count.setAttribute('role','status');
   count.textContent=discoveryResultCountText(discoveryRefs()); filterRow.appendChild(count);
   // Row 1: what you're browsing (mode + source). Row 2: how you narrow it
   // (search + filters). Both pairs read left-to-right as one decision.
-  bar.appendChild(catalogControlRow(modeControl?modeControl():null,discoverySourceMenu(d)));
-  bar.appendChild(catalogControlRow(find,filterRow));
+  if (modeControl){
+    bar.appendChild(catalogControlRow(modeControl(),discoverySourceMenu(d)));
+    bar.appendChild(catalogControlRow(find,filterRow));
+  } else {
+    /* The sheet: the Plants/Landscape switch is in the handle (see
+       buildToolTrayInner), so the three that are left share ONE row. */
+    bar.appendChild(catalogControlRow(discoverySourceMenu(d),find,filterRow));
+  }
   tabs.appendChild(bar);
   return {find,count};
 }
@@ -2602,17 +2679,33 @@ function renderDiscoveryTray(tray){
   observeDiscoveryArt(view);
 }
 function renderDiscoveryTrayInner(tray){
-  const d=activeDiscovery(), refs=discoveryRefs(), groups=groupDiscoveryRefs(refs);
-  tray.classList.add('discovery-results');
+  const d=activeDiscovery(), refs=discoveryRefs(), groups=discoveryGroupsInOrder(groupDiscoveryRefs(refs),d);
+  const grid=catalogView()==='grid';
+  tray.classList.add('discovery-results'); tray.classList.toggle('view-grid',grid); tray.classList.toggle('view-list',!grid);
+  // a chosen card brings its detail panel with it, as the next item of its list
+  const addCard=(list,card)=>{ list.appendChild(card); const detail=cardDetails.get(card); if (detail) list.appendChild(detail); };
   const summary=document.createElement('div'); summary.className='discovery-summary';
   /* Only a saved collection reports "N eligible of M saved", so only a saved
      collection needs the source list. It was resolved up front for every
      rebuild and thrown away on the two sources that never read it -- free
      before, and no longer free now that `recommended` filters. */
-  if (d.source==='favorites'||d.source==='palette'){
-    const a=collectionAvailability(discoverySourceRefs(d)); summary.textContent=`${discoveryResultCountText(refs)} shown · ${a.available} eligible / ${a.total} saved`;
-  } else summary.textContent=`${discoverySourceLabel(d)} · ${discoveryResultCountText(refs)}`;
-  tray.appendChild(summary);
+  /* One line: what is listed, how many, and how to see them. The sheet's title
+     block said the source and the count, and this line said them again. */
+  const what=document.createElement('span'); what.className='ds-text';
+  const cat=d.category&&TRAY_CATS.find(c=>c.id===d.category), collection=d.source==='favorites'||d.source==='palette';
+  const head=document.createElement('b');
+  head.textContent=d.query.trim()?'Matching plants':cat?cat.label:collection?discoverySourceLabel(d):'All plants';
+  const count=document.createElement('span'); count.className='ds-count';
+  const shown=groups.length, extra=groups.reduce((n,group)=>n+Math.max(0,group.refs.length-1),0);
+  if (collection){
+    const a=collectionAvailability(discoverySourceRefs(d));
+    count.textContent=` \u00b7 ${discoveryResultCountText(refs)} shown · ${a.available} eligible / ${a.total} saved`; count.classList.add('keep');
+  } else {
+    count.textContent=` \u00b7 ${shown} plant${shown===1?'':'s'}`;
+    if (extra){ const more=document.createElement('span'); more.className='ds-more'; more.textContent=` \u00b7 ${extra} more choice${extra===1?'':'s'}`; count.appendChild(more); }
+  }
+  what.append(head,count); summary.append(what,catalogViewToggle());
+  summary.title=`${discoverySourceLabel(d)} \u00b7 ${discoveryResultCountText(refs)}`;
   /* A daily challenge narrows the catalog from inside plantFits, so species
      simply vanish. The only notice was a toast that cleared after 2.6s: open
      Plant filters and nothing looks unusual, clear every filter and the plant
@@ -2620,6 +2713,11 @@ function renderDiscoveryTrayInner(tray){
      wanted — it is the challenge — so it is announced where the narrowing is
      already reported, with the way out beside it. Quitting to the menu was
      previously the only exit. */
+  // a family's own page says what it holds: the list's line over it was stale
+  const sites=discoverySiteSections(groups,d);
+  const openGroup=refs.length&&discoveryOpenSpecies&&(groups.find(group=>group.id===discoveryOpenSpecies)
+    ||(sites&&sites.flatMap(site=>site.groups).find(group=>group.id===discoveryOpenSpecies)));
+  if (!openGroup) tray.appendChild(summary);
   if (game.challenge){
     const ch=document.createElement('div'); ch.className='discovery-challenge';
     const txt=document.createElement('button'); txt.type='button'; txt.className='discovery-challenge-clear';
@@ -2659,9 +2757,6 @@ function renderDiscoveryTrayInner(tray){
     empty.appendChild(reset); tray.appendChild(empty); return;
   }
   // a family filed under two sites is two cards, and each opens on its own choices
-  const sites=discoverySiteSections(groups,d);
-  const openGroup=discoveryOpenSpecies&&(groups.find(group=>group.id===discoveryOpenSpecies)
-    ||(sites&&sites.flatMap(site=>site.groups).find(group=>group.id===discoveryOpenSpecies)));
   if (openGroup){
     tray.classList.add('cultivar-drill');
     const base=PLANTS[openGroup.s], head=document.createElement('div'); head.className='cultivar-drill-head'; head.id=`plant-varieties-${openGroup.domId}`;
@@ -2675,13 +2770,13 @@ function renderDiscoveryTrayInner(tray){
     back.onclick=()=>{ const species=discoveryOpenSpecies; discoveryOpenSpecies=null; buildToolTray();
       setTimeout(()=>{ const next=document.getElementById(`plant-family-${openGroup.domId}`), nextTray=document.getElementById('toolTray');
         if (nextTray) nextTray.scrollTop=discoveryReturnScroll;
-        const focus=next&&next.querySelector('.plant-family-main'); if (focus) focus.focus({preventScroll:true}); },0); };
+        const focus=next&&next.querySelector('.pc-main'); if (focus) focus.focus({preventScroll:true}); },0); };
     const title=document.createElement('div'); title.className='cultivar-drill-title';
     const strong=document.createElement('strong'); strong.textContent=openGroup.label;
     const small=document.createElement('small'); small.textContent=`${openGroup.refs.length} matching choice${openGroup.refs.length===1?'':'s'} · ${openGroup.crossSpecies?'grouped taxa':base.latin||''}`;
-    title.append(strong,small); head.append(back,title); tray.appendChild(head);
+    title.append(strong,small); head.append(back,title,catalogViewToggle()); tray.appendChild(head);
     const variants=document.createElement('div'); variants.className='plant-variant-grid';
-    openGroup.refs.forEach(ref=>variants.appendChild(discoveryResultCard(ref,d,{variant:true}))); tray.appendChild(variants);
+    openGroup.refs.forEach(ref=>addCard(variants,discoveryResultCard(ref,d,{variant:true,groupLabel:openGroup.label}))); tray.appendChild(variants);
     return;
   }
   discoveryOpenSpecies=null;
@@ -2692,16 +2787,24 @@ function renderDiscoveryTrayInner(tray){
       const head=document.createElement('h3'); head.className='discovery-site-head';
       head.textContent=`${site.label} \u00b7 ${site.groups.length}`;
       const list=document.createElement('div'); list.className='plant-result-grid';
-      site.groups.forEach(group=>list.appendChild(discoveryFamilyCard(group,d)));
+      site.groups.forEach(group=>addCard(list,discoveryFamilyCard(group,d)));
       tray.append(head,list);
     });
     return;
   }
-  const grid=document.createElement('div'); grid.className='plant-result-grid';
-  groups.slice(0,d.limit).forEach(group=>grid.appendChild(discoveryFamilyCard(group,d))); tray.appendChild(grid);
+  const list=document.createElement('div'); list.className='plant-result-grid';
+  groups.slice(0,d.limit).forEach(group=>addCard(list,discoveryFamilyCard(group,d))); tray.appendChild(list);
   if (groups.length>d.limit){ const more=document.createElement('button'); more.type='button'; more.className='discovery-load-more';
     more.textContent=`Load more plants (${groups.length-d.limit} left)`; more.onclick=()=>{ setDiscovery({limit:d.limit+36}); buildToolTray(); };
     tray.appendChild(more); }
+}
+/* Recommended keeps the garden style's own ranking. Every other list reads by
+   the name ON THE CARD: it was ordered by the first member's species name, so
+   Trees read Red Mulberry, Arborvitae, American Basswood, Beech, and Oak came
+   22nd, and nobody could find anything by eye. */
+function discoveryGroupsInOrder(groups,d){
+  if (d.source==='recommended'&&activeDesignType()) return groups;
+  return groups.slice().sort((a,b)=>String(a.label).localeCompare(String(b.label)));
 }
 function openDiscoveryFilters(opener){
   discoveryFilterDraft=normalizeDiscovery(activeDiscovery());
@@ -3200,6 +3303,7 @@ function trayStateSig(ignoreDiscoverySearch=false){
     // the layout changes across the sheet/dock breakpoint.
     (document.documentElement&&document.documentElement.getAttribute('data-theme'))||'',
     typeof mobileSheetUi==='function'?(mobileSheetUi()?1:0):0,
+    catalogView(),
     VW, VH,
   ].join('|');
 }
@@ -3246,7 +3350,6 @@ function refreshDiscoverySearch(find){
     const meta=document.getElementById('catalogMeta');
     if (meta) meta.textContent=`${discoverySourceLabel(activeDiscovery())} \u00b7 ${count}`;
     renderDiscoveryCategories(view.categoryStrip,view.selectCat);
-    updateCatalogStripAffordance(view.categoryStrip);
     const tray=document.getElementById('toolTray'); tray.innerHTML='';
     tray.classList.remove('cultivar-drill');
     renderDiscoveryTray(tray);
@@ -3256,26 +3359,42 @@ function refreshDiscoverySearch(find){
   tourRender();
   return true;
 }
+/* One cell of the category grid: a name and, for plants, a count under it.
+   Built once and updated in place, because the search refresh keeps the cells
+   mounted (a rebuilt cell would drop keyboard focus on every keystroke). */
+const categoryCells=new WeakMap();   // button -> {name,count}; see cardDetails for why not a property
+function categoryCell(id,onPick){
+  const b=document.createElement('button'); b.type='button'; b.dataset.categoryId=id;
+  const name=document.createElement('span'); name.className='cat-name';
+  const count=document.createElement('span'); count.className='cat-count';
+  b.append(name,count); categoryCells.set(b,{name,count});
+  b.onclick=()=>{ if (b.getAttribute('aria-disabled')!=='true') onPick(); };
+  return b;
+}
 function renderDiscoveryCategories(strip,selectCat){
   const d=activeDiscovery(), tally=discoveryCategoryCounts(d);
-  const categories=[{id:'all',label:'All'},...TRAY_CATS.filter(c=>TRAY_GROUPS[0].cats.includes(c.id)&&tally.counts[c.id])];
+  const categories=[{id:'all',label:'All'},...TRAY_CATS.filter(c=>TRAY_GROUPS[0].cats.includes(c.id))];
   const existing=new Map([...strip.children].map(b=>[b.dataset.categoryId,b]));
-  const ids=new Set(categories.map(c=>c.id));
-  existing.forEach((b,id)=>{ if (!ids.has(id)){ b.remove(); existing.delete(id); } });
-  let index=0;
   for (const c of categories){
     const count=c.id==='all'?tally.all:tally.counts[c.id]||0;
     let b=existing.get(c.id);
-    if (!b){
-      b=document.createElement('button'); b.type='button'; b.dataset.categoryId=c.id;
-      b.onclick=()=>{ catalogCategoryFocus={groupId:'plants',id:c.id}; selectCat(c.id==='all'?null:c.id); };
-      const before=strip.children[index];
-      if (before) strip.insertBefore(b,before); else strip.appendChild(b);
+    if (!b||!categoryCells.has(b)){
+      if (b) b.remove();
+      b=categoryCell(c.id,()=>{ catalogCategoryFocus={groupId:'plants',id:c.id}; selectCat(c.id==='all'?null:c.id); });
+      strip.appendChild(b);
     }
-    index++;
     const selected=c.id==='all'?!d.category:d.category===c.id;
-    b.className=selected?'sel':''; b.textContent=`${c.label} ${count}`;
+    /* A category with nothing in it keeps its PLACE, dimmed. Removing it moved
+       every cell after it whenever the source or a search changed. The one
+       that is open stays live even at nothing, so it can still be left. */
+    const empty=!count&&!selected;
+    b.className=(selected?'sel':'')+(empty?(selected?' ':'')+'empty':'');
+    const cell=categoryCells.get(b);
+    cell.name.textContent=c.short||c.label; cell.count.textContent=String(count);
+    b.title=`${c.label} · ${count} plant${count===1?'':'s'}`;
+    b.setAttribute('aria-label',`${c.label}, ${count} plant${count===1?'':'s'}`);
     b.setAttribute('aria-pressed',selected?'true':'false');
+    if (empty) b.setAttribute('aria-disabled','true'); else b.removeAttribute('aria-disabled');
   }
 }
 /* ---- dev-only: prove the signature is complete ----
@@ -3351,6 +3470,7 @@ function verifyTrayCache(){
     ['terraceDraft',()=>{ const o=g.terraceDraft; g.terraceDraft={h:(o&&o.h)===1?4:1,w:(o&&o.w)==='brick'?'gabion':'brick'}; return ()=>{ g.terraceDraft=o; }; }],
     ['discoveryOpenSpecies',()=>{ const o=discoveryOpenSpecies; discoveryOpenSpecies=o?null:'coneflower'; return ()=>{ discoveryOpenSpecies=o; }; }],
     ['sourceMenuOpen',()=>{ const o=sourceMenuOpen; sourceMenuOpen=!o; return ()=>{ sourceMenuOpen=o; }; }],
+    ['catalogView', ()=>{ const o=catalogViewPref; catalogViewPref=catalogView()==='grid'?'list':'grid'; return ()=>{ catalogViewPref=o; }; }],
     ['collections', ()=>{ const ref=allPlantRefs&&allPlantRefs()[0];
                           if (!ref) return ()=>{};
                           toggleFavorite(ref); return ()=>{ toggleFavorite(ref); }; }],
@@ -3424,26 +3544,33 @@ function buildToolTrayInner(){
       b.setAttribute('aria-pressed',activeGroup===group.id?'true':'false'); b.onclick=()=>switchGroup(group.id); seg.appendChild(b); });
     return seg; };
   updateCatalogHeader(isPlantGroup);
-  const controls=isPlantGroup?renderDiscoveryControls(tabs,modeControl):renderLandscapeControls(tabs,modeControl);
-  const categoryStrip=document.createElement('div'); categoryStrip.className='catalog-category-strip';
+  /* On the sheet the Plants/Landscape switch lives in the HANDLE, which had
+     nothing in it at half and full but "Tap to choose a plant". That gives its
+     52px row back to the plants at both heights, and it stays reachable at
+     half, where the control stack is hidden. The dock keeps it in the first
+     control row. mobileSheetUi() is in the signature, so crossing the tiers
+     rebuilds and moves it. */
+  const handleMode=document.getElementById('sheetMode'), inHandle=!!(handleMode&&mobileSheetUi());
+  if (handleMode&&handleMode.replaceChildren){ if (inHandle) handleMode.replaceChildren(modeControl()); else handleMode.replaceChildren(); }
+  const controls=isPlantGroup?renderDiscoveryControls(tabs,inHandle?null:modeControl):renderLandscapeControls(tabs,inHandle?null:modeControl);
+  const categoryStrip=document.createElement('div');
+  categoryStrip.className='catalog-category-strip '+(isPlantGroup?'cats-plants':'cats-build');
   categoryStrip.setAttribute('role','group');
   categoryStrip.setAttribute('aria-label',isPlantGroup?'Plant categories':'Landscape categories');
   if (isPlantGroup){
     renderDiscoveryCategories(categoryStrip,selectCat);
   } else {
     TRAY_CATS.filter(c=>TRAY_GROUPS[1].cats.includes(c.id)).forEach(c=>{
-      const b=document.createElement('button'); b.type='button'; const selected=game.trayCat===c.id;
-      b.dataset.categoryId=c.id;
-      b.className=selected?'sel':''; b.textContent=c.label; b.setAttribute('aria-pressed',selected?'true':'false');
-      b.onclick=()=>{ catalogCategoryFocus={groupId:activeGroup,id:c.id}; selectCat(c.id); }; categoryStrip.appendChild(b);
+      const selected=game.trayCat===c.id;
+      const b=categoryCell(c.id,()=>{ catalogCategoryFocus={groupId:activeGroup,id:c.id}; selectCat(c.id); });
+      const cell=categoryCells.get(b); cell.count.remove(); cell.name.textContent=c.label;
+      b.className=selected?'sel':''; b.setAttribute('aria-pressed',selected?'true':'false');
+      categoryStrip.appendChild(b);
     });
   }
-  enableCatalogDragScroll(categoryStrip,activeGroup);
+  enableCategoryKeys(categoryStrip);
   tabs.appendChild(wrapCategoryStrip(categoryStrip));
-  updateCatalogStripAffordance(categoryStrip);   // now measurable: it is in the DOM
   requestAnimationFrame(()=>{
-    const selected=categoryStrip.querySelector('.sel');
-    if (selected&&selected.scrollIntoView) selected.scrollIntoView({block:'nearest',inline:'nearest'});
     if (catalogCategoryFocus&&catalogCategoryFocus.groupId===activeGroup){
       const target=[...categoryStrip.querySelectorAll('button')].find(button=>button.dataset.categoryId===catalogCategoryFocus.id);
       catalogCategoryFocus=null;
@@ -3452,7 +3579,7 @@ function buildToolTrayInner(){
   });
   if (isPlantGroup){ const summary=discoveryFilterSummary(activeDiscovery()); if (summary) tabs.appendChild(summary); }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
-  tray.classList.remove('discovery-results','cultivar-drill','landscape-results');
+  tray.classList.remove('discovery-results','cultivar-drill','landscape-results','view-grid','view-list');
   if (isPlantGroup){
     if (PLANTS[game.tool] && !plantRefFits(plantRef(game.tool,game.toolVar))){ game.tool='hand'; game.toolVar=null; }
     renderDiscoveryTray(tray); renderCvRow(); finishToolTrayRender();

@@ -139,9 +139,11 @@ async function runSearchChecks(garden){
       assert(activeDiscovery().light[0]==='part'&&activeDiscovery().moisture[0]==='dry','applied to the catalog');
       assert(/Part shade/.test(document.querySelector('.discovery-filter-summary').textContent),'the catalog says what is on');
       assert(document.getElementById('toast').textContent.startsWith(discoveryResultCountText(discoveryRefs())),'the toast quotes the catalog it leaves, not the whole garden');
-      assert(/Filters · 2/.test(document.querySelector('.discovery-filter-trigger').textContent),'and how many');
-      const lines=[...document.querySelectorAll('#toolTray .plant-site-meta')].map(x=>x.textContent);
-      assert(lines.length&&lines.every(t=>/Part shade/.test(t)&&/Low water/.test(t)),'every card it leaves reads Part shade, Low water');
+      assert(document.querySelector('.discovery-filter-trigger .filter-count').textContent==='2','and how many');
+      // a card no longer spells out its site (that is in the chosen plant's detail), so ask the plants
+      const left=discoveryRefs().map(refDef);
+      assert(document.querySelectorAll('#toolTray .plant-result-card').length>0&&left.length>0
+        &&left.every(P=>P.sun==='part'&&P.moist==='dry'&&!P.wades&&P.type!=='water'),'every plant it leaves is for part shade and low water');
       openDiscoveryFilters(document.querySelector('.discovery-filter-trigger')); await sleep(30);
       document.getElementById('btnDiscoveryClear').click(); await sleep(10);
       document.getElementById('btnDiscoveryApply').click(); await sleep(60);
@@ -178,7 +180,7 @@ async function runSearchChecks(garden){
     });
     await check('starting a query exits cultivar drill-in and resets paging',async()=>{
       setDiscovery({category:null,query:'',limit:72}); buildToolTray(true);
-      const family=document.querySelector('.plant-family-main'); assert(family,'a family is available'); family.click();
+      const family=document.querySelector('.plant-family-card .pc-main'); assert(family,'a family is available'); family.click();
       await sleep(50); assert(document.querySelector('.cultivar-drill-back'),'family drill-in opens');
       const find=type('a'); await sleep(220);
       assert(input()===find&&!document.querySelector('.cultivar-drill-back'),'query returns to matching families');

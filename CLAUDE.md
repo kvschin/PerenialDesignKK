@@ -5628,37 +5628,30 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `VW`/`VH`, the design camera clamp, and any open dropdown all follow.
     Phone **and portrait tablet**
     keep the tri-state bottom sheet with the same internal hierarchy.
-    Every breakpoint shows a one-line, horizontally scrolling counted category
-    strip; touch uses native scrolling, mouse/pen can drag, arrow/Home/End keys
-    move focus, and selection restores focus after the controls rebuild. The
-    strip carries its own scroll affordance (`updateCatalogStripAffordance`,
-    called after it is appended — `scrollWidth` is 0 while detached — and kept
-    honest by a `ResizeObserver`): `can-scroll-start`/`can-scroll-end` land on
-    both the strip (mask-image edge fade) and its `.catalog-category-nav`
-    wrapper (chevron buttons, pointer-only). Without it 6 of 9 categories sat
-    off-screen behind a hidden scrollbar with only `cursor:grab` to hint at it.
-    **The chevrons sit in their own in-flow gutters, and the strip band is held
-    clear of the row above it** — both fixes for the same iPad symptom, tapping
-    between categories and landing on something else. The chevrons used to float
-    `position:absolute` over the strip, i.e. a live 28px button on top of
-    whichever chip was at the edge: measured by hit-sampling, the last visible
-    chip kept **38%** of its own tap area on an iPad-portrait dock and the
-    chevron took the middle of it. A third flag, **`can-scroll`** (`max>1`,
-    deliberately separate from the two directional ones), reserves BOTH gutters
-    for as long as the strip scrolls at all while the directional flags only
-    toggle `visibility` — reserving per-direction would shunt every chip 28px
-    sideways under the finger that scrolled to an end. Cost is ~64px of strip
-    width on pointers that have chevrons at all; touch hides them
-    (`pointer:coarse`) and keeps the full width. Separately, the strip sat
-    **4px** below the 44px Find input (8px docked), so a chip tap aimed a few px
-    high focused Find and threw the software keyboard over the catalog:
-    `--strip-clear` on the nav now spends the clearance twice, once as the nav's
-    margin and once as inert padding INSIDE the strip, so a high tap is a no-op
-    on strip background rather than a keyboard. Measured Find→chip distance goes
-    4→19px (sheet) and 8→23px (docked) on coarse pointers, 4→14 / 8→18 on a
-    mouse. Note the SHEET rules' `order:4;flex:1 0 100%` on the strip were stale
-    from when it was a direct child of `#trayTabs`; inside the nav an
-    unshrinkable 100% basis overflows the gutters, so it is `flex:1 1 auto`. The
+    **The category control is a GRID** (0.9.115; `renderDiscoveryCategories`,
+    `categoryCell`, `categoryKeyIndex`, `.catalog-category-strip`): All and the
+    nine plant categories five across in two rows (ten across on a portrait
+    tablet), the six Landscape categories three across. It was one scrolling row
+    of pills, and measured on every phone and every dock width **3 of the 10
+    fitted**: reaching Trees was a 700px swipe on a phone or four chevron
+    presses on a desktop, the mouse wheel did nothing over it, and a category
+    with nothing in it was REMOVED, so the cells moved whenever the source or a
+    search changed. Now every category is one tap away and no cell ever moves:
+    **an empty one is dimmed in place** (`.empty`, `aria-disabled`), except the
+    open one, which stays live so it can be left. A cell says a short name
+    (`short` in `TRAY_CATS`: Sun, Shade, Water) over its count, with the whole
+    of it in its title and accessible name; the open cell carries a bar as well
+    as a fill, since forced colours discard the fill. It costs about 50px more
+    than the row did (103px against 52 on a phone, 86 on the dock), which the
+    sheet pays for by moving the Plants/Landscape switch into its handle (below).
+    Cells are built once and updated in place, because the search refresh keeps
+    them mounted; their two spans are kept in a WeakMap (`categoryCells`), not
+    on the button, for the reason `cardDetails` gives. The fades, the chevron
+    gutters and the drag scroll went with the row. Arrow keys still rove, and Up
+    and Down move a row (`categoryGridColumns` reads the row length off the
+    laid-out grid). `--strip-clear` is still spent twice, as the nav's margin
+    and as inert padding inside the grid, so a tap aimed a few px high does not
+    focus Find. The
     plant categories are Grasses, Sedges, Sun Perennials,
     Shade Perennials, Bulbs, Water Plants, Climbers (§12e), Shrubs, and Trees;
     Landscape categories
@@ -5706,12 +5699,61 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Both only change what the library OFFERS — nothing planted is ever removed —
     and the modal's live count previews the style too, `recommended` being the
     style's list. Plot size and shape really are fixed, and the plot screen now
-    says so instead of "you can always start small". Cards show a Fraunces common name, IBM Plex Sans Latin
-    name, bloom range plus a 12-month timeline driven by the same `bloomMonths`
-    data, sun, moisture, mature size, flower-color swatch, and a sage
-    variety-count tag. The selected card has a terracotta ring plus a visible
+    says so instead of "you can always start small". **A card says what you choose a plant BY, and the rest opens under
+    the one you choose** (0.9.115; `discoveryResultCard`, `discoveryFamilyCard`,
+    `plantCardLine`, `plantCardDetail`, `catalogView`). There are two views,
+    switched by `.catalog-view` in the line over the results and kept per
+    device (`hortus:catalogView`, default pictures):
+    *Pictures* (`.pc-tile`): the plant on a 5:4 plate, its mature height on the
+    picture (or "N choices" for a family), its name, and a dot with the months it
+    flowers. *List* (`.pc-row`): a 71px row with the Latin name, one line of
+    bloom, size and light, and a heart. A card used to carry eight runs of text,
+    six of them under 12px, beside a picture whose plant measured a median
+    22x34px, and was 110-119px tall: **whole plants on screen went 3 to 9 on a
+    375x812 phone with the sheet full, 1 to 3 at half height, 1 to 3 at 320x568,
+    and 4.6 to 9 on a 1440x900 dock**. Choosing a plant arms it, as before, and
+    opens `.plant-card-detail` under its card: Latin name, provenance and
+    spreading tags, the twelve-month bloom strip, the site line, any site notes,
+    and Favorite and Add to palette as named buttons. The detail is a SIBLING of
+    the card, handed over through the `cardDetails` WeakMap and mounted by
+    `addCard`, so in the picture grid it takes a whole row (`grid-column:1/-1`,
+    with `grid-auto-flow:row dense` so the tiles after the chosen one fill its
+    row). **It is a WeakMap and not a property on the card** because the test
+    sandbox's stub element answers any unknown property with a function:
+    `card._detail` read as true for every card and doubled every list. A family
+    card opens its own page, as before, where each choice states its SIZE (what
+    you are choosing between) and keeps its note; under its family heading a
+    variety is named by its own part (`plantVariantLabel`). A caution recorded
+    for the garden's own region stays on the card, chosen or not; neutral notes
+    wait in the detail. "Spreads" stays on the card's line. The line over the
+    results (`.discovery-summary`) names what is listed and how many; a family's
+    page drops it, since it described the list behind.
+    **Pictures are fitted to their box** (`trayPlantArt`, `TRAY_ART_KINDS`):
+    through `paintLibCanvas`, the Plant Library's own fit, enlarged up to 2.6x
+    for a tile and 1.7x for a row, where the old fixed 1.15 left a 24in forb
+    27px tall in a 124px canvas. Relative size is lost that way, which is why a
+    tile states the height. A tile is 224x180 (161KB) against a row's 112x124
+    (55KB), so the cache is bounded by bytes (`TRAY_ART_BYTES`, 12MB) as well as
+    by count. On paper the picture keeps the Library's dark plate: pale plants
+    all but vanished on a pale card.
+    **A list that is not ranked reads by the name on the card**
+    (`discoveryGroupsInOrder`). Family cards were ordered by their first
+    member's species name and showed the family label, so Trees read Red
+    Mulberry, Arborvitae, American Basswood, Beech, and Oak came 22nd.
+    Recommended keeps the garden style's ranking. Site headings are sticky.
+    A rebuild costs less than it did: 378 nodes for 36 tiles (543 as rows)
+    against ~950, 5-9ms in Chrome.
+    **A press inside the catalog rebuilds it**, so the heart's pop, the Placing
+    badge's drop and the detail's entrance are set off by a one-shot marker the
+    press leaves and the rebuild consumes (`catalogPulse`, `catalogPulsed`); a
+    class the rebuild re-applies would replay on every later rebuild.
+    The older `.plant-result-main/-copy/-actions` rules are still in styles.css
+    and match nothing the catalog builds; the cards use `pc-*` inner classes and
+    their rules are the LAST block of the file, because a media query adds no
+    specificity and the old rules sit in five places.
+    The selected card has a terracotta ring plus a visible
     **Placing** badge, never color alone. A heart toggles Favorites and the
-    adjacent action adds to or
+    detail's second action adds to or
     removes from a named palette. Adding a card opens a separate assignment
     view that lists only named palettes with green **Add** / red **Remove**
     actions and create-and-add; the normal source picker is never mixed into
@@ -6099,6 +6141,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     state, and a second, differently shaped collapse control no longer sits one
     row under them. (Since 0.9.28 no tier has one: the round `.catalog-close` is
     gone from the markup, and on the dock the top-bar toggle is the door.)
+    **Since 0.9.115 the sheet's handle carries the Plants/Landscape switch at
+    half and full height** (`#sheetMode`, mounted by `buildToolTrayInner` when
+    `mobileSheetUi()`; collapsed, the handle still says what is on the brush),
+    the title block is hidden on the sheet, and the three controls left (source,
+    Find, Filters as an icon with a count) share ONE row
+    (`renderDiscoveryControls` with no `modeControl`). Above the first plant a
+    phone had 332px: handle 48, title 71, two control rows and the strip 179, a
+    second count line 23. It is 281px now WITH the category grid, and at half
+    height the control stack is hidden whole. A press on the switch is not a
+    press on the grip (`wireSheetHandle` ignores `.sheet-mode`). Find is 16px on
+    the sheet, since iOS zooms the page to a smaller field it focuses. The notes
+    below about the switch's row describe the DOCK, where it is still the first
+    control row. Not done: the "Now placing" footer is still 132px, which on a
+    320x568 phone leaves little list once a plant is chosen.
     The **Plants / Landscape switch stays usable in the Landscape catalog** on the
     sheet: its `.catalog-control-row` pairs the switch with the landscape search,
     and the search's old `flex:1 0 100%` (from when it owned a full row) claimed

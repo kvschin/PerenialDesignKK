@@ -2655,7 +2655,8 @@ if ($('btnLibraryPlacing')) $('btnLibraryPlacing').onclick=()=>setSheetState('fu
   const down=$('btnSheetDown'), up=$('btnSheetUp');
   let drag=null;
   h.addEventListener('pointerdown',e=>{
-    if (e.target.closest && e.target.closest('.sheet-actions')) return;
+    // the chevrons and the Plants/Landscape switch are buttons, not the grip
+    if (e.target.closest && e.target.closest('.sheet-actions,.sheet-mode')) return;
     drag={y:e.clientY,moved:false};
     h.classList.add('dragging');
     try{ h.setPointerCapture(e.pointerId); }catch(_){}

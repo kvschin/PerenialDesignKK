@@ -430,6 +430,10 @@ if ('serviceWorker' in navigator)
   <div class="hud-bottom">
     <div id="sheetHandle" role="group" aria-label="Plant palette height" data-state="half">
       <span class="grip-bar" aria-hidden="true"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span>
+      <!-- At half and full height the handle carries the Plants / Landscape
+           switch (mounted by buildToolTrayInner); collapsed, it says what is on
+           the brush. -->
+      <span class="sheet-mode" id="sheetMode"></span>
       <span class="sheet-actions">
         <button id="btnSheetDown" type="button" title="Show less of the plant palette" aria-label="Show less of the plant palette" aria-controls="brushBar trayTabs toolTray"><svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-down"></use></svg></button>
         <button id="btnSheetUp" type="button" title="Show more of the plant palette" aria-label="Show more of the plant palette" aria-controls="brushBar trayTabs toolTray"><svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-up"></use></svg></button>

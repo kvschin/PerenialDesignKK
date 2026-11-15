@@ -4343,43 +4343,232 @@ test('a plant with no recorded bloom drops the timeline instead of drawing 12 em
   assert(discoveryBloomLabel(PLANTS[blooming]).startsWith('Blooms '), 'blooming species keep the Blooms label');
 });
 
-test('the category strip reports which side can still scroll', () => {
+test('the category control is a grid: a cell per category, and an empty one keeps its place', () => {
+  /* It was one scrolling row of pills. On every phone and every dock width 3 of
+     the 10 fitted: Trees was a 700px swipe or four chevron presses away, and a
+     category with nothing in it was removed, so the rest moved whenever the
+     source or a search changed. */
   setup();
-  const strip = document.createElement('div');
-  const wrap = document.createElement('div');
-  wrap.appendChild(strip);
-  strip.parentElement = wrap;
-  // 940px of chips in a 330px column: 6 of 9 categories sit off-screen, and
-  // with the scrollbar hidden the fade/arrows are the only affordance.
-  strip.scrollWidth = 940; strip.clientWidth = 330;
-  strip.scrollLeft = 0;
-  updateCatalogStripAffordance(strip);
-  assert(!strip.classList.contains('can-scroll-start'), 'no left fade at the start');
-  assert(strip.classList.contains('can-scroll-end'), 'right fade shows more categories exist');
-  assert(wrap.classList.contains('can-scroll-end'), 'the wrapper gets it too so the arrow can show');
-  assert(wrap.classList.contains('can-scroll'), 'the wrapper reserves both arrow gutters while it scrolls');
-  strip.scrollLeft = 610;
-  updateCatalogStripAffordance(strip);
-  assert(strip.classList.contains('can-scroll-start'), 'left fade appears once scrolled');
-  assert(!strip.classList.contains('can-scroll-end'), 'right fade clears at the end');
-  // The gutters must NOT come and go with the direction flags, or every chip
-  // shifts 28px sideways under the finger that scrolled to the end.
-  assert(wrap.classList.contains('can-scroll'), 'scrolling to the end keeps both gutters reserved');
-  strip.scrollWidth = 300; strip.clientWidth = 330; strip.scrollLeft = 0;
-  updateCatalogStripAffordance(strip);
-  assert(!strip.classList.contains('can-scroll-start') && !strip.classList.contains('can-scroll-end'),
-    'a strip that fits shows no affordance at all');
-  assert(!wrap.classList.contains('can-scroll'), 'a strip that fits reserves no gutters either');
+  const saved = [game.design, game.filters, game.discovery];
+  try {
+    game.design = null; game.filters = normalizeFilters({ nativeRegion: 'north-america', nativeMode: 'any' });
+    game.discovery = normalizeDiscovery({ source: 'all' });
+    const strip = document.createElement('div');
+    let picked = 'none';
+    renderDiscoveryCategories(strip, id => { picked = id; });
+    const want = ['all', ...TRAY_GROUPS[0].cats];
+    assertEqual(strip.children.map(b => b.dataset.categoryId).join(), want.join(), 'All, then every plant category, in the catalog\'s order');
+    const cell = id => strip.children.find(b => b.dataset.categoryId === id), parts = b => categoryCells.get(b);
+    assertEqual(parts(cell('sunper')).name.textContent, 'Sun', 'a cell says the short name');
+    assert(/^Sun Perennials/.test(cell('sunper').title) && /^Sun Perennials, \d+ plants?$/.test(cell('sunper').getAttribute('aria-label')),
+      'and the whole of it is the title and the accessible name');
+    const tally = discoveryCategoryCounts(game.discovery);
+    assertEqual(parts(cell('trees')).count.textContent, String(tally.counts.trees), 'with its count under it');
+    assertEqual(cell('all').getAttribute('aria-pressed'), 'true', 'All is the open one');
+    cell('trees').onclick();
+    assertEqual(picked, 'trees', 'one press opens a category');
+    cell('all').onclick();
+    assertEqual(picked, null, 'and All clears it');
+    // a search that leaves most categories empty: the SAME ten cells, the empty ones dimmed
+    const before = strip.children.slice();
+    game.discovery = normalizeDiscovery({ source: 'all', query: 'oak' });
+    renderDiscoveryCategories(strip, id => { picked = id; });
+    assertEqual(strip.children.length, want.length, 'no cell is removed');
+    assert(strip.children.every((b, i) => b === before[i]), 'and none is rebuilt: the search refresh keeps them mounted');
+    const oak = discoveryCategoryCounts(game.discovery);
+    const empties = want.filter(id => id !== 'all' && !oak.counts[id]);
+    assert(empties.length >= 4 && oak.counts.trees > 0, 'the probe really does empty several categories and keep Trees');
+    for (const id of empties) {
+      assertEqual(cell(id).getAttribute('aria-disabled'), 'true', id + ' says it is empty');
+      assert(/\bempty\b/.test(cell(id).className), id + ' is dimmed in place');
+    }
+    picked = 'none'; cell(empties[0]).onclick();
+    assertEqual(picked, 'none', 'an empty cell does nothing');
+    cell('trees').onclick();
+    assertEqual(picked, 'trees', 'a live one still opens');
+    // the open category stays live even when it has nothing, so it can be left
+    game.discovery = normalizeDiscovery({ source: 'palette', collectionId: 'no-such-palette', category: 'trees' });
+    renderDiscoveryCategories(strip, () => {});
+    assertEqual(parts(cell('trees')).count.textContent, '0', 'an unknown palette lists nothing');
+    assert(!/\bempty\b/.test(cell('trees').className) && cell('trees').getAttribute('aria-pressed') === 'true'
+      && cell('trees').getAttribute('aria-disabled') !== 'true', 'the selected cell is never the dimmed one');
+    assert(/\bempty\b/.test(cell('shrubs').className), 'while the others are');
+  } finally { [game.design, game.filters, game.discovery] = saved; }
+  const css = readRepoFile('styles.css');
+  assert(/\.catalog-category-strip\{display:grid;grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/.test(css), 'five across, so All and nine categories are two rows');
+  assert(/\.catalog-category-strip button\.sel::after\{/.test(css), 'the open cell carries a bar as well as a fill (forced colours discard the fill)');
+  const coarse = css.slice(css.lastIndexOf('@media (pointer:coarse)'));
+  assert(/\.catalog-category-strip button\{min-height:44px\}/.test(coarse), 'and a cell is 44px for a finger');
+  const tray = readRepoFile('js/tray.js');
+  assert(!/can-scroll|scrollBy\(|catalog-strip-arrow/.test(tray), 'the fades, the chevrons and the paging went with the row');
 });
 
-test('plant category drag scrolling follows the pointer without changing selection', () => {
-  assertEqual(categoryDragScrollLeft(120, 200, 150), 170, 'dragging left reveals categories to the right');
-  assertEqual(categoryDragScrollLeft(120, 200, 250), 70, 'dragging right reveals categories to the left');
-  assertEqual(categoryKeyIndex('ArrowRight', 1, 4), 2, 'right arrow advances through category chips');
-  assertEqual(categoryKeyIndex('ArrowRight', 3, 4), 0, 'right arrow wraps to the first category');
-  assertEqual(categoryKeyIndex('ArrowLeft', 0, 4), 3, 'left arrow wraps to the final category');
-  assertEqual(categoryKeyIndex('Home', 2, 4), 0, 'Home focuses the first category');
-  assertEqual(categoryKeyIndex('End', 1, 4), 3, 'End focuses the final category');
+test('arrow keys rove the category grid, and Up and Down move a row', () => {
+  assertEqual(categoryKeyIndex('ArrowRight', 1, 10, 5), 2, 'right arrow advances through the cells');
+  assertEqual(categoryKeyIndex('ArrowRight', 9, 10, 5), 0, 'and wraps to the first');
+  assertEqual(categoryKeyIndex('ArrowLeft', 0, 10, 5), 9, 'left arrow wraps to the last');
+  assertEqual(categoryKeyIndex('Home', 7, 10, 5), 0, 'Home is the first cell');
+  assertEqual(categoryKeyIndex('End', 1, 10, 5), 9, 'End is the last');
+  assertEqual(categoryKeyIndex('ArrowDown', 1, 10, 5), 6, 'Down is the cell below');
+  assertEqual(categoryKeyIndex('ArrowUp', 6, 10, 5), 1, 'Up is the cell above');
+  assertEqual(categoryKeyIndex('ArrowDown', 6, 10, 5), 6, 'with no cell below, it stays');
+  assertEqual(categoryKeyIndex('ArrowUp', 2, 10, 5), 2, 'and with none above');
+  assertEqual(categoryKeyIndex('ArrowDown', 4, 6, 3), 4, 'the Landscape grid is three across');
+  assertEqual(categoryKeyIndex('ArrowDown', 1, 6, 3), 4, 'and Down there moves three');
+  assertEqual(categoryKeyIndex('a', 1, 10, 5), -1, 'any other key is left alone');
+});
+
+test('a plant card says what you choose a plant by, and the rest opens under the chosen one', () => {
+  /* A card carried eight runs of text, six of them under 12px, beside a picture
+     whose plant measured a median 22x34px. On a 375x812 phone three plants
+     fitted with the sheet full and one at half height. */
+  setup();
+  const saved = [game.design, game.filters, game.discovery, game.tool, game.toolVar, catalogViewPref];
+  const texts = (el, out = []) => { if (el.textContent && !(el.children || []).length) out.push(String(el.textContent)); (el.children || []).forEach(c => texts(c, out)); return out; };
+  const classes = (el, out = []) => { out.push(String(el.className || '')); (el.children || []).forEach(c => classes(c, out)); return out; };
+  try {
+    game.design = null; game.filters = normalizeFilters({ nativeRegion: 'north-america', nativeMode: 'any' });
+    game.discovery = normalizeDiscovery({ source: 'all' });
+    const d = game.discovery, ref = { s: 'bluestem', v: null }, P = refDef(ref), size = matureSizeText(P);
+
+    // pictures: the plant, its name, its height on the picture, when it flowers
+    catalogViewPref = 'grid'; game.tool = 'hand'; game.toolVar = null;
+    let card = discoveryResultCard(ref, d), t = texts(card);
+    assert(/\bpc-tile\b/.test(card.className), 'the picture view builds a tile');
+    assert(t.includes(P.name) && t.includes(plantMeasure(P.heightIn || P.h)) && t.includes(bloomRangeText(P)), 'name, height, bloom months');
+    assert(!t.includes(P.latin) && !t.includes(size) && !t.includes(provenanceLabel(P)), 'and not the Latin name, the full size or the provenance');
+    assert(t.filter(x => x.trim() && x.trim() !== '\u00b7').length <= 4, 'at most four things to read: ' + t.join(' | '));
+    assert(!classes(card).some(c => /plant-result-heart|plant-result-add/.test(c)), 'no actions crowd a tile');
+    assert(!cardDetails.get(card), 'and nothing opens under a card that is not chosen');
+
+    // the chosen card brings the rest with it
+    game.tool = 'bluestem';
+    card = discoveryResultCard(ref, d);
+    assert(/\bsel\b/.test(card.className) && classes(card).includes('placing-badge'), 'the chosen card says Placing, not colour alone');
+    const detail = cardDetails.get(card), dt = texts(detail), dc = classes(detail);
+    assert(detail && detail.className === 'plant-card-detail', 'and has a detail panel');
+    assert(dt.includes(P.latin) && dt.includes(size) && dt.includes(provenanceLabel(P)) && dt.includes(discoveryBloomLabel(P)), 'which carries what left the card');
+    assert(dc.includes('plant-bloom-timeline') && dc.includes('plant-site-meta'), 'the twelve-month strip and the site line');
+    assert(dt.includes('Favorite') && dt.includes('Add to palette'), 'and the two actions, with their names');
+
+    // list: a compact row keeps the Latin name, the size and a heart
+    catalogViewPref = 'list'; game.tool = 'hand';
+    card = discoveryResultCard(ref, d); t = texts(card);
+    assert(/\bpc-row\b/.test(card.className), 'the list view builds a row');
+    assert(t.includes(P.latin) && t.includes(size) && t.includes('Full sun'), 'Latin name, size and light on one row');
+    assert(classes(card).some(c => /\bplant-result-heart\b/.test(c)), 'with a heart');
+
+    // a family: how many choices, and it opens its own page rather than a detail
+    const group = groupDiscoveryRefs([{ s: 'bluestem', v: null }, ...Object.keys(PLANTS.bluestem.cv || {}).map(v => ({ s: 'bluestem', v }))])[0];
+    assert(group.refs.length > 1, 'little bluestem has cultivars');
+    for (const view of ['grid', 'list']) {
+      catalogViewPref = view;
+      const fam = discoveryFamilyCard(group, d);
+      assert(texts(fam).includes(group.refs.length + ' choices'), view + ': a family says how many choices it holds');
+      assert(!cardDetails.get(fam), view + ': and has no detail of its own');
+    }
+
+    // a variety states its size (what you choose between) and keeps its note
+    catalogViewPref = 'grid';
+    const cv = group.refs.find(r => r.v && (refDef(r) || {}).note), V = refDef(cv);
+    const vcard = discoveryResultCard(cv, d, { variant: true, groupLabel: group.label }), vt = texts(vcard);
+    assert(vt.includes(matureSizeText(V)) && vt.includes(V.note), 'a variety tile carries its size and its note');
+    assertEqual(plantVariantLabel({ name: "Little Bluestem 'Carousel'" }, 'Little Bluestem'), "'Carousel'", 'under its family heading a variety is its own name');
+    assertEqual(plantVariantLabel({ name: 'Sideoats Grama' }, 'Grama'), 'Sideoats Grama', 'a name that does not lead with the heading is left whole');
+  } finally { [game.design, game.filters, game.discovery, game.tool, game.toolVar, catalogViewPref] = saved; }
+  const css = readRepoFile('styles.css');
+  assert(/\.plant-card-detail\{grid-column:1\/-1/.test(css), 'the detail takes a whole row of the picture grid');
+  assert(/#toolTray\.view-grid \.plant-result-grid,#toolTray\.view-grid \.plant-variant-grid\{\s*grid-template-columns:repeat\(auto-fill,minmax\(92px,1fr\)\);gap:7px;grid-auto-flow:row dense\}/.test(css),
+    'three across on a phone, and dense, so the tiles after the chosen one fill its row');
+  assert(/\.plant-result-heart\.on \.ui-icon\{fill:currentColor\}/.test(css), 'a favourite heart is filled, not only tinted');
+});
+
+test('the catalog view is a device preference and part of the tray signature', () => {
+  setup();
+  const saved = catalogViewPref, stored = localStorage.getItem('hortus:catalogView');
+  try {
+    localStorage.removeItem('hortus:catalogView'); catalogViewPref = null;
+    assertEqual(catalogView(), 'grid', 'pictures until somebody chooses otherwise');
+    setCatalogView('list');
+    assertEqual(localStorage.getItem('hortus:catalogView'), 'list', 'the choice is written');
+    catalogViewPref = null;
+    assertEqual(catalogView(), 'list', 'and read back on the next visit');
+    const a = trayStateSig();
+    catalogViewPref = 'grid';
+    assert(trayStateSig() !== a, 'changing it moves the signature, or the catalog would not redraw');
+    localStorage.setItem('hortus:catalogView', 'sideways'); catalogViewPref = null;
+    assertEqual(catalogView(), 'grid', 'a value it does not know is the default');
+    assert(!IDB_KEYS.test('hortus:catalogView'), 'it is a device preference: it stays in localStorage');
+    assert(/\['catalogView',/.test(String(verifyTrayCache)), 'and the cache verifier permutes it');
+  } finally {
+    catalogViewPref = saved;
+    if (stored === null) localStorage.removeItem('hortus:catalogView'); else localStorage.setItem('hortus:catalogView', stored);
+  }
+});
+
+test('a list that is not ranked reads by the name on the card', () => {
+  /* Family cards were ordered by their first member's species name and showed
+     the family label, so Trees read Red Mulberry, Arborvitae, American
+     Basswood, Beech, and Oak came 22nd. */
+  setup();
+  const saved = [game.design, game.filters, game.discovery];
+  try {
+    game.design = null; game.filters = normalizeFilters({ nativeRegion: 'north-america', nativeMode: 'any' });
+    game.discovery = normalizeDiscovery({ source: 'all', category: 'trees' });
+    const groups = groupDiscoveryRefs(discoveryRefs()), ordered = discoveryGroupsInOrder(groups, game.discovery).map(g => g.label);
+    assert(ordered.length > 20, 'a real list of trees');
+    assertEqual(ordered.join('|'), ordered.slice().sort((a, b) => a.localeCompare(b)).join('|'), 'alphabetical by label');
+    assert(groups.map(g => g.label).join('|') !== ordered.join('|'), 'which the unsorted list was not (or this test proves nothing)');
+    game.design = { type: 'prairie' };
+    const ranked = normalizeDiscovery({ source: 'recommended' });
+    assert(discoveryGroupsInOrder(groups, ranked) === groups, "Recommended keeps the garden style's own ranking");
+    game.design = null;
+    assert(discoveryGroupsInOrder(groups, ranked) !== groups, 'and with no style to rank by, it reads by name too');
+  } finally { [game.design, game.filters, game.discovery] = saved; }
+});
+
+test('card pictures come in two sizes, fitted to their box, in one bounded cache', () => {
+  TRAY_ART.clear();
+  const D = plantDef('bluestem');
+  const row = trayPlantArt('bluestem', null, 'Summer', D), tile = trayPlantArt('bluestem', null, 'Summer', D, 'tile');
+  assert(row !== tile, 'a row and a tile are separate pictures');
+  assert(TRAY_ART.has('bluestem||Summer') && TRAY_ART.has('bluestem||Summer|tile'), 'under separate keys (the row keeps the old one)');
+  assertEqual(row.width + 'x' + row.height, '112x124', 'a row is 56x62 CSS px at 2x');
+  assertEqual(tile.width + 'x' + tile.height, '224x180', 'a tile is 112x90 CSS px at 2x');
+  assert(trayPlantArt('bluestem', null, 'Summer', D, 'tile') === tile, 'and each is baked once');
+  // tiles are three times a row's bytes, so the cache is bounded by bytes too
+  const keys = Object.keys(PLANTS);
+  for (let i = 0; i < 100; i++) trayPlantArt(keys[i], null, 'Summer', plantDef(keys[i]), 'tile');
+  let bytes = 0; for (const c of TRAY_ART.values()) bytes += c.width * c.height * 4;
+  assert(bytes <= TRAY_ART_BYTES, 'the cache stays inside ' + TRAY_ART_BYTES + ' bytes, at ' + bytes);
+  assert(TRAY_ART.size < 100, 'by letting the oldest tiles go (' + TRAY_ART.size + ' kept)');
+  TRAY_ART.clear();
+  const src = String(trayPlantArt);
+  assert(/paintLibCanvas\(/.test(src) && !/tileSeed\(3,7\)/.test(src), "the plant is fitted by the Plant Library's own fit, not drawn at a fixed scale");
+});
+
+test('on the sheet the handle carries the Plants/Landscape switch and the controls are one row', () => {
+  /* Above the first plant a phone had 332px: handle 48, a title block 71, two
+     control rows and the strip 179, a second count line 23. */
+  setup();
+  const html = readRepoFile('index.html');
+  assert(/<span class="sheet-mode" id="sheetMode"><\/span>/.test(html), 'the handle has a place for the switch');
+  assert(/closest\('\.sheet-actions,\.sheet-mode'\)/.test(readRepoFile('js/screens.js')), 'and a press on the switch is not a press on the grip');
+  const build = String(buildToolTrayInner);
+  assert(/getElementById\('sheetMode'\)/.test(build) && /mobileSheetUi\(\)/.test(build) && /inHandle\?null:modeControl/.test(build),
+    'the catalog mounts it there on the sheet and passes the controls no switch');
+  const tabs = document.createElement('div');
+  renderDiscoveryControls(tabs, null);
+  const rows = tabs.children[0].children;
+  assertEqual(rows.length, 1, 'with no switch to hold, the controls are one row');
+  assertEqual(rows[0].children.map(c => c.id || c.className).join(), 'discovery-source-wrap,trayFind,discovery-filter-row', 'source, Find, Filters');
+  const css = readRepoFile('styles.css'), at = css.lastIndexOf('/* SHEET */'), sheet = css.slice(at, css.indexOf('@media', at + 10));
+  assert(/\.hud-bottom \.catalog-header\{display:none\}/.test(sheet), 'the title block is gone from the sheet');
+  assert(/#trayFind,\.landscape-controls \.catalog-search\{[^}]*font-size:16px\}/.test(sheet), 'Find is 16px, or iOS zooms the page when it takes focus');
+  assert(/\.hud-bottom\.sheet-half \.discovery-controls,\.hud-bottom\.sheet-half \.landscape-controls\{display:none\}/.test(sheet),
+    'and half height hides the control stack whole');
+  assert(/\.hud-bottom\.sheet-half #sheetHandle \.sheet-mode,\.hud-bottom\.sheet-full #sheetHandle \.sheet-mode\{/.test(sheet),
+    'the switch shows at half and full; collapsed, the handle says what is on the brush');
 });
 
 test('landscape search spans every landscape category', () => {

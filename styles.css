@@ -3388,3 +3388,199 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
 .plant-guidance details{border-top:1px solid var(--border-quiet);margin-top:12px}
 #plantCard{max-height:calc(100vh - 165px);max-height:calc(100dvh - 165px);overflow-y:auto;overscroll-behavior:contain}
 #plantCard>.plant-guidance-button{margin-top:9px;border:1px solid var(--border-quiet);border-radius:var(--radius-control)}
+
+/* ---------- Catalog: category grid, plant tiles and rows (0.9.115) ----------
+   This block is LAST on purpose. The catalog's older rules are spread over five
+   places above, several inside media queries, and a media query adds no
+   specificity: placed among them, a later rule of equal weight silently wins
+   (the .menu-settings trap). The cards use their own inner classes (pc-*), so
+   the old .plant-result-main/-copy/-actions rules above no longer match
+   anything the catalog builds. */
+
+/* -- category grid: every category in one place, one tap away -- */
+.catalog-category-nav{display:block;width:100%;min-width:0;margin-top:var(--strip-clear)}
+.catalog-category-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;min-height:0;
+  padding:var(--strip-clear) 0 0;overflow:visible;cursor:auto;-webkit-mask-image:none;mask-image:none}
+.catalog-category-strip.cats-build{grid-template-columns:repeat(3,minmax(0,1fr))}
+.catalog-category-strip button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  flex:none;min-width:0;min-height:38px;padding:0 2px;border:1px solid var(--color-divider);border-radius:12px;
+  background:var(--color-neutral-100);color:var(--color-text);font:700 12px/1 var(--font-body);white-space:nowrap}
+.catalog-category-strip .cat-name{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+/* --text-muted measured 4.45:1 here, under AA at this size */
+.catalog-category-strip .cat-count{font-size:10.5px;font-weight:600;color:var(--text-secondary)}
+.catalog-category-strip button.sel .cat-count{color:inherit}
+/* a bar as well as the fill: the fill is what forced colours discard */
+.catalog-category-strip button.sel::after{content:'';position:absolute;left:30%;right:30%;bottom:3px;height:2px;border-radius:1px;background:currentColor}
+.catalog-category-strip button.empty{opacity:.45;border-style:dashed;cursor:default}
+.catalog-category-strip button.empty:hover{border-color:var(--color-divider);transform:none}
+.catalog-category-strip button:active:not(.empty){transform:scale(.96)}
+
+/* -- the line over the results, and the view toggle -- */
+.discovery-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:32px;
+  margin:0 0 8px;padding:0 2px;color:var(--text-secondary);font-size:12px;line-height:1.3}
+.ds-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-text b{font:600 15px/1.2 var(--font-heading);color:var(--color-text)}
+.cultivar-drill-head>.catalog-view{margin-left:auto}
+.catalog-view{flex:0 0 auto;display:inline-flex;gap:2px;padding:2px;border-radius:var(--radius-pill);background:var(--color-surface)}
+.catalog-view button{position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:28px;padding:0;border:0;
+  border-radius:var(--radius-pill);background:transparent;color:var(--text-secondary);cursor:pointer;
+  transition:background var(--motion-control),color var(--motion-control)}
+.catalog-view button:hover{color:var(--color-text)}
+.catalog-view button.sel{background:var(--color-neutral-100);color:var(--color-text);box-shadow:inset 0 0 0 1.5px var(--border-active)}
+.catalog-view button:focus-visible{outline:2px solid var(--focus-ring);outline-offset:1px}
+.catalog-view .ui-icon{width:16px;height:16px}
+
+/* -- cards: shared -- */
+.plant-result-card.pc-tile,.plant-result-card.pc-row{min-height:0;border:2px solid transparent;background:var(--color-surface)}
+.plant-result-card.pc-tile.sel,.plant-result-card.pc-row.sel{border-color:var(--color-accent)}
+.pc-main{min-width:0;border:0;background:none;color:var(--color-text);font-family:var(--font-body);text-align:left;cursor:pointer;
+  transition:transform var(--motion-control) var(--ease-standard)}
+.pc-main:active{transform:scale(.985)}
+.pc-main:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+.pc-copy{display:flex;flex-direction:column;min-width:0}
+.pc-copy>b{font:600 13.5px/1.2 var(--font-heading);color:var(--color-text);overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pc-line{min-width:0;color:var(--text-secondary);font:12px/1.35 var(--font-body)}
+.pc-line .plant-result-dot{display:inline-block;width:8px;height:8px;margin-right:4px;vertical-align:0}
+.pc-tile .placing-badge,.pc-row .placing-badge{padding:4px 9px;border-radius:0 12px 0 10px;font-size:11px;letter-spacing:.04em}
+.pc-flagged>.plant-guidance-button{flex:1 0 100%;min-height:0;padding:6px 8px;font-size:12px;line-height:1.3}
+
+/* -- pictures: a tile is the plant, its name and when it flowers -- */
+#toolTray.view-grid .plant-result-grid,#toolTray.view-grid .plant-variant-grid{
+  grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:7px;grid-auto-flow:row dense}
+.plant-result-card.pc-tile{display:flex;flex-direction:column;border-radius:14px}
+.pc-art{position:relative;display:block;min-width:0}
+.pc-row .pc-art{flex:0 0 50px}
+.pc-tile .pc-main{display:flex;flex-direction:column;align-items:stretch;gap:5px;flex:1 1 auto;padding:0 0 7px}
+.pc-tile .plant-result-art{display:block;align-self:stretch;width:100%;height:auto;aspect-ratio:5/4;flex:0 0 auto;
+  padding:0;border-radius:0;background:var(--color-neutral-100)}
+.pc-tile .pc-copy{gap:2px;padding:0 7px}
+.pc-chip{position:absolute;left:5px;top:5px;max-width:calc(100% - 10px);padding:1px 7px;border-radius:999px;
+  background:var(--color-bg);color:var(--text-secondary);font:600 12px/1.45 var(--font-body);white-space:nowrap}
+.pc-chip.pc-choices{background:var(--color-accent-2-200);color:var(--color-accent-2-700)}
+/* the Placing badge takes the top of a chosen tile */
+.pc-tile.sel .pc-chip{top:auto;bottom:5px}
+.pc-tile .plant-variant-details{color:var(--text-secondary);font-size:12px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.pc-tile .plant-caution-tag{font-size:12px;line-height:1.3;padding-left:6px}
+
+/* -- list: a compact row -- */
+#toolTray.view-list .plant-result-grid,#toolTray.view-list .plant-variant-grid{
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:7px}
+.plant-result-card.pc-row{display:flex;flex-wrap:wrap;align-items:center;border-radius:16px}
+.pc-row .pc-main{display:flex;align-items:center;gap:10px;flex:1 1 0;padding:6px 4px 6px 6px}
+.pc-row .plant-result-art{display:block;width:50px;height:55px;flex:0 0 50px;padding:2px;border-radius:12px;background:var(--color-neutral-100)}
+.pc-row .pc-copy{gap:1px;flex:1 1 auto}
+.pc-row .pc-copy>b{font-size:15px;-webkit-line-clamp:1}
+.pc-row .pc-copy>em{color:var(--color-accent-700);font:italic 12px/1.25 var(--font-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-row .pc-line{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-row.plant-variant-card .pc-line{white-space:normal}
+.pc-row .plant-variant-details{color:var(--text-secondary);font-size:12px;line-height:1.3}
+.pc-row .pc-open{flex:0 0 auto;display:flex;align-items:center;margin-left:auto;padding:0 6px;color:var(--color-accent)}
+.pc-row .pc-open .ui-icon{width:16px;height:16px}
+.pc-row>.plant-result-heart{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:40px;height:40px;margin-right:4px;padding:0;
+  border:0;border-radius:50%;background:transparent;color:var(--text-muted);cursor:pointer}
+.pc-row>.plant-result-heart:hover{background:var(--color-neutral-100);color:var(--color-accent)}
+.pc-row>.plant-result-heart.on{background:transparent;color:var(--color-accent)}
+/* the chosen row's detail carries Favorite, and the Placing badge has the corner */
+.pc-row.sel>.plant-result-heart{display:none}
+/* filled as well as tinted: a shape cue, not colour alone */
+.plant-result-heart.on .ui-icon{fill:currentColor}
+
+/* -- the chosen plant's detail, a row of its own under its card -- */
+.plant-card-detail{grid-column:1/-1;display:flex;flex-direction:column;gap:5px;min-width:0;padding:10px 12px 12px;
+  border:1.5px solid var(--color-accent);border-radius:14px;background:var(--color-surface)}
+.pcd-title b{display:block;font:600 16px/1.15 var(--font-heading);color:var(--color-text)}
+.pcd-title em{color:var(--color-accent-700);font:italic 12.5px/1.3 var(--font-body)}
+#toolTray.view-list .pcd-title{display:none}
+.plant-card-detail .plant-result-meta{gap:4px 8px;font-size:12px;line-height:1.35}
+.plant-card-detail .plant-result-meta small{padding:1px 8px;border-radius:999px;background:var(--color-neutral-100);
+  color:var(--text-secondary);font-size:12px;letter-spacing:0;text-transform:none}
+.plant-card-detail .plant-site-meta{white-space:normal;font-size:12.5px}
+.plant-card-detail .plant-guidance-button{border:1px solid var(--color-divider);border-radius:10px;min-height:36px;padding:7px 10px}
+.pcd-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.pcd-actions button{display:inline-flex;align-items:center;gap:6px;width:auto;height:auto;min-height:36px;padding:0 13px;
+  border:1px solid var(--color-divider);border-radius:var(--radius-pill);background:var(--color-neutral-100);
+  color:var(--color-text);font:600 12.5px/1 var(--font-body);cursor:pointer}
+.pcd-actions button:hover{border-color:var(--color-accent);background:var(--color-neutral-100);color:var(--color-text)}
+.pcd-actions .ui-icon{width:16px;height:16px}
+.pcd-actions .plant-result-heart.on{border-color:var(--color-accent);background:var(--surface-active);color:var(--color-text)}
+
+/* On paper the picture keeps a dark plate, the Plant Library's own
+   (.ld-img): the plants are world art, authored to sit on one, and a white
+   seedhead or a silver sage all but vanished on the pale card. */
+[data-theme="light"] .pc-tile .plant-result-art,[data-theme="light"] .pc-row .plant-result-art{background:linear-gradient(#3a4a3a,#26331f)}
+
+/* -- sticky site headings: a long category keeps saying where you are -- */
+.discovery-site-head{position:sticky;top:-14px;z-index:2;margin:14px -2px 8px;padding:6px 4px 5px;background:var(--color-bg)}
+.discovery-summary+.discovery-site-head,.discovery-challenge+.discovery-site-head{margin-top:0}
+
+/* -- the Filters trigger: an icon, the word, how many are on -- */
+.discovery-filter-trigger{position:relative;display:inline-flex;align-items:center;gap:6px}
+.discovery-filter-trigger .ui-icon{width:16px;height:16px}
+.filter-count{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border-radius:9px;
+  background:var(--color-accent);color:var(--ink);font-size:11px;font-weight:700;line-height:1}
+
+/* -- one-shot motion, each set off by the press that caused the rebuild -- */
+@keyframes heartPop{0%{transform:scale(.5)}55%{transform:scale(1.32)}100%{transform:none}}
+.plant-result-heart.on.pop .ui-icon{animation:heartPop 300ms var(--ease-emphasized)}
+@keyframes badgeIn{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:none}}
+.placing-badge.enter{animation:badgeIn var(--motion-panel) var(--ease-emphasized)}
+.plant-card-detail.enter{animation:popoverEnter var(--motion-menu) var(--ease-emphasized)}
+
+#sheetHandle .sheet-mode{display:none}
+
+@media (pointer:coarse){
+  .catalog-category-strip button{min-height:44px}
+  .catalog-view button{width:44px;height:36px}
+  .catalog-view button::after{content:'';position:absolute;inset:-4px 0}
+  .pcd-actions button,.plant-card-detail .plant-guidance-button{min-height:44px}
+  .pc-row>.plant-result-heart{width:44px;height:44px}
+}
+@media (min-width:1025px), (min-width:768px) and (orientation:landscape){ /* DOCK */
+  /* the header above already says how many */
+  .ds-count:not(.keep){display:none}
+  .catalog-category-nav{order:3}
+}
+@media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
+  /* The handle's own row says "Plants | Landscape"; a title block under it
+     saying "Plant library" and the count a second time was 71px of the sheet. */
+  .hud-bottom .catalog-header{display:none}
+  .hud-bottom.sheet-half #sheetHandle .sheet-mode,.hud-bottom.sheet-full #sheetHandle .sheet-mode{
+    display:flex;flex:1 1 auto;justify-content:center;min-width:0}
+  .hud-bottom.sheet-half #sheetHandle .sheet-ctx,.hud-bottom.sheet-full #sheetHandle .sheet-ctx,
+  .hud-bottom.sheet-half #sheetSwatch,.hud-bottom.sheet-full #sheetSwatch{display:none}
+  #sheetHandle .catalog-mode{min-height:38px;padding:3px}
+  /* one control row: source, Find, Filters */
+  .discovery-source-wrap{flex:0 1 150px;max-width:150px}
+  .discovery-source{min-width:0}
+  /* 16px: iOS zooms the page to any field it focuses that is set smaller */
+  #trayFind,.landscape-controls .catalog-search{flex:1 1 auto;min-width:0;font-size:16px}
+  .discovery-filter-row{flex:0 0 auto}
+  .discovery-filter-trigger{justify-content:center;width:44px;min-height:44px;padding:0}
+  .discovery-filter-trigger .filter-label{display:none}
+  .discovery-filter-trigger .ui-icon{width:19px;height:19px}
+  .discovery-filter-trigger .filter-count{position:absolute;right:-3px;top:-3px}
+  .discovery-result-count{display:none}
+  /* half height keeps what you browse WITH: the grid, the results, the brush
+     footer. The stack is hidden whole; emptied, its 44px floor left a band. */
+  .hud-bottom.sheet-half .discovery-controls,.hud-bottom.sheet-half .landscape-controls{display:none}
+  /* with no Find field over the grid there is nothing for its clearance to clear */
+  .hud-bottom.sheet-half .catalog-category-nav{margin-top:0}
+  .hud-bottom.sheet-half .catalog-category-strip{padding-top:0}
+  .discovery-site-head{top:-10px}
+  .cultivar-drill-title{min-width:0}
+  .catalog-category-strip.cats-build{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+/* a portrait tablet's sheet is wide enough for every category on one row */
+@media (min-width:600px) and (max-width:1024px) and (orientation:portrait){
+  .catalog-category-strip{grid-template-columns:repeat(10,minmax(0,1fr))}
+  .catalog-category-strip.cats-build{grid-template-columns:repeat(6,minmax(0,1fr))}
+}
+/* a phone has no room for the second half of the count */
+@media (max-width:479px){ .ds-more{display:none} .catalog-category-strip button{font-size:11.5px} }
+@media (forced-colors: active){
+  .catalog-category-strip button.empty{border-style:dashed!important}
+  .catalog-view button{border:1px solid ButtonBorder}
+  .catalog-view button.sel,.pcd-actions .plant-result-heart.on{border:2px solid Highlight!important;forced-color-adjust:none;background:Highlight!important;color:HighlightText!important}
+  .plant-card-detail,.pc-chip{border:1px solid CanvasText}
+  .filter-count{forced-color-adjust:none;background:Highlight;color:HighlightText}
+}
