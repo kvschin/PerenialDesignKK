@@ -14994,6 +14994,39 @@ test('snow caps ride the drawn mass, not the top of the H box', () => {
   assert(moved > 0 && moved < PLANT_KEYS.length * 0.2,
     `crown override should stay a small exception, not the rule (${moved} species)`);
 });
+test('snow lies on the leaves of a plant whose stems stand only in flower', () => {
+  // In winter these plants are their leaves alone, and the cap scatter put their snow at
+  // the height of the flower stems they no longer have: every cap over a foamflower, a
+  // lady's mantle or a deadnettle hung in the air (0.9.110). Now each leaf the shared
+  // painters lay says where it is, and the snow goes on those. A cap may sit no higher
+  // than the highest thing the plant drew.
+  const CAP='rgba(240,244,250,0.85)';
+  const plants=['foamflower','ladysmantle','deadnettle','fringecups','piggyback','duskycranesbill','mrsrobbsbonnet',
+    'englishprimrose','londonpride','heuchera','cyclamenhederifolium','yellowcorydalis','sensitivefern','fragrantwaterlily'];
+  for (const k of plants){
+    for (const seed of [101,4410,98765]){
+      const ops=shadeOps(k,'Winter',null,seed);
+      const caps=ops.filter(o=>o.op==='ellipse'&&o.fill===CAP);
+      assert(caps.length>=2,`${k}: snow in winter (${caps.length} caps)`);
+      let top=Infinity;
+      for (const o of ops){
+        if (o.fill===CAP && (o.op==='ellipse'||o.op==='fill')) continue;
+        const a=o.a||[];
+        if (o.op==='ellipse') top=Math.min(top,a[1]-Math.abs(a[3]));
+        else if (o.op==='moveTo'||o.op==='lineTo') top=Math.min(top,a[1]);
+        else if (o.op==='quadraticCurveTo') top=Math.min(top,a[3]);
+        else if (o.op==='bezierCurveTo') top=Math.min(top,a[5]);
+      }
+      for (const c of caps) assert(c.a[1]>=top-0.5,`${k}: a cap at ${c.a[1].toFixed(1)} is above the plant, whose top is ${top.toFixed(1)}`);
+    }
+  }
+  // the painters record only while drawPlant lays a plant's foliage: the tray, the
+  // library and the guidebook call the same painters and must not fill a list
+  shadeOps('foamflower','Winter');
+  assertEqual(_snowLeaves,null,'nothing is left recording after a plant is drawn');
+  // a plant that still stands in winter keeps its old snow: a coneflower's seedheads
+  assert(shadeOps('echinacea','Winter').some(o=>o.op==='ellipse'&&o.fill===CAP),'a coneflower still catches snow');
+});
 test('bucketed category counts equal filtering per category', () => {
   setup(31, 31);
   const cats = TRAY_CATS.filter(c => TRAY_GROUPS[0].cats.includes(c.id));

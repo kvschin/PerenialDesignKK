@@ -198,7 +198,10 @@ Drawing: doll's eyes and blue cohosh carry their fruit on stalks round the stem 
 hangs long bells from the end of each arch (`bellAt`, `bellW`, `bellH`). Both are opt-in, and every
 other plant draws call for call as before. Seen and left for later: a plant whose flower stems
 stand only in flower (foamflower before this batch; fringecups, piggyback plant and others now)
-catches its winter snow in the air where the stems would be.
+catches its winter snow in the air where the stems would be. Fixed in 0.9.110: such a plant's
+snow now lies on its leaves (foamflower, lady's mantle, the deadnettles, fringecups, piggyback
+plant, dusky cranesbill, Mrs. Robb's bonnet, English primrose, London pride and the heucheras
+among them).
 
 ## Missing cultivars
 

@@ -7263,9 +7263,26 @@ creeping Jenny that is sold, which a species caution cannot say). Two opt-in dra
 `seedStyle:'berryRaceme'` on a spike (`drawBerryRaceme`: fruit on stalks round the stem top, the
 stalks in the season's `eye`, `berryEye` for doll's eyes' black dots, `berries`/`berryR`/`pedicel`/
 `berrySpan`), and `bellAt`/`bellW`/`bellH` on an archbell, hanging long bells from the end of the
-arch (bellwort). Every existing plant draws call for call as before. Seen and left: a spike or leaf
-mound whose flower stems stand only in flower catches winter snow in the air above it, since
-`snowCrownFrac` places it at full height (foamflower showed it first).
+arch (bellwort). Every existing plant draws call for call as before.
+**Snow lies on the leaves of a plant with nothing standing in winter** (0.9.110; `_snowLeaves`,
+`snowLeafAt`, draw.js). A plant whose stems stand only in flower is its leaves alone in winter,
+and the cap scatter put its snow at the height of the stems it no longer has, `snowCrownFrac`
+being 1 for its form: every cap over a foamflower, lady's mantle, deadnettle, fringecups or
+English primrose hung in the air. While drawPlant lays a plant's foliage it sets `_snowLeaves`
+to a list (`snowLv`, winter and mature only), and the shared painters record where each leaf
+lies: `drawLeaf` (0.68 along the blade, a cap no wider than the leaf is long; `overlay:true`
+marks a mottle or stripe drawn over a leaf already recorded), `drawParasolLeaf`, `drawPitcher`,
+`drawHostaLeaves`, the shrub form's `leafDot` and the stroked fans. It is null outside those
+passes, so the tray, the library and the guidebook record nothing. A cone, globe, spike or umbel
+with no stems this season (`sn` 0) takes the list as its anchors and draws no snow if it is empty
+(`basalSnow`); a leaf mound takes it always (its scapes stand only in flower); the shrub form takes
+it when no flower stems stand; a water lily's snow goes on its winter pods and a sensitive fern's
+on its fertile sticks. On leaves each cap takes a different leaf and is at most `H*0.12` across
+at its smallest, or a 5-inch cyclamen's four caps ran into one ball. It spends no random numbers:
+every drawing is call for call the same up to the snow, and only 184 of 23,232 drawings moved
+(92 choices, winter at full growth). A test holds every cap of fourteen such plants at or below
+the plant's own top and fails on the old code. Left: the scatter on plants that do stand in winter
+(lavender, Siberian iris, goldenrods) still lands some caps between thin stems.
 
 **Sedge visuals:** retain `bunchgrass` as the shared form, with no species-key branches.
 Use `look` values (`leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to

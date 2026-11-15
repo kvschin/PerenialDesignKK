@@ -63,6 +63,17 @@ function snowCrownFrac(P){
 function catchesSnow(P, S){
   return !SNOW_BARE_FORMS[P.form] || !!(S.fol || S.seed || S.bloom);
 }
+/* Where snow lies on a plant's own leaves (0.9.110). A plant whose stems stand only
+   in flower is, in winter, its leaves alone, and the cap scatter below put its snow
+   at the height of stems it no longer has: over a foamflower, a lady's mantle or a
+   deadnettle every cap hung in the air. While drawPlant lays a plant's foliage it
+   sets this to a list, every leaf the shared painters draw says where its upper
+   face is, and a plant with nothing standing above its leaves takes the list as its
+   snow anchors. It draws nothing and spends no random numbers, so only the snow
+   moves. Null outside those passes, so the tray, the library and the guidebook,
+   which call the same painters, record nothing. */
+let _snowLeaves=null;
+function snowLeafAt(x,y,r){ if(_snowLeaves) _snowLeaves.push([x,y,r]); }
 /* Where snow lands on a grass, or null when there is none. Each grass form records its
    heads and arches here: a scatter over the plant's box hung ovals in the air beside
    thin culms. Allocates only in a snowy season, and consumes no random numbers, so a
@@ -182,6 +193,7 @@ for (let i=0;i<=RAY_N;i++){ const t=i/RAY_N;
    and finished with a midrib. `hw` is the half-width at its widest point. */
 function drawLeaf(ctx, bx,by, tx,ty, hw, col, opt){
   opt=opt||{};
+  if (_snowLeaves && !opt.overlay) _snowLeaves.push([bx+(tx-bx)*0.68, by+(ty-by)*0.68, Math.min(hw*0.48,Math.hypot(tx-bx,ty-by)*0.3)]);
   if (opt.shape==='palmate'||opt.shape==='sagittate'){
     // These blades have deep sinuses, which a tapered ribbon cannot express.
     const dx=tx-bx,dy=ty-by,len=Math.sqrt(dx*dx+dy*dy)||1;
@@ -274,6 +286,7 @@ function parasolPath(ctx,cx,cy,r,flat,tilt,rot,lobes,depth,cut,sinus,sa,tipPt){
 function drawParasolLeaf(ctx,cx,cy,r,flat,tilt,rot,col,under,L,sa){
   const lobes=Math.max(1,Math.round(L.lobes||1)), depth=L.lobeDepth||0, cut=L.lobeCut||2;
   const sin=sa===undefined?0:(L.sinus||0), tp=sin?(L.tipPt||0):0;
+  snowLeafAt(cx,cy,r*0.5);
   parasolPath(ctx,cx,cy+Math.max(1,r*0.09),r,flat,tilt,rot,lobes,depth,cut,sin,sa,tp);
   ctx.fillStyle=under;ctx.fill();
   parasolPath(ctx,cx,cy,r,flat,tilt,rot,lobes,depth,cut,sin,sa,tp);
@@ -397,6 +410,7 @@ function drawHostaLeaves(ctx,P,L,S,H,n,sway,rnd){
       ctx.closePath();
     };
     const R=o.bl*0.6, cxm=bx+(o.dx*o.bl*0.45), cym=by-(o.dz*o.bl*0.45)+o.dy*o.bl*0.45*tilt;
+    if(face>=0) snowLeafAt(cxm,cym,o.bl*0.2);
     if(margin && face>=0){ outline(0); ctx.fillStyle=shade(S.edge,lum*16); ctx.fill(); outline(margin); }
     else outline(0);
     litFill(ctx,cxm,cym,R,col,14,-12);
@@ -703,6 +717,7 @@ function drawMallowFlower(ctx,x,y,r,col,eye,petalW,rot){
 const PITCHER_PROF=new Float64Array(11);
 for(let i=0;i<=10;i++){const t=i/10;PITCHER_PROF[i]=t<0.72?0.22+0.78*Math.pow(t/0.72,0.8):1-0.28*(t-0.72)/0.28;}
 function drawPitcher(ctx,bx,by,qx,qy,tx,ty,w,col,vein,side){
+  snowLeafAt(tx,ty+w*0.3,w*0.7);
   ribbonPath(ctx,bx,by,qx,qy,tx,ty,PITCHER_PROF,w,0,0);
   litFill(ctx,(bx+tx)/2,(by+ty)/2,w*2,col,18,-20);
   ctx.save();ctx.globalAlpha=0.72;ctx.strokeStyle=vein;ctx.lineWidth=Math.max(0.4,w*0.15);ctx.beginPath();
@@ -6126,6 +6141,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
 
   const stemFor = (n)=> Math.max(3, Math.round(n * (0.4+0.6*growth)));
   let snowAnchors=null;
+  // snowLv collects where the foliage lies while a branch draws it (see _snowLeaves);
+  // basalSnow says nothing stands above that foliage, so the snow goes on it or nowhere
+  const snowLv=AMBIENCE[season].snow&&mature?[]:null;
+  let basalSnow=false;
+  _snowLeaves=null;
 
   /* ---------- climber ----------
      The one form with no shape of its own: it takes the silhouette of whatever
@@ -6994,6 +7014,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   else if (P.form === 'cone' || P.form === 'globe' || P.form === 'spike' || P.form === 'umbel'){
     const L = P.look||{}; // per-species carriage: leafiness, wispiness, droop
     // Basal foliage is optional: leafy stems must not grow from a false rosette.
+    _snowLeaves=snowLv;
     if (S.fol && L.leaves!==0){
       const fn = stemFor(L.leaves||8);
       ctx.strokeStyle = S.fol; ctx.lineWidth = L.leafW||1.8;
@@ -7032,7 +7053,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           // a deadnettle's silver blotch down the middle of the leaf (0.9.103); `mottleW` and
           // `mottleLen` (0.9.106) let a selection be silver nearly to its edge
           if(L.mottle && S.edge) drawLeaf(ctx,bx,by,bx+(tx-bx)*(L.mottleLen||0.78),by+(ty-by)*(L.mottleLen||0.78),o.l*wr*(L.mottleW||0.48),S.edge,
-            {shape:L.leafShape,rib:false,bow:o.c*0.05,flat:!art2On(L)});
+            {shape:L.leafShape,rib:false,bow:o.c*0.05,flat:!art2On(L),overlay:true});
         }
       }
       else if (L.leafStyle==='pinnate'){
@@ -7116,9 +7137,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
                    {shape:L.leafShape, teeth:L.leafTeeth, teethN:L.leafTeethN,
                     bow:L.leafArch!==undefined?(ltx<lbx?1:-1)*L.leafArch:L.leafBow===undefined?0.06:L.leafBow, rib:L.leafRib});
           if(L.silverMottle) drawLeaf(ctx,lbx,lby,ltx*0.92,lty*0.92,lhw*0.38,
-            S.edge||shade(S.fol,42),{shape:L.leafShape,rib:false,bow:L.leafBow||0.04,lift:10,drop:-8});
+            S.edge||shade(S.fol,42),{shape:L.leafShape,rib:false,bow:L.leafBow||0.04,lift:10,drop:-8,overlay:true});
           else if(L.leafStripe) drawLeaf(ctx,lbx,lby,ltx*0.96,lty*0.96,lhw*0.20,
-            L.leafStripe,{shape:L.leafShape,rib:false,bow:L.leafBow||0.04,lift:8,drop:-6});
+            L.leafStripe,{shape:L.leafShape,rib:false,bow:L.leafBow||0.04,lift:8,drop:-6,overlay:true});
         }
       }
       else if (L.globeStyle==='rattlesnake'){
@@ -7129,6 +7150,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*18); ctx.lineWidth=L.leafW||1.35;
           ctx.beginPath(); ctx.moveTo((rnd()-0.5)*3,0);
           ctx.quadraticCurveTo(ex*0.20,-l*0.46,ex,ey); ctx.stroke();
+          snowLeafAt(ex*0.8,ey*0.86,1.6);
         }
       } else if (L.leafStyle === 'willow'){
         const spread = L.leafSpread || 1.8, fan = L.leafFan || 0.42;
@@ -7139,6 +7161,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const ex=bx+side*l*fan*spread+(rnd()-0.5)*2.5, ey=by-l*(0.68+rnd()*0.24);
           ctx.beginPath(); ctx.moveTo(bx,by);
           ctx.quadraticCurveTo(bx+side*l*0.18,by-l*0.42,ex,ey); ctx.stroke();
+          snowLeafAt(bx+(ex-bx)*0.8,by+(ey-by)*0.86,1.6);
         }
         // crowns:0 means none; stemFor floors any count at three
         const crowns = L.crowns===0 ? 0 : stemFor(L.crowns||0);
@@ -7153,13 +7176,17 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       } else {
         for (let i=0;i<fn;i++){ const a=(i/(fn-1)-0.5)*1.8, l=H*(L.leafLen||0.34);
           ctx.beginPath(); ctx.moveTo(0,0);
-          ctx.quadraticCurveTo(Math.sin(a)*l*0.7,-l*0.5,Math.sin(a)*l,-l*0.55); ctx.stroke(); }
+          ctx.quadraticCurveTo(Math.sin(a)*l*0.7,-l*0.5,Math.sin(a)*l,-l*0.55); ctx.stroke();
+          snowLeafAt(Math.sin(a)*l*0.8,-l*0.53,1.6); }
       }
       ctx.lineCap = 'butt';
     }
+    _snowLeaves=null;
     // flower stems
     // bloomStemsOnly:'seed' keeps the bare stalks through the seed season too
     const sn = L.bloomStemsOnly&&!blooming&&!(L.bloomStemsOnly==='seed'&&S.seed) ? 0 : stemFor(P.form==='spike'?(L.stems||7):(L.stems||6));
+    // with no stems standing the plant is its leaves, and the snow lies on them or nowhere
+    if (!sn && snowLv){ basalSnow=true; snowAnchors=snowLv; }
     // ART2: give the clump depth. Each stem takes a z — back stems root further
     // away, draw smaller and duller, and paint FIRST. The classic path draws
     // them flat in loop order, so a back flower can paint over a front one.
@@ -8810,6 +8837,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       ctx.fillStyle=shade(col||fol,(rnd()-0.5)*26);
       ctx.beginPath(); ctx.ellipse(px,py,w,h,a,0,7); ctx.fill();
+      snowLeafAt(px,py,w*0.8);
     };
     // The two stem-built habits carry their own lit mass (see drawThreadDome),
     // so they skip the translucent disc the scattered habits stand on — under
@@ -8822,6 +8850,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.restore();
     }
     if (stemBuilt) _stN=0;
+    if (!stemBuilt) _snowLeaves=snowLv;
     if (S.fol && habit==='threadleaf'){
       drawThreadDome(ctx,L,fol,H,growth,season==='Winter',sway,rnd,stemFor(L.stems||24));
     } else if (S.fol && habit==='leafystems'){
@@ -8868,6 +8897,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         leafDot(px,py,leafW,leafH,a,fol);
       }
     }
+    _snowLeaves=null;
+    // flower stems stand only in flower or seed; without them the snow lies on the leaves
+    if (!stemBuilt && snowLv && snowLv.length && !(mature && ((blooming&&S.bloom)||S.seed))) snowAnchors=snowLv;
     if (stemBuilt && _stN){
       // snow lies on the crown of the mound, not in the air above a stem box
       if (AMBIENCE[season].snow){
@@ -9227,8 +9259,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         if (L.upright){ ctx.strokeStyle=shade(fol,-22); ctx.lineWidth=1.2;
           ctx.beginPath(); ctx.moveTo(px*0.25,0); ctx.lineTo(px,py+4); ctx.stroke(); }
         ctx.beginPath(); ctx.ellipse(px,py,3.6,2.6,0,0,7); ctx.fill();
+        if (snowLv && !S.fol) snowLv.push([px,py-0.6,2.6]);
       }
     }
+    if (snowLv && snowLv.length && !S.fol) snowAnchors=snowLv;
   }
   else if (P.form === 'cycad'){ // low woody crowns with rigid pinnate fronds and cones
     const L=P.look||{}, fol=S.fol||'#4f7650';
@@ -9495,6 +9529,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       for (let i=0;i<fCount;i++){
         const ox=(rnd()-0.5)*(Lf.fertileSpread||6), top=-H*(fLen+rnd()*0.2);
         ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox+sway*2,top); ctx.stroke();
+        if (snowLv && !S.fol) snowLv.push([ox+sway*2*0.95,top*0.95,kind==='spike'?(Lf.fertileW||2.4):2.2]);
         if (kind==='spike'){ // woolly club on the upper third
           ctx.fillStyle=shade(S.seed,10); ctx.beginPath();
           ctx.ellipse(ox+sway*1.6, top*0.82, Lf.fertileW||2.4, Math.abs(top)*0.20, 0,0,7); ctx.fill();
@@ -9507,10 +9542,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.fill();
         }
       }
+      if (snowLv && snowLv.length && !S.fol && !snowAnchors) snowAnchors=snowLv;
     }
   }
   else if (P.form === 'leafmound'){ // hosta and shade mounds: broad overlapping leaves, scapes above
     const Lm=P.look||{};
+    _snowLeaves=snowLv;
     if (S.fol){
       const n=stemFor(Lm.leaves||11);
       if (Lm.leafStyle==='hosta') drawHostaLeaves(ctx,P,Lm,S,H,n,sway,rnd);
@@ -9598,8 +9635,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.beginPath();
         ctx.ellipse(lx*0.7+sway, ly*0.8, l*0.42, l*0.24, Math.atan2(ly,lx), 0, 7);
         ctx.fill();
+        snowLeafAt(lx*0.7+sway, ly*0.8, l*0.2);
       }
     }
+    _snowLeaves=null;
+    if (snowLv && snowLv.length && !snowAnchors) snowAnchors=snowLv;
     if (blooming && mature){
       ctx.strokeStyle=shade(S.fol||'#6f8f5a',-18); ctx.lineWidth=1.1;
       const rawScapes=Lm.scapes===undefined?3:Lm.scapes;
@@ -11061,14 +11101,23 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     ctx.fillStyle='rgba(240,244,250,0.85)';
     const capS=P.cw?Math.max(1,(woodyVisualCw(P)||60)/60):1;
     const rs=mulberry(seed+9), caps=isTreeDef(P)?7:4;
-    if (snowAnchors && snowAnchors.length){
+    if (snowAnchors && snowAnchors===snowLv && snowLv.length){
+      // On leaves, each cap takes a different leaf, spread through the order they
+      // were laid in (back to front), and a cap is no bigger than the plant can
+      // carry: at 2.2 a 5-inch cyclamen's four caps ran together into one ball.
+      const n=snowLv.length, k=Math.min(caps,n), st=Math.max(1,Math.floor(n/k)), s0=rs()*n|0, rmin=Math.min(2.2,H*0.12);
+      for (let i=0;i<k;i++){
+        const a=snowLv[(s0+i*st)%n], r=Math.max(rmin,a[2]);
+        ctx.beginPath(); ctx.ellipse(a[0],a[1]-r*0.12,r,r*0.42,0,0,7); ctx.fill();
+      }
+    } else if (snowAnchors && snowAnchors.length){
       // Open pines, cedars and weepers have real gaps. Pin snow to foliage
       // tops instead of scattering it through their empty crown rectangle.
       for (let i=0;i<Math.min(caps,snowAnchors.length);i++){
         const a=snowAnchors[(i*3+(rs()*snowAnchors.length|0))%snowAnchors.length], r=Math.max(2.2,a[2]||3.5*capS);
         ctx.beginPath(); ctx.ellipse(a[0],a[1]-r*0.12,r,r*0.42,0,0,7); ctx.fill();
       }
-    } else if (P.form!=='conifer' || S.fol){
+    } else if (!basalSnow && (P.form!=='conifer' || S.fol)){
       // Widening the scatter to shR for low crowns was tried and dropped: shR
       // is the ground-shadow radius, which runs wider than the drawn foliage,
       // so it pushed snow out past the edge of 12 species instead of onto them.
