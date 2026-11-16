@@ -20,6 +20,14 @@ without testing anything:
 
 Others were the same shape, found by audit rather than by a failing test:
 
+- **`innerHTML=''` and `replaceChildren()` left the old children in place**
+  (the first set a string, the second was a no-op), and they are how every row
+  in `js/` is emptied before it is rebuilt. A row built twice held both sets,
+  so `children.find(...)` returned the chip from an EARLIER opening, wired to a
+  closure that was no longer the page, and "exactly one chip is pressed" could
+  not be asked at all. Found writing the New garden page's in-place tests
+  (0.9.118), which need a row's children to be the row's children.
+
 - **`setAttribute` was a no-op** against a `getAttribute` that always returned
   `null`, which is what made memoising `getElementById` pointless on its own.
 - **Unknown element properties answer with a no-op function, which is truthy** —

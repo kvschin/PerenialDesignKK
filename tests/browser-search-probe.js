@@ -10,7 +10,6 @@ async function runSearchChecks(garden){
   else {
     document.getElementById('btnDesign').click(); await sleep(100);
     document.getElementById('btnNewWorld').click();
-    document.getElementById('btnDesignNext').click();
     document.getElementById('plotName').value='Search regression check';
     document.getElementById('btnPlotStart').click();
   }

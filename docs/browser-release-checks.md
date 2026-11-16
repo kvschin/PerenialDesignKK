@@ -58,8 +58,9 @@ read-only loopback HTTP server on a free port.
    font loading, worker scope, first installation, and absence of a spurious
    update offer.
 2. Exercise published ZIP results, unsupported/unlisted ZIPs, manual recovery,
-   reachable zone buttons after toggling help, and the official-map link.
-3. Create a named garden through the questionnaire, make a deterministic edit
+   the zone buttons beside the ZIP field in the zone finder, and the
+   official-map link.
+3. Create a named garden from the New garden page, make a deterministic edit
    through `withUndo`/`setTile`, and wait for the real paused-clock autosave.
    Read the record directly from IndexedDB so a localStorage fallback cannot
    make the check pass. Close the tab and reopen the saved garden through

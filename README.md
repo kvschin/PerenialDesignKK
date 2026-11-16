@@ -13,9 +13,9 @@ representative and varies with climate and site.
 The menu has three entries:
 
 - **Your gardens** — create, reopen, rename, duplicate, delete, or import a
-  garden. A new design starts with a questionnaire for zone, style, continental
-  native origin, and wildlife preferences, followed by plot size, shape, and
-  north. The planner uses direct tap-to-place and drag-to-paint editing, a free
+  garden. A new design starts on one page: the plot's name, size, shape, and
+  north, beside winter cold (zone), a garden style, and optional native-origin
+  and wildlife rules. Nothing on it has to be answered. The planner uses direct tap-to-place and drag-to-paint editing, a free
   pan/pinch camera, and a Rotate button or R key.
 - **Plant Library** — browse species, seasonal illustrations, facts, and
   cultivars. Reviewed regional cautions and site notes appear where available;

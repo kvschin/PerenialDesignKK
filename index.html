@@ -632,40 +632,107 @@ if ('serviceWorker' in navigator)
   </div>
 </div>
 
-<!-- PLOT SETUP (new solo gardens) -->
-<div class="screen hidden" id="plotScreen">
-  <div class="panel panel-enter">
-    <h2>Lay out the plot</h2>
-    <!-- The tile size is written by syncUnitLabels; it is the one sentence on
-         this screen that states a real dimension. -->
-    <p class="sub">How much ground are we working? One tile is <span id="plotTileSize">18&quot; &times; 18&quot;</span>, so sides go in steps of a tile. The size and shape are fixed once the garden is made &mdash; everything you draw and plant inside it can change.</p>
-    <div class="field"><label for="plotName">Garden name</label>
-      <input id="plotName" maxlength="24" placeholder="My garden" autocomplete="off">
-    </div>
-    <div class="field lot-shape-setup"><label>Plot size</label>
-      <div class="chip-row" id="plotPresets"></div>
-      <div id="plotShapeEditor" class="lot-shape-editor">
-        <div class="row plot-dims">
+<!-- NEW GARDEN (the plot, and what to plant in it, on one page) -->
+<!-- It was two screens, a questionnaire and then a plot, each an older panel
+     with a text Back at its foot and its one button below the fold. It is one
+     page now, in the shape the other screens the menu opens have: the shared
+     header with the way back in it, a body that scrolls, and a footer that
+     does not, holding the one button. The plot stands on the left of a wide
+     screen and the planting on the right; on a phone they follow one another.
+     Nothing here has to be answered: every control starts on a usable value. -->
+<div class="screen hidden" id="designScreen">
+  <div class="panel page-panel ng-panel panel-enter" id="ngPanel">
+    <header class="page-head ng-head">
+      <button class="page-back" type="button" id="btnDesignBack" aria-label="Back to your gardens">
+        <svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-right"></use></svg><span>Gardens</span>
+      </button>
+      <div class="page-title">
+        <h2 id="ngTitle" tabindex="-1">New garden</h2>
+        <p class="page-sub ng-count" id="dgnCount" role="status" aria-live="polite"></p>
+      </div>
+    </header>
+    <div class="ng-body" id="ngBody">
+      <section class="ng-group ng-sec-plot" aria-labelledby="ngPlotH">
+        <h3 class="ng-h" id="ngPlotH">The plot</h3>
+        <label class="ng-field" for="plotName"><span class="ng-lab">Name</span>
+          <input id="plotName" maxlength="24" placeholder="My garden" autocomplete="off" enterkeyhint="go">
+        </label>
+        <div class="ng-lab" id="ngSizeLab">Size, feet</div>
+        <div class="ng-sizes" id="plotPresets" role="radiogroup" aria-labelledby="ngSizeLab"></div>
+        <div id="plotShapeEditor" class="ng-diagram">
+          <canvas id="plotShapeCanvas" role="img" aria-label="Plan of the plot. Use the width and length fields to size it."></canvas>
           <!-- The unit word, the min/max and the step are all written by
                syncUnitLabels (screens.js) from the units preference. The model
                side stays feet whatever these say. -->
-          <div class="field"><label for="plotW" id="plotWLabel">Width, feet</label>
-            <input id="plotW" type="number" min="24" max="200" value="46" inputmode="decimal"></div>
-          <div class="field"><label for="plotL" id="plotLLabel">Length, feet</label>
-            <input id="plotL" type="number" min="24" max="200" value="46" inputmode="decimal"></div>
+          <div class="ng-dims">
+            <label for="plotW"><span id="plotWLabel">Width, feet</span>
+              <input id="plotW" type="number" min="24" max="200" value="46" inputmode="decimal"></label>
+            <label for="plotL"><span id="plotLLabel">Length, feet</span>
+              <input id="plotL" type="number" min="24" max="200" value="46" inputmode="decimal"></label>
+            <!-- North as a real button as well as the dial on the drawing: the
+                 dial is 28px of canvas, which a keyboard cannot reach and which
+                 nothing on the page said was a control. -->
+            <button class="ng-north" id="btnPlotNorth" type="button">
+              <i class="north-summary-arrow" aria-hidden="true"></i>
+              <span><small>North</small><b id="plotNorthLabel">Top of the plot</b></span>
+            </button>
+          </div>
+          <p class="ng-hint" id="plotShapeHint"></p>
+          <button class="ng-link hidden" id="btnPlotShapeReset" type="button">Reset to a rectangle</button>
         </div>
-        <canvas id="plotShapeCanvas"></canvas>
-        <p class="field-hint" id="plotShapeHint">Drag a square edge to resize, a corner to shape the lot, or the N dial to set north.</p>
-        <div class="row lot-shape-actions">
-          <button class="btn" id="btnPlotShapeReset" type="button">Reset to rectangle</button>
-        </div>
+        <!-- The tile size is written by syncUnitLabels; it and the note above it
+             are the two lines here that state a real dimension. -->
+        <p class="ng-note"><span id="plotNote"></span> A tile is <span id="plotTileSize">18&quot; &times; 18&quot;</span>. The size and shape are fixed once the garden is made; everything inside can change.</p>
+      </section>
+      <div class="ng-side">
+        <section class="ng-group ng-sec-zone" aria-labelledby="ngZoneH">
+          <h3 class="ng-h" id="ngZoneH">Winter cold</h3>
+          <div class="ng-zone-row">
+            <p class="zone-readout" id="dgnZoneOut"></p>
+            <button type="button" class="ng-pill" id="dgnZoneToggle" aria-expanded="false" aria-controls="dgnZoneHelp">Find my zone</button>
+          </div>
+          <div class="ng-zone-help hidden" id="dgnZoneHelp">
+            <label class="ng-field" for="dgnZip"><span class="ng-lab">US ZIP code</span>
+              <input id="dgnZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="5-digit ZIP" aria-describedby="dgnZipStatus">
+            </label>
+            <p class="ng-hint" id="dgnZipStatus" role="status" aria-live="polite"></p>
+            <div class="ng-lab" id="ngWinterLab">Or how cold the coldest night of winter gets</div>
+            <div class="ng-winters" id="dgnWinter" role="group" aria-labelledby="ngWinterLab"></div>
+            <div class="ng-lab" id="ngZoneLab">Or the USDA hardiness zone, if you know it</div>
+            <div class="ng-zones" id="dgnZoneChips" role="group" aria-labelledby="ngZoneLab"></div>
+            <a class="ext-link zone-map-link" id="dgnZoneMap" href="https://planthardiness.ars.usda.gov/" target="_blank" rel="noopener noreferrer">Check the official USDA map<span aria-hidden="true"> ↗</span><span class="sr-only"> (opens in a new tab)</span></a>
+          </div>
+        </section>
+        <section class="ng-group ng-sec-style" aria-labelledby="ngStyleH">
+          <h3 class="ng-h" id="ngStyleH">Garden style</h3>
+          <div class="ng-styles" id="dgnTypeChips" role="radiogroup" aria-labelledby="ngStyleH"></div>
+          <p class="ng-hint" id="dgnTypeNote"></p>
+        </section>
+        <section class="ng-group ng-sec-rules" aria-labelledby="ngRulesH">
+          <button type="button" class="ng-rules-toggle" id="dgnRulesToggle" aria-expanded="false" aria-controls="dgnRules">
+            <span class="ng-h" id="ngRulesH">Plant rules</span>
+            <span class="ng-rules-line" id="dgnRulesLine"></span>
+            <svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
+          </button>
+          <div class="ng-rules-body hidden" id="dgnRules">
+            <div class="gc-label" id="dgnNativeLab">Native planting</div>
+            <div class="gc-seg" id="dgnNativeMode" role="radiogroup" aria-labelledby="dgnNativeLab"></div>
+            <label class="gc-inline" for="dgnNativeRegion"><span id="dgnNativeRegionLabel">Garden region</span>
+              <select id="dgnNativeRegion"></select>
+            </label>
+            <p class="gc-hint" id="dgnNativeHint"></p>
+            <div class="gc-label" id="dgnResistLab">Only plants that resist</div>
+            <div class="gc-checks" id="dgnConstraints" role="group" aria-labelledby="dgnResistLab"></div>
+          </div>
+        </section>
       </div>
     </div>
-    <p class="note" id="plotNote"></p>
-    <div class="row" style="margin-top:10px">
-      <button class="btn primary" id="btnPlotStart">Break ground</button>
+    <!-- The one button, and what pressing it makes. Outside the scroller, so it
+         is on screen at every size: it sat 200 to 1,300px below the fold. -->
+    <div class="ng-foot">
+      <p class="ng-summary" id="ngSummary"></p>
+      <button class="btn primary" id="btnPlotStart" type="button">Break ground</button>
     </div>
-    <button class="back-link" id="btnPlotBack">Back</button>
   </div>
 </div>
 
@@ -694,52 +761,6 @@ if ('serviceWorker' in navigator)
       <button class="btn" id="btnSiteNorthCancel" type="button">Cancel</button>
       <button class="btn primary" id="btnSiteNorthApply" type="button">Set north</button>
     </div>
-  </div>
-</div>
-
-<!-- DESIGN SETUP (questionnaire for Design a Garden) -->
-<div class="screen hidden" id="designScreen">
-  <div class="panel panel-enter">
-    <h2>What are you planting?</h2>
-    <p class="sub">A few questions to tune the plant palette to your garden. You can change any of these later from inside the garden.</p>
-    <div class="field"><label>USDA hardiness zone</label>
-      <div class="chip-row" id="dgnZoneChips"></div>
-      <div class="zone-help hidden" id="dgnZoneHelp">
-        <label for="dgnZip">US ZIP code</label>
-        <input id="dgnZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="5-digit ZIP" aria-describedby="dgnZipStatus">
-        <p class="field-hint" id="dgnZipStatus" role="status" aria-live="polite"></p>
-        <p class="field-hint" style="margin-top:9px">Or choose an approximate annual winter low:</p>
-        <div class="chip-row" id="dgnWinter" style="margin-top:6px"></div>
-      </div>
-      <p class="zone-readout" id="dgnZoneOut"></p>
-      <button type="button" class="link-toggle" id="dgnZoneToggle">Don't know your zone?</button>
-      <a class="ext-link zone-map-link" id="dgnZoneMap" href="https://planthardiness.ars.usda.gov/" target="_blank" rel="noopener noreferrer">Check the official USDA map<span aria-hidden="true"> ↗</span><span class="sr-only"> (opens in a new tab)</span></a>
-    </div>
-    <div class="field"><label>Garden style</label>
-      <div class="chip-row chip-grid" id="dgnTypeChips"></div>
-      <p class="field-hint" id="dgnTypeNote"></p>
-    </div>
-    <div class="field"><label>Native planting</label>
-      <div class="chip-row native-mode" id="dgnNativeMode" role="radiogroup" aria-label="Native planting mode"></div>
-      <div id="dgnNativeRegionWrap" class="native-region-row">
-        <label for="dgnNativeRegion" id="dgnNativeRegionLabel">Continent of origin</label>
-        <select id="dgnNativeRegion"></select>
-      </div>
-      <p class="field-hint" id="dgnNativeHint"></p>
-    </div>
-    <div class="field"><label>Animal resistance</label>
-      <div class="chip-row" id="dgnConstraints"></div>
-    </div>
-    <p class="palette-count" id="dgnCount"></p>
-    <div class="field design-start-field">
-      <label>Start with</label>
-      <div id="dgnStartPalette" class="design-start-palette"></div>
-      <p class="field-hint">This picks your first plant view. You can browse every eligible plant later.</p>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn primary" id="btnDesignNext">Next: size the plot</button>
-    </div>
-    <button class="back-link" id="btnDesignBack">Back</button>
   </div>
 </div>
 

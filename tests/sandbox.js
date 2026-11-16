@@ -70,6 +70,7 @@ function makeEl(tag){
       contains(c){ return this._s.has(c); } },
     style: { setProperty(){}, removeProperty(){} }, dataset: {}, children: [],
     appendChild(c){ this.children.push(c); return c; }, append(...c){ this.children.push(...c); },
+    replaceChildren(...c){ this.children = c; },   // the other way js/ empties a row; it was a no-op
     prepend(){}, remove(){}, removeChild(c){ return c; }, insertBefore(c){ return c; },
     addEventListener(){}, removeEventListener(){},
     /* Attributes are really STORED. setAttribute used to be a no-op against a
@@ -114,6 +115,14 @@ function makeEl(tag){
       if (p === 'className'){
         o.classList._s = new Set(String(v || '').split(' ').filter(Boolean));
       }
+      /* Emptying an element empties it. `el.innerHTML=''` is how every row in
+         js/ is cleared before it is rebuilt, and the stub kept the old children:
+         a row built twice held both sets, so a test that looked for "the Zone 6
+         chip" found the one from an EARLIER opening, wired to a closure that
+         was no longer the page, and "exactly one chip is pressed" could not be
+         asked at all. A fresh array, so a list a test took before the clear is
+         still the list it took. */
+      if (p === 'innerHTML' && v === '') o.children = [];
       o[p] = v; return true;
     }
   });

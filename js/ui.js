@@ -250,6 +250,10 @@ function dismissStartHere(){
   markModelChanged(); syncStartHere();
 }
 function runStartStep(id){
+  /* On a phone the open list is as tall as the ground left above the sheet, so
+     a step that says "tap the ground" left nothing to tap: the next tap landed
+     on another row of the list. Running a step folds it back to its one line. */
+  if (mobileSheetUi() && !startHereCollapsed){ startHereCollapsed=true; syncStartHere(); }
   if (id==='north') openSiteNorthEditor('garden');
   else if (id==='photo') chooseSitePhoto();
   else if (id==='buildings') openLibraryAt('house','building');
@@ -265,7 +269,7 @@ let startHereSig='', startHereCollapsed=null;
 function syncStartHere(){
   const el=document.getElementById('startHere'); if (!el) return;
   if (!startHereApplies()){
-    if (!el.classList.contains('hidden')){ el.classList.add('hidden'); startHereSig=''; reseatActiveToolStatus(); }
+    if (!el.classList.contains('hidden')){ el.classList.add('hidden'); startHereSig=''; setToastFloor(0); reseatActiveToolStatus(); }
     return;
   }
   if (startHereCollapsed===null) startHereCollapsed=mobileSheetUi();
@@ -300,7 +304,16 @@ function syncStartHere(){
   }
   el.classList.remove('hidden');
   placeStartHere(el);
+  /* Folded to its bar on a phone, it stands exactly where a toast appears, and
+     "Bluestem selected." printed across "Start here 0 of 5". The toast goes
+     under the bar; under an open list it would be halfway down the screen, so
+     there it keeps its place. Measured here, on a change, never per frame. */
+  setToastFloor(mobileSheetUi() && startHereCollapsed ? (el.offsetTop||0)+(el.offsetHeight||0)+8 : 0);
   reseatActiveToolStatus();
+}
+function setToastFloor(px){
+  const root=document.documentElement; if (!root || !root.style || !root.style.setProperty) return;
+  if (px>0) root.style.setProperty('--toast-floor',Math.round(px)+'px'); else root.style.removeProperty('--toast-floor');
 }
 /* Beside the library, top right of the clear canvas; across the top of the
    strip on a phone. Measured against usableCanvasRect so it clears the rail,
@@ -321,6 +334,16 @@ function placeStartHere(el){
 /* Called once per successfully placed plant or bulb, from plantFx — the one
    choke point every route funnels through (tap, drag, drift, fill, matrix), and
    one that undo and loading a garden deliberately do not touch. */
+/* Is the drag-and-drift tip saying its piece, now or on this planting? The
+   toast for a first plant carried the same advice ("try the Drift toggle"), so
+   a new gardener's first plant raised a tool hint, a toast and a tip at once,
+   two of them saying one thing. The toast leaves it to the tip. */
+let coachDriftShownAt=0;
+function coachSaysDrift(){
+  if (!coachArmed()) return false;
+  if (Date.now()-coachDriftShownAt<7500) return true;
+  try{ return !localStorage.getItem('hortus:coach:plant-drag-v1'); }catch(_){ return false; }
+}
 function coachNotePlanting(){
   // plantFx is the one route every planting funnels through, so the tour hangs
   // off it for the same reason the beats do — and BEFORE the armed check, since
@@ -328,8 +351,10 @@ function coachNotePlanting(){
   tourNote('plant');
   if (!coachArmed()) return;
   const was=coachPlanted; coachPlanted++;
-  if (was<COACH_DRIFT_AT && coachPlanted>=COACH_DRIFT_AT)
+  if (was<COACH_DRIFT_AT && coachPlanted>=COACH_DRIFT_AT){
+    coachDriftShownAt=Date.now();
     showCoachTip('Drag across the ground to plant several at once. The Drift chip scatters them naturally.','plant-drag');
+  }
   else if (was<COACH_TIME_AT && coachPlanted>=COACH_TIME_AT)
     showTimeCoachTip();
   else if (was<COACH_LIST_AT && coachPlanted>=COACH_LIST_AT)
@@ -1999,7 +2024,7 @@ function updateHUD(){
 
 /* ---------- screens ---------- */
 const $=id=>document.getElementById(id);
-function show(id){ ['menuScreen','plotScreen','worldsScreen','designScreen','libraryScreen','guideScreen','dailyScreen'].forEach(s=>
+function show(id){ ['menuScreen','worldsScreen','designScreen','libraryScreen','guideScreen','dailyScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
   if (id==='menuScreen'){ advanceMenuSeason(); refreshMenuCards(); }
 }

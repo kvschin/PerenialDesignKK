@@ -1486,14 +1486,25 @@ function enterGarden(){
    square metres, because "1/5 acre" is not a size anybody outside the US can
    picture and converting it ("0.08 ha") is worse. */
 const PLOT_PRESETS=[
-  {label:'Classic', metric:'Classic', w:46, l:46},
+  {label:'Small yard', metric:'Small yard', w:46, l:46},
   {label:'1/10 acre', metric:'400 sq m', w:66, l:66},
   {label:'1/5 acre',  metric:'800 sq m', w:93, l:93},
   {label:'1/4 acre',  metric:'1,000 sq m', w:104, l:104},
 ];
 function plotPresetLabel(p){ return metricUnits()?p.metric:p.label; }
+/* What a size chip leads with: the side it really builds, in the reader's
+   units. The first chip was called "Classic", which is a name for a plot only
+   to whoever remembers the 31-tile default; "46.5 × 46.5 ft" is a size. */
+function plotPresetSize(p){
+  const side=ft=>ftToDisplay(ftToTiles(ft)*TILE_IN/12,1);
+  // the unit is in the row's label ("Size, feet"), as it is for the two fields
+  return `${side(p.w)} × ${side(p.l)}`;
+}
 const FT_MIN=24, FT_MAX=200; // 16..134 tiles per side
-let plotNorthDraft=0, siteNorthEditorContext=null, siteNorthEditorDraft=0;
+/* plotNorthSet: north was chosen on the New garden page (the dial dragged, or
+   the dialog applied), so the garden opens with Start here's first step ticked
+   and is not asked the same question twice. */
+let plotNorthDraft=0, plotNorthSet=false, siteNorthEditorContext=null, siteNorthEditorDraft=0;
 function siteNorthEdgeName(value){
   const deg=normalizeSiteNorthDeg(value), names={0:'top',90:'right',180:'bottom',270:'left'};
   return names[deg]||null;
@@ -1502,10 +1513,16 @@ function siteNorthSummary(value){
   const deg=normalizeSiteNorthDeg(value), edge=siteNorthEdgeName(deg);
   return edge ? `North at ${edge} · ${deg}°` : `North · ${deg}° clockwise from top`;
 }
+/* The North button under the plot diagram: which side of the plot north is on,
+   in words, beside an arrow that turns with it. */
+function plotNorthText(value){
+  const deg=normalizeSiteNorthDeg(value), edge=siteNorthEdgeName(deg);
+  return edge ? `${edge[0].toUpperCase()+edge.slice(1)} of the plot` : `${deg}° from the top`;
+}
 function updatePlotNorthSummary(){
-  const label=$('plotNorthLabel'), arrow=$('btnPlotNorth')&&$('btnPlotNorth').querySelector('.north-summary-arrow');
-  if (label) label.textContent=siteNorthSummary(plotNorthDraft);
-  if (arrow) arrow.style.setProperty('--north-deg',`${normalizeSiteNorthDeg(plotNorthDraft)}deg`);
+  const label=$('plotNorthLabel'), btn=$('btnPlotNorth'), arrow=btn&&btn.querySelector&&btn.querySelector('.north-summary-arrow');
+  if (label) label.textContent=plotNorthText(plotNorthDraft);
+  if (arrow && arrow.style && arrow.style.setProperty) arrow.style.setProperty('--north-deg',`${normalizeSiteNorthDeg(plotNorthDraft)}deg`);
 }
 function updateSiteNorthEditor(){
   const deg=normalizeSiteNorthDeg(siteNorthEditorDraft), edge=siteNorthEdgeName(deg);
@@ -1536,7 +1553,7 @@ function cancelSiteNorthEditor(){
 function applySiteNorthEditor(){
   const context=siteNorthEditorContext;
   if (context==='plot'){
-    plotNorthDraft=normalizeSiteNorthDeg(siteNorthEditorDraft); updatePlotNorthSummary();
+    plotNorthDraft=normalizeSiteNorthDeg(siteNorthEditorDraft); plotNorthSet=true; updatePlotNorthSummary();
     drawPlotShapeEditor();                    // the diagram's dial mirrors the applied bearing
   } else if (context==='garden'){
     const changed=setSiteNorthDeg(siteNorthEditorDraft);
@@ -1565,6 +1582,7 @@ function syncUnitLabels(){
 
   set('plotWLabel',`Width, ${lengthUnitWord()}`);
   set('plotLLabel',`Length, ${lengthUnitWord()}`);
+  set('ngSizeLab',`Size, ${lengthUnitWord()}`);
   /* FT_MIN/FT_MAX are the real limits; the field just restates them. Rounding
      INWARD matters — a metric max of 61 m rounded up to 62 would let the field
      offer a plot plotFt then silently clamps back, which reads as the app
@@ -1580,14 +1598,13 @@ function syncUnitLabels(){
   set('sitePhotoKnownUnit',lengthUnit());
   attrs('sitePhotoKnownDistance', metric?0.2:0.5, metric?600:2000, metric?0.1:0.5);
 
-  /* The preset chips are built once and cached in the row, so a units change
-     has to relabel them in place rather than waiting for a rebuild. */
-  const row=$('plotPresets');
-  if (row) row.querySelectorAll('.chip').forEach(b=>{
-    const p=PLOT_PRESETS[+b.dataset.presetIdx];
-    if (p) b.textContent=plotPresetLabel(p);
-  });
+  /* The size chips stay up across a units change (settings can open over this
+     page from the menu's gear only after leaving it, but the preference can
+     also move in another tab), so they are relabelled in place. */
+  for (const c of plotPresetChips){ c.size.textContent=plotPresetSize(c.p); c.cap.textContent=plotPresetLabel(c.p); }
 }
+/* The size chips' two lines, kept so syncUnitLabels can rewrite them. */
+let plotPresetChips=[];
 function plotFt(id){ const ft=displayToFt($(id).value); return Math.max(FT_MIN,Math.min(FT_MAX,Number.isFinite(ft)?ft:46)); }
 /* A plot is a whole number of 18-inch tiles, so every side is a multiple of
    1.5 ft — and that, not the number typed, is the garden that gets built. The
@@ -1665,74 +1682,114 @@ function drawPlotShapeEditor(){
   const P=(v)=>[ox+v[0]*sc, oy+v[1]*sc];
   const verts=(plotShapeDrag&&plotShapeDrag.verts)||pendingPlotShape||defaultPlotShapeVerts(gw,gh);
   const invalid=!!(plotShapeDrag&&plotShapeDrag.type==='corner'&&!plotShapeDrag.valid);
+  /* Every line here is the theme's ink at an alpha, where it was a cream
+     literal: on paper the outline, the grid and the dial's caption were cream
+     on cream and the plot was a green smudge with four gold dots. The lot's
+     green and the handles' gold read on both surfaces; gold deepens on paper,
+     as --bronze does, where the pale one measures about 2:1. */
+  const ink=uiInk('--icon-ink'), halo=uiInk('--icon-halo'), light=resolvedTheme()==='light';
+  const gold=light?'#a2581f':'#daa54a', goldHot=light?'#c97f3f':'#f0cd8b';
   // bounding rectangle + a light tile grid every 4 tiles for scale
-  g.strokeStyle='rgba(239,230,211,0.18)'; g.setLineDash([4,4]); g.lineWidth=1;
+  g.strokeStyle=ink; g.globalAlpha=.24; g.setLineDash([4,4]); g.lineWidth=1;
   g.strokeRect(ox,oy,gw*sc,gh*sc); g.setLineDash([]);
-  g.strokeStyle='rgba(239,230,211,0.07)';
+  g.globalAlpha=light?.13:.08;
   for (let x=4;x<gw;x+=4){ g.beginPath(); g.moveTo(ox+x*sc,oy); g.lineTo(ox+x*sc,oy+gh*sc); g.stroke(); }
   for (let y=4;y<gh;y+=4){ g.beginPath(); g.moveTo(ox,oy+y*sc); g.lineTo(ox+gw*sc,oy+y*sc); g.stroke(); }
+  g.globalAlpha=1;
   // the lot itself
   g.beginPath(); verts.forEach((v,i)=>{ const [x,y]=P(v); i?g.lineTo(x,y):g.moveTo(x,y); }); g.closePath();
-  g.fillStyle=invalid?'rgba(166,64,48,0.16)':'rgba(111,143,90,0.28)'; g.fill();
-  g.strokeStyle=invalid?'rgba(236,118,92,0.9)':'rgba(239,230,211,0.75)'; g.lineWidth=1.6; g.stroke();
-  // per-side lengths in feet, held just outside each edge's midpoint
+  g.fillStyle=invalid?'rgba(166,64,48,0.18)':(light?'rgba(96,134,74,0.34)':'rgba(111,143,90,0.30)'); g.fill();
+  if (invalid){ g.strokeStyle=light?'rgba(160,52,36,0.95)':'rgba(236,118,92,0.9)'; }
+  else { g.strokeStyle=ink; g.globalAlpha=.78; }
+  g.lineWidth=1.6; g.stroke(); g.globalAlpha=1;
+  /* Per-side lengths, held just outside each edge's midpoint. A side that runs
+     up the screen has its caption start BESIDE the edge: centred on a point
+     13px out, a 40px caption reached back across the edge and under the resize
+     square, so "46.5 ft" read "5.5 ft" on every plot. */
   const fts=plotShapeSideLengthsFt(verts);
-  g.font='11px IBM Plex Sans, sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+  g.font='600 11.5px IBM Plex Sans, sans-serif'; g.textBaseline='middle';
   for (let i=0;i<4;i++){
     const a=P(verts[i]), b=P(verts[(i+1)%4]);
     const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
     const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy)||1;
     const nx=dy/len, ny=-dx/len;               // outward for clockwise winding
-    const lx=mx+nx*13, ly=my+ny*13;
+    const side=Math.abs(nx)>.6;
+    g.textAlign=side?(nx>0?'left':'right'):'center';
+    let lx=mx+nx*(side?12:13), ly=my+ny*13;
     const cap=fmtFeet(fts[i],1);
-    g.strokeStyle=uiInk('--icon-halo'); g.lineWidth=3; g.strokeText(cap,lx,ly);
-    g.fillStyle=uiInk('--icon-ink'); g.fillText(cap,lx,ly);
+    /* The two resize squares stand on the bounding box, which a shaped lot's
+       side has left: a slanted side's caption then lands on a square again.
+       It steps past whichever one it would cover. */
+    const tw=g.measureText(cap).width||0, x0=g.textAlign==='left'?lx:g.textAlign==='right'?lx-tw:lx-tw/2;
+    for (const [hx,hy] of [[ox+gw*sc,oy+gh*sc/2],[ox+gw*sc/2,oy+gh*sc]]){
+      if (Math.abs(ly-hy)>12 || x0>hx+9 || x0+tw<hx-9) continue;
+      if (side){ g.textAlign='left'; lx=hx+11; } else ly=hy+(ny>=0?15:-15);
+    }
+    g.strokeStyle=halo; g.lineWidth=3; g.strokeText(cap,lx,ly);
+    g.fillStyle=ink; g.fillText(cap,lx,ly);
   }
   // edge-resize handles: small squares at the right/bottom box midpoints —
   // squares resize the plot, circles shape it
   [[gw,gh/2],[gw/2,gh]].forEach((v,i)=>{ const [x,y]=P(v);
     const hot=plotShapeDrag&&plotShapeDrag.type==='edge'&&plotShapeDrag.edge===i;
-    g.fillStyle=hot?'#e9c07a':'rgba(218,165,74,0.85)';
-    g.strokeStyle='rgba(20,14,11,0.8)'; g.lineWidth=1.5;
+    g.fillStyle=hot?goldHot:gold;
+    g.strokeStyle=halo; g.lineWidth=1.5;
     g.beginPath(); g.rect(x-5.5,y-5.5,11,11); g.fill(); g.stroke(); });
   // corner handles (shape)
   verts.forEach((v,i)=>{ const [x,y]=P(v);
     const hot=plotShapeDrag&&plotShapeDrag.type==='corner'&&plotShapeDrag.i===i;
     g.beginPath(); g.arc(x,y,7,0,7);
-    g.fillStyle=hot?'#e9c07a':'#daa54a'; g.fill();
-    g.strokeStyle='rgba(20,14,11,0.8)'; g.lineWidth=1.5; g.stroke(); });
+    g.fillStyle=hot?goldHot:gold; g.fill();
+    g.strokeStyle=halo; g.lineWidth=1.5; g.stroke(); });
   // the north DIAL: drag to rotate the site bearing, tap for the fine dialog
   const deg=(typeof normalizeSiteNorthDeg==='function'?normalizeSiteNorthDeg(plotNorthDraft):0);
   const [dcx,dcy]=m.dial, hotDial=plotShapeDrag&&plotShapeDrag.type==='dial';
   g.beginPath(); g.arc(dcx,dcy,14,0,7);
-  g.fillStyle='rgba(20,14,11,0.55)';
-  g.strokeStyle=hotDial?'#e9c07a':uiInk('--icon-ink-dim'); g.lineWidth=hotDial?2:1.2;
+  g.fillStyle='rgba(20,14,11,0.62)';
+  g.strokeStyle=hotDial?goldHot:uiInk('--icon-ink-dim'); g.lineWidth=hotDial?2:1.2;
   g.fill(); g.stroke();
   g.save(); g.translate(dcx,dcy); g.rotate(deg*Math.PI/180);
   g.strokeStyle='#efe6d3'; g.lineWidth=1.7; g.lineCap='round';
   g.beginPath(); g.moveTo(0,8); g.lineTo(0,-6); g.stroke();
   g.beginPath(); g.moveTo(-3.5,-2); g.lineTo(0,-8); g.lineTo(3.5,-2); g.stroke();
   g.restore();
-  g.fillStyle='rgba(239,230,211,0.85)'; g.font='9px IBM Plex Sans, sans-serif';
+  g.fillStyle=ink; g.globalAlpha=.9; g.font='600 10.5px IBM Plex Sans, sans-serif';
   g.textAlign='center';
-  g.fillText('N',dcx,dcy+22);
-  g.fillText(deg+'°',dcx,dcy+33);
+  g.fillText('N',dcx,dcy+23);
+  g.fillText(deg+'°',dcx,dcy+35);
+  g.globalAlpha=1;
 }
+/* What the drawing's three handles do. The markup used to say so and the
+   screen never showed it: openPlotScreen replaced the line with "Drag a
+   corner" before anyone saw it, so nothing told a gardener that the squares
+   resize the plot or that the 28px dial is a control at all. */
+function plotShapeHintText(){ return 'Drag a square to resize, a corner to shape the lot, the N dial to set north.'; }
 function setPlotShapeHint(text){
   const hint=$('plotShapeHint');
-  if (hint) hint.textContent=text||`Drag a corner. Side lengths are real ${lengthUnitWord()}.`;
+  if (hint) hint.textContent=text||plotShapeHintText();
+  // Reset is only on offer while there is a shape to reset
+  const reset=$('btnPlotShapeReset'); if (reset&&reset.classList) reset.classList.toggle('hidden',!pendingPlotShape);
 }
 function resetPendingPlotShape(fromResize){
   const had=!!pendingPlotShape;
   pendingPlotShape=null; plotShapeDrag=null;
-  if (had && fromResize) setPlotShapeHint('Plot resized — shape reset.');
+  setPlotShapeHint(had && fromResize ? 'Plot resized, so the lot is a rectangle again.' : '');
   drawPlotShapeEditor();
 }
+/* A plain tap on the dial opens the north dialog, and it has to do so from the
+   CLICK. Opened on pointerup, the click the browser makes out of that same tap
+   arrived a moment later on whatever was now under the finger: on a tablet and
+   a phone on its side that is the dialog's scrim, whose own handler closes it,
+   so the dialog opened and shut inside one tap. */
+let plotDialTap=false, plotEditorWired=false;
 function wirePlotShapeEditor(){
-  const cvs=$('plotShapeCanvas'); if (!cvs) return;
-  $('btnPlotShapeReset').onclick=()=>{ resetPendingPlotShape(false); setPlotShapeHint('Back to a full rectangle.'); };
+  const cvs=$('plotShapeCanvas'); if (!cvs || plotEditorWired) return;
+  plotEditorWired=true;
+  $('btnPlotShapeReset').onclick=()=>{ resetPendingPlotShape(false); plotSetupChanged(); };
+  cvs.addEventListener('click',()=>{ if (!plotDialTap) return; plotDialTap=false; openSiteNorthEditor('plot'); });
   const pos=(e)=>{ const r=cvs.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
   cvs.addEventListener('pointerdown',e=>{
+    plotDialTap=false;                         // a tap whose click never came is not owed one
     const m=plotShapeMetrics(), [px,py]=pos(e);
     const verts=pendingPlotShape||defaultPlotShapeVerts(m.gw,m.gh);
     // hit priority: shape corners, then edge-resize squares, then the dial
@@ -1747,7 +1804,7 @@ function wirePlotShapeEditor(){
         const d=Math.hypot(px-(m.ox+v[0]*m.sc), py-(m.oy+v[1]*m.sc));
         if (d<eD){ eD=d; eBest=i; } });
       if (eBest>=0){
-        if (pendingPlotShape){ pendingPlotShape=null; setPlotShapeHint('Plot resized — shape reset.'); }
+        if (pendingPlotShape){ pendingPlotShape=null; setPlotShapeHint('Plot resized, so the lot is a rectangle again.'); }
         plotShapeDrag={type:'edge', edge:eBest, m};
       } else if (Math.hypot(px-m.dial[0],py-m.dial[1])<=22){
         plotShapeDrag={type:'dial', m, moved:false};
@@ -1782,85 +1839,65 @@ function wirePlotShapeEditor(){
         const t=Math.min(plotEdgeResizeTiles((py-m.oy)/m.sc), Math.max(ftToTiles(FT_MIN),maxT));
         setPlotField('plotL', t*TILE_IN/12);
       }
-      updatePlotNote();
-      document.querySelectorAll('#plotPresets .chip').forEach(c=>c.classList.remove('sel'));
+      plotSetupChanged();
     } else if (d.type==='dial'){
       const dx=px-m.dial[0], dy=py-m.dial[1];
-      if (Math.hypot(dx,dy)>4){ d.moved=true; plotNorthDraft=plotDialDeg(dx,dy); }
+      if (Math.hypot(dx,dy)>4){ d.moved=true; plotNorthDraft=plotDialDeg(dx,dy); plotNorthSet=true; updatePlotNorthSummary(); }
     }
     drawPlotShapeEditor();
   });
-  const finish=()=>{
+  const finish=(e)=>{
     const d=plotShapeDrag; if (!d) return;
     plotShapeDrag=null;
     if (d.type==='corner'){
       const verts=d.valid?d.verts:d.last;
       pendingPlotShape=plotShapeIsRect(verts,d.m.gw,d.m.gh)?null:verts.map(v=>v.slice());
       setPlotShapeHint();
+      plotSetupChanged();
     } else if (d.type==='dial' && !d.moved){
-      openSiteNorthEditor('plot');             // a plain tap opens the fine-tune dialog
+      // a plain tap opens the fine-tune dialog, from the click that follows
+      plotDialTap=!!(e && e.type==='pointerup');
     }
     drawPlotShapeEditor();                     // refits to any new size
   };
   cvs.addEventListener('pointerup',finish);
   cvs.addEventListener('pointercancel',finish);
+  // the drawing is fitted to its box, so a resized window needs it drawn again
+  addEventListener('resize',()=>{ const s=$('designScreen'); if (s && !s.classList.contains('hidden')) drawPlotShapeEditor(); });
 }
-function plotNoteText(){
-  const w=plotRealFt('plotW'), l=plotRealFt('plotL'), sqFt=w*l;
+/* The page that is open says what else follows a change to the plot (its size
+   note, the footer's summary, which size chip is on). A no-op until it does. */
+let plotSetupChanged=()=>{};
+/* The area of the lot as drawn: the shape's own, once a corner has been moved.
+   It quoted the bounding rectangle's, so a 93 ft plot with a corner cut off
+   still read 8,649 sq ft. Shoelace over the tile-corner polygon. */
+function plotLotSqFt(){
+  const w=plotRealFt('plotW'), l=plotRealFt('plotL'), v=pendingPlotShape;
+  if (!v) return w*l;
+  let a=0;
+  for (let i=0;i<v.length;i++){ const p=v[i], q=v[(i+1)%v.length]; a+=p[0]*q[1]-q[0]*p[1]; }
+  return Math.abs(a)/2*(TILE_IN/12)*(TILE_IN/12);
+}
+function plotAreaText(){
+  const w=plotRealFt('plotW'), l=plotRealFt('plotL'), sqFt=plotLotSqFt();
   /* Acres are dropped in metric rather than converted: a garden is 0.04 ha,
      which is a number nobody can hold, and square metres already answer the
      question the acre figure was there for. */
   const area=metricUnits()
     ? `${Math.round(sqFt*SQM_PER_SQFT).toLocaleString()} sq m`
     : `${Math.round(sqFt).toLocaleString()} sq ft · ${(sqFt/43560).toFixed(2)} acres`;
+  return `${area} · ${ftToTiles(w)} × ${ftToTiles(l)} tiles`;
+}
+function plotNoteText(){
+  const w=plotRealFt('plotW'), l=plotRealFt('plotL');
   // the real size leads: it is what the garden will be, whatever is mid-typing
-  return `${fmtFeet(w,1)} × ${fmtFeet(l,1)} · ${area} · ${ftToTiles(w)} × ${ftToTiles(l)} tiles`;
+  return `${fmtFeet(w,1)} × ${fmtFeet(l,1)} · ${plotAreaText()}`;
 }
-function updatePlotNote(){ $('plotNote').textContent=plotNoteText(); }
-function openPlotScreen(){
-  const row=$('plotPresets');
-  if (!row.children.length){
-    PLOT_PRESETS.forEach((p,i)=>{
-      const b=document.createElement('button');
-      b.className='chip'+(i===0?' sel':''); b.textContent=plotPresetLabel(p);
-      b.dataset.presetIdx=String(i);
-      b.onclick=()=>{ setPlotField('plotW',p.w); setPlotField('plotL',p.l); updatePlotNote(); resetPendingPlotShape(true);
-        row.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c===b)); };
-      row.appendChild(b);
-    });
-    $('plotW').oninput=$('plotL').oninput=()=>{ updatePlotNote(); resetPendingPlotShape(true);
-      row.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel')); };
-    // on finishing a value (blur or Enter), not per keystroke: rewriting the
-    // field mid-typing would fight the person typing it
-    $('plotW').onchange=()=>{ setPlotField('plotW',plotFt('plotW')); updatePlotNote(); drawPlotShapeEditor(); };
-    $('plotL').onchange=()=>{ setPlotField('plotL',plotFt('plotL')); updatePlotNote(); drawPlotShapeEditor(); };
-    wirePlotShapeEditor();
-    $('btnPlotStart').onclick=()=>{
-      setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
-      if (pendingPlotShape && !setPlotShape(pendingPlotShape))     // sized first — setWorldSize clears any shape
-        toast('That lot shape was too tight — starting rectangular.');
-      game.worldId=newWorldId();
-      funnel(FUNNEL_EVENTS.gardenCreated);   // cleared the whole setup flow
-      game.worldName=$('plotName').value.trim()||'My garden';
-      resetNewGardenState();
-      game.siteNorthDeg=normalizeSiteNorthDeg(plotNorthDraft);
-      // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
-      game.edgeStyle=edgeStyleFromType(game.design&&game.design.type);
-      // a blank plot: no house, nothing planted, the whole site yours to draw
-      game.inGarden=true;
-      enterGarden();
-      saveSolo(true); // claim the slot right away
-    };
-    $('btnPlotBack').onclick=openDesignSetup;
-  }
-  syncUnitLabels();
-  setPlotField('plotW',46); setPlotField('plotL',46);
-  $('plotName').value=''; plotNorthDraft=0; updatePlotNorthSummary(); updatePlotNote();
-  pendingPlotShape=null; plotShapeDrag=null;               // every new plot starts rectangular
-  setPlotShapeHint();
-  show('plotScreen');
-  drawPlotShapeEditor();                                   // canvas is measurable once shown
-}
+/* On the page the size itself is in the chips, the fields and the footer, so
+   the line under the drawing is what they do not say: the area and the grid. */
+function updatePlotNote(){ $('plotNote').textContent=plotAreaText()+'.'; }
+/* Kept under its old name: scripts and notes reach a new garden through it. */
+function openPlotScreen(){ openDesignSetup(); }
 
 if ($('siteNorthRange')) $('siteNorthRange').oninput=e=>setSiteNorthEditorDraft(e.target.value);
 if ($('siteNorthNumber')) $('siteNorthNumber').onchange=e=>setSiteNorthEditorDraft(e.target.value);
@@ -1869,18 +1906,43 @@ if ($('btnSiteNorthCancel')) $('btnSiteNorthCancel').onclick=cancelSiteNorthEdit
 if ($('btnSiteNorthApply')) $('btnSiteNorthApply').onclick=applySiteNorthEditor;
 if ($('siteNorthScreen')) $('siteNorthScreen').onclick=e=>{ if (e.target===$('siteNorthScreen')) cancelSiteNorthEditor(); };
 
-/* design setup: a questionnaire that tunes the palette before sizing */
+/* ---------- New garden ----------
+   One page makes a garden: the plot on one side, what to plant in it on the
+   other, one button. It was a questionnaire and then a plot screen, eight
+   questions about plants before the two about the site, in an older panel
+   whose only button sat one to three screens down.
+
+   NOTHING here has to be answered. Every control opens on a usable value, so
+   New garden, Break ground is a garden, and the rest is there for whoever
+   wants it. Three things that follow from that:
+
+   - The zone is not guessed. A device that has never been told one opens on
+     "Not set" (every plant shown), where it used to open on Zone 6 with nothing
+     saying so; the daily challenge already declined that fallback. A device
+     that has been told opens on what it was told.
+   - Answers are remembered. Zone, origin and resistance come from the garden
+     filters this device keeps (hortus:filters); the style and the plot's size
+     from LAST_SETUP_KEY. After a reload the zone used to go back to 6 while
+     the native mode beside it was kept.
+   - "Start with" is gone. It was the catalog's own source picker asked one
+     screen early, its first row repeated the count above it, and Favorites
+     could be chosen at "0 saved", which opened an empty library.
+
+   Controls are built once per opening and changed IN PLACE after that. Each
+   press used to empty its row and build it again, which dropped keyboard focus
+   on the body (the next Tab started again at Zone 1) and meant nothing could
+   animate, the pressed chip having been replaced before it could. */
 const GARDEN_TYPES=[
-  ['any','Any garden','Use every plant that matches your zone and native-plant filters.'],
-  ['cottage','Cottage','Romantic and abundant — layered perennials and self-seeders.'],
+  ['any','Any garden','Every plant that suits the garden, in no particular style.'],
+  ['cottage','Cottage','Romantic and abundant: layered perennials and self-seeders.'],
   ['prairie','Prairie / Meadow','Native grasses and forbs in naturalistic drifts.'],
   ['butterfly','Pollinator','Nectar and host plants for butterflies and bees.'],
-  ['shade','Shade / Woodland','Understory calm — hostas, ferns, sedges, woodland bulbs.'],
-  ['japanese','Japanese','Restraint and structure — evergreens, moss, stone.'],
+  ['shade','Shade / Woodland','Understory calm: hostas, ferns, sedges, woodland bulbs.'],
+  ['japanese','Japanese','Restraint and structure: evergreens, moss, stone.'],
   ['mediterranean','Mediterranean','Silver foliage and herbs that love dry heat.'],
   ['modern','Modern','Bold blocks and clean structure, a tight palette.'],
   ['gravel','Gravel / Rock','Drought-tough plants in lean, sharp drainage.'],
-  ['formal','Formal','Symmetry and clipped lines — axial beds and hedges.'],
+  ['formal','Formal','Symmetry and clipped lines: axial beds and hedges.'],
   ['coastal','Coastal','Salt- and wind-tolerant grasses and dune plants.'],
 ];
 // Approximate winter-low choices. Show the temperature range with the label;
@@ -1894,132 +1956,223 @@ const WINTER_BANDS=[
   ['Light frost','30 to 40°F',10],
   ['Frost-free','40 to 50°F',11],
 ];
-function openDesignSetup(){
-  const d=game.design||{};
-  const nativeDefaults=normalizeFilters(Object.keys(d).length?d:game.filters);
-  const sel={zone:clampZone(d.zone||6), type:d.type||'any',
-    nativeRegion:nativeDefaults.nativeRegion, nativeMode:nativeDefaults.nativeMode,
-    deer:!!d.deer, rabbit:!!d.rabbit, squirrel:!!d.squirrel, zoneHelp:false,
-    startSource:activeDiscovery().source, startPaletteId:activeDiscovery().collectionId};
-  const mkChip=(label,on,fn,extra)=>{ const b=document.createElement('button');
-    b.type='button'; b.className='chip'+(extra?' '+extra:'')+(on?' sel':'');
-    b.textContent=label; b.onclick=fn; return b; };
-  const winterEl=$('dgnWinter'), zoneChipsEl=$('dgnZoneChips'), typeEl=$('dgnTypeChips'),
-    consEl=$('dgnConstraints'), helpEl=$('dgnZoneHelp'), zoneToggle=$('dgnZoneToggle'), startEl=$('dgnStartPalette'),
-    nativeModeEl=$('dgnNativeMode'), nativeRegionEl=$('dgnNativeRegion'), nativeRegionWrap=$('dgnNativeRegionWrap');
-  const syncMeadow=()=>applyMeadowPalette(sel.type, sel.zone, sel);  // replant the backdrop to match
-  const zipEl=$('dgnZip'), zipStatus=$('dgnZipStatus');
-  let zipRequest=0, zipBlocked=false;
-  function updateReadout(){
-    $('dgnZoneOut').innerHTML=zipBlocked?'Choose a supported zone to continue.':
-      `<b>Zone ${sel.zone}</b> · Average annual winter minimum ${zoneTemperatureText(sel.zone)}. `+
-      'Garden criteria use whole zones; soil, summer conditions, and local exposure also matter.';
+/* The style and plot size of the last garden made here, to start the next one
+   from. A device preference, in localStorage like the others: it is read while
+   the page is being built, which IndexedDB cannot answer in time, so it must
+   stay out of IDB_KEYS. */
+const LAST_SETUP_KEY='hortus:lastSetup';
+function readLastSetup(){
+  if (!hasStorage) return null;
+  try{
+    const v=JSON.parse(localStorage.getItem(LAST_SETUP_KEY)||'null');
+    if (!v || typeof v!=='object') return null;
+    const side=n=>Number.isFinite(+n)&&+n>0 ? Math.max(FT_MIN,Math.min(FT_MAX,+n)) : null;
+    return {type:GARDEN_TYPES.some(g=>g[0]===v.type)?v.type:null, w:side(v.w), l:side(v.l)};
+  }catch(_){ return null; }
+}
+function writeLastSetup(v){
+  if (!hasStorage) return;
+  try{ localStorage.setItem(LAST_SETUP_KEY,JSON.stringify(v)); }catch(_){ }
+}
+/* What the page held when it was left without breaking ground. Back used to
+   keep the questionnaire's answers and throw the plot's away. */
+let newGardenDraft=null, designSetupOpen=0;
+
+/* A style card pictures three of the plants it would put first, drawn by the
+   garden's own painter: the menu's idea, that an entry shows what it opens.
+   The three are the style's top-ranked plants for this zone and origin, one
+   of each drawing form so a prairie is not three grasses, tallest in the
+   middle. Canvases are kept per style for the session and repainted only when
+   their three plants change. */
+const STYLE_ART=new Map(), STYLE_ART_W=120, STYLE_ART_H=56;
+const STYLE_ANY_KEYS=['echinacea','bluestem','hosta'];
+function styleCardKeys(type,zone,criteria){
+  const ranked=styleMeadowKeys(type,zone,criteria) || styleMeadowKeys(type,null,null) ||
+    STYLE_ANY_KEYS.filter(k=>PLANTS[k]);
+  const out=[], forms=new Set();
+  for (const k of ranked){ const f=PLANTS[k].form; if (forms.has(f)) continue; forms.add(f); out.push(k); if (out.length===3) break; }
+  for (const k of ranked){ if (out.length>=3) break; if (!out.includes(k)) out.push(k); }
+  const tall=k=>plantVisualH(plantDef(k))||0;
+  out.sort((a,b)=>tall(b)-tall(a));
+  return out.length===3 ? [out[1],out[0],out[2]] : out;
+}
+function paintStyleArt(c,keys){
+  const g=c.getContext && c.getContext('2d'); if (!g) return;
+  const W=STYLE_ART_W, H=STYLE_ART_H, n=keys.length, slot=W/Math.max(1,n);
+  g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,W,H);
+  // the outer two first, the middle one over them
+  [0,2,1].filter(i=>i<n).forEach(i=>{
+    const k=keys[i], P=PLANTS[k], box=plantDrawBox(P,k,1);
+    // the box is a sprite's, padded for wind and snow; the drawing is inside it
+    const sc=Math.min(1.7,(H-6)/Math.max(1,box.top-22),(slot*1.55)/Math.max(1,(box.halfW-16)*2));
+    g.save(); g.translate(slot*(i+.5),H-4); g.scale(sc,sc);
+    drawPlant(g,0,0,k,1,libraryPreviewSeason(P),libSeed(k),0,null,1);
+    g.restore();
+  });
+}
+function styleArtCanvas(type){
+  let a=STYLE_ART.get(type);
+  if (!a){
+    const c=document.createElement('canvas'); c.width=STYLE_ART_W*2; c.height=STYLE_ART_H*2; c.setAttribute('aria-hidden','true');
+    a={canvas:c,sig:null}; STYLE_ART.set(type,a);
   }
-  /* One walk of the catalog answers both figures on this panel, and a pure
-     re-render (picking a different starting palette) answers neither anew --
-     so the tally is computed when one of the knobs it depends on has actually
-     moved, and read otherwise. `type` is in the key because the style decides
-     the recommended half. */
-  let tally=null, tallyKey='';
+  return a.canvas;
+}
+function paintStyleCard(type,zone,criteria){
+  const a=STYLE_ART.get(type); if (!a) return false;
+  const keys=styleCardKeys(type,zone,criteria), sig=keys.join(',');
+  if (sig===a.sig) return false;
+  a.sig=sig; paintStyleArt(a.canvas,keys);
+  return true;
+}
+/* A one-shot animation class: on for one run of its keyframes, then off, so
+   the next press can play it again. The page's controls are kept across
+   presses, and a class left on would never replay. */
+function ngPop(node,cls='pop'){
+  if (!node || !node.classList) return;
+  node.classList.add(cls);
+  if (!node.addEventListener) return;
+  const done=e=>{ if (e && e.target!==node) return; node.classList.remove(cls); node.removeEventListener('animationend',done); };
+  node.addEventListener('animationend',done);
+}
+/* One tab stop for a row of either/or buttons, moved through with the arrow
+   keys the way a radio group is. */
+function roveGroup(host,selector){
+  if (!host) return;
+  host.onkeydown=e=>{
+    const step=e.key==='ArrowRight'||e.key==='ArrowDown'?1:e.key==='ArrowLeft'||e.key==='ArrowUp'?-1:0;
+    if (!step || !host.querySelectorAll) return;
+    const all=Array.from(host.querySelectorAll(selector)), at=all.indexOf(document.activeElement);
+    if (at<0) return;
+    e.preventDefault();
+    const next=all[(at+step+all.length)%all.length];
+    if (next.focus) next.focus();
+    next.click();
+  };
+}
+function openDesignSetup(){
+  const token=++designSetupOpen;
+  const d=game.design||{}, last=readLastSetup()||{}, draft=newGardenDraft;
+  const base=normalizeFilters(Object.keys(d).length?d:game.filters);
+  const knownType=t=>GARDEN_TYPES.some(g=>g[0]===t)?t:null;
+  const sel=draft?draft.sel:{zone:base.zone?clampZone(base.zone):null,
+    type:knownType(d.type)||knownType(last.type)||'any',
+    nativeRegion:base.nativeRegion, nativeMode:base.nativeMode,
+    deer:base.deer, rabbit:base.rabbit, squirrel:base.squirrel,
+    carried:!!base.zone, zoneHelp:false, rulesOpen:false};
+  sel.zoneHelp=false;
+  const zipEl=$('dgnZip'), zipStatus=$('dgnZipStatus'), startBtn=$('btnPlotStart');
+  const winterEl=$('dgnWinter'), zoneChipsEl=$('dgnZoneChips'), typeEl=$('dgnTypeChips'), consEl=$('dgnConstraints'),
+    helpEl=$('dgnZoneHelp'), zoneToggle=$('dgnZoneToggle'), rulesToggle=$('dgnRulesToggle'), rulesEl=$('dgnRules'),
+    nativeModeEl=$('dgnNativeMode'), nativeRegionEl=$('dgnNativeRegion'), sizeRow=$('plotPresets');
+  const mk=(tag,cls,text)=>{ const n=document.createElement(tag); if (cls) n.className=cls; if (text!=null) n.textContent=text; return n; };
+  const btn=(cls,text)=>{ const b=mk('button',cls,text); b.type='button'; return b; };
+  const press=(b,on)=>b.setAttribute('aria-pressed',on?'true':'false');
+  const radio=(b,on)=>{ b.setAttribute('aria-checked',on?'true':'false'); b.tabIndex=on?0:-1; };
+  /* An opened section is brought into view: on a phone it opens below the fold
+     of a page already scrolled to its heading, and looked like nothing happened. */
+  const disclose=(panel,open)=>{ panel.classList.toggle('hidden',!open); if (!open) return; ngPop(panel,'enter');
+    if (panel.scrollIntoView) panel.scrollIntoView({block:'nearest',behavior:reducedMotion()?'auto':'smooth'}); };
+  const styleName=id=>((GARDEN_TYPES.find(g=>g[0]===id)||[])[1]||'').split(' / ')[0];
+  const syncMeadow=()=>applyMeadowPalette(sel.type, sel.zone, sel);  // replant the backdrop to match
+  let zipRequest=0, zipBlocked=false;
+
+  /* One walk of the catalog answers both figures on this page, so the tally is
+     computed when one of the knobs it depends on has actually moved, and read
+     otherwise. `type` is in the key because the style decides the recommended
+     half. */
+  let tally=null, tallyKey='', countShown='';
   function paletteTally(){
     const key=[sel.zone,sel.nativeRegion,sel.nativeMode,sel.deer?1:0,sel.rabbit?1:0,sel.squirrel?1:0,sel.type].join('|');
     if (key!==tallyKey){ tallyKey=key; tally=paletteCounts(sel,sel.type); }
     return tally;
   }
+  /* What a style DOES, said under the cards: its plants lead the library and
+     nothing is ruled out, and it decides whether beds get soft or crisp edges.
+     Both were true and neither was said. */
+  function syncStyleNote(){
+    const row=GARDEN_TYPES.find(g=>g[0]===sel.type)||GARDEN_TYPES[0];
+    let lead='';
+    if (sel.type!=='any' && !zipBlocked){
+      const t=paletteTally();
+      lead=t.recommended<t.eligible
+        ? ` Its ${t.recommended} plant${t.recommended===1?'':'s'} lead the library; the rest stay available.`
+        : ' None of its plants grow under these rules, so the library lists everything.';
+    }
+    $('dgnTypeNote').textContent=`${row[2]}${lead} ${edgeStyleFromType(sel.type)==='formal'?'Crisp':'Soft, curved'} bed edges.`;
+  }
+  /* The count rides the header, so it is on screen whatever is being pressed:
+     it sat 1,100px down the form on a phone, below every control that moves it. */
   function updateCount(){
-    const n=paletteTally().eligible;
-    $('dgnCount').innerHTML=zipBlocked?'Choose a zone to preview the palette.':`<b>${n}</b> plant${n===1?'':'s'} fit this garden so far.`;
-    renderStartPalette();
+    const out=$('dgnCount');
+    if (zipBlocked){ out.textContent='Choose a zone to see the plants.'; countShown=''; syncStyleNote(); return; }
+    const n=paletteTally().eligible, text=String(n);
+    out.innerHTML=`<b>${n}</b> plant${n===1?'':'s'} suit this garden`;
+    if (countShown && countShown!==text) ngPop(out,'tick');
+    countShown=text; syncStyleNote();
+  }
+  function syncSummary(){
+    const w=plotRealFt('plotW'), l=plotRealFt('plotL');
+    const bits=[`${ftToDisplay(w,1)} × ${fmtFeet(l,1)}`, zipBlocked?'zone to choose':(sel.zone?`Zone ${sel.zone}`:'Every zone')];
+    if (sel.type!=='any') bits.push(styleName(sel.type));
+    $('ngSummary').textContent=bits.join(' · ');
+  }
+
+  /* ---- winter cold ---- */
+  const range=zoneRange(), zoneBtns=[], winterBtns=[];
+  zoneChipsEl.innerHTML='';
+  for (let z=range.lo;z<=range.hi;z++){
+    const b=btn('ng-chip ng-zone-chip',String(z));
+    b.setAttribute('aria-label','Zone '+z); b.title=`Zone ${z} · ${zoneTemperatureText(z)}`;
+    b.onclick=()=>{ setZone(z); ngPop(b); };
+    zoneBtns.push([z,b]); zoneChipsEl.appendChild(b);
+  }
+  const unsure=btn('ng-chip ng-zone-unsure','Not sure');
+  unsure.title='Leave the zone unset. Plants for every climate are shown, and it can be set later.';
+  unsure.onclick=()=>{ setZone(null); ngPop(unsure); };
+  zoneChipsEl.appendChild(unsure);
+  winterEl.innerHTML='';
+  WINTER_BANDS.forEach(([label,,z])=>{
+    const b=btn('ng-chip ng-winter');
+    b.append(mk('b',null,label), mk('small',null,zoneTemperatureText(z)));
+    b.onclick=()=>{ setZone(z); ngPop(b); };
+    winterBtns.push([clampZone(z),b]); winterEl.appendChild(b);
+  });
+  function syncZone(){
+    zoneBtns.forEach(([n,b])=>press(b,!zipBlocked&&n===sel.zone));
+    winterBtns.forEach(([n,b])=>press(b,!zipBlocked&&n===sel.zone));
+    press(unsure,!zipBlocked&&sel.zone==null);
+    $('dgnZoneOut').innerHTML=zipBlocked ? 'Choose a supported zone to continue.'
+      : sel.zone ? `<b>Zone ${sel.zone}</b> · coldest winter nights ${zoneTemperatureText(sel.zone)}`+
+          (sel.carried?' <span class="ng-carried">· as in your last garden</span>':'')
+      : '<b>Not set</b> · plants for every climate are shown';
+    zoneToggle.textContent=sel.zoneHelp?'Done':(sel.zone?'Change':'Find my zone');
+    zoneToggle.classList.toggle('accent',!sel.zoneHelp&&!sel.zone);
+    zoneToggle.setAttribute('aria-expanded',sel.zoneHelp?'true':'false');
+    startBtn.disabled=zipBlocked;
   }
   function setZone(z,fromZip=false){
     if (!fromZip){ zipRequest++; zipEl.value=''; zipStatus.textContent=''; }
-    zipBlocked=false; $('btnDesignNext').disabled=false;
-    sel.zone=clampZone(z);
-    renderZoneChips(); renderWinter(); updateReadout(); updateCount(); syncMeadow();
+    zipBlocked=false; sel.zone=z==null?null:clampZone(z); sel.carried=false;
+    syncZone(); updateCount(); syncSummary(); syncMeadow(); queueStyleArt();
   }
-  function renderWinter(){ winterEl.innerHTML='';
-    WINTER_BANDS.forEach(([label,,z])=>{
-      const b=mkChip(label,!zipBlocked&&sel.zone===z,()=>setZone(z));
-      const small=document.createElement('small'); small.textContent=zoneTemperatureText(z); b.appendChild(small);
-      winterEl.appendChild(b);
-    }); }
-  // zone chips are face up by default; "Don't know your zone?" flips to the ZIP
-  // + winter-cold helper (which sets the same sel.zone, echoed by the readout).
-  function renderZoneChips(){ zoneChipsEl.innerHTML='';
-    const r=zoneRange();
-    for (let z=r.lo;z<=r.hi;z++) zoneChipsEl.appendChild(mkChip('Zone '+z,!zipBlocked&&sel.zone===z,()=>setZone(z))); }
-  function renderZoneMode(){
-    zoneChipsEl.classList.toggle('hidden',sel.zoneHelp);
-    helpEl.classList.toggle('hidden',!sel.zoneHelp);
-    zoneToggle.textContent=sel.zoneHelp?'Back to zones':"Don't know your zone?";
-  }
-  function renderType(){ typeEl.innerHTML='';
-    GARDEN_TYPES.forEach(([id,label])=>typeEl.appendChild(mkChip(label,sel.type===id,()=>{
-      sel.type=id; renderType(); syncMeadow();
-      renderStartPalette();
-      $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===id)||[])[2]||''; })));
-    $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===sel.type)||[])[2]||'';
-  }
-  function renderNative(){
-    nativeModeEl.innerHTML='';
-    NATIVE_MODES.forEach(mode=>{
-      const on=sel.nativeMode===mode.id, b=mkChip(mode.id==='any'?'Any':mode.id==='regional'?'Continent':'Straight',on,()=>{
-        sel.nativeMode=mode.id; renderNative(); updateCount(); syncMeadow();
-      });
-      b.setAttribute('role','radio'); b.setAttribute('aria-checked',on?'true':'false'); nativeModeEl.appendChild(b);
-    });
-    /* Stays up in Any mode, where it still says where this garden IS: the
-       region decides which plants count as native for the style's picks. */
-    nativeRegionWrap.classList.remove('hidden');
-    $('dgnNativeRegionLabel').textContent=sel.nativeMode==='any'?'Garden region':'Continent of origin';
-    nativeRegionEl.innerHTML='';
-    NATIVE_REGIONS.filter(r=>r.selectable!==false).forEach(r=>{
-      const o=document.createElement('option'); o.value=r.id; o.textContent=r.label; o.selected=r.id===sel.nativeRegion; nativeRegionEl.appendChild(o);
-    });
-    nativeRegionEl.onchange=()=>{ sel.nativeRegion=normalizeNativeRegion(nativeRegionEl.value); renderNative(); updateCount(); syncMeadow(); };
-    $('dgnNativeHint').textContent=nativeCriteriaText(sel);
-  }
-  function renderConstraints(){ consEl.innerHTML='';
-    const t=(label,key)=>consEl.appendChild(mkChip(label,sel[key],()=>{
-      sel[key]=!sel[key]; renderConstraints(); updateCount(); },'toggle'));
-    t('Deer resistant','deer'); t('Rabbit resistant','rabbit');
-    t('Squirrel resistant bulbs','squirrel');
-  }
-  function selectionCount(refs){ return (refs||[]).filter(ref=>plantRefFitsCriteria(ref,sel)).length; }
-  function startChoice(label,source,id,meta){ const b=document.createElement('button'); b.type='button';
-    b.className='design-start-choice'+(sel.startSource===source&&sel.startPaletteId===(id||null)?' sel':'');
-    const title=document.createElement('b'); title.textContent=label; const small=document.createElement('small'); small.textContent=meta; b.append(title,small);
-    b.onclick=()=>{ sel.startSource=source; sel.startPaletteId=source==='palette'?id:null; renderStartPalette(); }; startEl.appendChild(b); }
-  function renderStartPalette(){ if (!startEl) return; startEl.innerHTML='';
-    if (zipBlocked){ startEl.textContent='Choose a supported zone to see starting palettes.'; return; }
-    /* The style's own count, not the headline's. These two rendered the same
-       call, so every style answered with the whole eligible palette and the
-       row could only restate the number three lines above it -- Cottage and
-       Formal both "486 plants available" on a zone-6 garden. The recommended
-       half of the tally is what a style actually asks for; `recommended` now
-       browses exactly that set, so the promise and the catalog agree. */
-    const rec=paletteTally().recommended;
-    startChoice('Recommended for '+designTypeName(sel.type),'recommended',null,
-      `${rec} plant${rec===1?'':'s'} available`);
-    const favs=favoriteRefs(), available=selectionCount(favs); startChoice('Favorites','favorites',null,`${available} available / ${favs.length} saved`);
-    const data=plantCollectionsData(); (data.palettes||[]).forEach(p=>{ const available=selectionCount(p.items); startChoice(p.name,'palette',p.id,`${available} available / ${p.items.length} saved`); }); }
   function blockZip(message){
-    zipBlocked=true; $('btnDesignNext').disabled=true; zipStatus.textContent=message;
-    renderZoneChips(); renderWinter(); updateReadout(); updateCount();
+    zipBlocked=true; zipStatus.textContent=message;
+    syncZone(); updateCount(); syncSummary();
   }
   async function readZip(){
     const request=++zipRequest, zip=zipEl.value.trim();
     const current=()=>zipEl.oninput===readZip && request===zipRequest && !$('designScreen').classList.contains('hidden');
     if (!/^\d{5}$/.test(zip)){
-      zipStatus.textContent='';
+      /* A postcode from somewhere else used to get no answer at all. */
+      zipStatus.textContent=/\D/.test(zip)?'ZIP codes are five digits. Outside the US, use the choices below.':'';
       // Clearing an unsuccessful lookup restores the earlier manual choice.
-      zipBlocked=false; $('btnDesignNext').disabled=false;
-      renderZoneChips(); renderWinter(); updateReadout(); updateCount(); return;
+      zipBlocked=false; syncZone(); updateCount(); syncSummary(); return;
     }
     blockZip('Looking up ZIP…');
     try{
       const data=await loadZipZones(); if (!current()) return;
-      const half=halfZoneFromZip(zip,data), z=zoneFromZip(zip,data), range=zoneRange();
+      const half=halfZoneFromZip(zip,data), z=zoneFromZip(zip,data);
       if (!half){ blockZip('This ZIP is not in the bundled 2023 listing. Check the USDA map, then choose a zone.'); return; }
       if (z<range.lo || z>range.hi){
         blockZip(`ZIP ${zip}: Zone ${half} (${zoneTemperatureText(half)}). The catalog currently covers zones ${range.lo}–${range.hi}. Check your site on the map; this result has not been rounded to another zone.`); return;
@@ -2029,24 +2182,176 @@ function openDesignSetup(){
     }catch(e){ if (current()) blockZip('ZIP lookup is unavailable. Choose a zone manually, or check the USDA map when online.'); }
   }
   zipEl.value=''; zipStatus.textContent=''; zipEl.oninput=readZip;
-  $('btnDesignNext').disabled=false;
-  zoneToggle.onclick=()=>{ sel.zoneHelp=!sel.zoneHelp; renderZoneMode(); };
-  renderWinter(); renderZoneChips(); renderZoneMode(); renderType(); renderNative(); renderConstraints(); renderStartPalette();
-  updateReadout(); updateCount();
-  syncMeadow();   // replant the backdrop for the initial style/zone
-  $('btnDesignNext').onclick=()=>{
+  zoneToggle.onclick=()=>{
+    sel.zoneHelp=!sel.zoneHelp; disclose(helpEl,sel.zoneHelp); syncZone();
+    // the keyboard a focused field raises on a phone would cover the choices under it
+    if (sel.zoneHelp && zipEl.focus && typeof matchMedia==='function' && matchMedia('(pointer:fine)').matches) zipEl.focus({preventScroll:true});
+  };
+  helpEl.classList.add('hidden');
+
+  /* ---- garden style ---- */
+  typeEl.innerHTML='';
+  const cards=GARDEN_TYPES.map(([id,label],i)=>{
+    const b=btn('ng-style'); b.setAttribute('role','radio'); b.setAttribute('aria-label',label); b.title=label;
+    if (b.style && b.style.setProperty) b.style.setProperty('--k',String(i));   // its place in the deal
+    const art=mk('span','ng-style-art'); art.appendChild(styleArtCanvas(id));
+    const tick=mk('i','ng-tick'); tick.setAttribute('aria-hidden','true');
+    b.append(art,mk('span','ng-style-name',label.split(' / ')[0]),tick);
+    b.onclick=()=>{ if (sel.type===id) return;
+      typeEl.classList.remove('dealing');   // or its entrance would run again when the pop ends
+      sel.type=id; syncStyle(); ngPop(b); updateCount(); syncSummary(); syncMeadow(); };
+    typeEl.appendChild(b);
+    return {id,b};
+  });
+  function syncStyle(){ cards.forEach(c=>radio(c.b,c.id===sel.type)); }
+  roveGroup(typeEl,'.ng-style');
+  /* The pictures are drawn a card a frame, after the page is up: eleven cards
+     of three plants each is not a cost to put in the tap that opened it. */
+  let artQueue=[], artFrame=0;
+  const artStep=()=>{
+    artFrame=0;
+    if (token!==designSetupOpen) return;
+    const c=artQueue.shift(); if (!c) return;
+    paintStyleCard(c.id,sel.zone,sel);
+    if (artQueue.length) artFrame=requestAnimationFrame(artStep);
+  };
+  function queueStyleArt(){ artQueue=cards.slice(); if (!artFrame) artFrame=requestAnimationFrame(artStep); }
+
+  /* ---- plant rules: where plants come from, and what they must shrug off ----
+     The same controls, words and order as the Garden criteria dialog, which
+     asks these again inside the garden. They were two vocabularies for one
+     question ("Continent" here, "Natives + selections" there). */
+  function rulesLine(){
+    const mode=(GARDEN_NATIVE_MODES.find(m=>m[0]===sel.nativeMode)||GARDEN_NATIVE_MODES[0])[1];
+    const place=sel.nativeMode==='any'?'':` (${nativeRegionLabel(sel.nativeRegion,true)})`;
+    const resists=GARDEN_RESIST.filter(([id])=>sel[id]).map(([,label])=>label.toLowerCase());
+    return `${mode}${place} · ${resists.length?'resists '+resists.join(', '):'no animal limits'}`;
+  }
+  function rulesChanged(){ $('dgnRulesLine').textContent=rulesLine(); updateCount(); syncMeadow(); queueStyleArt(); }
+  function renderNative(){
+    criteriaSegment(nativeModeEl,GARDEN_NATIVE_MODES,sel.nativeMode,id=>{ sel.nativeMode=id; renderNative(); rulesChanged(); });
+    /* Its WORD changes with the mode, as in the criteria dialog: origin is what
+       a native mode restricts, place is what the garden is. */
+    $('dgnNativeRegionLabel').textContent=sel.nativeMode==='any'?'Garden region':'Continent of origin';
+    $('dgnNativeHint').textContent=nativeCriteriaText(sel);
+  }
+  nativeRegionEl.innerHTML='';
+  NATIVE_REGIONS.filter(r=>r.selectable!==false).forEach(r=>{
+    const o=document.createElement('option'); o.value=r.id; o.textContent=r.label; o.selected=r.id===sel.nativeRegion; nativeRegionEl.appendChild(o);
+  });
+  nativeRegionEl.onchange=()=>{ sel.nativeRegion=normalizeNativeRegion(nativeRegionEl.value); renderNative(); rulesChanged(); };
+  consEl.innerHTML='';
+  GARDEN_RESIST.forEach(([id,label])=>{
+    const b=btn('gc-check'); b.append(mk('i','gc-box'),mk('span',null,label)); press(b,!!sel[id]);
+    b.onclick=()=>{ sel[id]=!sel[id]; press(b,sel[id]); ngPop(b); rulesChanged(); };
+    consEl.appendChild(b);
+  });
+  rulesToggle.onclick=()=>{
+    sel.rulesOpen=!sel.rulesOpen; disclose(rulesEl,sel.rulesOpen);
+    rulesToggle.setAttribute('aria-expanded',sel.rulesOpen?'true':'false');
+  };
+  rulesEl.classList.toggle('hidden',!sel.rulesOpen);
+  rulesToggle.setAttribute('aria-expanded',sel.rulesOpen?'true':'false');
+
+  /* ---- the plot ---- */
+  sizeRow.innerHTML=''; plotPresetChips=[];
+  const sizeBtns=PLOT_PRESETS.map(p=>{
+    const b=btn('ng-size'); b.setAttribute('role','radio');
+    const size=mk('b',null,plotPresetSize(p)), cap=mk('small',null,plotPresetLabel(p));
+    b.append(size,cap); plotPresetChips.push({p,size,cap});
+    b.onclick=()=>{ setPlotField('plotW',p.w); setPlotField('plotL',p.l); resetPendingPlotShape(true); syncPlot();
+      ngPop(b); ngPop($('plotShapeCanvas')); };
+    sizeRow.appendChild(b);
+    return [p,b];
+  });
+  roveGroup(sizeRow,'.ng-size');
+  /* Which size chip is on is read off the fields, so it cannot go stale: the
+     chips were built once and the fields reset on every opening, which left a
+     second garden at 46.5 ft under a chip still saying 1/10 acre. */
+  function syncPlot(){
+    const gw=ftToTiles(plotFt('plotW')), gh=ftToTiles(plotFt('plotL'));
+    let any=false;
+    sizeBtns.forEach(([p,b])=>{ const on=!pendingPlotShape && ftToTiles(p.w)===gw && ftToTiles(p.l)===gh; radio(b,on); any=any||on; });
+    if (!any && sizeBtns[0]) sizeBtns[0][1].tabIndex=0;   // a custom size still leaves the row reachable
+    updatePlotNote(); syncSummary();
+  }
+  plotSetupChanged=syncPlot;
+  $('plotW').oninput=$('plotL').oninput=()=>{ resetPendingPlotShape(true); syncPlot(); };
+  // on finishing a value (blur or Enter), not per keystroke: rewriting the
+  // field mid-typing would fight the person typing it
+  $('plotW').onchange=()=>{ setPlotField('plotW',plotFt('plotW')); syncPlot(); drawPlotShapeEditor(); };
+  $('plotL').onchange=()=>{ setPlotField('plotL',plotFt('plotL')); syncPlot(); drawPlotShapeEditor(); };
+  $('btnPlotNorth').onclick=()=>openSiteNorthEditor('plot');
+  wirePlotShapeEditor();
+
+  /* ---- break ground ---- */
+  const start=()=>{
     if (zipBlocked) return;
     game.design={zone:sel.zone, type:sel.type, nativeRegion:sel.nativeRegion, nativeMode:sel.nativeMode,
       deer:sel.deer, rabbit:sel.rabbit, squirrel:sel.squirrel};
     // tune the live palette: filters apply, style ranks the tray
-    game.filters=normalizeFilters({zone:sel.zone, nativeRegion:sel.nativeRegion, nativeMode:sel.nativeMode,
-      deer:sel.deer, rabbit:sel.rabbit, squirrel:sel.squirrel});
-    game.discovery=normalizeDiscovery({source:sel.startSource,collectionId:sel.startPaletteId,category:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36});
+    game.filters=normalizeFilters(game.design);
+    game.discovery=defaultDiscovery();          // the library opens on the style's own list
     sSet('hortus:filters',game.filters); updateFilterBtn();
-    openPlotScreen();
+    writeLastSetup({type:sel.type, w:plotRealFt('plotW'), l:plotRealFt('plotL')});
+    setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
+    if (pendingPlotShape && !setPlotShape(pendingPlotShape))     // sized first — setWorldSize clears any shape
+      toast('That lot shape was too tight, so the plot starts as a rectangle.');
+    game.worldId=newWorldId();
+    funnel(FUNNEL_EVENTS.gardenCreated);   // cleared the whole setup flow
+    game.worldName=$('plotName').value.trim()||'My garden';
+    resetNewGardenState();
+    game.siteNorthDeg=normalizeSiteNorthDeg(plotNorthDraft);
+    /* North chosen here is north confirmed: Start here's first step opens
+       ticked, where it used to ask the question a second time. */
+    if (plotNorthSet) game.startHere={north:true,dismissed:false};
+    // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
+    game.edgeStyle=edgeStyleFromType(sel.type);
+    newGardenDraft=null;
+    // a blank plot: no house, nothing planted, the whole site yours to draw
+    game.inGarden=true;
+    enterGarden();
+    saveSolo(true); // claim the slot right away
   };
-  $('btnDesignBack').onclick=()=>{ game.inGarden=false; show('menuScreen'); };
+  startBtn.onclick=start;
+  // a name and Enter is a garden
+  $('plotName').onkeydown=e=>{ if (e.key==='Enter'){ e.preventDefault(); start(); } };
+  /* Back goes where New garden was pressed, and keeps the page for a return.
+     It went to the title screen, one further than it came from. */
+  $('btnDesignBack').onclick=()=>{
+    newGardenDraft={sel, name:$('plotName').value, w:plotFt('plotW'), l:plotFt('plotL'),
+      shape:pendingPlotShape, north:plotNorthDraft, northSet:plotNorthSet};
+    game.inGarden=false; openWorlds();
+  };
+
+  /* ---- first paint ---- */
+  syncUnitLabels();
+  const w0=draft?draft.w:(last.w||46), l0=draft?draft.l:(last.l||46);
+  setPlotField('plotW',w0); setPlotField('plotL',l0);
+  $('plotName').value=draft?draft.name:'';
+  plotNorthDraft=draft?draft.north:0; plotNorthSet=!!(draft&&draft.northSet);
+  plotShapeDrag=null;
+  pendingPlotShape=draft&&draft.shape&&plotShapeQuadOk(draft.shape,ftToTiles(w0),ftToTiles(l0)) ? draft.shape.map(v=>v.slice()) : null;
+  updatePlotNorthSummary(); setPlotShapeHint();
+  $('dgnRulesLine').textContent=rulesLine();
+  syncZone(); syncStyle(); renderNative(); updateCount(); syncPlot();
+  syncMeadow();   // replant the backdrop for the initial style/zone
+  // the cards are dealt in as the page opens; the class goes once they have landed
+  typeEl.classList.add('dealing');
+  setTimeout(()=>{ if (token===designSetupOpen) typeEl.classList.remove('dealing'); },900);
   show('designScreen');
+  const body=$('ngBody'); if (body) body.scrollTop=0;   // it reopened wherever it had been left
+  drawPlotShapeEditor();                                  // canvas is measurable once shown
+  queueStyleArt();
+  /* Somewhere for the keyboard to be: the name on a desk, where a name and
+     Enter makes the garden; the heading on a touch screen, where focusing a
+     field would raise the keyboard over the page. */
+  requestAnimationFrame(()=>{
+    if (token!==designSetupOpen || $('designScreen').classList.contains('hidden')) return;
+    const fine=typeof matchMedia==='function' && matchMedia('(pointer:fine)').matches;
+    const target=fine?$('plotName'):$('ngTitle');
+    if (target && target.focus) target.focus({preventScroll:true});
+  });
 }
 function quitToMenu(){
   closeOverlay('challengeFinishScreen',false); closeOverlay('challengeScreen',false);

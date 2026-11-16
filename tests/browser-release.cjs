@@ -158,31 +158,32 @@ async function scenario(browser, profile){
       assert.equal(await map.getAttribute('href'),'https://planthardiness.ars.usda.gov/');
       assert.equal(await map.getAttribute('target'),'_blank');
       assert.equal(await map.getAttribute('rel'),'noopener noreferrer');
-      assert(await map.isVisible(),'official map is also reachable without the ZIP helper');
       const readout=await page.locator('#dgnZoneOut').innerText();
       await page.locator('#dgnZoneToggle').click();
+      assert(await map.isVisible(),'the official map is offered with the zone finder');
       await page.locator('#dgnZip').fill('785');
       assert.equal(await page.locator('#dgnZoneOut').innerText(),readout,'partial ZIP does not guess a zone');
       for(const [zip,half,blocked] of [['78520','10a',false],['96813','12b',true],['90210','10b',false]]){
         await page.locator('#dgnZip').fill(zip);
         await page.waitForFunction(half=>document.getElementById('dgnZipStatus').textContent.includes('Zone '+half),half);
-        assert.equal(await page.locator('#btnDesignNext').isDisabled(),blocked);
+        assert.equal(await page.locator('#btnPlotStart').isDisabled(),blocked);
       }
       assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'ZIP setup fits the viewport');
       await page.screenshot({path:path.join(output,profile.name+'-zone-setup.png')});
       await page.locator('#dgnZip').fill('00000');
       await page.waitForFunction(()=>document.getElementById('dgnZipStatus').textContent.includes('not in the bundled'));
-      assert(await page.locator('#btnDesignNext').isDisabled());
-      await page.locator('#dgnZoneToggle').click();
+      assert(await page.locator('#btnPlotStart').isDisabled());
+      // the zone chips sit in the finder beside the ZIP field, so it stays open
       await page.locator('#dgnZoneChips').getByRole('button',{name:'Zone 6',exact:true}).click();
-      assert.equal(await page.locator('#btnDesignNext').isDisabled(),false);
+      assert.equal(await page.locator('#btnPlotStart').isDisabled(),false);
       assert.equal(await page.locator('#dgnZip').inputValue(),'');
+      // Back returns to Your gardens, where New garden was pressed; then to the menu
       await page.locator('#btnDesignBack').click();
+      await page.locator('#worldsScreen .page-back').click();
     });
     await check(label('paused edits persist in real IndexedDB and reopen in a new tab'), async()=>{
       await page.locator('#btnDesign').click();
       await page.locator('#btnNewWorld').click();
-      await page.locator('#btnDesignNext').click();
       await page.locator('#plotName').fill('Release check garden');
       await page.locator('#btnPlotStart').click();
       await page.waitForFunction(()=>game.inGarden && !!game.worldId && !game.dirty);
@@ -284,7 +285,6 @@ async function scenario(browser, profile){
         await boot(p, url, beforeVersion, server.scripts);
         await p.getByRole('button', {name:'Start from scratch', exact:true}).click();
         await p.locator('#btnDesign').click(); await p.locator('#btnNewWorld').click();
-        await p.locator('#btnDesignNext').click();
         await p.locator('#plotName').fill('Hint check');
         await p.locator('#btnPlotStart').click();
         await p.waitForFunction(()=>game.inGarden && !!game.worldId);
@@ -436,8 +436,9 @@ async function scenario(browser, profile){
       await page.locator('#btnDesign').click(); await page.locator('#btnNewWorld').click();
       await page.locator('#dgnZoneToggle').click(); await page.locator('#dgnZip').fill('78520');
       await page.waitForFunction(()=>document.getElementById('dgnZipStatus').textContent.includes('Zone 10a'));
-      assert.equal(await page.locator('#btnDesignNext').isDisabled(),false,'ZIP data works on a fresh page with the server stopped');
+      assert.equal(await page.locator('#btnPlotStart').isDisabled(),false,'ZIP data works on a fresh page with the server stopped');
       await page.locator('#btnDesignBack').click();
+      await page.locator('#worldsScreen .page-back').click();
       await reopenGarden(page, id);
       assert.deepEqual((await storedGarden(page, id)).plants['4,4'], saved.plants['4,4']);
     });

@@ -3,10 +3,10 @@
 A 2.5D perennial-gardening game in the spirit of Piet Oudolf's naturalistic
 planting style. **Design a Garden** is the core: a serious planner — no avatar,
 no movement, a free pan/pinch camera and direct tap-to-place/drag-to-paint
-à la Procreate; no house at start; created via a chip-led questionnaire of
-climate (zone chips, or a ZIP→zone / plain-language winter-cold picker behind a
-"don't know your zone?" flip)/style/native mode + range/deer/rabbit, with a live palette
-count. The menu has three entries, in this order: **Your gardens**
+à la Procreate; no house at start; created on one **New garden** page (the plot's
+name, size, shape and north beside winter cold, with a ZIP→zone / plain-language
+winter-cold finder, a garden style and the native/deer/rabbit rules; nothing on it
+has to be answered), with a live palette count. The menu has three entries, in this order: **Your gardens**
 (`btnDesign` — the single `openWorlds()` list, where a saved garden is
 opened, renamed, duplicated, shared or deleted and a new one is started;
 it used to be two entries, Design a Garden and View Gardens, opening that
@@ -585,7 +585,8 @@ See §13a.
   reporting a convenient fiction (`getRandomValues` handing back an unfilled
   buffer, `localStorage` claiming to be empty however much you wrote,
   `getElementById` returning a fresh element every call so nothing written could
-  be read back), and each one made a real assertion pass without testing
+  be read back, `innerHTML=''` and `replaceChildren()` leaving the old children in
+  place so a row built twice held both sets), and each one made a real assertion pass without testing
   anything. `docs/test-sandbox.md` is the record: which stubs answer honestly,
   which decline (geometry, selectors, pixels, rAF — verify those in the browser),
   and which were fixed. Tests under "the harness itself" pin the contract,
@@ -1356,6 +1357,16 @@ logic is split across ordered modules. They map onto the section list below
   `blob.start`. It STANDS IN for beat 1 in an empty garden — the tip was step 5
   alone, in a second widget beside it — and `syncStartHere` runs from `updateHUD`,
   so it returns on booleans unless the list is up.
+  **On a phone a step folds the list before it runs** (`runStartStep`, 0.9.118):
+  open, the list is 293px over 288px of clear ground at 375x812, so "Choose plants
+  and plant" left nothing to tap and the next tap armed another row of the list.
+  Folded, its bar stands exactly where a toast appears, so `syncStartHere` writes
+  `--toast-floor` (measured on a change, never per frame) and the toast drops below
+  the bar; `toastClearOfHint` (commands.js) then steps it under a tool hint that is
+  up in the same strip, asked once per toast. And a new gardener's first plant is
+  not announced three times: the toast leaves "try the Drift toggle" to the coach
+  tip that says the same (`coachSaysDrift`). North set on the New garden page
+  arrives ticked (`plotNorthSet`, §16).
   **The tool hint steps round it** (`statusAroundStartHere`, `placeStatusByStartHere`,
   tray.js; 0.9.73). Both want the strip under the top bar, and the hint's top was a
   fixed CSS value where the list's is measured, 7px apart on a phone, so in a new
@@ -5418,8 +5429,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     retain their own heart, palette membership, bloom/size metadata, and bronze
     selected state; an exact cultivar search can still surface that cultivar
     directly. Progressive result limits count family groups, not raw cultivars.
-    The design questionnaire's **Start with**
-    choice picks the initial source only; it never narrows what can be planted.
+    A new garden opens on `recommended`. (The questionnaire used to ask **Start
+    with**, the same source picker a screen early; it went in 0.9.118, see §16.)
     **`recommended` is the garden style's own list** — `discoverySourceRefs`
     keeps the refs `plantStyleRecommended` admits, the predicate that had been
     written for exactly this and wired to nothing. Before, it returned the
@@ -6380,36 +6391,98 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     card's edge since the card clips, and Actions sits above it (`z-index:1`) as
     its own button. The name's two-line clamp is on the button itself, with a
     `max-height` under it for a browser that will not clamp a button.
-    Other screens are plot setup (`#plotScreen`, new solo gardens: name + acre presets + ONE
-    always-visible plot diagram that owns size, shape, and orientation
-    together. **One size, everywhere**: a plot is whole 18in tiles, so every
-    figure on the screen — the fields, the diagram's labels (to the half foot),
-    the note, and later the worlds list — reads the real side `plotRealFt`
-    (0.9.29), and a field snaps to it on change; it quoted 46, 47 and 2,116 sq ft
-    for one 46.5 ft plot. The width/length inputs sit inside the diagram card; the canvas
-    draws the plot to scale with two handle kinds — **squares** at the
+    **New garden is one page** (`#designScreen`, `openDesignSetup`, screens.js;
+    `.ng-*`, the last block of styles.css; 0.9.118), reached from Your gardens.
+    It was a questionnaire and then a plot screen (`#plotScreen` and
+    `btnDesignNext` are gone; `openPlotScreen()` is kept as an alias): two 560px
+    panels with a text Back at the foot and their one button 200 to 1,300px
+    below the fold, eight questions about plants ahead of the two about the
+    site. The plot screen's top was cut off and could not be scrolled back on a
+    768px laptop and on every phone (a `.screen` centres its panel, and a panel
+    taller than the screen overflows upward). Now it is the shape the other menu
+    screens have: `.page-head` (the way back is `#btnDesignBack`, to Your
+    gardens, where New garden was pressed; it used to go to the title screen),
+    `.ng-body`, which scrolls, and `.ng-foot`, which does not and holds a
+    one-line summary and **Break ground** (`#btnPlotStart`). The panel is the
+    criteria dialog's flex column, so no sticky box has to own a padding. From
+    768px wide the plot is the left column and the planting the right; under
+    that it is one column in a panel that fills the screen. The live count is
+    the header's `.page-sub` (`#dgnCount`): it sat 1,100px down the form on a
+    phone, below every control that moves it. No `backdrop-filter`: the old
+    panels blurred the animating border on every frame.
+    **Nothing has to be answered.** New garden, Break ground is a garden, and so
+    is a name and Enter. What follows from that:
+    *The zone is not guessed.* A device never told one opens on "Not set ·
+    plants for every climate are shown" (`design.zone`/`filters.zone` null,
+    which Garden criteria and the daily challenge already carried); it opened
+    on Zone 6 with nothing saying so. The row is the zone in words and one
+    pill, **Find my zone** (accented while unset) or **Change**, which opens
+    the finder: the ZIP field, six winter-cold chips (`WINTER_BANDS`), the zone
+    chips (the number, named "Zone N" for a screen reader, plus **Not sure**,
+    which unsets it) and the USDA map link. All of them set the one
+    `sel.zone`. A postcode that is not five digits is told so; it got no answer.
+    *Answers are remembered.* Zone, origin and resistance come from
+    `game.filters` (`hortus:filters`): after a reload the zone went back to 6
+    while the native mode beside it was kept. The style and the plot's size
+    come from `hortus:lastSetup` (`readLastSetup`/`writeLastSetup`), a device
+    preference read while the page is built, so it stays out of `IDB_KEYS`.
+    *Leaving keeps the page* (`newGardenDraft`): Back or Escape (input.js,
+    above the hidden-HUD guard), then New garden again, restores the name,
+    size, shape, north and answers. Back from the plot screen used to throw the
+    plot away. Break ground spends the draft.
+    *"Start with" is gone.* It was the catalog's own source picker asked a
+    screen early, and Favorites could be chosen at "0 saved", which opened an
+    empty library. A new garden's library opens on `recommended`.
+    **Controls are built once per opening and changed in place** (`syncZone`,
+    `syncStyle`, `syncPlot`). Each press used to empty its row and build it
+    again, so keyboard focus fell to the body (the next Tab began again at
+    Zone 1, and it was 33 stops to the button) and nothing could animate, the
+    pressed chip having been replaced. Style cards and size chips are radio
+    groups with one tab stop and arrow keys (`roveGroup`); from the name it is
+    eight stops to Break ground. On opening, focus goes to the name where the
+    pointer is fine and to the heading on a touch screen, where focusing a
+    field would raise the keyboard.
+    *The plot*: a name, four size chips, and ONE plot diagram that owns size,
+    shape, and orientation together. A size chip leads with the side it really
+    builds over a caption (`plotPresetSize`; "Classic" is "Small yard"), and
+    which chip is on is read off the fields (`syncPlot`): the chips were built
+    once and the fields reset on every opening, so a second garden stood at
+    46.5 ft under a chip still saying 1/10 acre. **One size, everywhere**: a
+    plot is whole 18in tiles, so every figure on the page — the fields, the
+    diagram's labels (to the half foot), the note, the footer, and later the
+    worlds list — reads the real side `plotRealFt` (0.9.29), and a field snaps
+    to it on change; it quoted 46, 47 and 2,116 sq ft for one 46.5 ft plot. The
+    canvas draws the plot to scale with two handle kinds — **squares** at the
     right/bottom edge midpoints drag-resize width/length (writing the inputs
     live, tile-snapped, frozen scale during the drag, refit on release) and
     **circles** at the corners shape the lot (snapping to the tile-corner
     lattice, live per-side lengths in feet). A **north dial** in the canvas
-    gutter rotates `plotNorthDraft` on drag (5° snaps) and opens the shared
-    fine-tune bearing dialog (`openSiteNorthEditor('plot')`, also reached from
-    Build → Site) on a plain tap. The shape draft lives in `pendingPlotShape`
-    (never on `game` while editing; invalid drags — crossed corners,
-    sub-9-tile slivers — show danger styling + a hint and revert on release).
-    Any resize (inputs, presets, or edge drag) resets the shape;
-    `btnPlotStart` applies it AFTER `setWorldSize` via `setPlotShape` since
-    sizing always clears any shape), the design questionnaire (`#designScreen` /
-    `openDesignSetup`), and the daily-challenge panel (`#dailyScreen`). The
-    questionnaire uses chips for its compact choices, with one deliberate
-    native-range `<select>` exception: a geographic list is factual reference
-    data, not a toggle, and a select stays readable and accessible on a phone.
-    **Climate** shows the zone
-    chips face up, with a "Don't know your zone?" link that flips
-    (`sel.zoneHelp`) to the five-digit ZIP helper plus approximate winter-low
-    chips (`WINTER_BANDS`, with temperature ranges). An official USDA map link
-    remains visible in both views, opens on user action, and never forwards ZIP
-    input. `data/zip-zones-2023.json` bundles 40,502 ZIP/half-zone pairs from OSU
+    gutter rotates `plotNorthDraft` on drag (5° snaps); a plain tap on it, or
+    the **North** button beside the fields (`#btnPlotNorth`, which a keyboard
+    can reach and which says which side north is on), opens the shared bearing
+    dialog (`openSiteNorthEditor('plot')`, also reached from Start here). The
+    shape draft lives in `pendingPlotShape` (never on `game` while editing;
+    invalid drags — crossed corners, sub-9-tile slivers — show danger styling +
+    a hint and revert on release). Any resize (inputs, presets, or edge drag)
+    resets the shape; Break ground applies it AFTER `setWorldSize` via
+    `setPlotShape`, since sizing always clears any shape.
+    Five things the diagram had wrong (0.9.118). *The dial opens the dialog
+    from the CLICK* (`plotDialTap`): opened on pointerup, the click made out of
+    the same tap then landed on the dialog's scrim, whose handler closes it, so
+    on a tablet and a phone on its side it opened and shut inside one tap. *Its
+    inks are the theme's* (`uiInk`, `resolvedTheme`): the outline, grid and dial
+    caption were cream literals, cream on cream on paper. *A side caption
+    starts beside its edge*, and steps past a resize square it would cover:
+    centred 13px out it reached back under the square, so "46.5 ft" read
+    "5.5 ft" on every plot. *The hint names all three handles*
+    (`plotShapeHintText`); the markup's sentence was replaced before anyone saw
+    it. *The note quotes the lot's own area* (`plotLotSqFt`, shoelace over the
+    shape): a 93 ft plot with a corner cut off still read 8,649 sq ft. And
+    **north chosen here is north confirmed** (`plotNorthSet`): the garden opens
+    with Start here's first step ticked (`game.startHere.north`), where it was
+    asked a second time.
+    *Winter cold* is described above. `data/zip-zones-2023.json` bundles 40,502
+    ZIP/half-zone pairs from OSU
     PRISM's four 2023 listings; source URLs, retrieval date, counts, and raw-file
     hashes accompany it. `dev/build-zip-zones.cjs` reproduces the compact data
     from local CSVs; see `docs/zone-lookup.md` for source and terms.
@@ -6419,28 +6492,61 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     shares a pending fetch, validates once, caches success, and allows retry on
     failure. It never sends or persists the entered ZIP. `halfZoneFromZip`
     searches packed sorted groups; `zoneFromZip` returns the whole zone.
-    Source half-zones are displayed unchanged, and the readout explains the
+    Source half-zones are displayed unchanged, and the status line explains the
     whole-zone filter. `hardinessTemperatureRange`/`zoneTemperatureText` show
-    full or half-zone intervals in the selected units; they replace the old
-    misleading single-low captions. An average annual winter minimum is not a
-    record low or a complete site recommendation.
+    full or half-zone intervals in the selected units, whole degrees in metric
+    ("−23.3 to −17.8°C" claimed a precision no winter has). An average annual
+    winter minimum is not a record low or a complete site recommendation.
     **Offered zones remain derived from the catalog** (`zoneRange`/`clampZone`,
     currently 1–11). The old 3–9 limit was removed in 0.8.66. The ZIP listing
-    also contains zones outside catalog coverage: setup displays these without
-    clamping and disables Next until the gardener chooses a supported zone or
-    another valid ZIP. Missing/unavailable results also require another choice.
-    Manual choices invalidate pending responses, and reopened forms ignore an
-    earlier form's request. No ZIP lookup changes existing saved gardens.
-    The setup panel has its own bounded scroll area so toggling the helper
-    cannot strand the zone chips above the viewport.
-    **Style** is a chip grid; **native mode**
-    is Any / Continent / Straight chips and reveals the range selector only when
-    constrained; animal-resistance constraints are toggle chips.
-    A live **palette count** (`paletteCount` in ui.js — a pure mirror of
-    `plantFits`' zone/native-range/deer/rabbit/squirrel gates that never touches game state)
-    updates under every knob so each choice visibly does something. Selections
-    commit to `game.design`/`game.filters` on Next, unchanged. Setup panels
-    rise-fade in (`.panel-enter`) and sit more translucent over the menu's
+    also contains zones outside catalog coverage: the page displays these
+    without clamping and disables Break ground until the gardener chooses a
+    supported zone or another valid ZIP. Missing/unavailable results also
+    require another choice. Manual choices invalidate pending responses, and a
+    reopened page ignores an earlier page's request. No ZIP lookup changes
+    existing saved gardens.
+    *Garden style* is eleven cards, each picturing three of the plants the
+    style puts first, drawn by `drawPlant` (`styleCardKeys`, `paintStyleArt`,
+    `STYLE_ART`): the menu's idea, that an entry shows what it opens. The three
+    are the style's top-ranked plants for the zone and origin
+    (`styleMeadowKeys`), one of each drawing form so a prairie is not three
+    grasses, tallest in the middle, on the Library's dark plate in both themes.
+    A canvas is kept per style for the session and repainted only when its three
+    plants change, a card a frame after the page is up. The line under the
+    cards says what a style DOES, which nothing said: its N plants lead the
+    library and the rest stay available, and beds get soft or crisp edges
+    (`edgeStyleFromType`).
+    *Plant rules* is one line shut ("Any origin · no animal limits") and, open,
+    the Garden criteria dialog's own controls and words: the native-planting
+    segment (`criteriaSegment`, which now takes a callback as well as a field
+    name), the region select and the three resist chips. They were two
+    vocabularies for one question ("Continent" here, "Natives + selections"
+    there). The region stays a `<select>`: a geographic list is reference data,
+    not a toggle.
+    A live **palette count** (`paletteCounts` in ui.js, which asks the
+    catalog's own questions and never touches game state) follows every knob.
+    Answers commit to `game.design`/`game.filters` on Break ground. **A
+    criterion must be in `paletteTally`'s key** or the count freezes (a test
+    pins the key to `normalizeFilters`' fields).
+    **Motion** is transform and opacity only, finite and plain CSS, so the one
+    `[data-motion="reduce"]` rule reaches it: the sections rise in turn
+    (`ngRise`), the style cards are dealt in (`ngDeal`, `.dealing`), a pressed
+    choice pops (`chipPop`), the chosen card's tick scales in, the count ticks
+    over when a press changes it (`ngTick`), a new size settles the plan
+    (`ngPlotPop`), an opened section drops in and is scrolled into view, the
+    North arrow swings to its bearing, and **the segment's thumb slides**
+    (`.gc-seg::before`, placed by `--i` of `--n`, which `criteriaSegment` sets
+    on the host so it outlives the rebuild of the buttons; the Garden criteria
+    dialog gets it too). Three rules it has to keep. Every animated class is
+    ONE-SHOT (`ngPop` takes it off on its own `animationend`, ignoring a
+    child's): the controls are kept across presses, so a class left on never
+    plays twice. An element that pops must not also carry an entrance
+    animation, or the entrance runs again each time the pop ends, which is why
+    `.dealing` is taken off the card grid once the cards have landed. And the
+    reduce rule shortens an animation without removing its DELAY, so the
+    delayed entrances are switched off outright there, or an element filled
+    backwards through its delay sits invisible for it.
+    The page sits over the menu's
     border (§17), which **replants live** to the chosen style + zone
     (`styleMeadowKeys`/`applyMeadowPalette`, called on every style/zone change):
     the tray's own `plantStyleScore` ranks a herbaceous, zone-filtered palette,
@@ -6450,7 +6556,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     drifts are seeded by the season and not by the palette (Prairie → grasses,
     Cottage → forbs, Shade → ferns/sedges; 'Any garden' keeps the season's own
     scheme). The click itself only records the palette; the planting happens
-    over the next frames. Going Back to the menu clears it (`advanceMenuSeason`).
+    over the next frames. Going back to the menu clears it (`advanceMenuSeason`).
+    The daily challenge is the other panel here (`#dailyScreen`).
     Plain DOM, toggled by `show()`. The planting-list
     (`#exportScreen`), plant filters (`#filterScreen`), design plan
     (`#planScreen`), and bloom calendar (`#bloomScreen`) overlays sit outside

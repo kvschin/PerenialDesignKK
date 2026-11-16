@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.117';
+const APP_VERSION = '0.9.118';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -330,7 +330,9 @@ function hardinessTemperatureRange(zone){
 }
 function zoneTemperatureText(zone){
   const range=hardinessTemperatureRange(zone); if (!range) return '';
-  const metric=metricUnits(), fmt=f=>String(metric?Math.round((f-32)*5/9*10)/10:f).replace('-','−');
+  /* Whole degrees in metric: a zone is a ten-degree Fahrenheit band, and
+     "−23.3 to −17.8°C" claimed a precision nobody's winter has. */
+  const metric=metricUnits(), fmt=f=>String(metric?Math.round((f-32)*5/9):f).replace('-','−');
   return `${fmt(range.low)} to ${fmt(range.high)}°${metric?'C':'F'}`;
 }
 function mixHex(a,b2,t){

@@ -2931,9 +2931,18 @@ const GARDEN_NATIVE_MODES=[['any','Any origin','Plants of any origin'],
   ['regional','Natives + selections','Native to the region, and named selections of those'],
   ['straight','Straight species','Only the wild species native to the region']];
 const GARDEN_RESIST=[['deer','Deer'],['rabbit','Rabbits'],['squirrel','Squirrels (bulbs)']];
+/* `field` names the criterion a press patches in the dialog's draft; a function
+   there is told the id instead, which is how the New garden page uses the same
+   control on its own answers. --i/--n place the thumb that slides under the
+   chosen option: it is the host's ::before, so it outlives the rebuild of the
+   buttons and travels from the old option to the new one. */
 function criteriaSegment(host,rows,value,field){
   if (!host) return; host.innerHTML='';
-  const pick=id=>{ patchDiscoveryCriteria({[field]:id});
+  if (host.style && host.style.setProperty){
+    host.style.setProperty('--n',String(rows.length));
+    host.style.setProperty('--i',String(Math.max(0,rows.findIndex(r=>r[0]===value))));
+  }
+  const pick=id=>{ if (typeof field==='function') field(id); else patchDiscoveryCriteria({[field]:id});
     const on=host.querySelector('[aria-checked="true"]'); if (on&&on.focus) on.focus({preventScroll:true}); };
   rows.forEach(([id,label,title])=>{
     const on=id===value, b=document.createElement('button'); b.type='button'; b.textContent=label; b.dataset.v=id;

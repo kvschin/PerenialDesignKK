@@ -98,7 +98,7 @@ function marginalDryText(){
 function plantPlacedMessage(def,x,y,k,shadeWarn,water,crowd){
   const base=water ? `Planted ${def.name} in the water.`
     : isTreeDef(def) ? treePlacedMessage(def,x,y,k)
-    : `Planted ${def.name}.${!shadeWarn && !crowd && (def.type==='forb'||def.type==='grass')?' Drifts of 3+ read better — try the Drift toggle.':''}`;
+    : `Planted ${def.name}.${!shadeWarn && !crowd && (def.type==='forb'||def.type==='grass') && !coachSaysDrift()?' Drifts of 3+ read better — try the Drift toggle.':''}`;
   const dry=!water && marginalOutOfReach(def,x,y) ? appendPlacementWarning(base,marginalDryText()) : base;
   const advised=crowd ? appendPlacementWarning(dry,shrubCrowdingText(def,crowd)) : dry;
   return shadeWarn ? appendPlacementWarning(advised,canopyShadeWarningText(shadeWarn)) : advised;
@@ -1956,8 +1956,22 @@ function toast(msg,kind){
   const el=document.getElementById('toast');
   el.textContent=msg; el.style.opacity=1;
   if (el.classList) el.classList.toggle('warn',kind==='warn');
+  toastClearOfHint(el);
   clearTimeout(el._t);
   el._t=setTimeout(()=>el.style.opacity=0,2600);
+}
+/* A tool hint standing in the toast's band is stepped under, not printed
+   across: both are translucent, and on a phone with a new garden's Start here
+   bar folded above them they share one strip, so "Pick a plant" came out on
+   top of "Drag to pan". Asked once per toast, never per frame. */
+function toastClearOfHint(el){
+  const hint=document.getElementById('activeToolStatus');
+  if (!el.style || !el.style.setProperty || !hint || !hint.classList) return;
+  el.style.removeProperty('--toast-under');
+  if (!hint.classList.contains('show')) return;
+  const h=hint.getBoundingClientRect(), t=el.getBoundingClientRect();
+  if (h.width>0 && h.height>0 && h.bottom>t.top && h.top<t.bottom && h.right>t.left && h.left<t.right)
+    el.style.setProperty('--toast-under',Math.round(h.bottom+8)+'px');
 }
 
 

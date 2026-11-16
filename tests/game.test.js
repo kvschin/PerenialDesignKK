@@ -11764,7 +11764,7 @@ test('menu chrome lies over an animating canvas, so none of it blurs', () => {
 test('the three screens the menu opens share one header, with the way back in it', () => {
   const html = readRepoFile('index.html'), css = readRepoFile('styles.css');
   const screen = (id, next) => html.slice(html.indexOf('id="' + id + '"'), html.indexOf(next));
-  const worlds = screen('worldsScreen', 'id="plotScreen"'), daily = screen('dailyScreen', 'id="challengeScreen"'),
+  const worlds = screen('worldsScreen', 'id="designScreen"'), daily = screen('dailyScreen', 'id="challengeScreen"'),
     library = screen('libraryScreen', 'id="guideScreen"');
   [['Your gardens', worlds], ['the daily challenge', daily], ['the Plant Library', library]].forEach(([name, part]) => {
     assertEqual((part.match(/class="page-back"/g) || []).length, 1, name + ' has exactly one back control');
@@ -12091,7 +12091,7 @@ test('ZIP data loads once from a fixed local URL and can retry a failed load',as
 test('setup rejects unsupported ZIP results and a delayed lookup cannot replace a manual choice',async()=>{
   setup(); const oldLoad=loadZipZones;
   const data=validateZipZoneData(JSON.parse(readRepoFile('data/zip-zones-2023.json')));
-  const zip=$('dgnZip'), next=$('btnDesignNext');
+  const zip=$('dgnZip'), next=$('btnPlotStart');
   try{
     loadZipZones=()=>Promise.resolve(data); openDesignSetup();
     zip.value='96813'; await zip.oninput();
@@ -12103,7 +12103,7 @@ test('setup rejects unsupported ZIP results and a delayed lookup cannot replace 
     let resolve;
     loadZipZones=()=>new Promise(r=>{resolve=r;});
     zip.value='33101'; const pending=zip.oninput();
-    $('dgnZoneChips').children.find(b=>b.textContent==='Zone 6').onclick();
+    $('dgnZoneChips').children.find(b=>b.textContent==='6').onclick();
     resolve(data); await pending;
     assert($('dgnZoneOut').innerHTML.includes('Zone 6'),'manual choice wins over a slow result');
     assertEqual(zip.value,''); assert(!next.disabled);
@@ -12699,13 +12699,17 @@ test('the garden menu and the zone escape hatch meet the touch minimum', () => {
      a 59x36 Close, because #gardenMenu re-pads .btn for its 236px panel and no
      coarse rule put the floor back. #dgnZoneToggle is a standalone button, so
      it gets no WCAG inline exception — and it is the first-run escape hatch to
-     the ZIP lookup and the plain-language winter-cold picker, at 121x23. */
+     the ZIP lookup and the plain-language winter-cold picker, at 121x23. (It is
+     the New garden page's "Find my zone" pill now, sized with that page.) */
   const css = readRepoFile('styles.css');
   const coarse = css.slice(css.indexOf('@media (pointer:coarse)'));
   assert(/\.gm-row,\.gm-foot \.gm-row\{min-height:44px\}/.test(coarse) && /\.gm-x\{width:44px;height:44px\}/.test(coarse),
     'every garden-menu row and its Close are 44');
-  assert(/\.link-toggle\{min-height:44px;display:inline-flex/.test(coarse),
-    'and so is "Don\'t know your zone?" — inline-flex, or min-height does nothing to an inline-block');
+  const pillAt = css.indexOf('.ng-pill,.ng-north,.ng-link{min-height:44px}');
+  assert(pillAt > 0 && css.lastIndexOf('@media', pillAt) === css.lastIndexOf('@media (pointer:coarse)', pillAt),
+    'and so is "Find my zone", in a pointer block rather than a width one');
+  assert(/id="dgnZoneToggle"/.test(readRepoFile('index.html')) && /class="ng-pill" id="dgnZoneToggle"/.test(readRepoFile('index.html')),
+    'which is the control that rule sizes');
 });
 
 test('Space and Enter reach a keyboard-focused control instead of the canvas', () => {
@@ -12813,8 +12817,8 @@ test('both new-garden routes share one reset', () => {
   const daily = src.slice(src.indexOf('function startDailyChallenge'));
   assert(/resetNewGardenState\(\)/.test(daily.slice(0, daily.indexOf('function ', 10))),
     'the daily challenge uses the shared reset');
-  assert(/resetNewGardenState\(\)/.test(src.slice(src.indexOf("$('btnPlotStart').onclick"), src.indexOf("$('btnPlotBack')"))),
-    'and so does the plot screen');
+  assert(/resetNewGardenState\(\)/.test(String(openDesignSetup)),
+    'and so does the New garden page');
 });
 
 test('the erase report covers every counter eraseBrush can raise', () => {
@@ -19439,6 +19443,257 @@ test('invasive status is not part of the app: nothing is flagged or hidden for i
     assert(!/invasive/i.test(discoveryGardenLine()),'the tray foot says nothing about it');
   } finally { [game.filters,game.design]=saved; }
   assert(!/invasive/i.test(readRepoFile('index.html')),'and there is no control for it');
+});
+
+/* ---------- New garden: one page (0.9.118) ----------
+   The questionnaire and the plot screen were two older panels, each with a text
+   Back at its foot and its one button below the fold. They are one page with
+   the shared header, a body that scrolls and a footer that does not. */
+test('New garden is one page with the shared header and its button outside the scroller', () => {
+  const html = readRepoFile('index.html'), css = readRepoFile('styles.css');
+  assert(!/id="plotScreen"/.test(html) && !/id="btnDesignNext"/.test(html) && !/id="btnPlotBack"/.test(html),
+    'the second screen, its Next and its Back are gone');
+  const page = html.slice(html.indexOf('id="designScreen"'), html.indexOf('id="siteNorthScreen"'));
+  assertEqual((page.match(/class="page-back"/g) || []).length, 1, 'one way back');
+  const back = page.slice(page.indexOf('class="page-back"'), page.indexOf('</button>', page.indexOf('class="page-back"')));
+  assert(/id="btnDesignBack"/.test(back) && !/data-back/.test(back), 'which is its own: it returns to Your gardens, not the menu');
+  assert(/aria-label="Back to your gardens"/.test(back) && /<span>Gardens<\/span>/.test(back), 'and says so');
+  assert(page.indexOf('class="page-back"') < page.indexOf('class="page-title"'), 'back comes before the title');
+  assert(/class="page-title">\s*<h2 id="ngTitle"/.test(page), 'the title is the heading');
+  assert(/class="page-sub ng-count" id="dgnCount" role="status"/.test(page), 'and the live count is the line under it, announced');
+  assert(!/class="back-link"/.test(page), 'no second way back at the foot');
+  const body = page.indexOf('class="ng-body"'), foot = page.indexOf('class="ng-foot"');
+  assert(body > 0 && foot > body && page.indexOf('id="btnPlotStart"') > foot, 'Break ground is in a footer after the body');
+  assert(page.indexOf('id="plotName"') > body && page.indexOf('id="plotName"') < page.indexOf('id="dgnZoneOut"'), 'the plot is asked before the planting');
+  assert(!/Start with/.test(page) && !/dgnStartPalette/.test(html), 'and "Start with" is not asked at all');
+  assert(/\.ng-body\{position:relative;flex:1 1 auto;min-height:0;overflow-y:auto/.test(css), 'only the body scrolls, and it is positioned as a scroller must be');
+  assert(/\.ng-foot\{flex:0 0 auto/.test(css) && /\.ng-head\{flex:0 0 auto/.test(css), 'so the header and the footer are always on screen');
+  const ng = css.slice(css.indexOf('New garden (0.9.118)'));
+  assert(ng.length > 2000 && !/backdrop-filter\s*:/.test(ng), 'the page blurs nothing: it sits over the animating border');
+  assert(!/#designScreen \.panel[^{]*\{[^}]*backdrop-filter/.test(css) && !/#plotScreen/.test(css), 'and the old blurred panels are gone');
+  // every screen show() switches between still exists
+  const list = String(show).match(/\[([^\]]+)\]/)[1].split(',').map(s => s.replace(/['\s]/g, ''));
+  list.forEach(id => assert(html.includes('id="' + id + '"'), 'show() names a screen that exists: ' + id));
+  // Escape leaves it through its own Back, above the hidden-HUD guard
+  const input = readRepoFile('js/input.js');
+  const esc = input.indexOf("getElementById('designScreen')"), guard = input.indexOf("getElementById('hud').classList.contains('hidden')");
+  assert(esc > 0 && esc < guard && /btnDesignBack'\)\.click\(\)/.test(input.slice(esc, guard)), 'Escape reaches the page, where the HUD is hidden');
+});
+
+test('a new garden opens on what this device was told, and on no zone if it was told none', () => {
+  setup();
+  const saved = [game.design, game.filters, newGardenDraft];
+  try {
+    newGardenDraft = null; localStorage.removeItem(LAST_SETUP_KEY);
+    game.design = null; game.filters = normalizeFilters({});
+    openDesignSetup();
+    assert($('dgnZoneOut').innerHTML.includes('Not set'), 'no zone is guessed: it opened on Zone 6 with nothing saying so');
+    assert($('ngSummary').textContent.includes('Every zone'), 'and the footer says what Break ground will make');
+    assert($('dgnZoneToggle').textContent === 'Find my zone' && !$('btnPlotStart').disabled, 'the finder is offered, and nothing has to be answered');
+    assertEqual($('dgnZoneChips').children.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.textContent).join(), 'Not sure',
+      'the one pressed chip is the honest one');
+    assertEqual(String($('plotW').value), '46.5', 'the plot starts at the small yard');
+
+    // a reload used to put the zone back to 6 while keeping the native mode beside it
+    game.filters = normalizeFilters({ zone: 8, nativeMode: 'straight', nativeRegion: 'europe', deer: true });
+    localStorage.setItem(LAST_SETUP_KEY, JSON.stringify({ type: 'prairie', w: 66, l: 93 }));
+    openDesignSetup();
+    assert($('dgnZoneOut').innerHTML.includes('Zone 8') && $('dgnZoneOut').innerHTML.includes('as in your last garden'), 'the remembered zone, and that it is remembered');
+    assert($('dgnRulesLine').textContent.includes('Straight species (Europe)') && $('dgnRulesLine').textContent.includes('deer'), 'origin and resistance with it');
+    const styles = $('dgnTypeChips').children;
+    assertEqual(styles.filter(b => b.getAttribute('aria-checked') === 'true').map(b => b.getAttribute('aria-label')).join(), 'Prairie / Meadow', 'the last style');
+    assertEqual(String($('plotW').value) + ' x ' + String($('plotL').value), '66 x 93', 'and the last plot size');
+    assert(!IDB_KEYS.test(LAST_SETUP_KEY), 'which is a device preference read while the page is built, so it stays out of IndexedDB');
+    localStorage.setItem(LAST_SETUP_KEY, '{"type":"nonsense","w":"x","l":9999}');
+    const bad = readLastSetup();
+    assert(bad.type === null && bad.w === null && bad.l === FT_MAX, 'a damaged record is read as far as it is sound');
+  } finally {
+    [game.design, game.filters, newGardenDraft] = saved; localStorage.removeItem(LAST_SETUP_KEY);
+  }
+});
+
+test('a press on the New garden page changes its controls in place', () => {
+  /* Every press emptied its row and built it again, so keyboard focus fell to
+     the body (the next Tab began again at Zone 1) and nothing could animate. */
+  setup();
+  const saved = [game.design, game.filters, newGardenDraft];
+  try {
+    newGardenDraft = null; game.design = null; game.filters = normalizeFilters({ zone: 5 });
+    openDesignSetup();
+    const kept = id => { const before = $(id).children.slice(); return () => $(id).children.length === before.length && $(id).children.every((c, i) => c === before[i]); };
+    const zones = kept('dgnZoneChips'), winters = kept('dgnWinter'), styles = kept('dgnTypeChips'), sizes = kept('plotPresets'), resist = kept('dgnConstraints');
+    $('dgnZoneChips').children.find(b => b.textContent === '7').onclick();
+    assert(zones() && winters(), 'the zone chips are the same nodes after a press');
+    assert($('dgnZoneOut').innerHTML.includes('Zone 7') && !$('dgnZoneOut').innerHTML.includes('last garden'), 'and the readout follows');
+    assertEqual($('dgnZoneChips').children.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.textContent).join(), '7', 'one zone pressed');
+    $('dgnWinter').children[2].onclick();
+    assert($('dgnZoneOut').innerHTML.includes('Zone 6'), 'a winter-cold chip sets the same zone');
+    const before = $('dgnCount').innerHTML;
+    $('dgnTypeChips').children.find(b => b.getAttribute('aria-label') === 'Formal').onclick();
+    assert(styles(), 'the style cards are the same nodes');
+    assertEqual($('dgnTypeChips').children.map(b => b.tabIndex).filter(t => t === 0).length, 1, 'with one of them in the tab order, as a radio group has');
+    assertEqual($('dgnCount').innerHTML, before, 'a style ranks the library and never changes what suits the garden');
+    assert(/Crisp bed edges\.$/.test($('dgnTypeNote').textContent) && /lead the library|library lists everything/.test($('dgnTypeNote').textContent),
+      'and the note says what the style does: ' + $('dgnTypeNote').textContent);
+    assert($('ngSummary').textContent.endsWith('Formal'), 'the footer names it');
+    $('dgnConstraints').children[0].onclick();
+    assert(resist() && $('dgnConstraints').children[0].getAttribute('aria-pressed') === 'true', 'a resist chip is pressed in place');
+    assert($('dgnCount').innerHTML !== before, 'and the count in the header moves with it');
+    $('plotPresets').children[2].onclick();
+    assert(sizes(), 'the size chips are the same nodes');
+    assertEqual($('plotPresets').children.map(b => b.getAttribute('aria-checked')).join(), 'false,false,true,false', 'the pressed size is the one on');
+    assertEqual(String($('plotW').value), '93', 'and the fields follow');
+    $('plotW').value = '50'; $('plotW').oninput();
+    assert($('plotPresets').children.every(b => b.getAttribute('aria-checked') === 'false'), 'a typed size is no preset: the chip is read off the fields');
+    assert($('ngSummary').textContent.startsWith('49.5'), 'and the footer quotes the size the grid can build: ' + $('ngSummary').textContent);
+    // the segment tells a function, as well as patching the criteria dialog's draft
+    let got = null; const host = document.createElement('div');
+    criteriaSegment(host, GARDEN_NATIVE_MODES, 'any', id => { got = id; });
+    host.children[2].onclick();
+    assertEqual(got, 'straight', 'criteriaSegment hands the choice to a callback');
+  } finally { [game.design, game.filters, newGardenDraft] = saved; }
+});
+
+test('Break ground makes the garden the page describes, and Back keeps the page', () => {
+  setup();
+  const saved = [game.design, game.filters, game.discovery, newGardenDraft, openWorlds];
+  let worldsOpened = 0;
+  try {
+    openWorlds = () => { worldsOpened++; };
+    newGardenDraft = null; localStorage.removeItem(LAST_SETUP_KEY);
+    game.design = null; game.filters = normalizeFilters({});
+    openDesignSetup();
+    $('plotName').value = 'Kept name';
+    $('plotPresets').children[1].onclick();
+    $('dgnTypeChips').children.find(b => b.getAttribute('aria-label') === 'Formal').onclick();
+    $('btnDesignBack').onclick();
+    assertEqual(worldsOpened, 1, 'Back returns to Your gardens, where New garden was pressed');
+    assert(newGardenDraft && newGardenDraft.name === 'Kept name', 'and the page is kept');
+    $('plotName').value = ''; $('plotW').value = '30';
+    openDesignSetup();
+    assertEqual($('plotName').value + ' / ' + String($('plotW').value), 'Kept name / 66', 'the plot comes back with the answers: it used to be thrown away');
+    assert($('ngSummary').textContent.endsWith('Formal'), 'style included');
+
+    // north chosen here is north confirmed
+    plotNorthDraft = 90; plotNorthSet = true; updatePlotNorthSummary();
+    assertEqual($('plotNorthLabel').textContent, 'Right of the plot', 'the North button says which side');
+    game.discovery = normalizeDiscovery({ source: 'favorites' });
+    $('btnPlotStart').onclick();
+    assert(game.inGarden && GW === 44 && GH === 44, 'a 66 ft garden: ' + GW + 'x' + GH);
+    assertEqual(game.worldName, 'Kept name', 'named');
+    assertEqual(game.design.zone, null, 'with no zone, since none was given');
+    assertEqual(game.filters.zone, null, 'so the library shows every climate');
+    assertEqual(game.design.type + '/' + game.edgeStyle, 'formal/formal', 'in the chosen style, with its bed edges');
+    assertEqual(game.discovery.source, 'recommended', 'the library opens on the style\'s own list, never an empty Favorites');
+    assertEqual(game.siteNorthDeg, 90, 'north as set');
+    assert(game.startHere && game.startHere.north === true && !game.startHere.dismissed, 'and Start here does not ask for north a second time');
+    assertEqual(newGardenDraft, null, 'the kept page is spent');
+    assertEqual(JSON.stringify(readLastSetup()), JSON.stringify({ type: 'formal', w: 66, l: 66 }), 'and the next garden will start from this one');
+    // without touching north, the step stays to be done
+    game.inGarden = false; openDesignSetup(); $('btnPlotStart').onclick();
+    assertEqual(game.startHere, null, 'a north nobody chose is not ticked');
+  } finally {
+    game.inGarden = false;
+    [game.design, game.filters, game.discovery, newGardenDraft, openWorlds] = saved; localStorage.removeItem(LAST_SETUP_KEY);
+    plotNorthDraft = 0; plotNorthSet = false;
+  }
+});
+
+test('the plot diagram: the lot\'s own area, the theme\'s inks, and a dial that opens from the click', () => {
+  const w = $('plotW'), l = $('plotL'), old = [w.value, l.value, pendingPlotShape];
+  try {
+    w.value = '93'; l.value = '93'; pendingPlotShape = null;
+    assert(plotAreaText().startsWith('8,649 sq ft'), 'a rectangle is its sides multiplied: ' + plotAreaText());
+    // the south-east corner pulled in: a trapezoid 62 tiles tall, 62 wide at the top and 42 at the bottom
+    pendingPlotShape = [[0, 0], [62, 0], [42, 62], [0, 62]];
+    assert(plotAreaText().startsWith('7,254 sq ft'), 'a shaped lot quotes its own area, not the rectangle\'s: ' + plotAreaText());
+    assert(plotNoteText().startsWith('93 ft × 93 ft · 7,254 sq ft'), 'and the full note leads with the plot\'s sides');
+  } finally { [w.value, l.value, pendingPlotShape] = old; }
+  const draw = String(drawPlotShapeEditor);
+  assert(!/239,\s*230,\s*211/.test(draw), 'no cream literal: on paper the outline, grid and dial caption were cream on cream');
+  assert(/uiInk\('--icon-ink'\)/.test(draw) && /resolvedTheme\(\)/.test(draw), 'the drawing takes the theme\'s inks');
+  assert(/textAlign=side\?/.test(draw), 'and a side caption starts beside its edge, not across the resize handle');
+  const wire = String(wirePlotShapeEditor);
+  assert(/addEventListener\('click'/.test(wire) && /plotDialTap/.test(wire), 'the dial opens the north dialog from the click');
+  const finish = wire.slice(wire.indexOf('const finish='), wire.indexOf("addEventListener('pointerup'"));
+  assert(!/openSiteNorthEditor/.test(finish), 'never from pointerup, where the same tap\'s click then closed it on the scrim');
+  assertEqual(plotShapeHintText(), 'Drag a square to resize, a corner to shape the lot, the N dial to set north.', 'and the hint names all three handles');
+  assertEqual(plotPresetSize(PLOT_PRESETS[0]), '46.5 × 46.5', 'a size chip leads with the side it really builds');
+  assertEqual(PLOT_PRESETS[0].label, 'Small yard', 'under a name that means something');
+});
+
+test('a style card pictures three different plants of that style, tallest in the middle', () => {
+  for (const [id] of GARDEN_TYPES) {
+    const keys = styleCardKeys(id, 6, normalizeFilters({ zone: 6 }));
+    assertEqual(keys.length, 3, id + ' has three plants');
+    assertEqual(new Set(keys).size, 3, id + ': all different');
+    keys.forEach(k => assert(PLANTS[k] && !PLANTS[k].hidden, id + ' pictures a real plant: ' + k));
+    const tall = k => plantVisualH(plantDef(k)) || 0;
+    assert(tall(keys[1]) >= tall(keys[0]) && tall(keys[1]) >= tall(keys[2]), id + ': the tallest stands in the middle');
+    if (id !== 'any') keys.forEach(k => assert(PLANTS[k].zones[0] <= 6 && PLANTS[k].zones[1] >= 6, id + ' pictures plants the zone can grow: ' + k));
+  }
+  assertEqual(styleCardKeys('any', 3, null).join(), styleCardKeys('any', 9, null).join(), 'the styleless card is one fixed picture');
+  // a zone no style can fill still gets a picture, from the style's wider list
+  assertEqual(styleCardKeys('mediterranean', 2, normalizeFilters({ zone: 2 })).length, 3, 'a card is never empty');
+});
+
+test('the New garden motion moves only transform and opacity, and reduced motion leaves nothing waiting', () => {
+  const css = readRepoFile('styles.css'), ng = css.slice(css.indexOf('New garden (0.9.118)'));
+  const frames = ng.match(/@keyframes ng\w+\{[^@]*?\}\}/g) || [];
+  assert(frames.length >= 4, 'the page has its keyframes: ' + frames.length);
+  frames.forEach(f => {
+    const props = (f.match(/[{;]\s*([a-z-]+)\s*:/g) || []).map(p => p.replace(/[{;:\s]/g, ''));
+    props.forEach(p => assert(p === 'opacity' || p === 'transform', 'a keyframe animates ' + p + ' in ' + f.slice(0, 24)));
+  });
+  /* The reduce rule shortens an animation and does not remove its delay: an
+     element filled backwards through a delay would sit invisible for it. */
+  assert(/\[data-motion="reduce"\] \.ng-group,\[data-motion="reduce"\] \.ng-styles\.dealing \.ng-style\{animation:none!important\}/.test(ng),
+    'the delayed entrances are switched off outright under reduced motion');
+  assert(/\.gc-seg::before\{[^}]*transform:translateX\(calc\(var\(--i,0\)\*100%\)\)[^}]*transition:transform/.test(ng),
+    'the segment thumb slides by transform');
+  assert(/host\.style\.setProperty\('--i'/.test(String(criteriaSegment)), 'and criteriaSegment places it');
+  // one-shot classes: on for a run, then off, so a kept control can play again
+  const node = { classList: { set: new Set(), add(c) { this.set.add(c); }, remove(c) { this.set.delete(c); } }, listeners: [],
+    addEventListener(t, f) { this.listeners.push(f); }, removeEventListener(t, f) { this.listeners = this.listeners.filter(x => x !== f); } };
+  ngPop(node);
+  assert(node.classList.set.has('pop') && node.listeners.length === 1, 'ngPop puts the class on and waits for its animation');
+  node.listeners[0]({ target: {} });
+  assert(node.classList.set.has('pop'), 'a child\'s animation ending is not this one ending');
+  node.listeners[0]({ target: node });
+  assert(!node.classList.set.has('pop') && node.listeners.length === 0, 'and takes it off when it has run');
+});
+
+test('the first plant is not announced three times, and Start here gets out of the way of the ground', () => {
+  const def = plantDef('echinacea');
+  const armed = localStorage.getItem(COACH_ARMED_KEY), seen = localStorage.getItem('hortus:coach:plant-drag-v1'), session = coachArmedSession;
+  try {
+    coachArmedSession = false; localStorage.removeItem(COACH_ARMED_KEY); coachDriftShownAt = 0;
+    assert(plantPlacedMessage(def, 3, 3, 'echinacea').includes('Drift toggle'), 'a gardener of long standing still gets the drift hint in the toast');
+    localStorage.setItem(COACH_ARMED_KEY, '1'); localStorage.removeItem('hortus:coach:plant-drag-v1');
+    assert(!plantPlacedMessage(def, 3, 3, 'echinacea').includes('Drift'), 'a new one gets it from the tip that is about to say it, not from both');
+    localStorage.setItem('hortus:coach:plant-drag-v1', '1'); coachDriftShownAt = Date.now();
+    assert(!plantPlacedMessage(def, 3, 3, 'echinacea').includes('Drift'), 'nor while that tip is still up');
+    coachDriftShownAt = 0;
+    assert(plantPlacedMessage(def, 3, 3, 'echinacea').includes('Drift toggle'), 'and afterwards the toast carries it again');
+  } finally {
+    coachArmedSession = session; coachDriftShownAt = 0;
+    armed === null ? localStorage.removeItem(COACH_ARMED_KEY) : localStorage.setItem(COACH_ARMED_KEY, armed);
+    seen === null ? localStorage.removeItem('hortus:coach:plant-drag-v1') : localStorage.setItem('hortus:coach:plant-drag-v1', seen);
+  }
+  const step = String(runStartStep);
+  assert(/mobileSheetUi\(\) && !startHereCollapsed\)\{ startHereCollapsed=true/.test(step) && step.indexOf('startHereCollapsed=true') < step.indexOf("if (id==='north')"),
+    'on a phone a step folds the list before it runs: open, the list covered all the ground it said to tap');
+  assert(/#toast\{position:fixed;top:max\(calc\(70px \+ env\(safe-area-inset-top\)\),var\(--toast-floor,0px\),var\(--toast-under,0px\)\)/.test(readRepoFile('styles.css')),
+    'and a toast drops below the folded bar instead of printing over it');
+  assert(/toastClearOfHint\(el\)/.test(String(toast)) && /classList\.contains\('show'\)/.test(String(toastClearOfHint)),
+    'and below a tool hint that is up in the same strip');
+  const oldUnits = unitsPref;
+  try {
+    unitsPref = 'metric';
+    assertEqual(zoneTemperatureText(6), '−23 to −18°C', 'a zone in metric is whole degrees');
+    unitsPref = 'imperial';
+    assertEqual(zoneTemperatureText(6), '−10 to 0°F', 'and unchanged in Fahrenheit');
+  } finally { unitsPref = oldUnits; }
 });
 
 test('the design tally key carries every garden criterion',()=>{

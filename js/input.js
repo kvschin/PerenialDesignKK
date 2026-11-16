@@ -70,6 +70,13 @@ addEventListener('keydown',e=>{
       return;
     }
   }
+  /* New garden, for the same reason and through its own Back, which keeps what
+     the page holds and returns to Your gardens, where it was opened from. */
+  const newGarden=document.getElementById('designScreen');
+  if (newGarden && !newGarden.classList.contains('hidden')){
+    if (e.key==='Escape'){ e.preventDefault(); document.getElementById('btnDesignBack').click(); }
+    return;
+  }
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (game.photoEditing && e.key==='Escape'){ e.preventDefault();
     if (game.underlayCalibration) cancelSitePhotoCalibration(); else closeSitePhotoEdit(false); return; }
