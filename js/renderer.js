@@ -1,6 +1,5 @@
 'use strict';
 
-let snowFlakes = [];
 /* The ground (961 tiles, each a pile of fills/strokes/blades) is identical
    every frame unless the season, window, or terrain changes — yet repainting
    it was the entire frame cost (~12ms). So bake it once to a WORLD-ANCHORED
@@ -3604,6 +3603,18 @@ function drawSeasonFade(t){
    one procedural measurement is spread across frames, then only a heavy
    planting gets sprites. Ground uses the existing banded bake. */
 let gardenOpening=null;
+/* Preparation runs behind the "Opening garden…" cover, a still plate: nothing on
+   screen moves, so a frame there may do far more than a live frame's 4ms and 24
+   clumps, and waiting out sixty frames at that pace was most of an opening.
+   DECIDE stops the measuring pass once its answer cannot change: the governor
+   engages when more than FLOOR plants cost more than HI_MS, both sums only grow,
+   so past DECIDE times the threshold the rest of the measurement only redraws
+   every plant once more to arrive where it already is (and the excess is a fair
+   sample for the per-plant cost the governor keeps). Measured on the demo garden
+   (323 plants), from the click to the reveal: 500ms to 300ms at 1440x925, and
+   1.95s to 0.87s at a phone viewport with the CPU slowed four times, the same
+   sprite decision every time. */
+const OPEN_PREP={MS:12, CAP:96, GROUND_COLS:12, DECIDE:2};
 function beginGardenOpen(){
   gardenOpening={ready:false, key:null};
   document.body.classList.add('garden-opening-active');
@@ -3643,7 +3654,7 @@ function prepareGardenOpen(t){
     if (groundKey!==gkey || groundRefsChanged() || groundZoom!==ZOOM
         || groundCamX!==cam.x || groundCamY!==cam.y || groundMarginStale){
       ensureGroundJob('open',season,game.rot,cam.x,cam.y,MD);
-      stepGroundJob(t,GROUND_JOB_COLS);
+      stepGroundJob(t,OPEN_PREP.GROUND_COLS);
       if (groundJobDone()){ adoptGroundJob(t); o.phase='measure'; }
       return false;
     }
@@ -3671,12 +3682,15 @@ function prepareGardenOpen(t){
   o.ctx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
   const start=performance.now();
   let count=0;
-  while (o.index<o.ents.length && count<PSPRITE.BAKE_CAP
-      && performance.now()-start<PSPRITE.BAKE_MS){
+  while (o.index<o.ents.length && count<OPEN_PREP.CAP
+      && performance.now()-start<OPEN_PREP.MS){
     const e=o.ents[o.index++], t0=performance.now();
     const plants=drawSceneEnt(e,W,H,season,0,o.phase==='sprites',o.ctx,true);
-    if (o.phase==='measure' && plants){ o.plants+=plants; o.plantMs+=performance.now()-t0; }
     count++;
+    if (o.phase==='measure' && plants){
+      o.plants+=plants; o.plantMs+=performance.now()-t0;
+      if (o.plants>PSPRITE.FLOOR && o.plantMs>PSPRITE.HI_MS*OPEN_PREP.DECIDE){ o.index=o.ents.length; break; }
+    }
   }
   if (o.index<o.ents.length) return false;
   if (o.phase==='measure'){
@@ -4176,16 +4190,8 @@ function render(t){
   dmark('over',tOver);
   const tLight=dnow();
 
-  // season light tint + falling snow
+  // season light tint (falling snow is a layer of its own over the canvas: snowFrame)
   applySeasonLighting(cx,W,H,amb,cal.season);
-  if (amb.snow){
-    if (snowFlakes.length<70 && Math.random()<0.5)
-      snowFlakes.push({x:Math.random()*W,y:-5,v:0.4+Math.random()*0.7,r:1+Math.random()*1.6,w:Math.random()*7});
-    cx.fillStyle='rgba(245,248,252,0.85)';
-    snowFlakes.forEach(f=>{ f.y+=f.v; f.x+=Math.sin((t*0.001)+f.w)*0.3;
-      cx.beginPath(); cx.arc(f.x,f.y,f.r,0,7); cx.fill(); });
-    snowFlakes=snowFlakes.filter(f=>f.y<H+5);
-  } else snowFlakes.length=0;
   if (game.layerVis.night){
     applyDuskLighting(cx,W,H,cal.season);
     /* Culled in SCREEN space and padded by the REACH of the glow -- the trap

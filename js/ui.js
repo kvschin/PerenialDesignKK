@@ -2026,7 +2026,7 @@ function updateHUD(){
 const $=id=>document.getElementById(id);
 function show(id){ ['menuScreen','worldsScreen','designScreen','libraryScreen','guideScreen','dailyScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
-  if (id==='menuScreen'){ advanceMenuSeason(); refreshMenuCards(); }
+  if (id==='menuScreen'){ menuSeasonOwnScheme(); refreshMenuCards(); }
 }
 function overlayController(id){ return document.querySelector(`[aria-controls="${id}"]`); }
 function overlayFocusables(el){

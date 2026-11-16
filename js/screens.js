@@ -3055,19 +3055,33 @@ const MENU_BORDER={
      display's frame interval, between STEP_MIN_MS and STEP_MS (menuBakeBudget). */
   STEP_SHARE:.3, STEP_MIN_MS:1.5, STEP_MS:6,
   SETTLE_MS:140,        // a resize holds still this long before the border is replanted
-  FADE_MS:950, SWAP_MS:260, FIRST_MS:600,
+  /* FIRST_MS is the planting coming up over the bare sky, on a cold start and back
+     from a garden: 600ms of it was most of the wait before the menu looked done. */
+  FADE_MS:950, SWAP_MS:260, FIRST_MS:300,
   /* the title column, as styles.css lays it out (.menu-shell). The shade is
      fitted to it from these rather than from a layout read; a test holds the
      two together. */
   SHELL_MIN:28, SHELL_VW:.065, SHELL_MAX:112, SHELL_W:430,
+  /* The border turns to the next season after this long on screen (menuSeasonTurn).
+     It used to turn on every return to the menu, Back from any screen included,
+     which made each Back a whole replant. */
+  TURN_MS:90000,
+  /* A frame's planting while no planted border is on screen: the sky alone stands
+     still, so there is no movement for a busy GPU to stutter, and the first
+     border of a visit is what decides how quickly the menu looks finished. */
+  FIRST_STEP_MS:16,
 };
 let menuSeason='Fall';
+/* menuSeasonHeld: a season dot was pressed, so the border keeps that season for
+   the rest of the visit. menuSeasonOnShowMs: time a finished border has been on
+   screen in this season. */
+let menuSeasonHeld=false, menuSeasonOnShowMs=0;
 let menuBorder=null, menuJob=null, menuBorderSeq=0;
 let menuPalette=null, menuPaletteSig='';         // the questionnaire's style palette, or none
 let menuSizeKey='', menuSizeAt=-Infinity;
 let menuFade=null, menuFadeCv=null, menuShadeA=1, menuDrawnSig='';
 let menuRetired=[];
-const menuSnow=[], menuPipButtons=[];
+const menuPipButtons=[];
 
 function menuHash(n){ let x=Math.imul((n|0)^0x9e3779b9,0x85ebca6b); x^=x>>>13; x=Math.imul(x,0xc2b2ae35); x^=x>>>16; return (x>>>0)/4294967296; }
 function menuKeySeed(s){ let h=7; for (let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return (h%1e9)|0; }
@@ -3122,7 +3136,7 @@ function syncMenuSeasonChrome(){
 }
 function setMenuSeason(season, remember){
   if (!MENU_SCENES[season]) return;
-  menuSeason=season;
+  menuSeason=season; menuSeasonOnShowMs=0;
   if (remember && hasStorage){ try{ localStorage.setItem('hortus:menuSeasonIdx',String(SEASONS.indexOf(season))); }catch(_){ } }
   setMenuViewportFill();
   /* The title turns colour here, not when the border lands: the 900ms it takes
@@ -3131,8 +3145,9 @@ function setMenuSeason(season, remember){
   document.documentElement.style.setProperty('--menu-accent',MENU_SCENES[season].accent);
   syncMenuSeasonChrome();
 }
-/* Each visit to the menu opens on the next season; the four dots on the key
-   turn it by hand and are remembered, so the next visit carries on from there. */
+/* Opening the app starts on the season after the last one shown, so the next
+   visit carries on from there. Within a visit the border turns on its own
+   (menuSeasonTurn), and a press on one of the four dots holds it. */
 function advanceMenuSeason(){
   let next=0;
   if (hasStorage){
@@ -3144,6 +3159,23 @@ function advanceMenuSeason(){
   }
   menuPalette=null; menuPaletteSig='';      // back from the questionnaire: the season's own scheme
   setMenuSeason(SEASONS[next],false);
+}
+/* Back on the menu: the border stands in the season it was showing, with the
+   season's own plants again if the New garden page had replanted it in a style.
+   Clearing a palette that is not set moves no key, so a plain Back plants
+   nothing. It used to advance the season here, so every Back was a replant. */
+function menuSeasonOwnScheme(){ menuPalette=null; menuPaletteSig=''; }
+/* The next season, once a finished border has been on screen for TURN_MS. Only
+   time on screen counts: not a covered menu (menuBorderWork is not called), not
+   a hidden tab (a long gap counts as a quarter second), and not the planting or
+   the crossfade. A held season does not turn, and neither does a reader who has
+   asked for less motion: an automatic change every minute and a half is exactly
+   what that setting is for. */
+function menuSeasonTurn(gap){
+  if (menuSeasonHeld || reducedMotion() || !menuBorder || !menuBorder.ready || menuJob || menuFade) return;
+  menuSeasonOnShowMs+=Math.min(250,Math.max(0,gap||0));
+  if (menuSeasonOnShowMs<MENU_BORDER.TURN_MS) return;
+  setMenuSeason(SEASONS[(SEASONS.indexOf(menuSeason)+1)%SEASONS.length],true);
 }
 
 /* Who stands where. Pure: no canvas, no clock, no Math.random. Every row has
@@ -3382,7 +3414,7 @@ function menuCancelJob(){
 function releaseMenuBorder(){
   menuCancelJob();
   menuRetireBorder(menuBorder); menuBorder=null;
-  menuFade=null; menuFadeCv=null; menuDrawnSig=''; menuSnow.length=0;
+  menuFade=null; menuFadeCv=null; menuDrawnSig='';
   menuCloseRetired();
 }
 function menuBorderKey(){ return menuSeason+'|'+mcnv.width+'x'+mcnv.height+'|'+(mobileSheetUi()?1:0)+'|'+menuPaletteSig; }
@@ -3437,6 +3469,7 @@ function menuBorderWork(t,gap){
   if (!(W>0 && H>0) || !mcnv.width || !mcnv.height) return;
   const size=mcnv.width+'x'+mcnv.height;
   if (size!==menuSizeKey){ menuSizeKey=size; menuSizeAt=t; }
+  menuSeasonTurn(gap);
   const want=menuBorderKey();
   const have=menuJob ? menuJob.key : (menuBorder && menuBorder.ready ? menuBorder.key : '');
   if (have!==want && (!menuBorder || t-menuSizeAt>=MENU_BORDER.SETTLE_MS)){
@@ -3446,11 +3479,19 @@ function menuBorderWork(t,gap){
   }
   const budget=menuBakeBudget(gap);       // tracked every frame, building or not
   const job=menuJob; if (!job) return;
-  const t0=performance.now(), ms=gap>180 ? 400 : budget;
+  /* With no planted border on screen (a cold start, back from a garden) only the
+     still sky is showing, so the planting takes FIRST_STEP_MS a frame; and the
+     frame that hands back the sky ends there, so the sky is painted at once
+     rather than after a frame's planting. */
+  const first=!(menuBorder && menuBorder.ready);
+  const t0=performance.now(), ms=gap>180 ? 400 : first ? Math.max(budget,MENU_BORDER.FIRST_STEP_MS) : budget;
   let r;
   do {
     r=job.it.next();
-    if (!r.done && r.value){ job.b=r.value; job.b.key=job.key; if (!menuBorder) menuAdoptBorder(job.b,t); }
+    if (!r.done && r.value){
+      job.b=r.value; job.b.key=job.key;
+      if (!menuBorder){ menuAdoptBorder(job.b,t); break; }
+    }
   } while (!r.done && performance.now()-t0<ms);
   if (r.done){ menuJob=null; r.value.key=job.key; menuAdoptBorder(r.value,t); }
 }
@@ -3469,14 +3510,7 @@ function menuDrawBorder(b,t,shadeA,still){
   mcx.setTransform(1,0,0,1,0,0);
   if (b.glow){ mcx.globalCompositeOperation='screen'; mcx.drawImage(b.glow,0,0,dw,dh); mcx.globalCompositeOperation='source-over'; }
   if (shadeA>0){ mcx.globalAlpha=shadeA; mcx.drawImage(b.shade,0,0,dw,dh); mcx.globalAlpha=1; }
-  if (MENU_SCENES[b.season].snow && b.ready && !still){
-    const d=dw/b.W;
-    if (menuSnow.length<70 && Math.random()<.5)
-      menuSnow.push({x:Math.random()*dw,y:-6,v:(.3+.6*Math.random())*d,r:(1+1.5*Math.random())*d,w:Math.random()*7});
-    mcx.fillStyle='rgba(246,249,252,.78)';
-    for (const f of menuSnow){ f.y+=f.v; f.x+=Math.sin(t*.001+f.w)*.3; mcx.beginPath(); mcx.arc(f.x,f.y,f.r,0,7); mcx.fill(); }
-    for (let i=menuSnow.length-1;i>=0;i--) if (menuSnow[i].y>dh+6) menuSnow.splice(i,1);
-  } else if (menuSnow.length && !MENU_SCENES[b.season].snow) menuSnow.length=0;
+  // falling snow is a layer of its own over this canvas: snowFrame
 }
 function menuRender(t){
   if (!(VW>0 && VH>0) || !mcnv.width || !mcnv.height) return;
@@ -3514,7 +3548,8 @@ function buildMenuPips(){
     b.style.setProperty('--pip',SEASON_FILL[s]); b.title=s;
     b.setAttribute('aria-label','Show the border in '+s); b.setAttribute('aria-pressed','false');
     b.appendChild(document.createElement('i'));
-    b.onclick=()=>{ if (s!==menuSeason) setMenuSeason(s,true); };
+    // a chosen season stays for the rest of the visit, the current one included
+    b.onclick=()=>{ menuSeasonHeld=true; if (s!==menuSeason) setMenuSeason(s,true); };
     host.appendChild(b); menuPipButtons.push(b);
   });
 }
@@ -3619,6 +3654,133 @@ function paintMenuArt(){ paintMenuGardenArt(menuSeason); paintMenuLibraryArt(); 
    border kept moving behind them is paint nobody can see, and their 4px
    backdrop blur is recomposited for every frame of it. */
 function menuBackdropCovered(){ return screenOpen('libraryScreen') || screenOpen('guideScreen'); }
+
+/* ---------- falling snow ----------
+   A layer of its own over the canvas, drawn on every animation frame. It was
+   drawn into the garden's frame and the menu's, and each flake moved a fixed
+   step per frame DRAWN: the garden draws at the display's rate while it is being
+   used and at 30fps when it is idle, so snow fell five times faster the moment
+   the garden was touched at 164Hz and slowed and stepped when it was let go, and
+   the menu's fell in 30fps steps. Both also started from an empty sky and filled
+   in at random. Here a flake's place is a function of the clock: steady at any
+   frame rate, the whole fall there from the first frame (faded in), and the
+   garden is never redrawn for it. Three depths, the far flakes small, slow and
+   faint, so the fall has depth rather than being one sheet. The layer is
+   display:none when no snow falls. Less motion: no falling snow (the winter
+   scene keeps its snow).
+   What it costs is measured as GPU time a second at 1440x925, 164Hz: the old
+   snow 72ms on the winter menu, 130 in an idle winter garden and 805 panning
+   one; this layer drawn every frame with arcs 376, 314 and 909 with 10 frames
+   dropped while panning, because a layer that changes every frame has the whole
+   screen composited every frame. Drawn about 60 times a second (FRAME_MS) and
+   with each flake STAMPED from one soft dot (snowFlakeImage) rather than traced
+   as an arc: 94, 165 and 797, nothing dropped. */
+const SNOW={
+  PER_MPX:85, MIN:40, MAX:240,          // flakes per million CSS px^2, bounded
+  FADE_MS:1400, WIND:9, MARGIN:8,
+  FRAME_MS:1000/60,                     // drawn about this often (snowFrame), whatever the display
+  LAYERS:[
+    {share:.45, r:[.7,1.2], v:[18,30], amp:[4,9],   a:.55},
+    {share:.35, r:[1.2,1.9], v:[30,48], amp:[7,14], a:.75},
+    {share:.20, r:[1.9,2.8], v:[48,72], amp:[10,20], a:.9},
+  ],
+};
+const snowLayers={}, snowFlakeImages=[];
+/* One soft dot, white by day and a dimmer blue at night, made through the sprite
+   caches' own surface so it is an ImageBitmap where that matters (a small canvas
+   drawn into a big one is re-uploaded every frame in Firefox: renderer.js,
+   spriteBitmapsSupported). */
+function snowFlakeImage(night){
+  const k=night?1:0;
+  if (snowFlakeImages[k]) return snowFlakeImages[k];
+  const cv=spriteBakeSurface('snow',32,32), g=cv.getContext('2d'), col=night?'196,206,226':'246,249,252';
+  const gr=g.createRadialGradient(16,16,0,16,16,16);
+  gr.addColorStop(0,'rgba('+col+',1)'); gr.addColorStop(.55,'rgba('+col+',.9)'); gr.addColorStop(1,'rgba('+col+',0)');
+  g.fillStyle=gr; g.fillRect(0,0,32,32);
+  return (snowFlakeImages[k]=spriteBakeImage('snow',cv));
+}
+/* The same flakes for the same size: seeded, so a resize re-lays them and
+   nothing else does. */
+function snowField(W,H){
+  const n=Math.max(SNOW.MIN,Math.min(SNOW.MAX,Math.round(W*H/1e6*SNOW.PER_MPX)));
+  const rnd=mulberry(7717), span=(a)=>a[0]+rnd()*(a[1]-a[0]), sy=H+2*SNOW.MARGIN;
+  return SNOW.LAYERS.map(L=>{
+    const out=[], k=Math.round(n*L.share);
+    for (let i=0;i<k;i++){
+      const v=span(L.v);
+      out.push({x0:rnd()*(W+2*SNOW.MARGIN), y0:rnd()*sy, v, r:span(L.r), amp:span(L.amp),
+        w:.9+rnd()*1.6, ph:rnd()*6.2832, drift:SNOW.WIND*v/48});
+    }
+    return out;
+  });
+}
+/* One layer for one frame. `want` fades it in or out; `off` hides it at once,
+   for a layer that has stopped being the one on screen. */
+function snowStep(id,t,gap,want,night,off){
+  let s=snowLayers[id];
+  if (!s){
+    if (!want) return;
+    const cv=$(id); if (!cv || !cv.getContext) return;
+    s=snowLayers[id]={cv, g:cv.getContext('2d'), w:0, h:0, dpr:0, level:0, shown:false, field:null};
+  }
+  if (off) s.level=0;
+  else if (s.level===0 && !want) return;
+  else {
+    const step=Math.min(100,Math.max(0,gap||0))/SNOW.FADE_MS;
+    s.level=want ? Math.min(1,s.level+step) : Math.max(0,s.level-step);
+  }
+  if (s.level<=0){
+    if (s.shown){ s.shown=false; s.cv.classList.add('hidden'); }
+    return;
+  }
+  if (!s.shown){ s.shown=true; s.cv.classList.remove('hidden'); }
+  const W=VW, H=VH;
+  if (s.w!==W || s.h!==H || s.dpr!==DPR){
+    s.w=W; s.h=H; s.dpr=DPR;
+    s.cv.style.width=W+'px'; s.cv.style.height=H+'px';
+    s.cv.width=Math.max(1,Math.round(W*DPR)); s.cv.height=Math.max(1,Math.round(H*DPR));
+    s.field=snowField(W,H);
+  }
+  const g=s.g, sec=t/1000, M=SNOW.MARGIN, sx=W+2*M, sy=H+2*M;
+  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,s.cv.width,s.cv.height);
+  g.setTransform(DPR,0,0,DPR,0,0);
+  const img=snowFlakeImage(night), dim=night ? .62 : 1;
+  for (let L=0;L<SNOW.LAYERS.length;L++){
+    g.globalAlpha=SNOW.LAYERS[L].a*dim*s.level;
+    for (const f of s.field[L]){
+      const y=((f.y0+f.v*sec)%sy+sy)%sy-M;
+      const x=((f.x0+f.drift*sec+f.amp*Math.sin(sec*f.w+f.ph))%sx+sx)%sx-M;
+      const d=f.r*2.4;                 // the dot's soft edge: its solid core is about r
+      g.drawImage(img,x-d/2,y-d/2,d,d);
+    }
+  }
+  g.globalAlpha=1;
+}
+/* Which layer should be snowing: the menu's over a winter border, the garden's
+   in a winter garden. A screen laid over the canvas, a garden still opening, or
+   the other one being on screen puts a layer away at once; a season turning
+   fades it. */
+let snowVs=0, snowSkip=0, snowGap=0;
+function snowFrame(t,gap){
+  /* Every Nth frame, N the display interval into FRAME_MS (the guidebook's
+     cadence): a layer that changes on every frame makes the browser composite
+     the whole screen on every frame, where the menu and an idle garden change 30
+     times a second. The fade is driven by the time since the last draw. */
+  const dt=Math.min(34,Math.max(4,gap||16.7));
+  snowVs=Math.min(dt,(snowVs||dt)*1.02);
+  snowGap+=Math.max(0,gap||0);
+  if (--snowSkip>0) return;
+  snowSkip=SNOW.FRAME_MS>0 ? Math.max(1,Math.round(SNOW.FRAME_MS/snowVs)) : 1;
+  gap=snowGap; snowGap=0;
+  const still=reducedMotion(), garden=!!game.inGarden;
+  const menuOff=garden || menuBackdropCovered();
+  const menuWant=!menuOff && !still && !!menuBorder && menuBorder.ready && !!MENU_SCENES[menuBorder.season].snow;
+  snowStep('menuSnow',t,gap,menuWant,false,menuOff||still);
+  const gardenOff=!garden || !!gardenOpening || fullScreenRenderBlocked();
+  let gardenWant=false;
+  if (!gardenOff && !still){ const a=AMBIENCE[calClock().season]; gardenWant=!!(a && a.snow); }
+  snowStep('gardenSnow',t,gap,gardenWant,!!(game.layerVis && game.layerVis.night),gardenOff||still);
+}
 
 /* ---------- main loop ---------- */
 const MENU_FRAME_MS=1000/30;
@@ -4407,6 +4569,7 @@ function frame(t){
       lastMenuRender=t;
     }
   }
+  snowFrame(t,rawGap);
 }
 /* ---------- first run ----------
    A stranger's first path through this app was the questionnaire: zone, style,

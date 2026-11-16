@@ -104,6 +104,8 @@ if ('serviceWorker' in navigator)
 </svg>
 
 <canvas id="menuCanvas"></canvas>
+<!-- Falling snow, a layer of its own over the canvas: screens.js, snowFrame -->
+<canvas id="menuSnow" class="snow-layer hidden" aria-hidden="true"></canvas>
 
 <!-- MAIN MENU -->
 <div class="screen" id="menuScreen">
@@ -387,6 +389,7 @@ if ('serviceWorker' in navigator)
   </div>
   <main id="canvasStage" class="canvas-stage">
   <canvas id="gameCanvas" class="hidden"></canvas>
+  <canvas id="gardenSnow" class="snow-layer hidden" aria-hidden="true"></canvas>
   <div id="compassEdges" aria-hidden="true" title="Garden directions">
     <span class="compass-edge-label" data-dir="N"><i></i><b>N</b></span>
     <span class="compass-edge-label" data-dir="E"><i></i><b>E</b></span>

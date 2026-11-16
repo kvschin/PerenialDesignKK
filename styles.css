@@ -310,6 +310,9 @@ button:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
   padding-left:max(clamp(28px,6.5vw,112px),env(safe-area-inset-left))}
 #menuCanvas{position:absolute;top:0;left:0;width:100%;height:100vh;
   height:calc(100vh + env(safe-area-inset-bottom));z-index:0;pointer-events:none}
+/* Falling snow, over the menu canvas and over the garden canvas, under every
+   piece of chrome. Sized by snowFrame to the canvas it lies over. */
+.snow-layer{position:absolute;top:0;left:0;z-index:0;pointer-events:none;display:block}
 /* Title and entries share the middle; the footer takes the foot of the last
    row. A window too short for all of it lets the rows collapse and the screen
    scroll, rather than one piece being laid over another. */
@@ -2212,7 +2215,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 /* print: just the planting list, black on white */
 @media print{
   html,body{height:auto;overflow:visible;background:#fff}
-  #gameCanvas,#menuCanvas,#hud,#toast,#plantCard{display:none!important}
+  #gameCanvas,#menuCanvas,.snow-layer,#hud,#toast,#plantCard{display:none!important}
   /* Both sheets are .modal-screen, whose whole job on screen is to darken the
      garden behind the dialog. Printed with background graphics on, that scrim
      came out as a dark surround around the page - so the surface has to be

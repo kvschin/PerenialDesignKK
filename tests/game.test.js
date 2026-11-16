@@ -11744,9 +11744,54 @@ test('the questionnaire replants the border, and the menu takes its own scheme b
   applyMeadowPalette('any', 6, {});
   assertEqual(menuPalette, null, "'Any garden' keeps the season's own scheme");
   applyMeadowPalette('prairie', 6, {});
-  advanceMenuSeason();
+  const season = menuSeason;
+  show('menuScreen');
   assertEqual(menuPalette, null, 'going back to the menu clears it');
   assertEqual(menuPaletteSig, '', 'so the next border is the season as authored');
+  assertEqual(menuSeason, season, 'in the season it was already showing');
+});
+
+test('Back to the menu keeps the season; the border turns on its own, and a dot holds it', () => {
+  /* Every return to the menu used to advance the season, which made every Back a
+     whole replant of the border. Now only time on screen turns it. */
+  const saved = { season: menuSeason, border: menuBorder, job: menuJob, fade: menuFade, held: menuSeasonHeld, rm: globalThis.reducedMotion };
+  try {
+    setMenuSeason('Summer', false);
+    for (const id of ['worldsScreen', 'libraryScreen', 'dailyScreen', 'guideScreen', 'designScreen']) {
+      show(id); show('menuScreen');
+      assertEqual(menuSeason, 'Summer', 'Back from ' + id + ' leaves the season alone');
+    }
+    menuBorder = { ready: true }; menuJob = null; menuFade = null; menuSeasonHeld = false;
+    globalThis.reducedMotion = () => false;
+    setMenuSeason('Summer', false);
+    const frames = ms => { for (let i = 0; i < ms / 16; i++) menuSeasonTurn(16); };
+    frames(MENU_BORDER.TURN_MS - 1000);
+    assertEqual(menuSeason, 'Summer', 'not before TURN_MS on screen');
+    frames(2000);
+    assertEqual(menuSeason, 'Fall', 'then the next season');
+    for (let i = 0; i < 20; i++) menuSeasonTurn(60000);
+    assertEqual(menuSeason, 'Fall', 'a hidden tab coming back counts a quarter second, not the minutes it was away');
+    menuJob = {}; frames(MENU_BORDER.TURN_MS + 1000); menuJob = null;
+    assertEqual(menuSeason, 'Fall', 'time spent planting does not count');
+    globalThis.reducedMotion = () => true; frames(MENU_BORDER.TURN_MS + 1000);
+    assertEqual(menuSeason, 'Fall', 'less motion: no automatic turn');
+    globalThis.reducedMotion = () => false;
+    // a dot press holds the season for the rest of the visit
+    buildMenuPips();
+    const pip = menuPipButtons.find(b => b.dataset.season === 'Winter');
+    assert(pip && typeof pip.onclick === 'function', 'there is a Winter dot');
+    pip.onclick();
+    assertEqual(menuSeason, 'Winter', 'the dot turns it');
+    assert(menuSeasonHeld, 'and holds it');
+    frames(MENU_BORDER.TURN_MS * 3);
+    assertEqual(menuSeason, 'Winter', 'held: it does not turn');
+  } finally {
+    menuBorder = saved.border; menuJob = saved.job; menuFade = saved.fade; menuSeasonHeld = saved.held;
+    globalThis.reducedMotion = saved.rm; setMenuSeason(saved.season, false);
+  }
+  const ui = readRepoFile('js/ui.js');
+  assert(!/advanceMenuSeason/.test(ui.slice(ui.indexOf('function show('), ui.indexOf('function overlayController'))),
+    'show() no longer advances the season');
 });
 
 test('the season dots turn the border and are remembered', () => {
@@ -17484,8 +17529,8 @@ function openingCase(n, plantCost, fn){
     let ticks=0;
     const step=()=>{
       const before=calls, done=prepareGardenOpen(++ticks*16.7);
-      assert(calls-before<=PSPRITE.BAKE_CAP,'a preparation frame respects the entity cap');
-      assert(PSPRITE.rendered<=PSPRITE.BAKE_CAP,'no cold burst or sibling stand-in past the bake cap');
+      assert(calls-before<=OPEN_PREP.CAP,'a preparation frame respects the entity cap');
+      assert(PSPRITE.rendered<=OPEN_PREP.CAP,'no cold burst or sibling stand-in past the cap');
       assert(ticks<500,'opening makes bounded forward progress');
       return done;
     };
@@ -17501,7 +17546,10 @@ test('cold opening prepares every own sprite before reveal, even above the memor
   openingCase(80,1,step=>{
     while(!step()){}
     assert(PSPRITE.active,'measured heavy planting gets sprites');
-    assertEqual(gardenOpening.plants,80,'all visible planting was measured');
+    /* Measuring stops once the answer cannot change: past FLOOR plants and
+       DECIDE times the threshold, which this fixture (1ms a plant) reaches early. */
+    assert(gardenOpening.plants>PSPRITE.FLOOR && gardenOpening.plants<80,'measuring stopped once the decision was certain: '+gardenOpening.plants);
+    assert(gardenOpening.plantMs>PSPRITE.HI_MS*OPEN_PREP.DECIDE,'and not before');
     assertEqual(PSPRITE.map.size,80,'every clump has its own sprite before reveal');
     assert(PSPRITE.bytes>PSPRITE.MEM,'fixture exceeds the memory ceiling');
     assert(document.body.classList.contains('garden-opening-active'),'preparation alone does not reveal an unfinished frame');
@@ -20761,6 +20809,34 @@ test('the guidebook draws about sixty times a second, whatever the display runs 
   }
 });
 
+test('falling snow is a layer of its own, placed by the clock, and none under reduced motion', () => {
+  /* It was drawn into the garden's frame and the menu's and moved a step per
+     frame DRAWN, so it fell five times faster while the garden was in use than
+     while it was idle, and started from an empty sky. */
+  const a = snowField(1440, 900), b = snowField(1440, 900);
+  assertEqual(JSON.stringify(a), JSON.stringify(b), 'the same flakes for the same size');
+  const n = a.reduce((s, L) => s + L.length, 0);
+  assert(n >= SNOW.MIN - 3 && n <= SNOW.MAX + 3, 'a bounded count: ' + n);
+  assert(Math.max(...a[0].map(f => f.v)) <= Math.min(...a[2].map(f => f.v)), 'the far flakes fall slower than the near ones');
+  assert(a.every(L => L.every(f => f.y0 >= 0 && f.y0 <= 900 + 2 * SNOW.MARGIN)), 'spread down the whole fall from the start, not queued at the top');
+  const r = readRepoFile('js/renderer.js'), s = readRepoFile('js/screens.js');
+  assert(!/snowFlakes/.test(r), 'the garden frame draws no snow of its own');
+  assert(!/menuSnow\.push|menuSnow=\[\]/.test(s), 'nor does the menu border');
+  const frameSrc = s.slice(s.indexOf('function frame(t)'), s.indexOf('/* ---------- first run'));
+  assert(/snowFrame\(t,rawGap\);/.test(frameSrc), 'the loop draws it on every animation frame, whatever the canvases do');
+  const step = s.slice(s.indexOf('function snowStep'), s.indexOf('function snowFrame'));
+  assert(/f\.v\*sec/.test(step) && /f\.drift\*sec/.test(step), 'a flake\'s place is a function of the clock');
+  assert(/spriteBakeSurface\('snow'/.test(s), 'the flake is made as the sprite caches make theirs (an ImageBitmap for Firefox)');
+  // reduced motion: nothing falls
+  const saved = { rm: globalThis.reducedMotion, border: menuBorder, garden: game.inGarden };
+  try {
+    game.inGarden = false; menuBorder = { ready: true, season: 'Winter' };
+    globalThis.reducedMotion = () => true;
+    for (let i = 0; i < 10; i++) snowFrame(1000 + i * 16.7, 16.7);
+    assert(!snowLayers.menuSnow || !snowLayers.menuSnow.shown, 'less motion: no falling snow');
+  } finally { globalThis.reducedMotion = saved.rm; menuBorder = saved.border; game.inGarden = saved.garden; }
+});
+
 test('the menu border plants a share of the display\'s frame, not a flat 6ms', () => {
   /* The budget counts a bake's script; its raster lands in the GPU process
      afterwards at several times that, so a flat 6ms dropped 6-8 frames on every
@@ -20778,7 +20854,10 @@ test('the menu border plants a share of the display\'s frame, not a flat 6ms', (
   const src = readRepoFile('js/screens.js');
   const work = src.slice(src.indexOf('function menuBorderWork'), src.indexOf('function menuDrawBorder'));
   assert(/menuBakeBudget\(gap\)/.test(work), 'the planting asks for its budget every frame');
-  assert(/gap>180 \? 400 : budget/.test(work), 'a tab coming back from the background still just finishes');
+  assert(/gap>180 \? 400 :/.test(work), 'a tab coming back from the background still just finishes');
+  assert(/first \? Math\.max\(budget,MENU_BORDER\.FIRST_STEP_MS\) : budget/.test(work),
+    'with only the still sky on screen the first planting takes the larger budget');
+  assert(/if \(!menuBorder\)\{ menuAdoptBorder\(job\.b,t\); break; \}/.test(work), 'and the sky is painted the frame it is ready');
 });
 
 test('the Library lays out only the rows on screen, and its panes and the guide\'s scroll on the compositor', () => {

@@ -183,7 +183,17 @@ once more than one is saved; a coneflower in its four seasons; a plan. A
 **key** (`#menuKey`) names the six plants that carry most of the border, each
 row opening the Plant Library at that plant (`openPlantLibraryAt`), beside four
 season dots that turn the border by hand (`setMenuSeason`; the choice is
-written to `hortus:menuSeasonIdx`, so the next visit carries on from it). The
+written to `hortus:menuSeasonIdx`, so the next visit carries on from it).
+**The season turns on its own, not on Back** (0.9.121; `menuSeasonTurn`,
+`MENU_BORDER.TURN_MS` 90s): a launch starts on the season after the last one
+shown (`advanceMenuSeason`, from `init` only), then the border turns after each
+90 seconds a finished border has been on screen (not covered, not planting or
+fading, a hidden tab's gap counted as a quarter second). A dot press holds that
+season for the rest of the visit (`menuSeasonHeld`), and reduced motion turns
+nothing. `show('menuScreen')` advanced the season from June 2026, so every Back
+from Your gardens, the Library, Daily or the Guide was a whole replant; it now
+only restores the season's own plants after the New garden page's style
+preview (`menuSeasonOwnScheme`), which plants nothing on a plain Back. The
 key sits in the screen's corner on a wide window, folds to one line under
 1180px, and on SHEET is a row of the column's own grid, so a short phone
 scrolls instead of laying it over the entries; `.menu-shell` is therefore NOT
@@ -475,7 +485,8 @@ See §13a.
   ~160fps with a probe of 0ms, which is not a canvas that went to software for good.
   **`--menu` asks the same of the title screen**, whose border is ~200 clump
   sprites blitted every frame onto a canvas of its own (§17). There the probe is
-  the JS cost of a whole `menuRender` across all four seasons; `--menu
+  the JS cost of a whole `menuRender` across all four seasons, and in Winter the
+  cost of each draw of the falling snow layer (`snowStep`, 0.9.121); `--menu
   --canvases` bakes the sprites as canvases and must report DEMOTED, which is
   how to tell the probe still works. Run it on any change to how the border's
   images are made or drawn.
@@ -2415,8 +2426,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     picture of each clump to reuse: borrowing siblings made plants change shape
     for about a second on a saved garden. The opening status covers the canvas
     while ground is baked one band per frame and visible entities are processed
-    in batches bounded by 4ms / 24 entities. One procedural plant-only measurement,
-    also batched, seeds the governor using its existing 6ms and 40-plant thresholds;
+    in batches bounded by `OPEN_PREP` (12ms / 96 entities, 12 ground chunks a
+    frame; 0.9.121 — it was the live frame's 4ms / 24, but the cover is a still
+    plate with nothing on screen to stutter). One procedural plant-only measurement,
+    also batched, seeds the governor using its existing 6ms and 12-plant thresholds,
+    and STOPS once the answer cannot change (`OPEN_PREP.DECIDE`: past FLOOR plants
+    and twice HI_MS, both sums only grow). Together, demo garden click to reveal:
+    500 -> 300ms on a desktop, 1.95 -> 0.87s at a phone viewport with the CPU
+    slowed 4x, the same sprite decision every time. What is left on a slow phone
+    is mostly `enterGarden`'s synchronous setup (~370ms there, 63 on a desktop);
     cheap gardens stay procedural, heavy gardens prepare every visible clump's
     own sprite. No three expensive full-scene trial frames on entry. Cache aging
     runs once for the whole preparation so early batches cannot be evicted before
@@ -2944,7 +2962,23 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     is integer-day) live in the records, and stunting is now computed against
     the FULL tree list (the old per-frame pass used the viewport-culled list,
     so an off-screen tree stopped stunting a visible plant). Planting
-    pulse fx (`game.fx`), the baked season wash (§11c) and snowfall. (The
+    pulse fx (`game.fx`) and the baked season wash (§11c). **Falling snow is
+    not drawn here** (0.9.121): it is a canvas of its own over the garden's and
+    the menu's (`#gardenSnow`/`#menuSnow`, `snowFrame`/`snowStep`, `SNOW`,
+    screens.js), so the garden is never redrawn for it. Each flake's place is a
+    function of the clock, so it falls at one speed at any frame rate: drawn
+    into the frame and moved a step per frame DRAWN, it fell five times faster
+    whenever the garden was being used (display rate) than when idle (30fps),
+    and it started from an empty sky. Three depths, faded in and out with the
+    season, put away at once under a covering screen, none under reduced
+    motion. It draws about 60 times a second (`FRAME_MS`, the guidebook's
+    every-Nth-frame cadence) and STAMPS one soft dot rather than tracing arcs:
+    a layer changing on every frame at 164Hz has the whole screen composited on
+    every frame, and measured as GPU time a second (winter menu / idle garden /
+    panning) old 72/130/805, every frame with arcs 376/314/909 with frames
+    dropped, as shipped 95/153/798 with none. The dot is an ImageBitmap through
+    `spriteBakeSurface` for Firefox's sake; `ff-accel-check.cjs --menu` times
+    the snow layer too. (The
     golden-hour photo, `takePhoto()`, and its wash went in 0.9.114 with the
     garden menu's regrouping. `game.photo` outlives it as the renderer's
     "this frame is kept, bake everything exactly" flag: nothing in the app sets
@@ -6609,7 +6643,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     drifts are seeded by the season and not by the palette (Prairie → grasses,
     Cottage → forbs, Shade → ferns/sedges; 'Any garden' keeps the season's own
     scheme). The click itself only records the palette; the planting happens
-    over the next frames. Going back to the menu clears it (`advanceMenuSeason`).
+    over the next frames. Going back to the menu clears it (`menuSeasonOwnScheme`).
     The daily challenge is the other panel here (`#dailyScreen`).
     Plain DOM, toggled by `show()`. The planting-list
     (`#exportScreen`), plant filters (`#filterScreen`), design plan
@@ -6643,14 +6677,21 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     accelerated surface, so their raster lands in the GPU process afterwards at
     several times the cost. Every turn of the season dropped 6-8 frames, worst
     42-67ms, with no main-thread task over 12ms and the GPU process busy 680ms of
-    1.4s, and a turn happens on EVERY return to the menu, since `show()`
-    advances the season. Measured at 164Hz, 1440x925: 7 missed frames a turn
+    1.4s, and until 0.9.121 a turn happened on every return to the menu.
+    Measured at 164Hz, 1440x925: 7 missed frames a turn
     (worst 48-67ms, planted in ~190ms) became 1-1.4 (18ms, ~270ms); on a phone
     viewport 3.3 (48-54ms) became 1 (12ms). The one long frame left is the far
     field's: Chrome rasterises that layer when it is transferred, not as it is
     stamped, so ending frames between stamps only moved it. It hands back the border with only
     its sky and shade first, which goes up at once on a cold start, and
     publishes everything else together, so a half-planted border is never drawn.
+    **The first border of a visit is planted faster** (0.9.121): while no planted
+    border is on screen only the still sky shows, so a frame plants
+    `FIRST_STEP_MS` (16), the frame that hands back the sky ends there so it
+    paints at once, and the planting comes up over it in `FIRST_MS` (300, was
+    600). Cold start to a planted border 315 -> ~250ms, to a finished menu
+    ~900 -> ~550ms (desktop, local server); the frames dropped meanwhile are
+    over a sky that does not move.
     The first eight rows are stamped small from a pooled set into ONE still
     layer, veiled row by row for distance; the five near rows are a sprite a
     clump, and the wind is a shear on each blit, the garden's own trick.

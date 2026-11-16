@@ -52,6 +52,7 @@ const GARDEN = fs.readFileSync(path.resolve(opt('garden', path.join(REPO, 'demo-
 const W = +opt('w', 2560), H = +opt('h', 1400);
 const MENU = argv.includes('--menu'), CANVASES = argv.includes('--canvases');
 const MENU_SOFT_MS = 5;      // a menu frame's JS past this, five frames running, is a software canvas
+const SNOW_SOFT_MS = 2.5;    // the same for a draw of the falling snow over a winter border
 const FF = [process.env.PP_FIREFOX_PATH, 'C:/Program Files/Mozilla Firefox/firefox.exe',
   '/Applications/Firefox.app/Contents/MacOS/firefox', '/usr/bin/firefox'].filter(Boolean).find(p => fs.existsSync(p));
 if (!FF) { console.error('Firefox not found. Set PP_FIREFOX_PATH.'); process.exit(1); }
@@ -100,6 +101,11 @@ const MENU_DRIVER = `
     const oR=window.menuRender;
     window.menuRender=function(t){ const a=performance.now(); const r=oR.apply(this,arguments);
       frames.push([Math.round(a),phase,+(performance.now()-a).toFixed(2)]); return r; };
+    // the falling snow over a winter border is a canvas of its own (snowFrame)
+    const snow=[], oS=window.snowStep;
+    if (typeof oS==='function') window.snowStep=function(id){ const a=performance.now(); const r=oS.apply(this,arguments);
+      if (id==='menuSnow' && snowLayers.menuSnow && snowLayers.menuSnow.shown) snow.push([Math.round(a),phase,+(performance.now()-a).toFixed(2)]);
+      return r; };
     const up=async()=>{ const t0=performance.now();
       while (!(menuBorder && menuBorder.ready && !menuJob) && performance.now()-t0<30000) await sleep(50); };
     await up();
@@ -109,7 +115,7 @@ const MENU_DRIVER = `
       phase=s; await sleep(3500);
     }
     await say({canvas:mcnv.width+'x'+mcnv.height, sprites:menuBorder.sprites.length, mb:+(menuBorder.bytes/1048576).toFixed(1),
-      bitmaps:spriteBitmaps, frames});
+      bitmaps:spriteBitmaps, frames, snow});
   }catch(e){ await say({error:String(e&&e.stack||e)}); }
 })();
 `;
@@ -123,11 +129,25 @@ function reportMenu(r) {
     console.log('  ' + p.padEnd(16) + String(span ? (1000 * (fr.length - 1) / span).toFixed(1) : '-').padStart(6) + ' fps'
       + '   menuRender median ' + ms[ms.length >> 1] + 'ms   p95 ' + ms[Math.min(ms.length - 1, Math.floor(ms.length * .95))] + 'ms');
   }
+  /* Snow: a draw is ~150 stamps of one ImageBitmap, only recorded on a remote
+     canvas and well under a millisecond; rasterised on the spot it is several. */
+  let snowSoft = -1; run = 0;
+  const snow = r.snow || [];
+  snow.forEach((f, i) => { run = f[2] > SNOW_SOFT_MS ? run + 1 : 0; if (snowSoft < 0 && run >= 5) snowSoft = i - 4; });
+  if (snow.length) {
+    const ms = snow.map(f => f[2]).sort((a, b) => a - b);
+    console.log('  falling snow    ' + String(snow.length).padStart(6) + ' draws  median ' + ms[ms.length >> 1] + 'ms   p95 '
+      + ms[Math.min(ms.length - 1, Math.floor(ms.length * .95))] + 'ms');
+  } else console.log('  falling snow: none drawn (reduced motion, or no snow layer in this build)');
   if (firstSoft >= 0) {
     console.log('\nDEMOTED: frame #' + firstSoft + ' (' + r.frames[firstSoft][1] + ') is the first of five running drawn on a software canvas.');
     process.exit(1);
   }
-  console.log('\nstayed accelerated for all ' + r.frames.length + ' frames');
+  if (snowSoft >= 0) {
+    console.log('\nDEMOTED: the snow layer, from draw #' + snowSoft + ' (' + snow[snowSoft][1] + '), five running past ' + SNOW_SOFT_MS + 'ms.');
+    process.exit(1);
+  }
+  console.log('\nstayed accelerated for all ' + r.frames.length + ' frames' + (snow.length ? ' and ' + snow.length + ' snow draws' : ''));
   process.exit(0);
 }
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.png': 'image/png', '.svg': 'image/svg+xml' };
