@@ -1577,11 +1577,195 @@ function drawLeafyStems(ctx,L,fol,H,winter,sway,rnd,stems,leafDot,stemCol,frost)
   ctx.stroke(); ctx.restore();
 }
 const LEAF_SPAN_DEFAULT=[0.22,0.96];
-// Rosette-mat scratch for the leafmound form (lamb's ear): each rosette's
-// centre, the back-to-front order, and where each scape stands.
-const ROS_MAX = 8;
+// Rosette-mat scratch for the leafmound form (lamb's ear) and pussytoes: each
+// rosette's centre, the back-to-front order, and where each scape stands.
+// Fourteen, not eight, so a pussytoes mat can be many small rosettes; every
+// record clamps to its own count, so the larger buffer moves nothing else.
+const ROS_MAX = 14;
 const _roX=new Float64Array(ROS_MAX), _roY=new Float64Array(ROS_MAX), _roO=new Int8Array(ROS_MAX);
 const _scX=new Float64Array(16), _scY=new Float64Array(16), _scL=new Float64Array(16);
+/* A MAT of rosettes, not one: lamb's ear spreads into a carpet of woolly
+   leaves lying out in every direction, where the hosta fan radiates one clump
+   upward — drawn that way it was three leaves and a spike. Rosettes are laid on
+   a golden-angle spiral in the ground plane and painted back to front, each
+   one's own leaves back to front too, so the carpet has depth. `woolly` gives
+   every blade a paler felted rim (drawLeaf's edge pass). Shared by the leaf
+   mound (lamb's ear) and pussytoes, which leaves _roX/_roY/_roO set for the
+   stems that rise from the rosettes. */
+function drawRosetteMat(ctx,Lm,fol,H,sway,rnd){
+  const R=Math.max(1,Math.min(ROS_MAX,Math.round(Lm.rosettes))), per=Math.max(3,Math.min(10,Math.round(Lm.rosetteLeaves||7)));
+  const matW=H*(Lm.matW||0.6), ll=H*(Lm.leafLen||0.46), rise=Lm.leafRise===undefined?0.32:Lm.leafRise;
+  for (let r=0;r<R;r++){
+    const ga=r*2.39996+rnd()*0.6, rr=matW*Math.sqrt((r+0.5)/R);
+    _roX[r]=Math.cos(ga)*rr+sway*0.5; _roY[r]=Math.sin(ga)*rr*0.5; _roO[r]=r;   // the tile's own 2:1 ground plane
+  }
+  for (let r=1;r<R;r++){ const o=_roO[r]; let q=r-1;          // back rosettes first
+    while (q>=0 && _roY[_roO[q]]>_roY[o]){ _roO[q+1]=_roO[q]; q--; } _roO[q+1]=o; }
+  for (let k=0;k<R;k++){
+    const r=_roO[k], cx=_roX[r], cy=_roY[r], ph=rnd()*6.283;
+    for (let pass=0;pass<2;pass++)             // leaves pointing away, then toward us
+      for (let j=0;j<per;j++){
+        // the angle offsets come from a fixed pattern, not rnd(), because
+        // the two passes must agree on which leaves point back
+        const th=ph+(j+((j*5+r)%3-1)*0.28)/per*6.283, back=Math.sin(th)<0;
+        if (back!==(pass===0)) continue;
+        const l=ll*(0.75+((j*7+r*3)%5)*0.08), ex=cx+Math.cos(th)*l, ey=cy+Math.sin(th)*l*0.5-l*rise;
+        const col=shade(fol,(back?-12:6)+(cy/matW)*10);
+        drawLeaf(ctx,cx,cy,ex,ey,l*(Lm.moundHW||0.26),col,
+          {shape:Lm.leafShape||'ovate',bow:Lm.leafBow===undefined?0.06:Lm.leafBow,rib:false,
+           edge:Lm.woolly?shade(col,20):undefined,flat:!art2On(Lm)});
+      }
+  }
+}
+/* ---------- the flowering mat as a cushion (0.9.122) ----------
+   Moss phlox, aubretia and rock rose are CUSHIONS: a low dense mound of small
+   leaves, inches deep, that disappears under its flowers in spring. Drawn as the
+   mossphlox habit's runners alone they were a dozen thin lines lying on the
+   ground a couple of inches high, which read as a sprawl of stems and left the
+   flowers floating on nothing. `cushion` (the mound's height as a share of H)
+   draws a flat-topped, lobed mound in place of the runners (their tips stuck out
+   past it as bare sticks), stippled with leaves in three light tones: `cushionLeaf`
+   'needle' strokes for moss phlox, 'oval' for the rest, `cushionLeaves` of them,
+   `cushionLeafL`/`cushionLeafW` long and wide. `cushionW` is the mound's half
+   width as a share of matW. The flowers are then sited on the mound's face. */
+function matCushionW(L,growth){ return (L.matW||24)*(L.cushionW||0.5)*(0.6+0.4*growth); }
+function matCushionH(L,H,growth){ return H*L.cushion*(0.55+0.45*growth); }
+// the mound's height at u in -1..1 of its width: flat on top, falling away at the rim
+function matCushionAt(u){ return Math.pow(Math.max(0,1-Math.pow(Math.min(1,Math.abs(u)),2.6)),0.55); }
+function drawMatCushion(ctx,L,fol,H,growth,rnd){
+  const W=matCushionW(L,growth), Hc=matCushionH(L,H,growth), K=18;
+  // 1. the mass, lobed so its outline reads as foliage rather than a loaf
+  ctx.beginPath(); ctx.moveTo(-W,0);
+  let px=-W, py=0;
+  for (let k=1;k<=K;k++){
+    const u=-1+2*k/K, lobe=k===K?1:(k&1?0.9:1.0)+rnd()*0.05;
+    const x=u*W*(k===K?1:0.98), y=-matCushionAt(u)*Hc*lobe;
+    ctx.quadraticCurveTo(px,py,(px+x)/2,(py+y)/2); px=x; py=y;
+  }
+  ctx.lineTo(W,0); ctx.closePath();
+  litFill(ctx,-W*0.2,-Hc*0.6,Math.max(W,Hc),shade(fol,-18),20,-24);
+  // 2. the leaves, near the surface more than inside it, batched by light
+  const n=Math.max(12,Math.round((L.cushionLeaves||70)*(0.4+0.6*growth)));
+  const needle=L.cushionLeaf==='needle', ll=L.cushionLeafL||(needle?2.2:1.5), lw=L.cushionLeafW||(needle?0.75:0.8);
+  const leafSeed=(rnd()*4294967295)>>>0;
+  for (let tone=0;tone<3;tone++){
+    ctx.beginPath();
+    if (needle){ ctx.strokeStyle=shade(fol,tone===0?-16:tone===1?2:20); ctx.lineWidth=lw; ctx.lineCap='round'; }
+    else ctx.fillStyle=shade(fol,tone===0?-14:tone===1?4:22);
+    // every pass walks the same seeded leaves and draws its own tone's share,
+    // so a leaf's place and angle do not depend on which pass draws it
+    const r0=mulberry(leafSeed);
+    for (let i=0;i<n;i++){
+      const u=r0()*2-1, v=Math.pow(r0(),0.45), turn=r0()-0.5;
+      const x=u*W*0.97, y=-matCushionAt(u)*Hc*v;
+      // lit from the upper left: the crown and the left shoulder catch it
+      const lit=v*0.75-u*0.35+(turn*0.5);
+      const t=lit<0.35?0:lit<0.68?1:2;
+      if (t!==tone) continue;
+      const a=Math.atan2(y+Hc*0.25,x)+turn*1.6;
+      if (needle){ ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*ll,y+Math.sin(a)*ll*0.8); }
+      else { ctx.moveTo(x+Math.cos(a)*ll,y+Math.sin(a)*ll); ctx.ellipse(x,y,ll,lw,a,0,7); }
+      if (tone===2 && v>0.82 && Math.abs(u)<0.8) snowLeafAt(x,y,ll*0.6);
+    }
+    if (needle) ctx.stroke(); else ctx.fill();
+  }
+  ctx.lineCap='butt';
+}
+/* ---------- pussytoes (0.9.122) ----------
+   A pussytoes is a carpet of small woolly rosettes (drawRosetteMat above) and,
+   in spring, a stand of woolly stems each topped by a tight knob of fuzzy heads:
+   the cat's paw the plant is named for. It was a drumstick, five bare stalks
+   each carrying one white bead over a fan of leaves standing up, which read as a
+   tiny allium. Opt-in by `flowerStyle:'paw'` on a drumstick.
+   A head is a little cup of phyllaries, green at the base and papery at the tip
+   in `bloom` (white, or rose on rosy pussytoes and 'Rubra'), with a female
+   plant's styles showing as specks of `eye`. `heads` is how many in a knob
+   (2-8 on field pussytoes, up to 17 on plantain-leaved, clamped to 9), `headR`
+   their radius, `scapeH` the stem as a share of H, `stemLeaves` the few narrow
+   leaves pressed to it, and `flags` the papery white tips field pussytoes has on
+   them. After flowering the stems lengthen by `fruitLen` and every head opens
+   into a puff of pappus in the season's `seed` colour; by fall the stems are
+   gone and the mat is all that stands. Stems rise from the rosettes, so the mat
+   is drawn first. No random numbers: the mat keeps its own stream. */
+function drawPussytoes(ctx,L,S,stemCol,H,phase,blv,sway,sn){
+  const R=Math.max(1,Math.min(ROS_MAX,Math.round(L.rosettes||1)));
+  const seeding=phase<0, col=seeding?S.seed:S.bloom; if (!col) return;
+  const k=Math.max(1,Math.min(9,Math.round(L.heads||5)));
+  const hr=(L.headR||1.3)*(seeding?1.4:1);
+  const m=Math.min(16,phase>0?Math.max(1,Math.ceil(sn*blv)):sn);
+  const sc=stemCol||shade(S.fol,16), matW=H*(L.matW||0.6);
+  const nl=Math.max(0,Math.min(4,Math.round(L.stemLeaves===undefined?3:L.stemLeaves)));
+  // 1. stems, and the small leaves pressed to them, in two strokes
+  ctx.lineCap='round';
+  ctx.strokeStyle=sc; ctx.lineWidth=L.stemW||1.0; ctx.beginPath();
+  for (let i=0;i<m;i++){
+    const r=_roO[Math.floor((i+0.5)*R/m)%R], extra=Math.floor(i/R);
+    const bx=_roX[r]+(extra?(hash01(i,5)-0.5)*2.4:0), by=_roY[r];
+    const len=H*(L.scapeH||0.8)*(0.84+0.3*hash01(i,3))*(seeding?(L.fruitLen||1.3):1);
+    const lean=(hash01(3,i)-0.5)*0.32+bx/matW*0.22;
+    const tx=bx+Math.sin(lean)*len+sway*2, ty=by-len*Math.cos(lean);
+    _scX[i]=tx; _scY[i]=ty; _scL[i]=len;
+    ctx.moveTo(bx,by); ctx.quadraticCurveTo(bx+(tx-bx)*0.35,by-len*0.55,tx,ty);
+  }
+  ctx.stroke();
+  if (nl){
+    ctx.lineWidth=Math.max(0.5,(L.stemW||1.0)*0.75); ctx.beginPath();
+    for (let i=0;i<m;i++){
+      const r=_roO[Math.floor((i+0.5)*R/m)%R], extra=Math.floor(i/R);
+      const bx=_roX[r]+(extra?(hash01(i,5)-0.5)*2.4:0), by=_roY[r], tx=_scX[i], ty=_scY[i], len=_scL[i];
+      const qx=bx+(tx-bx)*0.35, qy=by-len*0.55, ll=len*(L.stemLeafLen||0.12);
+      for (let j=0;j<nl;j++){
+        const t=0.22+j*0.17, side=(i+j)%2?-1:1;
+        const px=qBez(t,bx,qx,tx), py=qBez(t,by,qy,ty), ex=px+side*ll*0.42, ey=py-ll;
+        ctx.moveTo(px,py); ctx.quadraticCurveTo(px+side*ll*0.12,py-ll*0.5,ex,ey);
+        if (L.flags) fcPush(ex,ey,Math.max(0.35,ll*0.13),1.3);
+      }
+    }
+    ctx.stroke();
+    if (L.flags) fcDraw(ctx,S.bloom||S.seed||'#efeadf',12,-6);
+  }
+  // 2. the knob on each stem: short pedicels, then the heads, back ones first
+  const rc=hr*(k>4?1.3:1.05), eye=!seeding&&S.eye;
+  for (let i=0;i<m;i++){
+    const tx=_scX[i], ty=_scY[i], ph=hash01(i,9)*6.283;
+    ctx.strokeStyle=sc; ctx.lineWidth=0.6; ctx.beginPath();
+    for (let j=1;j<k;j++){
+      const a=ph+j/(k-1)*6.283, hx=tx+Math.cos(a)*rc, hy=ty+Math.sin(a)*rc*0.42+hr*0.2;
+      ctx.moveTo(tx,ty+hr*0.7); ctx.lineTo(hx,hy+hr*0.3);
+    }
+    ctx.stroke();
+    for (let pass=0;pass<(seeding?1:2);pass++){
+      // pass 0 (bloom only): the green cups; pass 1: the papery tips or the pappus
+      for (let j=0;j<k;j++){
+        const a=ph+j/Math.max(1,k-1)*6.283, ring=j>0;
+        const hx=ring?tx+Math.cos(a)*rc:tx, hy=ring?ty+Math.sin(a)*rc*0.42+hr*0.2:ty-hr*0.45;
+        if (!seeding && pass===0) fcPush(hx,hy+hr*0.38,hr*0.8,0.6);
+        else fcPush(hx,hy-hr*0.1,hr,seeding?0.95:0.86);
+      }
+      if (!seeding && pass===0) fcDraw(ctx,mixCol(S.fol,sc,0.5),8,-22);
+      else fcDraw(ctx,col,seeding?14:20,seeding?-6:-12);
+    }
+    if (eye){
+      for (let j=0;j<k;j++){
+        const a=ph+j/Math.max(1,k-1)*6.283, ring=j>0;
+        const hx=ring?tx+Math.cos(a)*rc:tx, hy=ring?ty+Math.sin(a)*rc*0.42+hr*0.2:ty-hr*0.45;
+        fcPush(hx-hr*0.3,hy-hr*0.55,hr*0.2,0.8); fcPush(hx+hr*0.25,hy-hr*0.6,hr*0.18,0.8);
+      }
+      fcDraw(ctx,eye,10,-4);
+    }
+    if (seeding){
+      // the pappus: fine hairs standing out of each puff
+      ctx.strokeStyle=shade(col,8); ctx.lineWidth=0.3; ctx.globalAlpha=0.75; ctx.beginPath();
+      for (let j=0;j<k;j++){
+        const a=ph+j/Math.max(1,k-1)*6.283, ring=j>0;
+        const hx=ring?tx+Math.cos(a)*rc:tx, hy=(ring?ty+Math.sin(a)*rc*0.42+hr*0.2:ty-hr*0.45)-hr*0.1;
+        for (let h=0;h<7;h++){ const b=-Math.PI*(0.22+h*0.093); ctx.moveTo(hx+Math.cos(b)*hr*0.5,hy+Math.sin(b)*hr*0.45); ctx.lineTo(hx+Math.cos(b)*hr*1.25,hy+Math.sin(b)*hr*1.3); }
+      }
+      ctx.stroke(); ctx.globalAlpha=1;
+    }
+  }
+  ctx.lineCap='butt';
+}
 // Leaf scratch for the batched blades above: base, tip and half-length per
 // leaf, plus its tone group. Module-level for the usual reason — no per-draw
 // allocation on a path that runs every procedural frame.
@@ -8767,6 +8951,13 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
   }
+  else if (P.form === 'drumstick' && P.look && P.look.flowerStyle==='paw'){
+    // pussytoes: a carpet of woolly rosettes in every season, the paws only in flower and seed
+    const L=P.look;
+    if (S.fol){ _snowLeaves=snowLv; drawRosetteMat(ctx,L,S.fol,H,sway,rnd); _snowLeaves=null; }
+    const phase=blooming&&S.bloom?1:S.seed?-1:0;
+    if (mature && phase && S.fol) drawPussytoes(ctx,L,S,P.stem,H,phase,blv,sway,stemFor(L.stems||7));
+  }
   else if (P.form === 'drumstick'){ // burnet: small buttons bobbing on wiry stems
     const L = P.look||{}, a2=art2On(L);
     if (S.fol){ const fn=stemFor(7); // low pinnate basal foliage
@@ -9244,6 +9435,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       drawThreadDome(ctx,L,fol,H,growth,season==='Winter',sway,rnd,stemFor(L.stems||24));
     } else if (S.fol && habit==='leafystems'){
       drawLeafyStems(ctx,L,fol,H,season==='Winter',sway,rnd,stemFor(L.stems||16),leafDot,P.stem,L.frost&&S.bract?S.bract:null);
+    } else if (S.fol && habit==='mossphlox' && L.cushion){
+      drawMatCushion(ctx,L,fol,H,growth,rnd);
     } else if (S.fol && habit==='mossphlox'){
       const runners=stemFor(L.runners||16), matW=L.matW||24, matH=H*(L.foliageH||0.18);
       ctx.strokeStyle=fol; ctx.lineWidth=L.leafW||0.8; ctx.lineCap='round';
@@ -9317,12 +9510,31 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         if(AMBIENCE[season].snow&&S.seed){
           if(!snowAnchors)snowAnchors=[];snowAnchors.push([ox+sway*2,-len,2.2]);
         }
-        ctx.strokeStyle=shade(fol,-25); ctx.lineWidth=1.1;
-        ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
+        // A mat's flowers sit IN the mat, on stems too short to see. The stroke
+        // drawn here stood a full plant height above a moss phlox or aubretia,
+        // ending nowhere near its flower, which was placed down in the mat
+        // beside it: a stand of bare sticks poking out of every mat in flower.
+        if (habit!=='mossphlox'){
+          ctx.strokeStyle=shade(fol,-25); ctx.lineWidth=1.1;
+          ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
+        }
         ctx.fillStyle=col;
         if (habit==='mossphlox'){
-          const petals=L.petals||5, petal=L.petal||2.2, cx=ox+sway*2+(rnd()-0.5)*(L.flowerSpread||24), cy=-H*(0.08+rnd()*(L.foliageH||0.18));
-          if (a2){
+          const petals=L.petals||5, petal=L.petal||2.2, cx0=ox+sway*2+(rnd()-0.5)*(L.flowerSpread||24), ry=rnd();
+          let cx=cx0, cy=-H*(0.08+ry*(L.foliageH||0.18));
+          if (L.cushion){
+            // on the cushion's face: the two uniform draws above sum to more
+            // flowers over the crown than the rim, which is the side you see
+            const cw=matCushionW(L,growth), ch=matCushionH(L,H,growth);
+            cx=Math.max(-cw*0.92,Math.min(cw*0.92,cx0*cw*0.9/(((L.flowerW||20)+(L.flowerSpread||24))/2)));
+            cy=-matCushionAt(cx/cw)*ch*(0.6+0.4*ry);
+          }
+          if (!blooming && S.seed){
+            // in seed a mat carries small capsules, not a second crop of brown flowers
+            // (half as many, small, and part the colour of the leaves they sit among)
+            if (!(i&1)) fcPush(cx,cy,petal*0.32,1.25);
+            if (i===m-1 || _fcN>FC_MAX-2) fcDraw(ctx,mixCol(col,fol,0.3),22,-6);
+          } else if (a2){
             // A phlox mat is ~110 petal ellipses. Flushed per flower rather
             // than per plant so the eye can land on top of its own corolla.
             for(let p=0;p<petals;p++){ const a=p/petals*Math.PI*2;
@@ -9331,7 +9543,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           } else
           for(let p=0;p<petals;p++){ const a=p/petals*Math.PI*2;
             ctx.beginPath(); ctx.ellipse(cx+Math.cos(a)*petal*0.72,cy+Math.sin(a)*petal*0.58,petal,petal*0.56,a,0,7); ctx.fill(); }
-          if (S.eye){ ctx.fillStyle=S.eye; ctx.beginPath(); ctx.arc(cx,cy,petal*0.34,0,7); ctx.fill(); ctx.fillStyle=col; }
+          if (S.eye && (blooming || !S.seed)){ ctx.fillStyle=S.eye; ctx.beginPath(); ctx.arc(cx,cy,petal*0.34,0,7); ctx.fill(); ctx.fillStyle=col; }
         }
         else if (habit==='matflower'){
           const petals=L.petals||5, petalLen=L.petalLen||4.8, petalW=L.petalW||2.9;
@@ -9919,36 +10131,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           }
         }
       } else if (Lm.rosettes){
-        // A MAT of rosettes, not one: lamb's ear spreads into a carpet of
-        // woolly leaves lying out in every direction, where the hosta fan
-        // below radiates one clump upward — drawn that way it was three
-        // leaves and a spike. Rosettes are laid on a golden-angle spiral in
-        // the ground plane and painted back to front, each one's own leaves
-        // back to front too, so the carpet has depth. \`woolly\` gives every
-        // blade a paler felted rim (drawLeaf's edge pass).
-        const R=Math.max(1,Math.min(ROS_MAX,Math.round(Lm.rosettes))), per=Math.max(3,Math.min(10,Math.round(Lm.rosetteLeaves||7)));
-        const matW=H*(Lm.matW||0.6), ll=H*(Lm.leafLen||0.46), rise=Lm.leafRise===undefined?0.32:Lm.leafRise;
-        for (let r=0;r<R;r++){
-          const ga=r*2.39996+rnd()*0.6, rr=matW*Math.sqrt((r+0.5)/R);
-          _roX[r]=Math.cos(ga)*rr+sway*0.5; _roY[r]=Math.sin(ga)*rr*0.5; _roO[r]=r;   // the tile's own 2:1 ground plane
-        }
-        for (let r=1;r<R;r++){ const o=_roO[r]; let q=r-1;          // back rosettes first
-          while (q>=0 && _roY[_roO[q]]>_roY[o]){ _roO[q+1]=_roO[q]; q--; } _roO[q+1]=o; }
-        for (let k=0;k<R;k++){
-          const r=_roO[k], cx=_roX[r], cy=_roY[r], ph=rnd()*6.283;
-          for (let pass=0;pass<2;pass++)             // leaves pointing away, then toward us
-            for (let j=0;j<per;j++){
-              // the angle offsets come from a fixed pattern, not rnd(), because
-              // the two passes must agree on which leaves point back
-              const th=ph+(j+((j*5+r)%3-1)*0.28)/per*6.283, back=Math.sin(th)<0;
-              if (back!==(pass===0)) continue;
-              const l=ll*(0.75+((j*7+r*3)%5)*0.08), ex=cx+Math.cos(th)*l, ey=cy+Math.sin(th)*l*0.5-l*rise;
-              const col=shade(S.fol,(back?-12:6)+(cy/matW)*10);
-              drawLeaf(ctx,cx,cy,ex,ey,l*(Lm.moundHW||0.26),col,
-                {shape:Lm.leafShape||'ovate',bow:Lm.leafBow===undefined?0.06:Lm.leafBow,rib:false,
-                 edge:Lm.woolly?shade(col,20):undefined,flat:!art2On(Lm)});
-            }
-        }
+        drawRosetteMat(ctx,Lm,S.fol,H,sway,rnd);
       } else if (art2On(Lm)){
         // A hosta IS its leaves — broad, ribbed, overlapping, and the whole
         // reason anyone plants one. Flat rotated ellipses made it a pile of
@@ -11484,13 +11667,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // these strokes assume foliage fills the whole H box — over a low cushion
   // like fringed sage, or a lamb's ear mat, they drew a stray highlight in
   // the empty air above it.
+  // A flowering mat (moss phlox, aubretia, poppy mallow) is a few inches deep,
+  // so these landed in the air over it, faint sticks standing out of the mat.
   // A habit tree lights each clump itself, and its crown has sky in it where
   // these would land. So does a plant whose stems stand only when it flowers:
   // the rest of the year H is air, and big leaves on stalks light themselves.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
       && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look))
       && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)
-      && !(P.form==='fern' && fernBladeOn(P.look)) && !(P.look && P.look.leafStyle==='hosta')){
+      && !(P.form==='fern' && fernBladeOn(P.look)) && !(P.look && P.look.leafStyle==='hosta')
+      && !(P.form==='shrub' && P.look && (P.look.habit==='mossphlox'||P.look.habit==='matflower'))){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
     ctx.save(); ctx.globalAlpha=isTreeDef(P)?0.16:0.13;
     ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';

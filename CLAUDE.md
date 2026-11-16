@@ -7455,6 +7455,30 @@ Excluded: the desert rosettes (flower stalk drawn) and the stonecrops. **A mat t
 width at a fixed size keeps `h:8`** (aubrieta, moss phlox) or clips its sprite. Record and
 the full table: `docs/plant-data/meadow-audit.md`; `dev/meadow-review.html`.
 
+**Flowering mats and pussytoes (0.9.122).** *The mossphlox habit drew a stem a full plant
+height for every flower* (moss phlox, aubretia, rock rose, periwinkle, trailing bellflower,
+blue-eyed Mary), ending nowhere near the flower, which it sited down in the mat beside it:
+every mat in flower stood in a thicket of bare sticks. That habit now draws no flower stems,
+and in a seed-only season small capsules (half as many, part leaf-coloured) in place of a
+second crop of brown flowers. drawPlant's closing highlight strokes skip `mossphlox` and
+`matflower` too: they assume foliage fills the H box and hung in the air over every mat as
+faint sticks. *Moss phlox, aubretia and rock rose are cushions* (`cushion`, the mound's
+height as a share of H; `drawMatCushion`, `matCushionW`/`matCushionH`/`matCushionAt`): a
+flat-topped lobed mound in place of the runners, stippled with `cushionLeaves` in three
+light tones (`cushionLeaf` 'needle' or 'oval'), the flowers sited on its face. It takes
+one random number and seeds the leaves from it, so the passes agree. The runner mats
+(periwinkle, trailing bellflower, blue-eyed Mary) keep their runners. *Pussytoes*
+(`flowerStyle:'paw'` on a drumstick, `drawPussytoes`) is a carpet of small woolly rosettes
+(`drawRosetteMat`, lifted out of the leaf mound's lamb's ear branch unchanged; `ROS_MAX` 8 ->
+14) and, in flower, woolly stems each topped by a knob of `heads` fuzzy heads (green cups,
+papery tips in `bloom`, a female plant's styles in `eye`), stem leaves with `flags` on field
+pussytoes, the stems lengthening by `fruitLen` into cotton in seed and gone by fall. It was
+five bare stalks with one bead each, which read as a tiny allium. A Pussytoes card now holds
+plantain-leaved (the old `pussytoes` key), field, small-leaf, rosy and mountain everlasting
+with 'Rubra'; sources in `docs/plant-data/pussytoes-sources.json`. Bakes: mats 0.08-0.38 ms
+(were 0.04-0.24), pussytoes 0.14-0.32 ms. `dev/mat-review.html` shows them in four seasons,
+close up as a drift (`?cz=`, `?seasons=`), and at true scale.
+
 **The shade audit (0.9.103)**: 52 records (77 choices) on the Shade Perennials tab, four drawings
 that carried most of it, all opt-in (old data through old and new draw.js: identical streams over
 20,976 draws; with the new data exactly the 77 edited choices differ). **Ferns** were a bare stick

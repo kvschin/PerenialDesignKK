@@ -1274,8 +1274,13 @@ test('a stem-built mound draws no stray highlight above itself', () => {
     const P=plantDef(k), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
     assertEqual(stemMoundOps(k,'Summer').filter(o=>o.op==='stroke'&&o.stroke===col).length, 0, `${k}: no generic highlight`);
   }
-  const P=plantDef('sanguineumgeranium'), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
-  assert(stemMoundOps('sanguineumgeranium','Summer').some(o=>o.op==='stroke'&&o.stroke===col), 'other shrub-form habits keep it');
+  // a flowering mat is a few inches deep, so over it they stood in the air as faint sticks (0.9.122)
+  for (const k of ['mossphlox','aubrieta','periwinkle','sanguineumgeranium','poppymallow']){
+    const P=plantDef(k), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
+    assertEqual(stemMoundOps(k,'Summer').filter(o=>o.op==='stroke'&&o.stroke===col).length, 0, `${k}: a mat draws no generic highlight`);
+  }
+  const P=plantDef('desertglobemallow'), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
+  assert(stemMoundOps('desertglobemallow','Summer').some(o=>o.op==='stroke'&&o.stroke===col), 'a scattered mound keeps it');
 });
 
 /* The mounded perennials that were drawn as a stalk or a column: catmint,
@@ -23922,4 +23927,77 @@ test('the desert additions carry their sourced sizes, ranges and seasons', () =>
   }
   assertEqual(PLANTS.whalestongue.look.pups||0,0,'whale\'s tongue does not offset');
   assert(PLANTS.parryagave.look.pups>0,'Parry\'s agave pups round its foot');
+});
+/* The flowering mats and pussytoes (0.9.122). Read the drawn top off the recorded geometry,
+   the way the sourced-height test does: endpoints of lines and curves, tops of ellipses. */
+function matDrawnTop(ops){
+  let top=0;
+  for (const o of ops){
+    const a=o.a||[];
+    if (o.op==='ellipse'){ const r=a[4]||0; top=Math.min(top,a[1]-Math.hypot(a[2]*Math.sin(r),a[3]*Math.cos(r))); }
+    else if (o.op==='arc') top=Math.min(top,a[1]-a[2]);
+    else if (o.op==='moveTo'||o.op==='lineTo') top=Math.min(top,a[1]);
+    else if (o.op==='quadraticCurveTo') top=Math.min(top,a[3]);
+  }
+  return -top;
+}
+test('a flowering mat holds its flowers in the mat, with no stems standing out of it', () => {
+  // The mossphlox habit drew a stem a full plant height for every flower, ending
+  // nowhere near the flower, which it placed down in the mat beside it: moss phlox,
+  // aubretia and rock rose stood in a thicket of bare sticks whenever they flowered,
+  // and in seed carried a second crop of brown "flowers" (0.9.122).
+  const before=ART2.on;
+  let n=0;
+  try { for (const mode of [false,true]){ ART2.on=mode;
+    for (const k of PLANT_KEYS){
+      const B=PLANTS[k]; if (B.form!=='shrub'||!B.look||B.look.habit!=='mossphlox') continue;
+      for (const v of [null,...Object.keys(B.cv||{})]){
+        const P=plantDef(k,v), L=P.look, H=plantVisualH(P), petal=L.petal||2.2;
+        const deep=L.cushion?matCushionH(L,H,1)*1.06:H*(L.foliageH||0.18);
+        for (const season of SEASONS){
+          const S=P.sea[season]||{}; if (!S.bloom&&!S.seed) continue;
+          const ops=stemMoundOps(k,season,v), top=matDrawnTop(ops);
+          assert(top<=deep+H*0.08+petal*1.8+1,`${k}${v?':'+v:''} ${season}: drawn ${top.toFixed(1)} over a mat ${deep.toFixed(1)} deep`);
+          const flowers=ops.filter(o=>o.op==='ellipse'&&Math.abs(o.a[2]-petal)<1e-9).length;
+          if (S.bloom) assert(flowers>=3,`${k}${v?':'+v:''} ${season}: flowers on the mat`);
+          else assertEqual(flowers,0,`${k}${v?':'+v:''} ${season}: capsules in seed, not flowers`);
+          n++;
+        }
+      }
+    }
+  }} finally { ART2.on=before; }
+  assert(n>=16,`checked ${n} mats in flower or seed`);
+  // moss phlox, aubretia and rock rose are cushions now, inches deep, not runners on the ground
+  for (const k of ['mossphlox','aubrieta','rockrose']){
+    const P=plantDef(k), H=plantVisualH(P), top=matDrawnTop(stemMoundOps(k,'Summer'));
+    assert(P.look.cushion>0,`${k}: a cushion`);
+    assert(top>=matCushionH(P.look,H,1)*0.8,`${k}: the cushion stands ${top.toFixed(1)} high in leaf`);
+  }
+});
+test('pussytoes is a woolly mat with paws of fuzzy heads in spring, cotton in seed, and only the mat after', () => {
+  const fam=PLANT_KEYS.filter(k=>PLANTS[k].group==='pussytoes');
+  assertEqual(fam.sort().join(','),'fieldpussytoes,mountaineverlasting,pussytoes,rosypussytoes,smallpussytoes','five pussytoes on one card');
+  for (const k of fam) for (const v of [null,...Object.keys(PLANTS[k].cv||{})]){
+    const P=plantDef(k,v), L=P.look, id=k+(v?':'+v:'');
+    assertEqual(L.flowerStyle,'paw',id+': drawn as a pussytoes');
+    // in flower: woolly stems above the mat, each carrying a knob of several heads
+    const spring=stemMoundOps(k,'Spring',v), heads=spring.filter(o=>o.op==='ellipse'&&Math.abs(o.a[2]-L.headR)<1e-9).length;
+    assert(heads>=Math.min(L.heads,4)*3,`${id}: a knob of heads on each stem (${heads})`);
+    assert(spring.some(o=>o.op==='stroke'),id+': stems in flower');
+    // in seed: every head opens into a larger puff
+    const S=P.sea.Summer;
+    if (S.seed && !S.bloom){
+      const puffs=stemMoundOps(k,'Summer',v).filter(o=>o.op==='ellipse'&&Math.abs(o.a[2]-L.headR*1.4)<1e-9).length;
+      assert(puffs>=Math.min(L.heads,4)*3,`${id}: cotton in seed (${puffs})`);
+    }
+    // after: the mat alone, which strokes nothing (its leaves are fills), with snow lying on it
+    for (const season of ['Fall','Winter']){
+      const ops=stemMoundOps(k,season,v);
+      assertEqual(ops.filter(o=>o.op==='stroke').length,0,`${id} ${season}: nothing standing`);
+      assert(ops.filter(o=>o.op==='fill').length>=20,`${id} ${season}: the mat`);
+      assert(matDrawnTop(ops)<matDrawnTop(spring)-plantVisualH(P)*0.15,`${id} ${season}: lower than in flower`);
+    }
+  }
+  for (const k of fam) assert(staticPlantRoles(k).includes('host')&&staticPlantRoles(k).includes('deerOk'),k+': an American lady host that deer pass by');
+  assert(PLANTS.fieldpussytoes.look.flags,'field pussytoes carries the papery flags on its stem leaves');
 });

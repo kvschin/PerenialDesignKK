@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,814,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,818,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),641,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),642,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -2249,4 +2249,30 @@ test('Southwest and desert forbs carry a real height', () => {
   assertEqual(PLANTS.parryagave.heightIn, 24, 'agave is the rosette, not the once-in-a-lifetime stalk');
   assertEqual(PLANTS.ocotillo.heightIn, 180, 'ocotillo canes, about 15 ft');
   assertEqual(PLANTS.palmerpenstemon.heightIn, 54, "Palmer's penstemon flower stalks");
+});
+test('the pussytoes are in, as reviewed, with their sources', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/pussytoes-sources.json'));
+  assertEqual(doc.plants.length,5,'five pussytoes');
+  for (const row of doc.plants){
+    const P=PLANTS[row.suggestedKey], R=row.proposed;
+    assert(P,row.suggestedKey+': missing species');
+    for (const f of ['name','latin','type','form','heightIn','spread','space','sun','moist','phen','provenance'])
+      assertEqual(P[f],R[f],row.suggestedKey+': reviewed '+f);
+    assertEqual(P.zones.join(','),R.zones.join(','),row.suggestedKey+': reviewed zones');
+    assertEqual(P.nativeTo.join(','),R.nativeTo.join(','),row.suggestedKey+': reviewed range');
+    assertEqual(P.bloomMonths.join(','),R.bloomMonths.join(','),row.suggestedKey+': reviewed bloom months');
+    assert(row.sources.length>=2,row.suggestedKey+': read against two sources at least');
+    row.sources.forEach(u=>assert(/^https?:\/\//.test(u),row.suggestedKey+': source is a URL'));
+    assert(row.estimates&&row.estimates.heightIn&&row.estimates.spread&&row.estimates.zones,row.suggestedKey+': says how its size and zones were chosen');
+    assertEqual(P.group,'pussytoes',row.suggestedKey+': on the Pussytoes card');
+    assert(P.blurb&&P.blurb.length>60,row.suggestedKey+': says something');
+  }
+  for (const c of doc.cultivars){
+    const [k,v]=c.ref.split('|');
+    assert(PLANTS[k].cv&&PLANTS[k].cv[v],c.ref+': cultivar exists');
+    assertEqual(PLANTS[k].cv[v].latin,c.latin,c.ref+': reviewed name');
+  }
+  // mountain everlasting is Europe's: in North America only on the Aleutians
+  assert(!PLANTS.mountaineverlasting.nativeTo.includes('north-america'),'mountain everlasting is Eurasian');
+  assertEqual(PLANTS.mountaineverlasting.cv.rubra.provenance,'selection',"'Rubra' is a selection");
 });
