@@ -979,6 +979,16 @@ logic is split across ordered modules. They map onto the section list below
   the list skipped). Drawing all of them before the library appeared was 156ms
   at 473 plants; at 811, with trees and shrubs drawn in far more detail, it
   measured 450-680ms an open on a desktop, and the dock now opens in about 75ms.
+  *A row off screen is not laid out* (`.lib-item{content-visibility:auto}`,
+  0.9.120): opening the dock laid all 811 out at once, a 57ms Layout in the
+  click, and the open frame went 54-61ms to 24-30ms (the cold first open of a
+  session, which also builds the rows, 97 to 61ms). *The panes scroll on the
+  compositor* (`will-change:scroll-position` on the Library's and the guide's
+  panes): at device scale 1 Chrome does not composite a scroller whose
+  background is see-through, so every wheel tick repainted the list on the main
+  thread and missed a frame (25 of 25 ticks; now none). An opaque background
+  gets the same scroll and turns the list's text from greyscale to sub-pixel
+  antialiasing, unlike every other panel, so it is the hint and not a colour.
   A row costs the same at any thumbnail size: it is the plant's paths, not its
   pixels. Where there is no IntersectionObserver (the sandbox) a row is drawn as
   it is built. A row also says height, light and moisture (`libraryRowFacts`).
@@ -1111,7 +1121,13 @@ logic is split across ordered modules. They map onto the section list below
   motion off. `guideCanAnimate()` is the one predicate; `startGuideLoop` is
   called from the Play button, from selecting an entry, and from
   `visibilitychange`. `fullScreenRenderBlocked()` counts `guideScreen`, so the
-  menu meadow stops painting behind it.
+  menu meadow stops painting behind it. **It draws about 60 times a second,
+  whatever the display** (`GUIDE_FRAME_MS`, `guideTick`, 0.9.120): every Nth
+  animation frame, N the display interval into 16.7ms, rounded. On every frame
+  at 164Hz seven demos could not keep up (erase, replace and estimate spend
+  4-5.5ms of script a draw, then the GPU's raster) and missed 70-96 of every 100
+  frames; move, the one the guidebook opens on, 25. A demo is a function of the
+  clock, so a skipped frame does not slow it.
   **The list is NAMES; the description is inside.** Each row carried its lead
   clamped to two lines, and each chapter its blurb, on the theory that bare
   titles would read as a menu of jargon — but the lead is the very next thing
@@ -6617,10 +6633,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     is pure: no canvas, no clock, no `Math.random`. Each row walks left to right
     on its own seeded stream, so a wider window keeps the plants it had and adds
     more on the right (tested). `menuBorderBuild` is a generator that bakes the
-    plan into images and is stepped `STEP_MS` (6) per animation frame by
-    `menuBorderWork`, on every frame the menu is the backdrop and not only the
-    30fps ones that draw, so the border on screen keeps moving while the next is
-    planted behind it and the two crossfade. It hands back the border with only
+    plan into images and is stepped by `menuBorderWork`, on every frame the menu
+    is the backdrop and not only the 30fps ones that draw, so the border on
+    screen keeps moving while the next is planted behind it and the two
+    crossfade. **A frame's planting is 30% of the DISPLAY's frame interval**
+    (`menuBakeBudget`: `STEP_SHARE`, between `STEP_MIN_MS` 1.5 and `STEP_MS` 6;
+    0.9.120), the garden look-ahead's rule (`aheadFrame`). It was a flat 6ms,
+    and the time budget counts only a bake's SCRIPT: the clumps are drawn on an
+    accelerated surface, so their raster lands in the GPU process afterwards at
+    several times the cost. Every turn of the season dropped 6-8 frames, worst
+    42-67ms, with no main-thread task over 12ms and the GPU process busy 680ms of
+    1.4s, and a turn happens on EVERY return to the menu, since `show()`
+    advances the season. Measured at 164Hz, 1440x925: 7 missed frames a turn
+    (worst 48-67ms, planted in ~190ms) became 1-1.4 (18ms, ~270ms); on a phone
+    viewport 3.3 (48-54ms) became 1 (12ms). The one long frame left is the far
+    field's: Chrome rasterises that layer when it is transferred, not as it is
+    stamped, so ending frames between stamps only moved it. It hands back the border with only
     its sky and shade first, which goes up at once on a cold start, and
     publishes everything else together, so a half-planted border is never drawn.
     The first eight rows are stamped small from a pooled set into ONE still

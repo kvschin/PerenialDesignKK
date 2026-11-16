@@ -3403,10 +3403,31 @@ function drawGuideFrame(t){
    reduced-motion reader, who has asked for no animation and would have got a
    60Hz wake-up anyway. Every path back in calls startGuideLoop: the Play
    button, selecting an entry, and visibilitychange. */
+/* And it draws about sixty times a second whatever the display runs at: every
+   Nth animation frame, N the display's interval into GUIDE_FRAME_MS, rounded
+   (60Hz and 75Hz draw every frame, 120Hz and 144Hz every second, 164Hz every
+   third). It drew on every frame, and on a 164Hz display seven demos could not
+   keep up — erase, replace and estimate spend 4-5.5ms of script a draw before
+   the GPU rasterises it, and missed 70-96 of every 100 frames; the one the
+   guidebook opens on, move, missed 25. Scrolling the contents list beside them
+   then ran at 18-30ms a frame. Every demo is a function of the clock (u comes
+   from t), so a frame it skips does not slow it, and at 60fps a slow drag of a
+   brush across a plate is as smooth as the eye needs. The interval is the
+   smallest recent gap, drifting back up 2% a frame, as the menu border's and
+   the garden's look-ahead budgets read it, so one slow frame does not change
+   the cadence. */
+const GUIDE_FRAME_MS=1000/60;
+let guideVs=0, guidePrevT=0, guideSkip=0;
 function guideTick(t){
   guideRaf=0;
   if (!guideCanAnimate()) return;
-  drawGuideFrame(t);
+  const dt=guidePrevT ? Math.min(34,Math.max(4,t-guidePrevT)) : GUIDE_FRAME_MS;
+  guidePrevT=t;
+  guideVs=Math.min(dt,(guideVs||dt)*1.02);
+  if (--guideSkip<=0){
+    drawGuideFrame(t);
+    guideSkip=Math.max(1,Math.round(GUIDE_FRAME_MS/guideVs));
+  }
   guideRaf=requestAnimationFrame(guideTick);
 }
 function guideCanAnimate(){
@@ -3415,7 +3436,7 @@ function guideCanAnimate(){
 }
 function startGuideLoop(){
   if (guideRaf || !guideCanAnimate()) return;
-  guideT0=0;
+  guideT0=0; guidePrevT=0; guideSkip=0;      // the first tick draws
   guideRaf=requestAnimationFrame(guideTick);
 }
 function stopGuideLoop(){ if (guideRaf) cancelAnimationFrame(guideRaf); guideRaf=0; }

@@ -594,9 +594,21 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 /* ---------- plant library ---------- */
 #libraryScreen{padding:0;align-items:stretch;justify-content:stretch}
 /* No backdrop blur: the plate is 97% opaque, so there was nothing behind it to
-   see blurred, and the border is not painted while this screen covers it. */
+   see blurred, and the border is not painted while this screen covers it.
+   The panes that scroll say will-change:scroll-position, and it is not a
+   flourish. Chrome at device scale 1 does not composite a scroller whose
+   background lets anything through, these panes' included, so the list scrolled
+   on the main thread, repainting and re-layerizing on every tick: measured at
+   1440x925 on a 164Hz display, 25 wheel ticks down the plant list missed a
+   frame on every tick (Paint, Layerize and Commit, 417ms of main thread); with
+   the hint, none. The other way to get the same scroll is an OPAQUE background,
+   and it was tried: that switches the list's text from greyscale to sub-pixel
+   antialiasing, visibly unlike every other panel in the app, where the hint
+   leaves the text exactly as it was. A HiDPI screen or a phone composites the
+   panes either way, so there the hint changes nothing. */
 .library-wrap{display:flex;flex-direction:column;width:100%;height:100%;
   background:var(--surface-dialog)}
+.library-list,.library-detail,.library-cats{will-change:scroll-position}
 /* #libraryScreen keeps padding:0 — full-bleed is right, the --surface-dialog
    plate should reach the edges the way the canvas does under viewport-fit=cover.
    But .screen's own padding carries max(18px,env(safe-area-inset-top)) and this
@@ -651,7 +663,18 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
 .lib-cat-items{padding-bottom:4px}
 .lib-section.collapsed:not(.search-open) .lib-cat-items{display:none}
 .lib-item{display:flex;align-items:center;gap:11px;width:100%;padding:7px 10px;border:none;border-radius:var(--radius-control);
-  background:none;color:var(--text-primary);text-align:left;font-size:14px}
+  background:none;color:var(--text-primary);text-align:left;font-size:14px;
+  /* The dock builds a row for every plant (811), and opening the Library laid
+     all of them out at once: a 57ms Layout plus 11ms of style in the click that
+     opened it, one 54-61ms frame. A row off screen is now skipped until it
+     nears the view, its height standing in (auto keeps the real one once it has
+     been drawn). Opening went to a 24-30ms frame and the jump to a plant from
+     the menu's key from 54 to 30ms, with the jumped-to row still in view and the
+     thumbnails still drawn as rows come in (their observer is rooted on the
+     list). A row is 65.5px on the dock and 67.5px on a phone, so the stand-in is
+     between; the only visible difference is that a row now places its own text
+     on whole pixels, which moves some glyphs by one. */
+  content-visibility:auto;contain-intrinsic-size:auto 66px}
 .lib-item:hover{background:var(--surface-control-hover)}
 .lib-item.sel{background:var(--surface-active)}
 .lib-item canvas{flex-shrink:0}
@@ -849,8 +872,12 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
    safe-area inset .screen was carrying is paid back on .guide-head instead.
    Skip that and the title draws under the Dynamic Island. */
 #guideScreen{padding:0;align-items:stretch;justify-content:stretch}
+/* No backdrop blur, for the Library's reason: it blurred a canvas nothing draws
+   while this screen covers it, under a plate 97% opaque. The panes scroll on the
+   compositor for the Library's reason too (.library-wrap). */
 .guide-wrap{display:flex;flex-direction:column;width:100%;height:100%;
-  background:var(--surface-dialog);backdrop-filter:blur(4px)}
+  background:var(--surface-dialog)}
+.guide-list,.guide-detail{will-change:scroll-position}
 .guide-head{display:flex;align-items:center;gap:14px;
   padding:max(16px,calc(env(safe-area-inset-top) + 8px)) max(20px,env(safe-area-inset-right))
           12px max(20px,env(safe-area-inset-left));

@@ -20731,6 +20731,73 @@ test('the guidebook owns one loop, and stops it rather than spinning it', () => 
   assert(/reducedMotion\(\)/.test(src), 'and it does ask it');
 });
 
+test('the guidebook draws about sixty times a second, whatever the display runs at', () => {
+  /* It drew on every animation frame, and at 164Hz the heavier demos could not
+     keep up and missed most frames. The cadence is every Nth frame, N the
+     display interval into 16.7ms; the clock, not the frame count, moves a demo. */
+  const saved = { can: globalThis.guideCanAnimate, draw: globalThis.drawGuideFrame };
+  let draws = 0;
+  globalThis.guideCanAnimate = () => true;
+  globalThis.drawGuideFrame = () => { draws++; return true; };
+  try {
+    const run = (hz, frames, t0, slowAt) => {
+      let t = t0;
+      for (let i = 0; i < frames; i++) { t += (i === slowAt ? 40 : 1000 / hz); guideTick(t); }
+      return t;
+    };
+    for (const [hz, every] of [[60, 1], [75, 1], [120, 2], [144, 2], [164, 3], [240, 4]]) {
+      guideVs = 0; guidePrevT = 0; guideSkip = 0; draws = 0;
+      run(hz, 120, 1000);
+      assert(Math.abs(draws - 120 / every) <= 2, hz + 'Hz draws every ' + every + ' frame(s): ' + draws + ' of 120');
+    }
+    // one slow frame does not change the cadence after it
+    guideVs = 0; guidePrevT = 0; guideSkip = 0; draws = 0;
+    const t = run(164, 60, 1000, 30);
+    draws = 0; run(164, 60, t);
+    assert(Math.abs(draws - 20) <= 1, 'still every third frame at 164Hz after a 40ms frame: ' + draws + ' of 60');
+  } finally {
+    globalThis.guideCanAnimate = saved.can; globalThis.drawGuideFrame = saved.draw;
+    stopGuideLoop(); guideVs = 0; guidePrevT = 0; guideSkip = 0;
+  }
+});
+
+test('the menu border plants a share of the display\'s frame, not a flat 6ms', () => {
+  /* The budget counts a bake's script; its raster lands in the GPU process
+     afterwards at several times that, so a flat 6ms dropped 6-8 frames on every
+     return to the menu at 164Hz. */
+  const B = MENU_BORDER, settle = ms => { let b; for (let i = 0; i < 40; i++) b = menuBakeBudget(ms); return b; };
+  try {
+    menuVs = 0;
+    assert(Math.abs(settle(1000 / 164) - B.STEP_SHARE * 1000 / 164) < 0.01, '164Hz: 30% of 6.1ms');
+    assert(menuBakeBudget(60) < B.STEP_SHARE * 1000 / 164 * 1.03, 'a slow frame does not buy the next one more planting');
+    menuVs = 0;
+    assert(Math.abs(settle(1000 / 60) - B.STEP_SHARE * 1000 / 60) < 0.01, '60Hz: 30% of 16.7ms');
+    menuVs = 0; assertEqual(settle(1000 / 360), B.STEP_MIN_MS, 'never under the floor');
+    menuVs = 0; assertEqual(settle(1000 / 24), B.STEP_MS, 'never over the cap');
+  } finally { menuVs = 0; }
+  const src = readRepoFile('js/screens.js');
+  const work = src.slice(src.indexOf('function menuBorderWork'), src.indexOf('function menuDrawBorder'));
+  assert(/menuBakeBudget\(gap\)/.test(work), 'the planting asks for its budget every frame');
+  assert(/gap>180 \? 400 : budget/.test(work), 'a tab coming back from the background still just finishes');
+});
+
+test('the Library lays out only the rows on screen, and its panes and the guide\'s scroll on the compositor', () => {
+  const css = readRepoFile('styles.css');
+  const at = css.indexOf('.lib-item{display:flex'), row = css.slice(at, css.indexOf('}', at));
+  assert(/content-visibility:auto/.test(row) && /contain-intrinsic-size:auto \d+px/.test(row),
+    'a row off screen is skipped, with its height standing in');
+  assert(css.includes('.library-list,.library-detail,.library-cats{will-change:scroll-position}'), 'the Library\'s panes are composited scrollers');
+  assert(css.includes('.guide-list,.guide-detail{will-change:scroll-position}'), 'and the guidebook\'s');
+  /* An opaque background composites them too, and switches their text to
+     sub-pixel antialiasing, unlike every other panel: the plates stay the
+     see-through dialog surface. */
+  for (const sel of ['.library-wrap{', '.guide-wrap{']) {
+    const i = css.indexOf(sel), rule = css.slice(i, css.indexOf('}', i));
+    assert(/background:var\(--surface-dialog\)/.test(rule), sel + ' keeps the dialog surface');
+    assert(!/backdrop-filter/.test(rule), sel + ' blurs nothing: nothing is drawn behind it');
+  }
+});
+
 test('the guidebook is wired into every place a full-screen reader has to be', () => {
   const html = readRepoFile('index.html');
   /* Measured on the SCRIPT TAGS, not by indexOf over the whole file: 'js/guide.js'

@@ -3051,7 +3051,9 @@ const MENU_BORDER={
   ROWS:[.006,.018,.034,.054,.08,.112,.15,.20, .285,.40,.56,.77,1.04], FAR:8,
   FAR_VEIL:[.16,.15,.14,.13,.12,.10,.08,.05], NEAR_TINT:[.07,.04,0,0,0],
   MEM:48*1048576,       // bytes of near sprites one border may hold
-  STEP_MS:6,            // planting per animation frame, while frames arrive at speed
+  /* Planting per animation frame, while frames arrive at speed: a SHARE of the
+     display's frame interval, between STEP_MIN_MS and STEP_MS (menuBakeBudget). */
+  STEP_SHARE:.3, STEP_MIN_MS:1.5, STEP_MS:6,
   SETTLE_MS:140,        // a resize holds still this long before the border is replanted
   FADE_MS:950, SWAP_MS:260, FIRST_MS:600,
   /* the title column, as styles.css lays it out (.menu-shell). The shade is
@@ -3398,7 +3400,34 @@ function menuAdoptBorder(b,t){
   menuBorder=b; menuDrawnSig='';
   if (b.ready) syncMenuBorderChrome(b);
 }
-/* Plant the border that should be up, a few ms at a time. Called every
+/* How long a frame may spend planting. The time budget counts the SCRIPT of a
+   bake, and that is the smaller part of it: the clumps are drawn onto an
+   accelerated surface, so their raster lands in the GPU process after the
+   frame's script has finished, at several times the script's cost. A flat 6ms
+   was 6ms of script and well over a 164Hz frame of GPU, and every turn of the
+   season (which is every return to the menu: show() advances it) dropped 6-8
+   frames, the worst 42-67ms, while the main thread never ran a task over 12ms
+   and the GPU process was busy for 680ms of the 1.4s. Measured on that display,
+   turning the season at 1440x925, interleaved, eight turns each:
+     6ms     7 frames missed a turn, worst 48-67ms, planted in ~190ms
+     2ms     2.6 missed, worst 18ms, ~255ms
+     1.5ms   1.1 missed, worst 18ms, ~330ms
+     1ms     1 missed, worst 18ms, ~490ms
+   so the planting barely slows (the GPU was the limit all along) while the
+   frames stop dropping. The share is of the DISPLAY's interval, as the
+   garden's look-ahead does it (aheadFrame): the smallest recent gap, drifting
+   back up 2% a frame, never the last gap, or a slow frame would buy the next
+   one more planting. It comes out at 1.8ms at 164Hz and 5ms at 60Hz, where the
+   GPU has the same share of a longer frame. The one frame that still runs long
+   is the far field's: Chrome rasterises that whole layer when it is handed
+   over, not as it is stamped, so ending frames between stamps only moved it. */
+let menuVs=0;
+function menuBakeBudget(gap){
+  const B=MENU_BORDER, dt=Math.min(34,Math.max(4,gap||16.7));
+  menuVs=Math.min(dt,(menuVs||dt)*1.02);
+  return Math.min(B.STEP_MS,Math.max(B.STEP_MIN_MS,menuVs*B.STEP_SHARE));
+}
+/* Plant the border that should be up, a little at a time. Called every
    animation frame the menu is the backdrop, not only on the 30fps frames that
    draw it, so a build takes a third of a second rather than a second and a
    half. Where frames are NOT arriving at speed nothing is animating to protect,
@@ -3415,13 +3444,14 @@ function menuBorderWork(t,gap){
     const plan=menuBorderPlan(menuSeason,W,H,mobileSheetUi(),menuPalette);
     menuJob={key:want, it:menuBorderBuild(plan), b:null};
   }
+  const budget=menuBakeBudget(gap);       // tracked every frame, building or not
   const job=menuJob; if (!job) return;
-  const budget=gap>180 ? 400 : MENU_BORDER.STEP_MS, t0=performance.now();
+  const t0=performance.now(), ms=gap>180 ? 400 : budget;
   let r;
   do {
     r=job.it.next();
     if (!r.done && r.value){ job.b=r.value; job.b.key=job.key; if (!menuBorder) menuAdoptBorder(job.b,t); }
-  } while (!r.done && performance.now()-t0<budget);
+  } while (!r.done && performance.now()-t0<ms);
   if (r.done){ menuJob=null; r.value.key=job.key; menuAdoptBorder(r.value,t); }
 }
 function menuDrawBorder(b,t,shadeA,still){
