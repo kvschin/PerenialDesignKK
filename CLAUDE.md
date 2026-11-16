@@ -118,7 +118,7 @@ consistently say **Use suggested plants** / **Use all plants**, separately from
 the hardiness filter. A blocked Start has its reason and a corrective action
 beside it in the sticky footer: remove the zone limit, or select All plants if
 the zone is already unrestricted. Resolving it focuses the enabled Start button.
-Regional invasive filtering still applies. Exact cultivar membership is enforced
+Exact cultivar membership is enforced
 through the shared catalog eligibility pipeline, including saved collections;
 palette edits/free choice are in both catalog and tray cache keys. Finish only
 reports saved completion after a successful save. Daily panels lead with
@@ -797,182 +797,54 @@ See §13a.
 
 Continental `nativeTo`/`provenance` and stored `nativeRegion`/`nativeMode` keep
 their eligibility contract. UI labels name the continent and say that local
-native status, nursery provenance, and regional invasive risk need separate
-review. A zone match is not a complete site-suitability assessment.
+native status and nursery provenance need separate review. A zone match is not
+a complete site-suitability assessment.
 
 `PLANT_GUIDANCE` and `PLANT_GUIDANCE_SOURCES` in `core.js` hold a bounded set of
 reviewed notes, separate from `PLANTS` and save blobs. Each entry has `taxon`,
-`reviewed` (ISO date), and optional `origin`, `site`, and `invasive` arrays;
-each note has `area`, `text`, and a `source` key. Origin observations carry
-`status:'native'`; site notes carry a `topic`. `plantGuidance({s,v})` resolves
-aliases and checks the effective botanical name, refusing inheritance by a
-different nested species or an unreviewed hybrid. Named species selections
-retain species cautions but are never implicitly cleared. The gardener's
-`localStatus` stays `unknown`: there is no location input or automatic local
-native/suitability inference. No note is a nationwide planting prohibition.
+`reviewed` (ISO date), and optional `origin` and `site` arrays; each note has
+`area`, `text`, and a `source` key. Origin observations carry `status:'native'`;
+site notes carry a `topic`. `plantGuidance({s,v})` resolves aliases and checks
+the effective botanical name, refusing inheritance by a different nested species
+or an unreviewed hybrid. A named selection keeps its species' notes. The
+gardener's `localStatus` stays `unknown`: there is no location input or
+automatic local native/suitability inference.
 
 `buildPlantGuidance`/`openPlantGuidance` (ui.js) present the same source-linked,
 dated advice in the Library and the `plantGuidanceScreen` dialog, reached from
-catalog choices and planted-plant cards. The dialog uses the existing focus
-trap, Escape, and return-focus pathways. Family cards flag cautions among
-their choices; exact cards resolve only their own species. Source links open
-on user action only; notes work offline. Show invasive-risk text only for
-recorded cautions; otherwise omit it in plant details and leave the CSV field
-empty. Missing assessments remain unknown in the data. Planting-list CSVs
-append local native uncertainty and regional cautions with source URLs; the
-on-screen list names affected regions. This
-does not alter placement, saves, schemes, collections, or quantities.
+the chosen plant's detail in the catalog (`plantGuidanceButton`, shown only for a
+plant with notes) and from planted-plant cards. The dialog uses the existing focus
+trap, Escape, and return-focus pathways. Source links open on user action only;
+notes work offline. Planting-list CSVs carry the local native uncertainty. None of
+this alters placement, saves, schemes, collections, or quantities. Eight species
+carry narrower native-range observations and six carry site qualifications.
 
-The water plants (0.9.77) added five cautions read by hand, three of them on
-nothing `dev/invasive-check.js` can see: see `docs/plant-data/water-implementation.md`.
-The wet-ground plants (0.9.79) added three more, read from primary documents and again
-out of the checker's reach, since it holds neither Connecticut nor Wisconsin: ragged
-robin (Connecticut Public Act 25-126), meadowsweet (Wisconsin NR 40) and giant rhubarb
-(the RHS on *Gunnera x cryptica*).
-The initial review covers nine species with regional invasive cautions, seven
-with narrower native-range observations, and six with site qualifications.
-Coverage and remaining work are in `docs/plant-data/regional-guidance.md`.
-
-### The invasive filter (0.9.3–0.9.4)
-
-**Invasive risk is a RELATION between a plant and a place**, exactly as native
-status is, so every note names the served `region` it applies to and the filter
-asks "is this invasive HERE" — never "is this invasive". `invasiveCautionsFor` /
-`hasInvasiveCaution` (core.js) are that question; `filters.invasive`
-(`hide`|`show`, **defaulting to hide**) is the gardener's answer.
-**Asking it globally is the mistake this is written to prevent, and it is not
-hypothetical.** Ten of the eleven reviewed cautions are North American and the
-eleventh is EPPO's listing of *Asclepias syriaca* — a NORTH AMERICAN native — so
-a global test deletes **common milkweed**, the monarch host plant, from a
-prairie garden, and takes *Vinca minor*, *Iris pseudacorus* and
-*Prunus laurocerasus* out of **Europe**, where all three are natives and two of
-them shipped in 0.9.2 specifically to give Europe a rockery and a pond. Measured
-per region instead: two plants leave a North American native garden and none
-leaves a European one.
-**`plantRefFitsCriteria` is the one insertion point**, so every discovery source
-— recommended, all eligible, Favorites, every named palette — inherits it for
-free. That was the actual defect: the eleven records existed and nothing read
-them, so **all six style palettes offered all eleven flagged plants** to a North
-American garden while the plant card politely showed a caution button.
-**The region now stays visible in Any mode** (questionnaire and filter modal
-both), relabelled *Garden region*, because it is the only thing attaching the
-garden to a place and it silently scopes which cautions apply — hidden, a
-European gardener was filtered against North American lists with no control to
-say otherwise. Origin and location are two questions one control used to fuse.
-**The state or county in `area` is deliberately NOT the filter's resolution.**
-`nativeRegion` is continental, so per-state precision is precision the gate
-cannot consume — and trying to settle "invasive" state by state is exactly what
-stalled the catalog review at eleven records. `severity`
-(`avoid`|`caution`) carries what that precision was really for: one county
-listing a plant Class C, *control not required*, is not the claim that a plant
-smothers woodland. Each shipped value follows its own note's recorded wording.
-**The copy COUNTS rather than claims** (`invasiveCautionCount`,
-`invasiveCriteriaText`): *"Hides the 10 plants with a recorded invasive caution
-for North America"*, plus a standing "only reviewed species are flagged". That
-is what makes the filter honest while the table is incomplete — and it is
-incomplete, 10:1 North American, so it removes **one** plant for a European
-gardener. Say that in the UI rather than let a confident label imply coverage.
-Cost: **0.24ms** added to a 5.25ms walk of all 1,000 refs (4.6%).
-`INVASIVE_FLAGGED_KEYS` is what keeps it there — 585 of 596 species carry no
-caution, so the common answer is one Set lookup rather than a ref
-canonicalisation and a botanical-name compare. It is **derived from
-`PLANT_REF_ALIASES` as well**, so a retired key resolving onto a flagged species
-cannot slip past the fast path.
+**There is no invasive-risk system, and that is a decision (0.9.117).** From
+0.9.3 the catalog hid plants with a recorded invasive caution for the garden's
+region (`filters.invasive`, default `hide`), cards and the planting list carried
+"Invasive in California" tags and a CSV column, the questionnaire and Garden
+criteria had an Invasive risk control, and `dev/invasive-check.js` reviewed the
+catalog against cached Cal-IPC and EASIN lists. Kevin removed all of it: it did
+not matter to designing a garden in this app. A saved `invasive` preference is
+dropped by `normalizeFilters`/`normalizeDesign`, so old gardens and devices load
+clean. The code, the 23 reviewed caution records, their sources and the checker
+are in git history (0.9.116) if it is ever wanted back, and
+`docs/plant-data/regional-guidance.md` records how it worked. Plant BLURBS still
+say in prose where a plant self-seeds or escapes, which is horticulture, not a
+filter, and `terms.html` keeps its general advice to check a local noxious-weed
+list. A test holds the removal, because the worst half-way state is a filter that
+hides plants with nothing on screen saying why.
+**The region stays visible in Any mode** (questionnaire and Garden criteria),
+labelled *Garden region*: it still decides which plants count as native for the
+style recommendations (`plantRoles`' `native` role), and it is the only thing
+attaching an Any-origin garden to a place.
 **A criterion must be added to `paletteTally`'s key** (screens.js) or the
 questionnaire's live count freezes while every chip on the panel says it moved —
-this shipped that way for one browser session, reading 357 for both answers. A
-test pins that key against `normalizeFilters`' own fields; it is the
-`trayStateSig` lesson in a second place. Note the count is FAMILY CARDS, so
-hiding a species whose family has surviving siblings legitimately moves nothing:
-Europe hides common milkweed and still shows the milkweed card, on eight
-siblings.
-**A plant NATIVE to the region is never hidden by that region's own caution**
-(`invasiveFilterHides`, 0.9.4), and this is where continental resolution stops
-being able to hold the claim. Invasive means *introduced* and spreading, and a
-plant cannot be introduced to the continent it comes from: Cal-IPC's record for
-*Nassella tenuissima* is a range expansion from its native Texas and New Mexico
-into coastal California, not an arrival in North America. One bit per continent
-cannot say that, and when the bit has to choose, native-here is the
-better-supported fact — a stable property of the taxon, where invasive-here is
-true of a sub-region. Hiding it made a Kansas garden lose a plant native to its
-own continent, which was this filter's first false positive and was reported
-from the garden, not from a test. **Two species are in the class**
-(*Nassella tenuissima*, *Nymphaea odorata*), both kept and both still flagged;
-North America goes 357 → 359 family cards, Europe is unchanged.
-**So display and gating diverge on purpose** — `invasiveCautionsFor` is what a
-card shows, `invasiveFilterHides` is what leaves the catalog. That is the
-`effectiveEstab` split one system over: what you SEE follows one rule, what is
-legal follows another. The filter handles what it can express (introduced
-species); the card handles what it cannot.
-**The copy must count what is HIDDEN, not what is flagged.** `invasiveFilterCounts`
-returns `hidden` and `keptNative` from one walk (the `paletteCounts` pair
-shape), because a hint reading "hides the 10" while the filter removes 8 is a
-lie the gardener can check. North America is 8 and 2; Europe 1 and 0, and the
-native clause only prints where it applies.
-**Caution treatment is region-scoped and severity-led** (`plantGuidanceButton`,
-`.plant-caution-tag`): `Invasive in California` against `Caution in Washington`.
-Two bugs that fixes. `avoid` and `caution` rendered identically, so King
-County's "Class C, control not required" shouted exactly as loud as Vinca
-smothering woodland. And the label was region-blind, so a **European** garden
-was alarmed by North Carolina about a plant native to Europe — the very mistake
-the filter exists to avoid, sitting in the UI next to it.
-**Severity is carried by the WORDS, and that ordering is the point**: background
-and colour are both discarded under `forced-colors`, so anything carried by them
-alone is carried by nothing. The left bar is a border (not discarded) and the
-`forced-colors` block sits immediately after the rules it overrides, because a
-media query adds no specificity and a later base rule of equal weight would
-silently win — the `.menu-settings` trap. Naming the place is also what lets a
-Kansas gardener judge that a California record is not about them, which matters
-now that such a plant is kept rather than hidden.
-**`dev/invasive-check.js` (0.9.5) is the review, and it found three plants on
-its first real run.** `--source calipc` matched *Cynara cardunculus*,
-*Digitalis purpurea* and *Leucanthemum vulgare* — all in the Cal-IPC inventory,
-all marked as still in the horticultural trade, and **all three added by the
-European wave three commits earlier**, where nobody thought to check a
-Californian list against a European native. That is the case for source-first
-in one line: plant-first had been running for months and had eleven records.
-It also reported two severity disagreements with the source's own rating (we
-say `caution` for fig where Cal-IPC rates it Moderate, and `avoid` for
-*Nassella* where Cal-IPC rates it Limited — the lowest tier, which is
-independent support for the false positive Kevin reported from Kansas).
-Two sources are configured and both verified working: **EASIN**
-(`/apixg/catxg/euconcern`, JSON, no key, 48 plants, and it publishes
-`Synonyms` and `IsPartNative`) and **Cal-IPC** (the inventory table, 331 plants
-with a real rating and a "still sold" column). Snapshots cache to
-`dev/invasive-lists/` with a retrieval date, the `data/zip-zones-2023.json`
-shape, so `--verify --offline` works and a run is reproducible.
-**Recorded so nobody re-derives it: USDA PLANTS is not usable.** Its
-Invasive/Noxious dataset was not migrated to the 2021 rebuild and a replacement
-"will be deployed in a later release"; the Invasive Plant Atlas refuses
-automated requests (403). Cal-IPC speaks only for California, so North American
-coverage is a real gap rather than a finished job, and `--list` says so on
-screen rather than leaving the next person to find out.
-**Three buckets, not two, and measurement forced the split.** A first cut
-reported "same genus OR same epithet" as one near-miss list: same GENUS is the
-signal (*Cenchrus setaceus* beside the catalog's two *Cenchrus*), same EPITHET
-is how a genus transfer looks but measured **46 of 46 coincidences** on
-Cal-IPC, so it is counted by default and printed under `--all`. Visible, never
-silent — a silent miss is how you come to believe in coverage you do not have,
-and `Cenchrus alopecuroides` ← *Pennisetum alopecuroides* is exactly that
-failure sitting in the catalog today, recorded only in the note's prose.
-The tool **writes nothing to `js/`**: it drafts a `PLANT_GUIDANCE` block with
-`source` and `text` left as `TODO`, because a note nobody read is a citation
-nobody can defend. That rule is why the existing records are trustworthy.
-**`--verify` exits 1 today, and that is the honest state.** Three decisions are
-open and they are recorded, in dependency order, under "Open decisions" in
-`docs/plant-data/regional-guidance.md` — read that before touching this system.
-The shortest version: severity does not gate hiding, so Cal-IPC's LOWEST tier
-hides a plant from every North American garden, and Cal-IPC is the only North
-American source there is. That is the *Nassella* over-reach in a form the
-native-here rule cannot catch, because foxglove and cardoon are European.
-The remaining process fix is to **review source-first, not plant-first** — intersect one aggregator (USDA PLANTS'
-composite, EDDMapS, the EU Union-concern list) with the catalog's binomials and
-the whole catalog is reviewed in one pass, the way `dev/wikipedia-links.js
---verify` and `dev/commons-photo.js --verify` already work. The queue is not 596:
-non-native **and** spreading is **76** plants for North America and 113 for
-Europe. Watch synonyms — only 53 records carry a `synonyms` array and the lists
-use older names (the fountain grass note already says *Pennisetum*), so a
-checker must report unmatched names rather than silently miss them.
+the invasive control shipped that way for one browser session, reading 357 for
+both answers. A test pins that key against `normalizeFilters`' own fields; it is
+the `trayStateSig` lesson in a second place. Note the count is FAMILY CARDS, so
+a change that removes a species whose family has surviving siblings legitimately
+moves nothing.
 
 ## Architecture
 
@@ -5720,9 +5592,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     search; it used to blame the garden style and send the gardener to another
     list with both filters still on.
     **The dialog is Garden criteria** (`#discoveryFilterScreen`, `.gc-*`; the
-    garden menu's row has the same name): zone and style, native planting and
-    invasive risk as radio-group segments (`criteriaSegment`; they were two 44px
-    selects), the region, and what it resists as three chips. The draft
+    garden menu's row has the same name): zone and style, native planting as a
+    radio-group segment (`criteriaSegment`; it was a 44px select), the region,
+    and what it resists as three chips. The draft
     (`discoveryCriteriaDraft`) IS what is being edited, pressed into by
     `patchDiscoveryCriteria`; only the two selects are read back off the DOM
     (`readDiscoveryCriteria`). The body scrolls and the footer does not, and the
@@ -5762,9 +5634,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `card._detail` read as true for every card and doubled every list. A family
     card opens its own page, as before, where each choice states its SIZE (what
     you are choosing between) and keeps its note; under its family heading a
-    variety is named by its own part (`plantVariantLabel`). A caution recorded
-    for the garden's own region stays on the card, chosen or not; neutral notes
-    wait in the detail. "Spreads" stays on the card's line. The line over the
+    variety is named by its own part (`plantVariantLabel`). Reviewed origin and
+    site notes wait in the detail. "Spreads" stays on the card's line. The line over the
     results (`.discovery-summary`) names what is listed and how many; a family's
     page drops it, since it described the list behind.
     **Pictures are fitted to their box** (`trayPlantArt`, `TRAY_ART_KINDS`):
@@ -7437,10 +7308,8 @@ it changes sprite boxes, never drawings.
 sourced in `docs/plant-data/shade-sources.json` as batch `add-next`. New cards: Hellebore (the Lenten
 rose joined it), Violet and Spikenard; the bleeding hearts, wild gingers and primroses gained members.
 × Heucherella is a hybrid with no wild range and, like heuchera, its card height is the leaf mound.
-**Lily of the valley carries two North American cautions** (NC State, Go Botany), so the invasive
-filter hides it there; Wisconsin's NR 40 was read and does not list it, and the note says so instead
-of repeating the claim. Yellow archangel and creeping Jenny were left out (NR 40 exempts only the gold
-creeping Jenny that is sold, which a species caution cannot say). Two opt-in drawing options:
+Lily of the valley shipped with two North American cautions (NC State, Go Botany), removed with the
+invasive filter in 0.9.117. Yellow archangel and creeping Jenny were left out as invasive. Two opt-in drawing options:
 `seedStyle:'berryRaceme'` on a spike (`drawBerryRaceme`: fruit on stalks round the stem top, the
 stalks in the season's `eye`, `berryEye` for doll's eyes' black dots, `berries`/`berryR`/`pedicel`/
 `berrySpan`), and `bellAt`/`bellW`/`bellH` on an archbell, hanging long bells from the end of the
@@ -7608,12 +7477,9 @@ six inches and the drawing stops being cut off. Periwinkle needed its `matW` and
 `shadowW` brought from 26 to 24 as well, which is the same lesson one knob over
 — the mossphlox habit's mat is drawn in units the box does not scale with.
 After: 384 sprite-edge checks, no painted edges, in BOTH renderer modes.
-**Two invasive cautions ship with the records, each against a page that was
-opened and read rather than a URL that looked plausible.** `Iris pseudacorus`
-is a non-regulated Class C noxious weed in King County, Washington, and
-`Vinca minor` is classified invasive by the NC Invasive Plant Council — both
-are European natives that behave badly in North America, which is precisely the
-case `PLANT_GUIDANCE` exists for, and both blurbs say so as well.
+`Iris pseudacorus` and `Vinca minor` are European natives that behave badly in
+North America, and both blurbs say so (they carried invasive cautions until the
+filter was removed in 0.9.117).
 **Cultivar depth (d)**: 24 of the 38 European herbaceous records carried no
 selection at all, so the ones a European buyer actually meets went in —
 Astrantia 'Hadspen Blood', Echinops 'Veitch's Blue', Geranium sanguineum
@@ -7672,8 +7538,7 @@ reserves the reach in front of the tile. The dome outline is Bezier quarters
 ellipse. `contorted` (twists per twig; Corylus 'Contorta') lays a sine across
 the plain twig curve so leaves and catkins still sit on it. `fruitStyle:'cone'`
 (staghorn sumac + 'Bailtiger'/Tiger Eyes, new Sumac family with fragrant
-sumac) draws upright fruit heads sized to the plant. Staghorn carries a
-Switzerland caution citing Info Flora, so European gardens hide it.
+sumac) draws upright fruit heads sized to the plant.
 **0.9.48: broadleaf crown habits (`look.crown`, `TREE_HABITS`,
 `drawTreeHabit`, draw.js).** Every broadleaf tree drew one shape: an ellipse
 of foliage blobs over five straight limbs fanned from the top of a bare trunk
@@ -7993,8 +7858,7 @@ fir; Austrian, Scots, Japanese black, ponderosa pine; Italian cypress, incense
 cedar, western red cedar, cryptomeria, Rocky Mountain juniper, cedar of
 Lebanon; and the broadleaf evergreens Southern magnolia, live oak, holm oak,
 American, English and 'Nellie R. Stevens' holly, bay laurel, strawberry tree
--- and 21 cultivars (635 base / 487 nested). English holly carries a King
-County caution, so the invasive filter hides it in North America (9 hidden).
+-- and 21 cultivars (635 base / 487 nested).
 **0.9.60: shrubs built as shrubs (`SHRUB_HABITS`, `shrubHabitOf`,
 `drawShrubHabit`, draw.js), with leaf-out and leaf drop (`woodyLeafOut`,
 world.js).** Every informal shrub -- 88 `bush` species and the 7 hydrangeas,

@@ -727,10 +727,6 @@ if ('serviceWorker' in navigator)
       </div>
       <p class="field-hint" id="dgnNativeHint"></p>
     </div>
-    <div class="field"><label>Invasive risk</label>
-      <div class="chip-row" id="dgnInvasive" role="radiogroup" aria-label="Invasive risk"></div>
-      <p class="field-hint" id="dgnInvasiveHint"></p>
-    </div>
     <div class="field"><label>Animal resistance</label>
       <div class="chip-row" id="dgnConstraints"></div>
     </div>
@@ -782,12 +778,7 @@ if ('serviceWorker' in navigator)
         <span class="gc-label" id="discoveryResistLabel">Only plants that resist</span>
         <div class="gc-checks" id="discoveryResist" role="group" aria-labelledby="discoveryResistLabel"></div>
       </div>
-      <div class="gc-group">
-        <span class="gc-label" id="discoveryInvasiveLabel">Invasive risk</span>
-        <div class="gc-seg" id="discoveryInvasive" role="radiogroup" aria-labelledby="discoveryInvasiveLabel" aria-describedby="discoveryInvasiveHint"></div>
-        <p class="gc-hint" id="discoveryInvasiveHint"></p>
-      </div>
-      <p class="gc-hint gc-fine">Local native status, soil, summer climate and regional invasive risk need a separate check.</p>
+      <p class="gc-hint gc-fine">Local native status, soil and summer climate need a separate check.</p>
     </div>
     <div class="gc-foot">
       <span class="gc-status" id="discoveryFilterCount" aria-live="polite"></span>

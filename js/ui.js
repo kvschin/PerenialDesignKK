@@ -1171,13 +1171,6 @@ function normalizeFilters(src){
     zone:src.zone?+src.zone:null,
     nativeRegion:normalizeNativeRegion(src.nativeRegion),
     nativeMode,
-    /* Defaults to 'hide'. A saved garden from before this field therefore
-       adopts it, which is deliberate: the eleven reviewed cautions did nothing
-       at all until now -- every style palette offered every flagged plant --
-       and a gardener who wants one back has a control that says so. Plants
-       already IN the garden are untouched; this gates the catalog, exactly as
-       the native mode does. */
-    invasive:normalizeInvasiveMode(src.invasive),
     deer:!!src.deer,
     rabbit:!!src.rabbit,
     squirrel:!!src.squirrel
@@ -1187,7 +1180,7 @@ function normalizeDesign(src){
   if (!src || typeof src!=='object') return null;
   const f=normalizeFilters(src);
   return {zone:f.zone,type:typeof src.type==='string'?src.type:'any',
-    nativeRegion:f.nativeRegion,nativeMode:f.nativeMode,invasive:f.invasive,
+    nativeRegion:f.nativeRegion,nativeMode:f.nativeMode,
     deer:f.deer,rabbit:f.rabbit,squirrel:f.squirrel};
 }
 function activeFilters(){ return normalizeFilters(game.filters); }
@@ -1298,12 +1291,6 @@ function plantRefFitsCriteria(ref,criteria,ignoreChallenge=false){
   const P=refDef(ref), f=normalizeFilters(criteria); if (!P) return false;
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
   if (!passesNativeFilter(P,f)) return false;
-  /* The one gate every discovery SOURCE inherits. Recommended, All eligible,
-     Favorites and every named palette filter references through here before
-     grouping them into family cards, so a flagged plant leaves the starting
-     style palettes for free -- which is the defect this began as: all six
-     styles offered all eleven flagged plants to a North American garden. */
-  if (f.invasive==='hide' && invasiveFilterHides(ref,f.nativeRegion)) return false;
   if (!ignoreChallenge && !challengeAllows(ref.s,ref.v||null)) return false;
   const roles=plantRoles(ref.s);
   if (!isTreeDef(P)){
@@ -1612,9 +1599,6 @@ function discoveryGardenLine(f=activeFilters()){
   if (f.nativeMode!=='any') bits.push(f.nativeMode==='straight'?'Straight species':'Natives');
   const resists=[f.deer&&'deer',f.rabbit&&'rabbits',f.squirrel&&'squirrels'].filter(Boolean);
   if (resists.length) bits.push('Resists '+resists.join(', '));
-  // hiding flagged plants is the default and goes without saying; a phone has
-  // room for about thirty characters here
-  if (f.invasive==='show') bits.push('Invasives shown');
   return bits.join(' \u00b7 ');
 }
 function discoverySourceLabel(d=activeDiscovery()){
@@ -1631,8 +1615,7 @@ function plantFits(k){
   const P=PLANTS[k], f=activeFilters();
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
   if (!passesNativeFilter(P,f)) return false;
-  if (f.invasive==='hide' && invasiveFilterHides({s:k,v:null},f.nativeRegion)) return false;
-  if (!challengeAllows(k)) return false;                 // daily challenge limits the palette
+  if (!challengeAllows(k)) return false;                // daily challenge limits the palette
   const roles=plantRoles(k);
   if (!isTreeDef(P)){
     if (f.deer && !roles.includes('deerOk')) return false;
@@ -1725,7 +1708,6 @@ function applyGardenCriteria(next,{refresh=true,announce=true}={}){
     game.design.zone=game.filters.zone;
     game.design.nativeRegion=game.filters.nativeRegion;
     game.design.nativeMode=game.filters.nativeMode;
-    game.design.invasive=game.filters.invasive;
     delete game.design.nativesOnly;
     game.design.deer=game.filters.deer;
     game.design.rabbit=game.filters.rabbit;
@@ -1747,12 +1729,6 @@ function updateFilterBtn(){
   const f=activeFilters(), bits=[];
   if (f.zone) bits.push('z'+f.zone);
   if (f.nativeMode!=='any') bits.push((f.nativeMode==='straight'?'Straight':'Origin')+' · '+nativeRegionLabel(f.nativeRegion,true));
-  /* Only the non-default is worth a bit, as with zone and browse resistance --
-     except in Any mode, where the region is the ONLY thing attaching this
-     garden to a place and would otherwise go unnamed while it silently scopes
-     which cautions apply. */
-  if (f.invasive==='show') bits.push('Invasives shown');
-  else if (f.nativeMode==='any') bits.push('No invasives · '+nativeRegionLabel(f.nativeRegion,true));
   if (f.deer) bits.push('Deer');
   if (f.rabbit) bits.push('Rabbit');
   if (f.squirrel) bits.push('Squirrel');
@@ -1779,13 +1755,6 @@ function buildPlantGuidance(ref){
     a.target='_blank'; a.rel='noopener noreferrer'; line.append(a,` · Reviewed ${n.reviewed}`);
     box.appendChild(line); parent.appendChild(box);
   };
-  if (g.invasive.length){
-    const caution=document.createElement('div'); caution.className='plant-regional-caution';
-    const h=document.createElement('h3'); h.textContent='Regional invasive caution'; caution.appendChild(h);
-    g.invasive.forEach(n=>note(caution,n));
-    if (g.selection) paragraph(caution,'This is a species-level assessment. This named selection has not been individually cleared.');
-    host.appendChild(caution);
-  }
   paragraph(host,LOCAL_NATIVE_UNKNOWN,'plant-guidance-scope');
   const details=document.createElement('details');
   const summary=document.createElement('summary'); summary.textContent='Reviewed range and site notes'; details.appendChild(summary);
@@ -1810,31 +1779,14 @@ function openPlantGuidance(ref){
   const panel=$('plantGuidanceScreen').querySelector('.panel'); if (panel) panel.scrollTop=0;
   openOverlay('plantGuidanceScreen','#btnPlantGuidanceClose');
 }
-/* The row leads with the caution that applies to THIS garden, and names it.
-   Two things it used to get wrong. `avoid` and `caution` rendered identically,
-   so King County's "Class C, control not required" for yellow flag read exactly
-   as loud as Vinca minor smothering woodland. And the label was region-blind,
-   so a European garden was alarmed by North Carolina's list about a plant
-   native to Europe -- the same mistake the filter itself was written to avoid.
-   A caution recorded elsewhere is still reachable in the dialog; it just stops
-   shouting about a place this garden is not in.
-   Severity is carried by the WORDS, not the tint: "Invasive in California"
-   survives forced colours, a monochrome screen and a screen reader, and it is
-   also what a Kansas gardener needs in order to decide the record is not about
-   them -- which matters because a plant native to its own region is now KEPT
-   and flagged rather than hidden (`invasiveFilterHides`). */
+/* Opens the reviewed origin and site notes. Without `always` it appears only
+   for a plant that has some. */
 function plantGuidanceButton(ref,always=false){
   const g=plantGuidance(ref);
-  if (!always && !g.invasive.length && !g.site.length && !g.origin.length) return null;
-  const region=activeFilters().nativeRegion;
-  const here=g.invasive.filter(n=>n.region===region), elsewhere=g.invasive.filter(n=>n.region!==region);
-  const severity=here.some(n=>n.severity==='avoid')?'avoid':(here.length?'caution':'');
-  const areas=list=>list.map(n=>n.area).join(', ');
+  if (!always && !g.site.length && !g.origin.length) return null;
   const b=document.createElement('button'); b.type='button';
-  b.className='plant-guidance-button'+(here.length?' has-caution is-'+severity:'');
-  b.textContent=here.length
-    ? (severity==='avoid'?'Invasive in ':'Caution in ')+areas(here)
-    : (elsewhere.length ? 'Regional notes · '+areas(elsewhere) : 'Local origin & site notes');
+  b.className='plant-guidance-button';
+  b.textContent='Local origin & site notes';
   b.setAttribute('aria-haspopup','dialog');
   b.onclick=()=>openPlantGuidance(ref); return b;
 }

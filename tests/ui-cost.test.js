@@ -35,7 +35,7 @@ function fittingKey(pred){
 test('the Plant rail\'s remembered-plant check agrees with the sorted catalog, species by species', () => {
   uiSetup();
   const configs = [
-    { zone: null, nativeRegion: 'north-america', nativeMode: 'any', deer: false, rabbit: false, squirrel: false },
+    { zone: 7, nativeRegion: 'north-america', nativeMode: 'any', deer: false, rabbit: false, squirrel: false },
     { zone: 5, nativeRegion: 'north-america', nativeMode: 'straight', deer: true, rabbit: false, squirrel: true },
     { zone: 8, nativeRegion: 'europe', nativeMode: 'regional', deer: false, rabbit: true, squirrel: false },
   ];

@@ -609,12 +609,6 @@ test("the shade audit's second batch draws its fruit and its bells where they ar
   assertEqual(shadeSiteOf(PLANTS.knottedcranesbill),'dryshade','knotted cranesbill: Dry shade');
   assertEqual(shadeSiteOf(PLANTS.bellwort),'woodland','bellwort: Woodland');
   assertEqual(shadeSiteOf(PLANTS.redwoodsorrel),'moistshade','redwood sorrel: Moist shade');
-  // lily of the valley carries two cautions in North America and none in Europe, where it is native
-  assertEqual(invasiveCautionsFor({s:'lilyofthevalley'},'north-america').length,2,'two North American cautions');
-  assert(invasiveFilterHides({s:'lilyofthevalley'},'north-america'),'hidden by default in a North American garden');
-  assert(!invasiveFilterHides({s:'lilyofthevalley'},'europe'),'kept in a European garden');
-  for (const n of invasiveCautionsFor({s:'lilyofthevalley'},'north-america'))
-    assert(PLANT_GUIDANCE_SOURCES[n.source] && /^https:\/\//.test(PLANT_GUIDANCE_SOURCES[n.source].url),n.area+': a source that can be read');
 });
 
 test('the maidenhair holds flat fans of fingers on dark wires', () => {
@@ -779,18 +773,6 @@ test('a variegated sedge can be green with a white edge, not just striped down t
     assert(P.look.stripeW*0.5>hw*0.6,k+': and is most of the blade, or it reads as a white plant');
     assertEqual(P.look.tuftWash,0,k+': no pale wash under it');
   }
-});
-
-test('Pendulous Sedge is hidden where it invades, and kept where it is native', () => {
-  const ref={s:'weepingsedge',v:null};
-  assert(invasiveFilterHides(ref,'north-america'),'a North American garden does not get it by default');
-  assert(!invasiveFilterHides(ref,'europe'),'a European garden does: it is native there');
-  const notes=invasiveCautionsFor(ref,'north-america');
-  assertEqual(notes.map(n=>n.area).join('|'),'Pacific Northwest|California','both reviewed notes');
-  assertEqual(notes.map(n=>n.severity).join('|'),'avoid|caution','each at the weight its own source gives');
-  assertEqual(invasiveCautionsFor(ref,'europe').length,0,'and neither is about Europe');
-  for (const k of ['emorysedge','hairsedge','leatherleafsedge','woodlandsedge'])
-    assert(!invasiveFilterHides({s:k,v:null},'north-america'),k+': a warning in the blurb, not a listing, so it stays');
 });
 
 test('a low sedge reaches the tiles beside it, and a young clump has not yet', () => {
@@ -1133,13 +1115,6 @@ test('an oatgrass can stand on arching ribbons, as the cordgrasses and Californi
     }
   } finally { ART2.on=was; }
 });
-test('Miscanthus names the wider evidence, in North America', () => {
-  const g=plantGuidance({s:'miscanthus'}), srcs=g.invasive.map(n=>n.source);
-  assert(srcs.includes('marylandGrasses')&&srcs.includes('chicagoGrasses'),'both sources stand');
-  assert(g.invasive.every(n=>n.region==='north-america'),'and neither reaches a European garden');
-  assert(PLANT_GUIDANCE_SOURCES.chicagoGrasses.url.startsWith('https://www.chicagobotanic.org/'),'its source links out');
-});
-
 test('snow lands on a sedge, not beside it or in the air above it', () => {
   for (const k of SEDGE_KEYS()){
     assertEqual(sedgeDraw(k).anchors,null,`${k}: no snow, no anchors`);
@@ -1631,7 +1606,6 @@ test('moving and replacing follow the same rule as planting', () => {
   assert(commitSelectionOffset(1,0,false),'and moves across water');
   // replacing inside the water group: marginal for marginal, wherever it stands
   setup();
-  game.filters=Object.assign({},game.filters,{invasive:'show'});
   game.tool='softrush'; applyToolAt(15,15);
   const ctx={source:{s:'softrush',v:null},scope:'garden'};
   assertEqual(replacementPreflight(ctx,{s:'commoncattail',v:null}).valid.length,1,'a cattail may replace a rush on the bank');
@@ -3632,16 +3606,6 @@ test('staghorn sumac carries its fruit cones into winter', () => {
   assert(fills(null)>=4, 'a cone on every branch tip');
 });
 
-test('the staghorn caution hides it from a European garden and not from a North American one', () => {
-  /* Native in North America, introduced and on Switzerland's invasive list in
-     Europe: invasive risk is a relation between a plant and a place. */
-  for (const v of [null,'bailtiger']){
-    assert(invasiveFilterHides({s:'staghornsumac',v},'europe'), `${v||'species'}: hidden in Europe`);
-    assert(!invasiveFilterHides({s:'staghornsumac',v},'north-america'), `${v||'species'}: offered in North America`);
-  }
-  assert(/infoflora/.test(PLANT_GUIDANCE_SOURCES.staghornSwiss.url),'the caution cites the page it was read from');
-});
-
 test('a male winterberry draws no berries, and a female still does', () => {
   /* A berry is a glossy floret in the seed colour under ART2 and a plain disc
      filled with it in Classic, so count both ways of painting one. */
@@ -3959,11 +3923,8 @@ test('every species is reachable at some offered zone', () => {
   for (const k of PLANT_KEYS){
     const P = PLANTS[k]; if (P.hidden) continue;
     let ok = false;
-    // `invasive:'show'` because this asks a ZONE question: a plant hidden by
-    // the invasive control is one control away, not stranded by the ladder.
-    // Which species that control hides is pinned by its own test below.
     for (let z = r.lo; z <= r.hi && !ok; z++)
-      if (plantRefFitsCriteria({ s: k }, { zone: z, nativeMode: 'any', invasive: 'show' })) ok = true;
+      if (plantRefFitsCriteria({ s: k }, { zone: z, nativeMode: 'any' })) ok = true;
     if (!ok) stranded.push(k + ' (z' + P.zones[0] + '-' + P.zones[1] + ')');
   }
   assertEqual(stranded.length, 0, 'these species sit outside every offered zone: ' + stranded.join(', '));
@@ -4055,7 +4016,6 @@ test('ostrich fern is native on its three continents and says what a label canno
     assert(P.synonyms.includes(name),`${name} finds it`);
   const g=plantGuidance({s:'ostrichfern'});
   assertEqual(g.origin.length,2,'the range and the identity note reach the card');
-  assertEqual(g.invasive.length,0,'and no caution was invented to go with them');
   assert(g.origin.every(n=>n.status==='native' && PLANT_GUIDANCE_SOURCES[n.source] && n.reviewed),'each note is dated and cited');
 });
 
@@ -4092,7 +4052,7 @@ test('three cultivars carry their own botanical identity, not their record\'s (D
   // saved keys still resolve, and guidance stays empty for all three
   [['serviceberry','standingovation'],['ladyfern','ladyinred'],['heuchera','palacepurple']].forEach(([s,v])=>{
     const g=plantGuidance({s,v});
-    assert(!g.origin.length && !g.site.length && !g.invasive.length,`${s}|${v}: no guidance inherited`);
+    assert(!g.origin.length && !g.site.length,`${s}|${v}: no guidance inherited`);
     assert(g.selection,`${s}|${v}: reported as a selection, not the species`);
   });
   assertEqual(planBotanicalName('serviceberry','standingovation'),"Amelanchier alnifolia 'Obelisk'",'the plan prints the real name once');
@@ -4695,10 +4655,10 @@ test('the Filters badge counts the browsing filters, and the tray names what the
        with one chip pressed is a number nobody can find. */
     assertEqual(discoveryFilterCount(), 1, 'the badge counts what its tray holds');
     const line = discoveryGardenLine();
-    assert(/^Zone 6/.test(line) && /Natives/.test(line) && /Resists deer/.test(line) && !/Invasives/.test(line),
+    assert(/^Zone 6/.test(line) && /Natives/.test(line) && /Resists deer/.test(line),
       'the tray\'s foot says what the garden itself asks: ' + line);
-    game.filters = normalizeFilters({ nativeMode: 'any', invasive: 'show' });
-    assertEqual(discoveryGardenLine(), 'Every zone \u00b7 Invasives shown', 'the default, hiding flagged plants, goes without saying; the other is said');
+    game.filters = normalizeFilters({ nativeMode: 'any' });
+    assertEqual(discoveryGardenLine(), 'Every zone', 'a garden that asks nothing says only that');
   } finally { [game.filters, game.discovery, game.design] = saved; }
 });
 
@@ -4791,8 +4751,8 @@ test('the garden criteria dialog holds what the garden asks, with its one action
   assert(/<h2 id="discoveryFilterTitle">Garden criteria<\/h2>/.test(dialog), 'and it is named for what is left');
   assert(dialog.indexOf('class="gc-body"') < dialog.indexOf('class="gc-foot"')
     && dialog.indexOf('class="gc-foot"') < dialog.indexOf('id="btnDiscoveryApply"'), 'the action is in a footer after the body');
-  assert(/id="discoveryNativeMode" role="radiogroup"/.test(dialog) && /id="discoveryInvasive" role="radiogroup"/.test(dialog),
-    'the two short either/ors are radio groups, not selects');
+  assert(/id="discoveryNativeMode" role="radiogroup"/.test(dialog),
+    'the short either/or is a radio group, not a select');
   assert(/<span class="gm-name">Garden criteria<\/span>/.test(html), 'and the garden menu calls it the same thing');
   const css = readRepoFile('styles.css');
   assert(/\.gc-body\{[^}]*flex:1 1 auto;min-height:0;overflow-y:auto/.test(css), 'only the body scrolls');
@@ -11347,10 +11307,6 @@ test('legacy daily match limits still work without a curated palette',()=>{
 
 test('zone 6 grass palette includes Mexican feather grass', () => {
   setup();
-  /* Cal-IPC flags this grass, but it is NATIVE to North America -- the caution
-     is a range expansion within the continent, not an introduction to it -- so
-     the default filter keeps it. That makes this a regression guard for the
-     false positive as well as a zone test. */
   game.filters = normalizeFilters({ zone: 6 });
   game.design = { zone: 6, type: 'any', nativeRegion:'north-america', nativeMode:'any', deer: false, rabbit: false, squirrel: false };
   assert(plantFits('mexicanfeather'), 'mexican feather grass should fit the zone 6 picker');
@@ -15773,7 +15729,7 @@ test('cached discovery agrees with fresh predicates after criteria, source and c
   };
   try {
     for (const criteria of [{zone:2},{zone:6,nativeMode:'regional'},{zone:6,nativeRegion:'europe',nativeMode:'straight'},
-      {zone:10,invasive:'show'},{zone:6,deer:true,rabbit:true,squirrel:true},{zone:6}]){
+      {zone:10},{zone:6,deer:true,rabbit:true,squirrel:true},{zone:6}]){
       game.filters=normalizeFilters(criteria);
       for (const style of ['prairie','mediterranean',null]){
         game.design={type:style};
@@ -19412,7 +19368,7 @@ test('regional guidance has explicit taxa, geographic scopes, review dates and s
     assert(/^\d{4}-\d{2}-\d{2}$/.test(entry.reviewed),key+' has a review date');
     const resolved=plantGuidance({s:key});
     assertEqual(resolved.localStatus,'unknown','a source region never becomes the gardener location');
-    for(const kind of ['origin','site','invasive']) for(const n of entry[kind]||[]){
+    for(const kind of ['origin','site']) for(const n of entry[kind]||[]){
       assert(n.area&&n.text,key+' names its scope and advice');
       if(kind==='origin') assertEqual(n.status,'native');
       if(kind==='site') assert(n.topic,key+' names the site qualification');
@@ -19424,173 +19380,72 @@ test('regional guidance has explicit taxa, geographic scopes, review dates and s
   assertEqual(sources.size,Object.keys(PLANT_GUIDANCE_SOURCES).length,'no unreferenced source records');
 });
 
-test('regional cautions follow the exact species and preserve unknown cultivar assessments',()=>{
-  assert(plantGuidance({s:'fountaingrass',v:'hameln'}).invasive.length,'a named cultivar does not erase a species caution');
-  assertEqual(plantGuidance({s:'orientalfountain'}).invasive.length,0,'a different species in the same tray family is not accused');
-  assertEqual(plantGuidance({s:'fountaingrass',v:'missing'}).invasive.length,0,'an invalid exact reference does not fall back to the base assessment');
+test('regional guidance follows the exact species and preserves unknown cultivar assessments',()=>{
+  assert(plantGuidance({s:'switchgrass',v:'northwind'}).origin.length,'a named cultivar keeps its species\' notes');
+  assertEqual(plantGuidance({s:'switchgrass',v:'missing'}).origin.length,0,'an invalid exact reference does not fall back to the base assessment');
   assertEqual(plantGuidance({s:'missing'}).localStatus,'unknown');
-  const cv=PLANTS.fountaingrass.cv;
+  const cv=PLANTS.switchgrass.cv;
   try{
-    cv.guidanceOtherSpecies={name:'Test',latin:'Cenchrus orientalis',provenance:'species'};
+    cv.guidanceOtherSpecies={name:'Test',latin:'Panicum amarum',provenance:'species'};
     cv.guidanceHybrid={name:'Test hybrid',provenance:'hybrid'};
-    assertEqual(plantGuidance({s:'fountaingrass',v:'guidanceOtherSpecies'}).invasive.length,0,'nested species do not inherit unrelated advice');
-    assertEqual(plantGuidance({s:'fountaingrass',v:'guidanceHybrid'}).invasive.length,0,'unreviewed hybrids do not inherit a species assessment');
+    assertEqual(plantGuidance({s:'switchgrass',v:'guidanceOtherSpecies'}).origin.length,0,'nested species do not inherit unrelated advice');
+    assertEqual(plantGuidance({s:'switchgrass',v:'guidanceHybrid'}).origin.length,0,'unreviewed hybrids do not inherit a species assessment');
   }finally{
     delete cv.guidanceOtherSpecies; delete cv.guidanceHybrid;
-    delete _defCache['fountaingrass|guidanceOtherSpecies']; delete _defCache['fountaingrass|guidanceHybrid'];
+    delete _defCache['switchgrass|guidanceOtherSpecies']; delete _defCache['switchgrass|guidanceHybrid'];
   }
-  const g=plantGuidance({s:'fig',v:Object.keys(PLANTS.fig.cv)[0]});
-  assert(g.selection&&g.invasive.length,'named fig retains the unresolved cultivar caution');
-  const text=g.invasive[0].text; g.invasive[0].text='changed by caller';
-  assertEqual(plantGuidance({s:'fig'}).invasive[0].text,text,'readers cannot mutate bundled review notes');
+  const g=plantGuidance({s:'switchgrass',v:'northwind'});
+  assert(g.selection,'a named selection is reported as one');
+  const text=g.origin[0].text; g.origin[0].text='changed by caller';
+  assertEqual(plantGuidance({s:'switchgrass'}).origin[0].text,text,'readers cannot mutate bundled review notes');
 });
 
-test('continental native criteria do not imply local suitability or clear regional cautions',()=>{
+test('continental native criteria do not imply local suitability',()=>{
   setup();
-  const ref={s:'mexicanfeather'}, north={zone:8,nativeRegion:'north-america',nativeMode:'regional'};
-  /* The whole thesis: a continental native filter neither implies local
-     suitability nor clears a regional caution. Origin still admits this grass,
-     and it is the SEPARATE invasive control that removes it -- so the two
-     questions stay distinguishable rather than one standing in for the other. */
+  const north={zone:8,nativeRegion:'north-america',nativeMode:'regional'};
   assert(passesNativeFilter(PLANTS.mexicanfeather,normalizeFilters(north)),'the existing continental filter contract is preserved');
-  assert(plantGuidance(ref).invasive.some(n=>n.area==='California'),'the same plant can carry a California caution');
-  /* A plant NATIVE to the region keeps its place even under `hide` -- the
-     California record is a range expansion within North America, not an
-     introduction to it -- while an introduced species with a caution is the
-     case the filter can express, and is removed. */
-  assert(plantRefFitsCriteria(ref,Object.assign({invasive:'hide'},north)),'a native species is not hidden by its own continent\'s caution');
-  assert(hasInvasiveCaution(ref,'north-america'),'and still carries that caution for the card');
-  const vinca={s:'periwinkle'};
-  assert(plantRefFitsCriteria(vinca,Object.assign({invasive:'show'},north,{nativeMode:'any'})),'origin alone still admits an introduced species');
-  assert(!plantRefFitsCriteria(vinca,Object.assign({invasive:'hide'},north,{nativeMode:'any'})),'the caution is what removes it, not the origin filter');
-  for(const nativeRegion of ['north-america','europe']){
-    game.filters=normalizeFilters({nativeRegion,nativeMode:'any'});
-    assert(plantGuidance(ref).invasive.some(n=>n.area==='California'),'choosing an origin continent is not choosing a garden location');
-    assert(/local/i.test(nativeCriteriaText({nativeRegion,nativeMode:'regional'})));
-  }
+  for(const nativeRegion of ['north-america','europe'])
+    for(const nativeMode of ['any','regional','straight'])
+      assert(/local/i.test(nativeCriteriaText({nativeRegion,nativeMode})),nativeRegion+' '+nativeMode+': says origin is not local status');
   assert(/parts/.test(nativeStatusText(PLANTS.bluestem)),'status copy identifies partial continental ranges');
-  assertEqual(plantCautionText({s:'bamboo',v:'clumping'}),'','no recorded caution produces no invasive-risk statement');
   assert(plantGuidance({s:'cenizo'}).site.some(n=>/humidity/.test(n.text)),'site qualifications extend beyond a moisture bucket');
 });
 
-test('an invasive caution is scoped to a REGION, and every catalog source reads it',()=>{
+test('invasive status is not part of the app: nothing is flagged or hidden for it',()=>{
   setup();
-  /* Every reviewed caution names the served region it applies to and grades
-     itself, or the gate cannot ask the only question that matters. */
-  const notes=[];
-  for (const k in PLANT_GUIDANCE) for (const n of (PLANT_GUIDANCE[k].invasive||[])) notes.push([k,n]);
-  assert(notes.length>0,'there are reviewed invasive cautions to scope');
-  for (const [k,n] of notes){
-    assert(['north-america','europe'].includes(n.region),k+' names the region its caution applies to');
-    assert(INVASIVE_SEVERITIES.includes(n.severity),k+' grades its caution');
-  }
-
-  /* The decisive property, and the reason this is not a global "is it invasive"
-     test: ten of the eleven cautions are North American and the eleventh is the
-     EU's listing of a North American native, so asked globally the filter would
-     delete common milkweed from a prairie garden and take Vinca minor out of
-     Europe, where it is native and not a problem. */
-  const na={zone:6,nativeRegion:'north-america',nativeMode:'any'};
-  const eu={zone:6,nativeRegion:'europe',nativeMode:'any'};
-  assert(plantRefFitsCriteria({s:'commonmilkweed'},na),'a North American native survives in North America though the EU lists it');
-  assert(!plantRefFitsCriteria({s:'commonmilkweed'},eu),'and is hidden in the region that does list it');
-  assert(!plantRefFitsCriteria({s:'periwinkle'},na),'a European native flagged in North America is hidden there');
-  assert(plantRefFitsCriteria({s:'periwinkle'},eu),'and stays in Europe, where it is native');
-
-  // Hiding is the default, so the reviewed records stop doing nothing at all.
-  assertEqual(normalizeFilters({}).invasive,'hide','cautions are acted on unless the gardener says otherwise');
-  assertEqual(normalizeFilters({invasive:'nonsense'}).invasive,'hide','an unknown value falls back to the safe side');
-  assert(plantRefFitsCriteria({s:'periwinkle'},Object.assign({},na,{invasive:'show'})),'and the gardener can ask for it back');
-
-  /* A named selection keeps its species' caution and is never implicitly
-     cleared -- a cultivar of Miscanthus sinensis is no less of an escapee than
-     the species, and the Maryland note says so in as many words. Asserted on
-     the caution itself rather than through the zone gate, so a tender cultivar
-     cannot pass this for the wrong reason. */
-  let inherited=0;
-  for (const k in PLANT_GUIDANCE){
-    const notes=PLANT_GUIDANCE[k].invasive||[]; if (!notes.length||!PLANTS[k]) continue;
-    for (const v of Object.keys(PLANTS[k].cv||{})){
-      for (const region of new Set(notes.map(n=>n.region))){
-        assert(hasInvasiveCaution({s:k,v},region),k+" '"+v+"' inherits the species caution for "+region);
-        assertEqual(invasiveFilterHides({s:k,v},region),invasiveFilterHides({s:k,v:null},region),
-          k+" '"+v+"' is gated exactly as its species is");
-        inherited++;
-      }
-    }
-  }
-  assert(inherited>0,'flagged species carry selections for the caution to reach');
-
-  /* The defect this began as: all six style palettes offered all eleven flagged
-     plants to a North American garden. One gate under every discovery SOURCE is
-     what fixes that, so assert it through the sources rather than through the
-     predicate they share. */
-  const saved=game.filters, savedDesign=game.design;
-  game.filters=normalizeFilters(na);
-  for (const [type] of GARDEN_TYPES){
-    game.design={zone:6,type,nativeRegion:'north-america',nativeMode:'any',invasive:'hide'};
-    for (const source of ['recommended','all']){
-      const refs=discoveryRefsFor({source});
-      assert(!refs.some(r=>r.s==='periwinkle'),type+'/'+source+' does not offer a plant flagged for this region');
-    }
-  }
-  game.filters=saved; game.design=savedDesign;
-
-  // The copy COUNTS rather than claiming, so it cannot promise completeness the
-  // table does not have -- the reviewed set is 10:1 North American today.
-  assert(invasiveFilterCounts('north-america').hidden>invasiveFilterCounts('europe').hidden,'coverage is measured, not asserted');
-  assert(invasiveCriteriaText(na).includes(String(invasiveFilterCounts('north-america').hidden)),'the hint states the real number');
-  assert(/check locally/i.test(invasiveCriteriaText(na)),'and does not present itself as complete');
-});
-
-test('a plant native to the region is not hidden by that region\'s own caution',()=>{
-  setup();
-  /* Invasive means INTRODUCED and spreading, so at continental resolution the
-     claim does not hold against a plant native to that continent: Cal-IPC's
-     record for Nassella tenuissima is a range expansion from its native Texas
-     and New Mexico into coastal California, not an introduction to North
-     America. Hiding it made a Kansas garden lose a plant native to its own
-     continent, which is the first false positive this filter produced. */
-  const na={zone:6,nativeRegion:'north-america',nativeMode:'any',invasive:'hide'};
-  const nativeAndFlagged=[], introducedAndFlagged=[];
-  for (const k of INVASIVE_FLAGGED_KEYS){
-    if (!PLANTS[k]) continue;
-    for (const region of ['north-america','europe']){
-      if (!hasInvasiveCaution({s:k,v:null},region)) continue;
-      (nativeRelation(PLANTS[k],region).nativeHere?nativeAndFlagged:introducedAndFlagged).push(k+'/'+region);
-    }
-  }
-  assertEqual(nativeAndFlagged.sort().join(', '),'fragrantwaterlily/north-america, mexicanfeather/north-america',
-    'the native-and-flagged class is these two species');
-  assert(introducedAndFlagged.length>nativeAndFlagged.length,'and the ordinary case is still the common one');
-
-  for (const id of nativeAndFlagged){
-    const [k,region]=id.split('/');
-    assert(!invasiveFilterHides({s:k,v:null},region),k+' is kept in the region it is native to');
-    assert(hasInvasiveCaution({s:k,v:null},region),k+' still carries its caution for the card');
-    assert(plantRefFitsCriteria({s:k,v:null},{zone:PLANTS[k].zones[0],nativeRegion:region,nativeMode:'any',invasive:'hide'}),
-      k+' stays in the catalog under the default filter');
-  }
-  for (const id of introducedAndFlagged){
-    const [k,region]=id.split('/');
-    assert(invasiveFilterHides({s:k,v:null},region),k+' is introduced to '+region+' and is hidden there');
-  }
-
-  // The hint must promise what the filter delivers, not what the table holds.
-  const counts=invasiveFilterCounts('north-america');
-  assertEqual(counts.hidden+counts.keptNative,20,'twenty plants carry a caution for North America');
-  assertEqual(counts.keptNative,2,'two of them are on plants native to it');
-  assert(invasiveCriteriaText(na).includes('Hides the 18 introduced plants'),'and the copy states the eighteen it actually hides');
-  assert(/native to North America keep their place/.test(invasiveCriteriaText(na)),'and says why the other two are still listed');
-  assertEqual(invasiveFilterCounts('europe').keptNative,0,'Europe has no native-and-flagged plant, so its copy says nothing about one');
-  assert(!/keep their place/.test(invasiveCriteriaText({nativeRegion:'europe',invasive:'hide'})),'the clause appears only where it applies');
+  /* Removed in 0.9.117: it did not matter to designing a garden here. The
+     filter hid plants flagged for the garden's region, cards and the planting
+     list carried a caution. None of it may come back half-way: a filter with no
+     indicator would hide plants with nothing on screen saying why. */
+  assert(typeof invasiveFilterHides==='undefined' && typeof invasiveCautionsFor==='undefined'
+    && typeof plantCautionText==='undefined' && typeof INVASIVE_MODES==='undefined','the filter and its helpers are gone');
+  assert(!Object.keys(normalizeFilters({invasive:'hide'})).includes('invasive'),'an old saved preference is dropped');
+  assert(!Object.keys(normalizeDesign({zone:6,invasive:'hide'})).includes('invasive'),'and so is an old garden\'s');
+  for (const k in PLANT_GUIDANCE) assert(!PLANT_GUIDANCE[k].invasive,k+' carries no invasive note');
+  assert(!('invasive' in plantGuidance({s:'switchgrass'})),'and the guidance reader has nowhere to put one');
+  // plants the filter used to hide are offered wherever they grow
+  const na={zone:6,nativeRegion:'north-america',nativeMode:'any'}, eu={zone:6,nativeRegion:'europe',nativeMode:'any'};
+  assert(plantRefFitsCriteria({s:'periwinkle'},na),'periwinkle in North America');
+  assert(plantRefFitsCriteria({s:'commonmilkweed'},eu),'common milkweed in Europe');
+  assert(plantRefFitsCriteria({s:'staghornsumac'},eu),'staghorn sumac in Europe');
+  const saved=[game.filters,game.design];
+  try{
+    game.filters=normalizeFilters(na); game.design={zone:6,type:'any',nativeRegion:'north-america',nativeMode:'any'};
+    assert(plantFits('periwinkle'),'plantFits agrees');
+    assert(discoveryRefsFor({source:'all'}).some(r=>r.s==='periwinkle'),'and the catalog lists it');
+    const nodes=e=>[e,...(e.children||[]).flatMap(n=>typeof n==='object'?nodes(n):[])];
+    const card=discoveryResultCard({s:'periwinkle'},activeDiscovery());
+    assert(!nodes(card).some(n=>/caution|flagged/.test(n.className||'')),'its card carries no caution');
+    assert(!/invasive/i.test(discoveryGardenLine()),'the tray foot says nothing about it');
+  } finally { [game.filters,game.design]=saved; }
+  assert(!/invasive/i.test(readRepoFile('index.html')),'and there is no control for it');
 });
 
 test('the design tally key carries every garden criterion',()=>{
   setup();
   /* `paletteTally` memoises on a hand-written key, so a criterion missing from
      it leaves the live count frozen while every chip on the panel says it
-     moved. The invasive control shipped exactly that way for one browser
+     moved. The invasive control (removed in 0.9.117) shipped that way for one browser
      session: chips, hint and the plant list all followed, and the tally sat at
      357 for both answers. The key is a closure, so this is pinned on the
      SOURCE -- the same shape as the tour's "the fire lives there" tests -- and
@@ -19606,46 +19461,35 @@ test('plant guidance shows unknowns and dated source links without changing the 
   const nodes=e=>[e,...(e.children||[]).flatMap(n=>typeof n==='object'?nodes(n):[])];
   const text=e=>nodes(e).map(n=>n.textContent||'').join(' ');
   const state=JSON.stringify(snapshotState());
-  const reviewed=buildPlantGuidance({s:'miscanthus',v:'adagio'});
+  const reviewed=buildPlantGuidance({s:'switchgrass',v:'northwind'});
   assert(text(reviewed).includes('Maryland'));
-  assert(text(reviewed).includes('not been individually cleared'));
+  assert(text(reviewed).includes('does not verify the origin of a nursery selection'));
   assert(text(reviewed).includes(LOCAL_NATIVE_UNKNOWN));
   const link=nodes(reviewed).find(n=>n.tagName==='A');
   assertEqual(link.href,PLANT_GUIDANCE_SOURCES.marylandGrasses.url);
   assertEqual(link.rel,'noopener noreferrer');
   const unknown=text(buildPlantGuidance({s:'whiteoak'}));
   assert(unknown.includes(LOCAL_NATIVE_UNKNOWN)&&unknown.includes('No additional reviewed site'),'local-origin and site guidance remain available');
-  assert(!/invasive|cleared/i.test(unknown),'plants without a recorded caution show no invasive-risk statement');
+  assert(!/invasive/i.test(unknown+text(reviewed)),'nothing is said about invasive risk');
   assertEqual(JSON.stringify(snapshotState()),state,'guidance never edits planted work');
-  const warned=discoveryResultCard({s:'fountaingrass',v:'hameln'},activeDiscovery());
-  const other=discoveryResultCard({s:'orientalfountain'},activeDiscovery());
-  const cautionBtn=el=>nodes(el).find(n=>/\bplant-guidance-button\b/.test(n.className||'')&&/\bhas-caution\b/.test(n.className||''));
-  assert(cautionBtn(warned),'a flagged choice carries the caution treatment');
-  assert(!cautionBtn(other),'an unflagged one does not');
-  /* Severity has to reach the row, or Cal-IPC "Limited" and a woodland
-     smotherer read identically -- and it has to reach it in the TEXT, since
-     the class and the tint are both discarded under forced colours. */
-  assert(/\bis-avoid\b/.test(cautionBtn(warned).className),'and grades it');
-  assert(cautionBtn(warned).textContent.startsWith('Invasive in '),'stating the severity in words, not colour alone');
-  assert(cautionBtn(warned).textContent.includes('Maryland'),'and naming the place it applies to');
-  /* Region-scoped: the same plant seen from a European garden is not alarmed
-     by Maryland's list, though the note stays reachable in the dialog. */
-  const saved=game.filters;
-  game.filters=normalizeFilters({nativeRegion:'europe',nativeMode:'any',invasive:'show'});
-  const abroad=cautionBtn(discoveryResultCard({s:'fountaingrass',v:'hameln'},activeDiscovery()));
-  game.filters=saved;
-  assert(!abroad,'a caution recorded for another region does not shout at this garden');
+  // the notes open from the chosen plant's detail, never from the card itself
+  const btn=el=>nodes(el).find(n=>/\bplant-guidance-button\b/.test(n.className||''));
+  assert(!btn(discoveryResultCard({s:'switchgrass',v:'northwind'},activeDiscovery())),'the card stays a card');
+  const detail=btn(plantCardDetail({s:'switchgrass',v:'northwind'},activeDiscovery()));
+  assert(detail&&detail.textContent==='Local origin & site notes','the detail offers the notes');
+  assert(!btn(plantCardDetail({s:'whiteoak'},activeDiscovery())),'and a plant with none offers nothing');
 });
 
-test('regional cautions travel with exports and do not remove plants from saves or schemes',async()=>{
+test('the planting list carries native status and no invasive column, and guidance stays out of saves',async()=>{
   await worldsIndexChain; setup(); game.worldId='regional-guidance-save';
   setTile('plants','4,4',{s:'mexicanfeather',d:0,t:1});
   game.schemes.push({id:'other',name:'Other',t:1,plants:{'6,6':{s:'miscanthus',v:'adagio',d:0,t:1}},bulbs:{}});
   const row=exportRows().find(r=>r.latin==='Nassella tenuissima');
-  assert(row.regionalCautions.includes('California')&&row.regionalCautions.includes('https://www.cal-ipc.org/'));
   assertEqual(row.localNative,LOCAL_NATIVE_UNKNOWN);
+  assert(!Object.keys(row).some(k=>/caution|invasive/i.test(k)),'no invasive field rides the row');
+  assert(!/invasive/i.test(String(exportCsv)),'and the CSV has no column for one');
   const env={pocketPrairie:1,v:1,world:JSON.parse(JSON.stringify(buildSaveBlob()))};
-  assertEqual(gardenFileProblem(env),null,'a caution is not an import ban');
+  assertEqual(gardenFileProblem(env),null);
   assert(!Object.prototype.hasOwnProperty.call(env.world,'regionalCautions'),'review data is not copied into saves');
   await saveSolo(true); await loadSolo(game.worldId);
   assert(game.plants['4,4'],'the active scheme survives');
@@ -23382,35 +23226,6 @@ test('wet-ground plants stay in the catalog\'s real categories and on dry-ground
   assert(!plantRoles('scarletrosemallow').includes('deerOk'),'and scarlet rose mallow');
   for(const k of ['bigleafligularia','rocketligularia','monkeyflower','marshspurge'])
     assert(plantRoles(k).includes('deerOk'),k+': a source names it resistant');
-});
-
-test('three wet-ground plants carry a caution for the region it applies to, and only there', () => {
-  setup();
-  const na='north-america', eu='europe';
-  const hides=(k,c,v)=>invasiveFilterHides(plantRef(k,v||null),c);
-  assert(hides('raggedrobin',na),'Connecticut bans ragged robin, and it is not native here');
-  assert(!hides('raggedrobin',eu),'it is a native plant of Europe, and offered there');
-  assert(hides('raggedrobin',na,'jenny'),'a named selection does not escape its species');
-  assert(hides('raggedrobin',na,'albiflora'),'nor does the white one');
-  assert(hides('meadowsweet',na),'Wisconsin restricts meadowsweet');
-  assert(hides('meadowsweet',na,'aurea'),'and the golden form with it');
-  assert(!hides('meadowsweet',eu),'it is the plant of European riverbanks');
-  assert(hides('giantrhubarb',eu),'Britain bans the plant sold under this name');
-  assert(!hides('giantrhubarb',na),'and nothing read restricts it in North America');
-  // the record names the place and the rule, and every source link is real
-  for(const k of ['raggedrobin','meadowsweet','giantrhubarb']){
-    const g=plantGuidance(plantRef(k,null)); assert(g&&g.invasive&&g.invasive.length>=2,k+': guidance resolves');
-    for(const note of g.invasive) assert(PLANT_GUIDANCE_SOURCES[note.source],k+': '+note.source+' is a named source');
-    assertEqual(PLANT_GUIDANCE[k].taxon,PLANTS[k].latin,k+': the note is about this taxon');
-  }
-  assert(/statute/i.test(PLANT_GUIDANCE.raggedrobin.invasive[0].text),'the Connecticut note says it is law');
-  assert(/Restricted/.test(PLANT_GUIDANCE.meadowsweet.invasive[0].text),'the Wisconsin note names the category');
-  // read and judged not to be a caution: naturalised is not invasive
-  for(const k of ['purplepitcherplant','umbrellaplant','slendersweetflag'])
-    assert(!PLANT_GUIDANCE[k]&&!plantGuidance(plantRef(k,null)).invasive.length,k+': no record, and so no statement either way');
-  const swamp=plantDef('swamprosemallow');
-  assert(!hides('swamprosemallow',na),'a native plant with no record stays');
-  assertEqual(swamp.nativeTo.join(','),'north-america','and stays offered to a native garden');
 });
 
 test('a parasol leaf is cut by its lobes, on stalks, and stands apart from its neighbours', () => {

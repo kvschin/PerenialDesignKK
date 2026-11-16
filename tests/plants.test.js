@@ -779,7 +779,7 @@ test('dwarf conifers are shrubs built on the ground, not short trees', () => {
   assert(PLANTS.creepingjuniper.cv.wiltonii.heightIn<=6,'Blue Rug is a few inches tall');
 });
 
-test('staghorn sumac and Tiger Eyes join the sumacs, with a regional caution for Europe', () => {
+test('staghorn sumac and Tiger Eyes join the sumacs', () => {
   assertEqual(PLANTS.staghornsumac.group,'sumac','staghorn browses with fragrant sumac');
   assertEqual(PLANTS.sumac.group,'sumac','fragrant sumac joins the family');
   assertEqual(PLANTS.staghornsumac.nativeTo.join(','),'north-america','staghorn is North American');

@@ -850,8 +850,7 @@ function exportRows(){
     const region=activeFilters().nativeRegion;
     return {name:P.name, latin:P.latin, origin:nativeOriginText(P),
       nativeStatus:nativeStatusText(P,region), provenance:provenanceLabel(P), count:n,
-      localNative:LOCAL_NATIVE_UNKNOWN, regionalCautions:plantCautionText({s,v:v||null},true),
-      cautionAreas:plantGuidance({s,v:v||null}).invasive.map(n=>n.area).join(', '),
+      localNative:LOCAL_NATIVE_UNKNOWN,
       areaFt:Math.round(n*(TILE_IN/12)*(TILE_IN/12)*10)/10,
       space:P.space,
       // one definition of "how many plants does this planting take", shared
@@ -1042,7 +1041,7 @@ function openExport(){
     /* areaFt stays SQUARE FEET on the row — it is what the CSV writes and
        what the total is summed from — and only the cell is converted. Summing
        formatted strings is how a total stops matching its own column. */
-    const tr=rows.map(r=>`<tr><td>${r.name}<div class="latin">${r.latin}</div><small>${r.nativeStatus} · ${r.provenance}</small>${r.cautionAreas?`<div class="plant-caution-tag">Regional invasive caution: ${htmlEscape(r.cautionAreas)}. See plant notes before buying.</div>`:''}</td>
+    const tr=rows.map(r=>`<tr><td>${r.name}<div class="latin">${r.latin}</div><small>${r.nativeStatus} · ${r.provenance}</small></td>
       <td>${r.count}</td><td>${areaNumberText(r.areaFt)}</td><td>${plantMeasure(r.space,true)}</td><td><b>${r.order}</b></td></tr>`).join('');
     const tot=rows.reduce((a,r)=>({c:a.c+r.count,f:a.f+r.areaFt,o:a.o+r.order}),{c:0,f:0,o:0});
     body.innerHTML=`<div class="export-wrap"><table class="export-table"><thead><tr>
@@ -1071,8 +1070,8 @@ function exportCsv(){
   const spaceVal=v=>metricUnits()?Math.round(v*CM_PER_IN):v;
   const lines=[];
   if (rows.length){
-    lines.push(['Common name','Latin name','Broad origin','Continental native relationship','Provenance','Tiles planted',areaHdr,spaceHdr,'Plants to order','Local native status','Regional invasive guidance'].map(esc).join(','));
-    rows.forEach(r=>lines.push([r.name,r.latin,r.origin,r.nativeStatus,r.provenance,r.count,areaVal(r.areaFt),spaceVal(r.space),r.order,r.localNative,r.regionalCautions].map(esc).join(',')));
+    lines.push(['Common name','Latin name','Broad origin','Continental native relationship','Provenance','Tiles planted',areaHdr,spaceHdr,'Plants to order','Local native status'].map(esc).join(','));
+    rows.forEach(r=>lines.push([r.name,r.latin,r.origin,r.nativeStatus,r.provenance,r.count,areaVal(r.areaFt),spaceVal(r.space),r.order,r.localNative].map(esc).join(',')));
   }
   /* The hardscape rides in the SAME file, after a blank line and its own header
      row. Two programmatic downloads from one gesture raise Chrome's "Download

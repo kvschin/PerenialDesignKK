@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.116';
+const APP_VERSION = '0.9.117';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -2232,14 +2232,13 @@ function passesNativeFilter(P,criteria){
 }
 function nativeCriteriaText(criteria){
   const f=criteria||{}, mode=normalizeNativeMode(f.nativeMode), place=nativeRegionLabel(f.nativeRegion);
-  /* Invasive risk used to be disclaimed here because nothing checked it. It has
-     its own control now, so this sentence must not keep denying it -- but
-     continental origin still does not establish LOCAL native status, which is a
-     separate claim and remains true. */
+  /* Continental origin does not establish LOCAL native status, which is a
+     separate claim. In Any mode the region still says where the garden is: it
+     decides which plants count as native for the style recommendations. */
   const scope=' Continental origin does not establish local native status.';
   if (mode==='regional') return `Species native somewhere in ${place}; named selections included, garden hybrids excluded.`+scope;
   if (mode==='straight') return `Species native somewhere in ${place}; named selections and garden hybrids excluded.`+scope;
-  return `Any origin. ${place} still sets which invasive cautions apply.`+scope;
+  return `Any origin. ${place} still decides which plants count as native here.`+scope;
 }
 function nativeStatusText(P,region=DEFAULT_NATIVE_REGION){
   const r=nativeRelation(P,region), place=nativeRegionLabel(region);
@@ -2270,103 +2269,19 @@ function provenanceLabel(P){
    bundled as text/links and are never fetched automatically.
    Match the resolved taxon too: a nested choice may be a DIFFERENT species. */
 const PLANT_GUIDANCE_SOURCES=Object.freeze({
-  pendulousSedgeCA:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/risk/carex-pendula-risk/'},
-  pendulousSedgeWA:{label:'King County, Washington',url:'https://www.nwcb.wa.gov/pdfs/Carex-pendula-information_King-County.pdf'},
   marylandGrasses:{label:'University of Maryland Extension',url:'https://www.extension.umd.edu/resource/ornamental-and-native-grasses-landscape'},
-  chicagoGrasses:{label:'Chicago Botanic Garden',url:'https://www.chicagobotanic.org/plant-evaluation/hardy-ornamental-grasses'},
-  mexicanFeather:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/stipa-tenuissima-profile/'},
-  cherryLaurel:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/cherry-laurel'},
-  waterlily:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/fragrant-water-lily'},
-  spirea:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/spiraea-japonica/common-name/japanese-spirea/'},
-  milkweed:{label:'EPPO',url:'https://gd.eppo.int/taxon/ASCSY/categorization'},
-  fig:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/ficus-carica-profile/'},
-  olive:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/olea-europaea-profile/'},
   blueblossom:{label:'Oregon State University',url:'https://landscapeplants.oregonstate.edu/plants/ceanothus-thyrsiflorus'},
   firebush:{label:'UF/IFAS Extension',url:'https://gardeningsolutions.ifas.ufl.edu/plants/ornamentals/firebush/'},
   beachSunflower:{label:'UF/IFAS Extension',url:'https://gardeningsolutions.ifas.ufl.edu/plants/ornamentals/beach-sunflower/'},
   rhododendron:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/rhododendron-catawbiense/'},
   cenizo:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/leucophyllum-frutescens/common-name/texas-barometer-bush/'},
-  yellowFlagIris:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/yellow-flag-iris'},
-  periwinkleNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/vinca-minor/'},
-  staghornSwiss:{label:'Info Flora, Swiss national data centre',url:'https://www.infoflora.ch/de/flora/rhus-typhina.html'},
-  englishHolly:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/common-holly'},
-  floweringRushMN:{label:'Minnesota DNR',url:'https://www.dnr.state.mn.us/invasives/aquaticplants/floweringrush/index.html'},
-  floweringRushON:{label:'Government of Ontario',url:'https://www.ontario.ca/page/flowering-rush'},
-  sacredLotusWI:{label:'Wisconsin DNR',url:'https://dnr.wisconsin.gov/topic/Invasives/fact/SacredLotus.html'},
-  waterForgetMeNotNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/myosotis-scorpioides/'},
-  taroCalIPC:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/colocasia-esculenta-profile/'},
-  callaCalIPC:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/inventory/'},
   ostrichFernRange:{label:'Lady Bird Johnson Wildflower Center',url:'https://www.wildflower.org/plants/result.php?id_plant=MAST'},
   ostrichFernForm:{label:'Native Plant Trust, Go Botany',url:'https://gobotany.nativeplanttrust.org/species/matteuccia/struthiopteris/'},
-  raggedRobinCT:{label:'Connecticut General Assembly',url:'https://prdext2.cga.ct.gov/2025/act/pa/pdf/2025PA-00126-R00HB-05013-PA.pdf'},
-  raggedRobinNewEngland:{label:'Native Plant Trust, Go Botany',url:'https://gobotany.nativeplanttrust.org/species/lychnis/flos-cuculi/'},
-  meadowsweetWI:{label:'Wisconsin DNR',url:'https://dnr.wisconsin.gov/sites/default/files/topic/Invasives/NR40plantlist.pdf'},
-  meadowsweetNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/filipendula-ulmaria/'},
-  gunneraRHS:{label:'Royal Horticultural Society',url:'https://www.rhs.org.uk/plants/gunnera/gunnera-questions-answered'},
-  gunneraGW:{label:'Gardeners\' World',url:'https://www.gardenersworld.com/how-to/grow-plants/how-to-grow-gunnera/'},
-  lilyOfTheValleyNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/convallaria-majalis/'},
-  lilyOfTheValleyNewEngland:{label:'Native Plant Trust, Go Botany',url:'https://gobotany.nativeplanttrust.org/species/convallaria/majalis/'},
 });
 const PLANT_GUIDANCE=Object.freeze({
-  // Reviewed for the shade audit's second batch (0.9.107). Wisconsin's NR 40 list was read
-  // too and does not name it, so the Wisconsin claim stays NC State's, said as theirs.
-  lilyofthevalley:{taxon:'Convallaria majalis',reviewed:'2026-11-14',invasive:[
-    {area:'Wisconsin and Arkansas',region:'north-america',severity:'caution',source:'lilyOfTheValleyNC',text:'NC State reports it as invasive in Wisconsin and Arkansas and says it can turn weedy and aggressive where winters are cool and moist; it suggests native alternatives. Wisconsin\'s own invasive plant list, NR 40, does not name it.'},
-    {area:'New England',region:'north-america',severity:'caution',source:'lilyOfTheValleyNewEngland',text:'Introduced from Europe and naturalized in many areas of eastern North America, in woods, roadsides and forest openings. Go Botany says it needs to be kept in check.'}]},
-  weepingsedge:{taxon:'Carex pendula',reviewed:'2026-11-07',invasive:[
-    {area:'Pacific Northwest',region:'north-america',severity:'avoid',source:'pendulousSedgeWA',text:'A county weed assessment quotes the Field Guide to the Sedges of the Pacific Northwest: it should not be planted in the region, because it seeds abundantly, invades shaded stream banks and is nearly impossible to remove. The assessor recommends Class C Select.'},
-    {area:'California',region:'north-america',severity:'caution',source:'pendulousSedgeCA',text:'On the Cal-IPC Watch list. Its 2016 risk evaluation scored it high risk, after several thousand plants were removed along a Marin County stream, two miles downstream of a garden planting.'},
-  ]},
-  raggedrobin:{taxon:'Silene flos-cuculi',reviewed:'2026-11-06',invasive:[
-    {area:'Connecticut',region:'north-america',severity:'avoid',source:'raggedRobinCT',text:'Prohibited by state statute: no one may import, move, sell, buy, transplant, cultivate or distribute it. The state council rates it potentially invasive, and lists it under its older name, Lychnis flos-cuculi.'},
-    {area:'New England',region:'north-america',severity:'caution',source:'raggedRobinNewEngland',text:'Introduced from Europe. Go Botany says it is not a major invasive in New England, but it has increased in recent years and can form large patches of nothing else.'}]},
-  meadowsweet:{taxon:'Filipendula ulmaria',reviewed:'2026-11-06',invasive:[
-    {area:'Wisconsin',region:'north-america',severity:'avoid',source:'meadowsweetWI',text:'In the Restricted category of the state invasive species rule, NR 40, which limits transporting or introducing it without a permit.'},
-    {area:'Midwestern US',region:'north-america',severity:'caution',source:'meadowsweetNC',text:'NC State calls it weedy: it self-seeds freely and can spread out of control, and it reports noxious-weed status in some Midwestern states without naming them. Deadhead it before it sets seed.'}]},
-  giantrhubarb:{taxon:'Gunnera manicata',reviewed:'2026-11-06',invasive:[
-    {area:'Great Britain',region:'europe',severity:'avoid',source:'gunneraRHS',text:'The RHS says plants grown here as this species are really the hybrid Gunnera x cryptica, which must not be newly planted or cultivated, though existing plants may stay. The related G. tinctoria is banned under EU rules.'},
-    {area:'Great Britain',region:'europe',severity:'avoid',source:'gunneraGW',text:'Gardeners\' World reports that sales of G. tinctoria and G. manicata or G. x cryptica are banned here. Gunnera magellanica is still legal to buy and grow.'}]},
   ostrichfern:{taxon:'Matteuccia struthiopteris',reviewed:'2026-11-06',origin:[
     {area:'Northern North America',status:'native',source:'ostrichFernRange',text:'Native from Newfoundland to southern Alaska, south to northern Virginia, Missouri and South Dakota. That range is narrower than its North American origin label.'},
     {area:'New England',status:'native',source:'ostrichFernForm',text:'Plants here are subspecies pensylvanica, also listed as a variety or as Matteuccia pensylvanica. A species name on a nursery label does not show where the stock came from.'}]},
-  floweringrush:{taxon:'Butomus umbellatus',reviewed:'2026-11-06',invasive:[
-    {area:'Minnesota',region:'north-america',severity:'avoid',source:'floweringRushMN',text:'A prohibited invasive species: unlawful to possess, import, purchase, transport or introduce except under permit. It spreads mainly on water-related equipment and through illegal release of water garden plants.'},
-    {area:'Ontario',region:'north-america',severity:'avoid',source:'floweringRushON',text:'Regulated as a restricted invasive species. It is illegal to buy, sell or propagate it, and the province says never to keep it in a water garden.'}]},
-  sacredlotus:{taxon:'Nelumbo nucifera',reviewed:'2026-11-06',invasive:[
-    {area:'Wisconsin',region:'north-america',severity:'avoid',source:'sacredLotusWI',text:'Classified as Prohibited. It forms large, dense colonies if released into natural areas from cultivation.'}]},
-  waterforgetmenot:{taxon:'Myosotis scorpioides',reviewed:'2026-11-06',invasive:[
-    {area:'Midwestern US',region:'north-america',severity:'caution',source:'waterForgetMeNotNC',text:'NC State reports it listed as a noxious weed in one or more Midwestern states, without naming them. It spreads by rhizomes into dense colonies and self-seeds. Check the local position, and keep it in a container near open water.'}]},
-  taro:{taxon:'Colocasia esculenta',reviewed:'2026-11-06',invasive:[
-    {area:'California',region:'north-america',severity:'avoid',source:'taroCalIPC',text:'Cal-IPC rates this species Moderate, with an Alert: limited distribution in California so far, but the potential to spread much further. It is found in the Central Valley and spreads by seed and corms, with seed carried on water.'}]},
-  callalily:{taxon:'Zantedeschia aethiopica',reviewed:'2026-11-06',invasive:[
-    {area:'California',region:'north-america',severity:'caution',source:'callaCalIPC',text:'Cal-IPC rates this species Limited and records it in the horticultural trade. Check the local position before planting it near open water.'}]},
-  staghornsumac:{taxon:'Rhus typhina',reviewed:'2026-10-04',invasive:[
-    {area:'Switzerland',region:'europe',severity:'avoid',source:'staghornSwiss',text:'Listed among Switzerland\'s invasive non-native species. Introduced from North America, it suckers into dense stands that crowd out other plants. Check current national rules before buying or planting it.'}]},
-  englishholly:{taxon:'Ilex aquifolium',reviewed:'2026-10-05',invasive:[
-    {area:'King County, Washington',region:'north-america',severity:'caution',source:'englishHolly',text:'Listed as a non-regulated Class C noxious weed. Birds carry the berries into forests, where it shades out the native understory, and it also spreads by suckering. The county recommends controlling it near natural areas.'}]},
-  yellowflag:{taxon:'Iris pseudacorus',reviewed:'2026-09-20',invasive:[
-    {area:'King County, Washington',region:'north-america',severity:'caution',source:'yellowFlagIris',text:'Listed as a non-regulated Class C noxious weed. It forms dense stands along shorelines and spreads by seed and by rhizome fragments carried downstream. Check the local position before planting it near water.'}]},
-  periwinkle:{taxon:'Vinca minor',reviewed:'2026-09-20',invasive:[
-    {area:'North Carolina',region:'north-america',severity:'avoid',source:'periwinkleNC',text:'Classified as an invasive species by the NC Invasive Plant Council. It spreads out of gardens into adjacent woodland and holds the ground against native plants. Consider a local groundcover instead.'}]},
-  mexicanfeather:{taxon:'Nassella tenuissima',reviewed:'2026-09-06',invasive:[
-    {area:'California',region:'north-america',severity:'avoid',source:'mexicanFeather',text:'Cal-IPC rates this species Limited. It escapes from landscaping and spreads by seed. Avoid new planting in this region.'}]},
-  miscanthus:{taxon:'Miscanthus sinensis',reviewed:'2026-11-07',invasive:[
-    {area:'Maryland',region:'north-america',severity:'avoid',source:'marylandGrasses',text:'Extension recommends avoiding this invasive grass, including commonly sold cultivars. Check current local guidance before buying.'},
-    {area:'Illinois, Alabama, Connecticut and Georgia',region:'north-america',severity:'avoid',source:'chicagoGrasses',text:'Chicago Botanic Garden found viable seed on most of the 34 taxa it grew, and declined to rate any of them. It reports the species naturalized in 25 states and on the invasive lists of these four. A cultivar name does not establish low risk.'}]},
-  fountaingrass:{taxon:'Cenchrus alopecuroides',reviewed:'2026-09-06',invasive:[
-    {area:'Maryland',region:'north-america',severity:'avoid',source:'marylandGrasses',text:'Extension recommends avoiding Chinese fountain grass, including commonly sold cultivars. Also listed as Pennisetum alopecuroides or Cenchrus purpurascens.'}]},
-  cherrylaurel:{taxon:'Prunus laurocerasus',reviewed:'2026-09-06',invasive:[
-    {area:'King County, Washington',region:'north-america',severity:'avoid',source:'cherryLaurel',text:'The county discourages new plantings. Bird-dispersed seeds escape into forests, where dense growth competes with native vegetation.'}]},
-  fragrantwaterlily:{taxon:'Nymphaea odorata',reviewed:'2026-09-06',invasive:[
-    {area:'Washington',region:'north-america',severity:'caution',source:'waterlily',text:'A regional noxious weed concern despite its North American origin. It forms dense aquatic mats. Consult local guidance before planting or moving it.'}]},
-  japanesespirea:{taxon:'Spiraea japonica',reviewed:'2026-09-06',invasive:[
-    {area:'North Carolina',region:'north-america',severity:'avoid',source:'spirea',text:'Escapes cultivation and is classified as invasive by the NC Invasive Plant Council. Choose a locally appropriate alternative.'}]},
-  commonmilkweed:{taxon:'Asclepias syriaca',reviewed:'2026-09-06',invasive:[
-    {area:'European Union',region:'europe',severity:'avoid',source:'milkweed',text:'EPPO records this species as an invasive alien plant of EU concern. Check current national guidance before acquiring or planting it.'}]},
-  fig:{taxon:'Ficus carica',reviewed:'2026-09-06',invasive:[
-    {area:'California',region:'north-america',severity:'caution',source:'fig',text:'Cal-IPC rates this species Moderate; escaped plants can form thickets along waterways. Cultivar risk is still being studied, so named varieties are not automatically cleared.'}]},
-  olive:{taxon:'Olea europaea',reviewed:'2026-09-06',invasive:[
-    {area:'California',region:'north-america',severity:'caution',source:'olive',text:'Cal-IPC rates this species Limited and advises caution near open space. Its guidance suggests seedless varieties; verify the exact nursery selection rather than assuming an exemption.'}]},
   bluestem:{taxon:'Schizachyrium scoparium',reviewed:'2026-09-06',origin:[
     {area:'Maryland',status:'native',source:'marylandGrasses',text:'The species is recorded as native statewide; verify local habitat and stock provenance.'}]},
   bigbluestem:{taxon:'Andropogon gerardii',reviewed:'2026-09-06',origin:[
@@ -2398,111 +2313,10 @@ function plantGuidance(ref){
   const validRef=P && (!c.v || (PLANTS[c.s].cv && Object.prototype.hasOwnProperty.call(PLANTS[c.s].cv,c.v)));
   const matches=validRef && P.provenance!=='hybrid' && entry &&
     (latin===entry.taxon || (typeof latin==='string' && latin.startsWith(entry.taxon+" '")));
-  const result={localStatus:'unknown',origin:[],site:[],invasive:[],selection:!!P&&P.provenance!=='species'};
+  const result={localStatus:'unknown',origin:[],site:[],selection:!!P&&P.provenance!=='species'};
   if (!matches) return result;
-  for (const kind of ['origin','site','invasive']) result[kind]=(entry[kind]||[]).map(n=>Object.assign({},n,{reviewed:entry.reviewed}));
+  for (const kind of ['origin','site']) result[kind]=(entry[kind]||[]).map(n=>Object.assign({},n,{reviewed:entry.reviewed}));
   return result;
-}
-function plantCautionText(ref,withSources=false){
-  const notes=plantGuidance(ref).invasive;
-  if (!notes.length) return '';
-  return notes.map(n=>`${n.area}: ${n.text}`+(withSources?` [${n.reviewed}; ${PLANT_GUIDANCE_SOURCES[n.source].url}]`:'')).join(' ');
-}
-/* ---------- invasive risk ----------
-   Invasive risk is a RELATION between a plant and a place, exactly as native
-   status is -- so the question is never "is this plant invasive" but "is it
-   invasive HERE", and every caution therefore names the served `region` it
-   applies to rather than only the state or county it was recorded in.
-
-   Asking it globally is the mistake this is written to prevent. Ten of the
-   eleven reviewed cautions are North American and the eleventh is the EU's
-   listing of common milkweed -- a NORTH AMERICAN native -- so a global test
-   would delete the monarch host plant from a prairie garden, and take Vinca
-   minor, yellow flag iris and cherry laurel out of Europe, where all three are
-   natives and none is a problem. Asked per region it removes two plants from a
-   North American native garden and none at all from a European one.
-
-   The state or county in `area` is deliberately NOT the filter's resolution:
-   `nativeRegion` is continental, so per-state precision is precision the gate
-   cannot consume, and trying to settle it per state is what stalled the
-   catalog review at eleven records. `severity` carries what that precision was
-   really for -- one county listing a plant Class C, control not required, is
-   not the claim that a plant smothers woodland. */
-const INVASIVE_SEVERITIES=Object.freeze(['avoid','caution']);
-const INVASIVE_MODES=Object.freeze([
-  {id:'hide',label:'Hide flagged plants'},
-  {id:'show',label:'Show with a caution'},
-]);
-const INVASIVE_MODE_IDS=new Set(INVASIVE_MODES.map(m=>m.id));
-function normalizeInvasiveMode(value){ return INVASIVE_MODE_IDS.has(value)?value:'hide'; }
-/* `plantRefFitsCriteria` runs over the whole catalog on every keystroke, so the
-   common answer -- 585 of 596 species carry no caution at all -- has to cost one
-   Set lookup rather than a ref canonicalisation and a botanical-name compare.
-   The set is DERIVED from the alias table as well as the guidance table, so a
-   retired key that resolves onto a flagged species cannot slip past the fast
-   path the day somebody adds one. */
-const INVASIVE_FLAGGED_KEYS=(()=>{
-  const set=new Set();
-  for (const k in PLANT_GUIDANCE) if ((PLANT_GUIDANCE[k].invasive||[]).length) set.add(k);
-  for (const pair in PLANT_REF_ALIASES){
-    const target=PLANT_REF_ALIASES[pair];
-    if (set.has(target.slice(0,target.indexOf('|')))) set.add(pair.slice(0,pair.indexOf('|')));
-  }
-  return set;
-})();
-/* Cautions recorded for ONE region. A named selection keeps its species'
-   cautions (`plantGuidance` never implicitly clears one), so a cultivar of
-   Vinca minor is filtered exactly as the species is. */
-function invasiveCautionsFor(ref,region=DEFAULT_NATIVE_REGION){
-  if (!ref || !INVASIVE_FLAGGED_KEYS.has(ref.s)) return [];
-  const here=normalizeNativeRegion(region);
-  return plantGuidance(ref).invasive.filter(n=>n.region===here);
-}
-function hasInvasiveCaution(ref,region=DEFAULT_NATIVE_REGION){ return invasiveCautionsFor(ref,region).length>0; }
-/* What the FILTER acts on, which is deliberately narrower than what the CARD
-   shows -- the `effectiveEstab` split one system over: what you SEE follows one
-   rule, what leaves the catalog follows another.
-
-   A plant native to the region is never hidden by that region's own caution,
-   because at continental resolution the claim does not hold. Invasive means
-   INTRODUCED and spreading, and a plant cannot be introduced to the continent
-   it comes from: what Cal-IPC records about Nassella tenuissima is a range
-   expansion WITHIN North America, from its native Texas and New Mexico into
-   coastal California. One bit per continent cannot say that, and when the bit
-   has to choose, native-here is the better-supported fact -- it is a stable
-   property of the taxon, where invasive-here is true of a sub-region.
-   Two species are in this class today (Nassella tenuissima, Nymphaea odorata),
-   and both keep their caution on the card. The filter handles what it can
-   express, introduced species; the card handles what it cannot. */
-function invasiveFilterHides(ref,region=DEFAULT_NATIVE_REGION){
-  if (!hasInvasiveCaution(ref,region)) return false;
-  const c=canonicalPlantRef(ref&&ref.s,ref&&ref.v);
-  return !nativeRelation(plantDef(c.s,c.v),region).nativeHere;
-}
-/* What the filter's own copy promises, counted rather than typed: the catalog
-   holds this many species with a recorded caution for that region. It is the
-   honest number to print, because the table is 10:1 North American and a
-   European gardener should be able to see that this filter is nearly empty for
-   them rather than infer completeness from a confident label. */
-function invasiveFilterCounts(region=DEFAULT_NATIVE_REGION){
-  let hidden=0, keptNative=0;
-  for (const k of INVASIVE_FLAGGED_KEYS){
-    const ref={s:k,v:null};
-    if (!PLANTS[k] || !hasInvasiveCaution(ref,region)) continue;
-    if (invasiveFilterHides(ref,region)) hidden++; else keptNative++;
-  }
-  return {hidden,keptNative};
-}
-function invasiveCriteriaText(criteria){
-  const f=criteria||{}, place=nativeRegionLabel(f.nativeRegion), c=invasiveFilterCounts(f.nativeRegion);
-  const scope=' Only reviewed species are flagged, and regional lists change, so check locally before planting.';
-  if (normalizeInvasiveMode(f.invasive)==='show')
-    return `Plants with a recorded invasive caution for ${place} stay in the catalog and carry the caution.`+scope;
-  if (!c.hidden && !c.keptNative) return `No plant in the catalog has a recorded invasive caution for ${place} yet, so this hides nothing.`+scope;
-  const kept=c.keptNative
-    ? ` ${c.keptNative===1?'One plant':c.keptNative+' plants'} native to ${place} keep their place and carry the caution instead.`
-    : '';
-  return `Hides the ${c.hidden} introduced plant${c.hidden===1?'':'s'} with a recorded invasive caution for ${place}.`+kept+scope;
 }
 function isShrubDef(P){ return P && P.type==='shrub'; }
 function isTreeDef(P){ return P && P.type==='tree'; }

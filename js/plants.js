@@ -7614,8 +7614,8 @@ const PLANTS = {
      Deliberately absent: Chinese and Japanese wisteria, sweet autumn clematis,
      Japanese honeysuckle and English ivy. They are the four climbers a
      gardener is most likely to be sold and among the worst invasives in the
-     eastern US, and this catalog has a regional-caution system precisely so it
-     does not ship them as ordinary choices. The natives here do the same job. */
+     eastern US, so the catalog does not offer them. The natives here do the
+     same job. */
   virginiacreeper:{ name:'Virginia Creeper', latin:'Parthenocissus quinquefolia', form:'climber', type:'vine',
     h:100, heightIn:360, space:60, spread:72, zones:[3,10], nativeTo:['north-america'], provenance:'species',
     sun:'part', moist:'medium', phen:'mid',

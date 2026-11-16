@@ -1,5 +1,12 @@
 # Regional plant guidance: initial review
 
+> **The invasive half of this was removed in 0.9.117 (November 2026).** The app
+> no longer filters, flags or exports anything about invasive risk: it did not
+> matter to designing a garden here. The caution records, the filter, the card
+> tags, the CSV column and `dev/invasive-check.js` with its cached lists are in
+> git history at 0.9.116. What follows is kept as the record of how it worked.
+> The origin and site notes are still in the app.
+
 Reviewed September 6, 2026. This implements the initial release scope of readiness items 4–5: clear continental-origin limits, sourced site qualifications, and visible regional invasive cautions. It is a bounded review, not a complete regional recommendation system.
 
 The authoritative records are `PLANT_GUIDANCE` and `PLANT_GUIDANCE_SOURCES` in `js/core.js`. Each assessment names a taxon, review date, geographic scope, source, and advice. Native-range observations, growing conditions, and invasive concerns are separate fields. The app does not collect or infer a garden location from the chosen origin continent or USDA zone.

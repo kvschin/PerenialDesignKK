@@ -2384,10 +2384,6 @@ function discoveryResultCard(ref,d,opts={}){
     setTool(ref.s,ref.v||null); buildToolTray(); toast(`${P.name} selected.`); };
   row.appendChild(main);
   if (!grid) row.appendChild(plantHeartButton(ref,P,false));
-  /* A caution recorded for this garden's region is on the card itself, chosen
-     or not. Neutral notes wait in the detail. */
-  const caution=plantGuidanceButton(ref);
-  if (caution&&/\bhas-caution\b/.test(caution.className)){ row.classList.add('pc-flagged'); row.appendChild(caution); }
   discoveryPlacingBadge(row,selected,ref);
   if (selected) cardDetails.set(row,plantCardDetail(ref,d,opts));
   return row;
@@ -2418,7 +2414,7 @@ function plantCardDetail(ref,d,opts={}){
   const timeline=discoveryBloomTimeline(P); if (timeline) box.appendChild(timeline);
   box.appendChild(discoverySiteMeta(P));
   const guidance=plantGuidanceButton(ref);
-  if (guidance&&!/\bhas-caution\b/.test(guidance.className)) box.appendChild(guidance);
+  if (guidance) box.appendChild(guidance);
   const actions=document.createElement('div'); actions.className='pcd-actions';
   const inPalette=d.source==='palette' && d.collectionId;
   const add=document.createElement('button'); add.type='button'; add.className='plant-result-add';
@@ -2447,14 +2443,6 @@ function discoveryFamilyCard(group,d){
   // on a mixed card the tag would be true of only some of its choices
   if (group.refs.every(ref=>{ const D=refDef(ref); return D&&D.spreadHabit==='colony'; })) tags.push('Spreads');
   copy.appendChild(plantCardLine(R,{families:discoveryGroupFamilies(group,d),bloom:discoveryGroupBloomText(group),tags}));
-  /* Scoped to the garden's own region, like the exact row's button: unscoped,
-     a family card warned a European garden about North Carolina. */
-  const groupCautions=group.refs.flatMap(ref=>invasiveCautionsFor(ref,activeFilters().nativeRegion));
-  if (groupCautions.length){
-    const caution=document.createElement('span');
-    caution.className='plant-caution-tag is-'+(groupCautions.some(n=>n.severity==='avoid')?'avoid':'caution');
-    caution.textContent='Regional cautions · check individual choices'; copy.appendChild(caution);
-  }
   const artBox=document.createElement('span'); artBox.className='pc-art'; artBox.appendChild(art);
   if (grid){ const chip=document.createElement('span'); chip.className='pc-chip pc-choices'; chip.textContent=choices; artBox.appendChild(chip); }
   main.append(artBox,copy);
@@ -2529,7 +2517,7 @@ function discoverySourceMenu(d){
    flower colour, bloom season) now sit in a tray the Filters button opens, and
    each applies as it is pressed, with the list changing under it. Closed, the
    ones that are on show as pills, each removed by its own press. What the
-   GARDEN asks of a plant (zone, style, origin, invasive risk, browsing animals)
+   GARDEN asks of a plant (zone, style, origin, browsing animals)
    is a different kind of thing and keeps a dialog, reached from the tray's
    foot and from the garden menu.
    pulseIs: the one-shot marker of catalogPulse, for things that are not a plant. */
@@ -2593,7 +2581,7 @@ function discoveryFilterRegion(d){
     const foot=el('div','qf-foot'), line=el('span','qf-garden',discoveryGardenLine());
     line.title='This garden: '+line.textContent;
     const clear=link(n?`Clear ${n}`:'Clear',()=>{ clearDiscoveryLens(); refocus('.qf-tray .qf-chip'); }); clear.disabled=!n;
-    const garden=link('Garden criteria',()=>openDiscoveryFilters(garden)); garden.title='Zone, style, native planting, invasive risk and browsing animals';
+    const garden=link('Garden criteria',()=>openDiscoveryFilters(garden)); garden.title='Zone, style, native planting and browsing animals';
     foot.append(line,clear,garden); tray.appendChild(foot);
     return tray;
   }
@@ -2942,8 +2930,6 @@ function readDiscoveryCriteria(){
 const GARDEN_NATIVE_MODES=[['any','Any origin','Plants of any origin'],
   ['regional','Natives + selections','Native to the region, and named selections of those'],
   ['straight','Straight species','Only the wild species native to the region']];
-const GARDEN_INVASIVE_MODES=[['hide','Hide flagged','Leave out plants with a recorded invasive caution here'],
-  ['show','Show with a caution','List them, marked']];
 const GARDEN_RESIST=[['deer','Deer'],['rabbit','Rabbits'],['squirrel','Squirrels (bulbs)']];
 function criteriaSegment(host,rows,value,field){
   if (!host) return; host.innerHTML='';
@@ -2991,16 +2977,12 @@ function renderDiscoveryCriteria(){
     const o=document.createElement('option'); o.value=r.id; o.textContent=r.label; o.selected=r.id===f.nativeRegion; region.appendChild(o);
   });
   region.onchange=()=>{ discoveryCriteriaDraft=readDiscoveryCriteria(); renderDiscoveryFilterScreen(); };
-  /* The region used to hide itself in Any mode, which is where it now does its
-     only work: it scopes which invasive cautions apply, so hiding it would
-     leave a European gardener silently filtered against North American lists
-     with no control to say otherwise. It stays up, and changes its WORD --
-     origin is what a native mode restricts, place is what a caution attaches
-     to, and those are two different questions that one control used to fuse. */
+  /* The region stays up in Any mode, where it still says where the garden is:
+     it decides which plants count as native for the style recommendations.
+     Its WORD changes -- origin is what a native mode restricts, place is what
+     the garden is. */
   $('discoveryNativeRegionLabel').textContent=f.nativeMode==='any'?'Garden region':'Continent of origin';
   $('discoveryNativeHint').textContent=nativeCriteriaText(f);
-  criteriaSegment($('discoveryInvasive'),GARDEN_INVASIVE_MODES,normalizeInvasiveMode(f.invasive),'invasive');
-  $('discoveryInvasiveHint').textContent=invasiveCriteriaText(f);
   const resist=$('discoveryResist');
   if (resist){
     resist.innerHTML='';
@@ -3086,7 +3068,6 @@ function savedRefAvailabilityReason(ref){
   if (!challengeAllows(ref.s,ref.v||null)) return 'Unavailable in this challenge';
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return `Outside Zone ${f.zone}`;
   if (!passesNativeFilter(P,f)) return `Excluded by ${f.nativeMode==='straight'?'straight-species':'regional-native'} criteria`;
-  if (f.invasive==='hide' && invasiveFilterHides(ref,f.nativeRegion)) return `Invasive caution for ${nativeRegionLabel(f.nativeRegion,true)}`;
   const roles=plantRoles(ref.s);
   if (!isTreeDef(P) && f.deer && !roles.includes('deerOk')) return 'Not deer resistant';
   if (!isTreeDef(P) && f.rabbit && !roles.includes('rabbitOk')) return 'Not rabbit resistant';
