@@ -6502,6 +6502,69 @@ test('a new garden opens fitted, a reopened one where it was left', () => {
   assert(/game\.savedView=null/.test(String(resetNewGardenState)), 'and a new garden has no saved view to restore');
 });
 
+test('a plot that does not fit at 40% can be seen whole: fit, the floor, and a view saved that far out', () => {
+  /* 40% was the limit for every plot, and fitPlot clamped its own answer at 42%:
+     a quarter acre on a desktop needs 18%, and the smallest plot on a phone 13%,
+     so those gardens opened as lawn from edge to edge and Fit fitted nothing. */
+  setup(69, 69);
+  const oldRect = usableCanvasRect, oldVW = VW, oldVH = VH, oldIn = game.inGarden;
+  const wholeAt = () => { const W = VW / ZOOM, H = VH / ZOOM, s = usableCanvasRect();
+    return [[0, 0], [GW - 1, 0], [0, GH - 1], [GW - 1, GH - 1]].every(([x, y]) => { const p = screenOfFlat(x, y, W, H);
+      return p[0] * ZOOM >= s.left && p[0] * ZOOM <= s.right && p[1] * ZOOM >= s.top && p[1] * ZOOM <= s.bottom; }); };
+  try {
+    game.inGarden = true; VW = 1066; VH = 844;
+    usableCanvasRect = () => ({ left: 86, top: 8, right: 1058, bottom: 836 });
+    resetZoomFloor(); userZoom = 1; calcZoom();
+    assertEqual(zoomFloor, ZOOM_MIN, 'a garden starts with the old floor');
+    fitPlot();
+    assert(ZOOM < 0.2 && ZOOM > 0.15, 'a quarter acre is fitted at about 18%, not held at 42%: ' + ZOOM.toFixed(3));
+    assert(wholeAt(), 'with all four corners inside the clear canvas');
+    assertEqual(+zoomFloor.toFixed(4), +ZOOM.toFixed(4), 'and that is as far out as it goes');
+    setUserZoom(0.001);
+    assertEqual(+ZOOM.toFixed(4), +zoomFloor.toFixed(4), 'zooming out stops at the fit');
+    assertEqual(+(userZoom * baseZoom).toFixed(4), +ZOOM.toFixed(4), 'with no dead band between the number and the view');
+    // the floor only falls: a roomier layout must not pull the view in by itself
+    const tight = zoomFloor;
+    usableCanvasRect = () => ({ left: 8, top: 8, right: 1058, bottom: 836 });
+    fitPlot();
+    assertEqual(zoomFloor, tight, 'a wider canvas fits larger and leaves the floor where it was');
+    assert(ZOOM > tight, 'the fit itself follows the room there is');
+    // a view saved that far out comes back that far out
+    usableCanvasRect = () => ({ left: 86, top: 8, right: 1058, bottom: 836 });
+    fitPlot(); const v = gardenViewNow();
+    assert(v.z < ZOOM_MIN, 'a fitted view is saved below 40%');
+    resetZoomFloor(); userZoom = 1; calcZoom(); cam.x = 0; cam.y = 0;
+    assert(restoreGardenView(v), 'and is restored');
+    assertEqual(+ZOOM.toFixed(3), +(v.z * baseZoom).toFixed(3), 'at the zoom it was left at, not pushed back to 40%');
+    assertEqual(normalizeGardenView({ x: 1, y: 1, z: 0.0001 }).z, ZOOM_FLOOR, 'a saved zoom is clamped at the absolute floor');
+    // a plot that fits at 40% keeps the old floor
+    setWorldSize(16, 16); resetZoomFloor(); userZoom = 1; calcZoom(); fitPlot();
+    assertEqual(zoomFloor, ZOOM_MIN, 'a small plot cannot be zoomed out further than before');
+    setUserZoom(0.001);
+    assertEqual(ZOOM, ZOOM_MIN, 'so nothing changes for it');
+    // the largest preset fits a 320px phone at the absolute floor
+    setWorldSize(69, 69); VW = 320; VH = 568; resetZoomFloor();
+    usableCanvasRect = () => ({ left: 70, top: 69, right: 312, bottom: 300 });
+    fitPlot();
+    assert(wholeAt(), 'a quarter acre is whole on a 320px phone (zoom ' + ZOOM.toFixed(3) + ', floor ' + ZOOM_FLOOR + ')');
+  } finally {
+    usableCanvasRect = oldRect; VW = oldVW; VH = oldVH; game.inGarden = oldIn;
+    resetZoomFloor(); userZoom = 1; calcZoom();
+  }
+  const enter = String(enterGarden);
+  assert(/resetZoomFloor\(\)/.test(enter), 'each garden finds its own floor');
+  assert(/if \(fitted\) settleOpeningFit\(\)/.test(enter) && enter.indexOf('settleOpeningFit') > enter.indexOf('buildCanvasTools()'),
+    'and a fitted opening is fitted again after the tray and rail are built, once the chrome has come to rest');
+  const settle = String(settleOpeningFit);
+  assert(/cam\.x!==f\.x \|\| cam\.y!==f\.y \|\| userZoom!==f\.z/.test(settle), 'unless the gardener has moved the view since');
+  // the style cards: no grid-in-a-button, no aspect-ratio box, no percentage height (iOS Safari cut the names in half)
+  const css = readRepoFile('styles.css');
+  const card = css.slice(css.indexOf('.ng-style{'), css.indexOf('.ng-style:hover'));
+  assert(/display:block/.test(card) && !/display:grid/.test(card), 'a style card is a plain block');
+  assert(/\.ng-style-art canvas\{display:block;width:100%;height:auto\}/.test(css) && !/\.ng-style-art\{[^}]*aspect-ratio/.test(css),
+    'and its picture is sized by the canvas\'s own proportions');
+});
+
 test('a new garden has a start-here list, ticked off by the garden itself', () => {
   setup(21, 21);
   assert(startHereApplies(), 'an empty new garden gets the list');

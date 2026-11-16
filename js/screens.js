@@ -1428,7 +1428,7 @@ function enterGarden(){
   game.woodyAge='mature';                       // designers plan around existing/mature trees
   game.pausedAt=Date.now();                     // a planner opens with the clock held
   document.body.classList.add('design-mode');
-  userZoom=1; calcZoom();
+  resetZoomFloor(); userZoom=1; calcZoom();   // this garden's own floor is found when it is fitted or restored
   let groundReset=false;
   if (!Array.isArray(game.houses)){ game.houses=[]; groundReset=true; }
   if (!game.elevation){ game.elevation={}; groundReset=true; }
@@ -1457,7 +1457,8 @@ function enterGarden(){
      the HUD has only just been shown, and a cached answer from the last garden
      can describe a library that was open then and is shut now. */
   invalidateUsableRect();
-  if (!restoreGardenView(game.savedView)) fitPlot();
+  let fitted=false;
+  if (!restoreGardenView(game.savedView)) fitPlot(), fitted=true;
   game.savedView=null;
   if (groundReset) markGroundChanged();
   game.lastDay=absDay();
@@ -1470,6 +1471,7 @@ function enterGarden(){
   $('btnChallengeFinish').classList.toggle('hidden',!game.challenge);
   syncChallengeFinishButton(!!game.challenge?.completedAt);
   gardenOpening.ready=true;
+  if (fitted) settleOpeningFit();   // the chrome it was fitted to has not come to rest yet
   if (game.challenge)
     setTimeout(()=>{ if (game.challenge){
       toast(game.challenge.paletteFree?'All plants — current filters still apply.':'Suggested plants selected. Choose Use all plants in the catalog to explore more.');

@@ -6271,6 +6271,38 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     one-finger pan branch returned before that, so a second finger began its
     pinch from where the first had landed and the view jumped by the whole pan
     (250 draw units in the browser check).
+    **A plot that does not fit at 40% may zoom out to where it does** (`zoomFloor`,
+    `ZOOM_FLOOR`, `lowerZoomFloor`, `plotFitZoom`, view.js; 0.9.119). `ZOOM_MIN`
+    (0.4) was the limit for every plot and `fitPlot` clamped its own answer at
+    42%: a quarter acre needs 18% on a 1440px desktop and the smallest plot 13%
+    on a phone, so those gardens opened as lawn from edge to edge, Fit fitted
+    nothing, and no gesture could show the whole plan. Now the floor is the fit
+    for this plot in this layout, never below `ZOOM_FLOOR` (0.045, where the
+    largest preset fits a 320px phone) and never above 0.4, so a plot that fits
+    at 40% is unchanged. It only ever FALLS within a garden (`fitPlot`,
+    `restoreGardenView`, and `setUserZoom` when a zoom-out reaches it): raised
+    by a roomier layout, the view would jump in by itself at the next
+    `calcZoom`. `enterGarden` resets it. `userZoom` is clamped from the floor
+    itself (`zoomFloor/baseZoom`): the phone's base zoom used to leave it a
+    dead band, 0.4 to 0.53, where a pinch moved the number and not the view. A
+    saved view keeps a zoom below 0.4 (`normalizeGardenView`).
+    **A fitted opening is fitted again once the chrome has come to rest**
+    (`settleOpeningFit`): `enterGarden` fits before the tray and rail are built
+    and before a phone's sheet has travelled to its height, which the 42% clamp
+    used to hide; with a true fit a quarter acre opened with one corner under
+    the library. It refits two frames on and after the sheet lands, unless the
+    gardener has moved the view.
+    Cost, measured in headless Chrome (software raster, so read the ratios):
+    a frame at the fitted view costs the same or LESS than at 42%, since every
+    sprite is smaller (quarter acre, 1,482 plants: 8.4 -> 6.3ms desktop, 15.7
+    -> 8.0ms phone; 31x31: 14.4 -> 12.9 and 11.0 -> 12.7). A full ground bake
+    is the same for a plot that nearly fitted already and about a third dearer
+    for a quarter acre on a phone (320 -> 429ms there), because the bake then
+    holds every tile of the plot. The worst case is bounded by the plot: the
+    largest one that can be made (134x134, 0.9 acre) fully out on a phone is
+    several times today's phone bake, and was the one reading that looked bad
+    (about 2s in software raster). Not done: a time budget on the ground job's
+    four chunks a frame, which would spread that case.
     **Two ceilings, and they are not the same number**: `ZOOM_MAX` (2.0) is the
     on-screen scale the pill reports, `USER_ZOOM_MAX` (2.8) the multiplier
     applied before `baseZoom` — which has to be larger or a phone can never
@@ -6511,6 +6543,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     are the style's top-ranked plants for the zone and origin
     (`styleMeadowKeys`), one of each drawing form so a prairie is not three
     grasses, tallest in the middle, on the Library's dark plate in both themes.
+    **A card is plain blocks, its picture sized by the canvas's own proportions**
+    (0.9.119): as a grid in a button, with an `aspect-ratio` box and a canvas at
+    `height:100%`, Chrome laid it out and iOS Safari made it too short, so on an
+    iPhone every card cut its own name in half. There is no WebKit on this
+    machine to test in, so a layout here should avoid those three together.
     A canvas is kept per style for the session and repainted only when its three
     plants change, a card a frame after the page is up. The line under the
     cards says what a style DOES, which nothing said: its N plants lead the

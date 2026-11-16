@@ -29,7 +29,26 @@ let ZOOM = 1, baseZoom = 1, userZoom = 1;
    so the ground bake and entity list shrink, and the sprite cache is already
    capped at 1.5x DPR. */
 const ZOOM_MIN=0.4, ZOOM_MAX=2.0;
-const USER_ZOOM_MIN=0.4, USER_ZOOM_MAX=2.8;
+const USER_ZOOM_MAX=2.8;
+/* How far OUT the view may go. 40% is as far as a plot ever needs that fits
+   the screen by then, and it was the limit for every plot: a quarter acre on
+   a desktop needs 18% to be seen whole, and on a phone the smallest plot needs
+   13%, so those gardens opened as edge-to-edge lawn with no boundary in sight,
+   the Fit button fitted nothing, and no gesture could ever show the plan the
+   planner is for. So a plot that does not fit at 40% may go on out to where it
+   does (zoomFloor), and no further: the worst case is the whole plot on
+   screen, which is bounded by the plot and is what a big monitor at 40% already
+   draws. ZOOM_FLOOR is where the largest preset, a quarter acre, fits a 320px
+   phone (a tile is then 3.4px wide); the largest plot that can be made, on a
+   phone would need 3%.
+   The floor only ever FALLS within a garden. It is lowered to what a fit needs
+   in the layout at hand (a docked library, a raised sheet); were a roomier
+   layout to raise it again, the view would jump in by itself the next time
+   anything recalculated the zoom. enterGarden puts it back to 40%. */
+const ZOOM_FLOOR=0.045;
+let zoomFloor=ZOOM_MIN;
+function resetZoomFloor(){ zoomFloor=ZOOM_MIN; }
+function lowerZoomFloor(fit){ if (fit>0) zoomFloor=Math.max(ZOOM_FLOOR,Math.min(zoomFloor,fit)); }
 /* "Is this a phone-sized screen?", asked of the SHORTER side, because a phone
    in landscape is still a phone (and is DOCK for layout, so the responsive tier
    cannot answer this one). The threshold was 760, which is not a phone number:
@@ -45,10 +64,16 @@ const USER_ZOOM_MIN=0.4, USER_ZOOM_MAX=2.8;
 const PHONE_ZOOM_MAX_SIDE=600;
 function calcZoom(){
   baseZoom = Math.min(innerWidth,innerHeight)<PHONE_ZOOM_MAX_SIDE ? 0.75 : 1;
-  ZOOM = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, baseZoom*userZoom));
+  ZOOM = Math.max(zoomFloor, Math.min(ZOOM_MAX, baseZoom*userZoom));
 }
 function setUserZoom(z){
-  userZoom = Math.max(USER_ZOOM_MIN, Math.min(USER_ZOOM_MAX, z));
+  /* Zooming out past the floor asks whether this plot, in this layout, needs
+     to go further to be seen whole. Only then: a wheel is a stream of ticks,
+     and the answer is a cached rectangle and four projections. */
+  if (z*baseZoom<zoomFloor && game.inGarden) lowerZoomFloor(plotFitZoom());
+  // from the floor itself: the phone's base zoom used to leave userZoom a dead
+  // band (0.4 to 0.53) in which a pinch moved a number and not the view
+  userZoom = Math.max(zoomFloor/baseZoom, Math.min(USER_ZOOM_MAX, z));
   calcZoom();   // no snapCam: the designer's camera is free and stays where it is
   updateZoomPill();
   tourNote('look');   // the tour camera step: every zoom route funnels here
@@ -151,19 +176,29 @@ function measureUsableCanvasRect(){
   if (out.bottom-out.top<120){ out.top=8; out.bottom=Math.max(8,VH-8); }
   return out;
 }
+/* The plot's box in draw units at this rotation, with a tile of margin (two
+   below, for what stands on the front row). */
+function plotFitBox(){
+  const corners=[[0,0],[GW-1,0],[0,GH-1],[GW-1,GH-1]].map(([x,y])=>worldToView(x,y));
+  const xs=corners.map(p=>isoX(p[0],p[1])), ys=corners.map(p=>isoY(p[0],p[1]));
+  return {minX:Math.min(...xs)-TILE_W, maxX:Math.max(...xs)+TILE_W,
+    minY:Math.min(...ys)-TILE_H, maxY:Math.max(...ys)+TILE_H*2};
+}
+/* The zoom at which that box stands inside the canvas the chrome leaves clear. */
+function plotFitZoom(box=plotFitBox(),safe=usableCanvasRect()){
+  const availW=Math.max(180,safe.right-safe.left), availH=Math.max(180,safe.bottom-safe.top);
+  return Math.min(availW/Math.max(1,box.maxX-box.minX), availH/Math.max(1,box.maxY-box.minY));
+}
 function fitPlot(){
   if (!game.inGarden) return;
   calcZoom();
-  const corners=[[0,0],[GW-1,0],[0,GH-1],[GW-1,GH-1]].map(([x,y])=>worldToView(x,y));
-  const xs=corners.map(p=>isoX(p[0],p[1])), ys=corners.map(p=>isoY(p[0],p[1]));
-  const minX=Math.min(...xs)-TILE_W, maxX=Math.max(...xs)+TILE_W;
-  const minY=Math.min(...ys)-TILE_H, maxY=Math.max(...ys)+TILE_H*2;
-  const worldW=Math.max(1,maxX-minX), worldH=Math.max(1,maxY-minY);
+  const box=plotFitBox(), {minX,maxX,minY,maxY}=box;
   const safe=usableCanvasRect();
-  const availW=Math.max(180,safe.right-safe.left);
-  const availH=Math.max(180,safe.bottom-safe.top);
-  const targetZoom=Math.max(0.42,Math.min(1.45,Math.min(availW/worldW,availH/worldH)));
-  userZoom=Math.max(USER_ZOOM_MIN,Math.min(USER_ZOOM_MAX,targetZoom/baseZoom));
+  /* It clamped the answer at 42%, so "Fit" fitted only what fitted anyway. */
+  const fit=plotFitZoom(box,safe);
+  lowerZoomFloor(fit);
+  const targetZoom=Math.max(zoomFloor,Math.min(1.45,fit));
+  userZoom=Math.max(zoomFloor/baseZoom,Math.min(USER_ZOOM_MAX,targetZoom/baseZoom));
   calcZoom();
   const W=VW/ZOOM, H=VH/ZOOM;
   const wantX=(safe.left+safe.right)/(2*ZOOM), wantY=(safe.top+safe.bottom)/(2*ZOOM);
@@ -172,6 +207,27 @@ function fitPlot(){
   compassKey='';
   updateCompass();
   updateZoomPill();
+}
+/* A garden that opens fitted is fitted to the chrome as it stands at that
+   moment, which is not where it comes to rest: the tray and the rail are built
+   after the fit, and a phone's sheet travels to its height over a fifth of a
+   second. While 42% was the floor the difference could not show, since the fit
+   was clamped anyway; with a true fit, a quarter acre opened with one corner
+   under the library on a desktop and two under the sheet on a phone. So the
+   fit is taken again two frames on, and again once the sheet has landed,
+   unless the gardener has moved the view in the meantime (then it is theirs). */
+let openingFit=null;
+function settleOpeningFit(){
+  const mark=()=>{ openingFit={x:cam.x,y:cam.y,z:userZoom,id:game.worldId}; };
+  const again=()=>{
+    const f=openingFit;
+    if (!f || !game.inGarden || f.id!==game.worldId || cam.x!==f.x || cam.y!==f.y || userZoom!==f.z) return;
+    invalidateUsableRect(); fitPlot(); mark();
+  };
+  mark();
+  requestAnimationFrame(()=>requestAnimationFrame(again));
+  setTimeout(again,320);
+  setTimeout(()=>{ again(); openingFit=null; },700);
 }
 /* ---------- where the garden was being looked at ----------
    A garden used to open at 100% on the plot's centre every time: a new one
@@ -195,7 +251,8 @@ function normalizeGardenView(v){
   if (!v || typeof v!=='object' || Array.isArray(v)) return null;
   const x=+v.x, y=+v.y, z=+v.z;
   if (![x,y,z].every(Number.isFinite)) return null;
-  return {x, y, z:Math.max(USER_ZOOM_MIN,Math.min(USER_ZOOM_MAX,z))};
+  // down to the absolute floor: a garden left fitted is saved below 40% now
+  return {x, y, z:Math.max(ZOOM_FLOOR,Math.min(USER_ZOOM_MAX,z))};
 }
 /* Put a saved view back: the saved point at the centre of the clear canvas.
    worldPointAt measures to the tile's CENTRE, half a tile below the point
@@ -206,7 +263,10 @@ function restoreGardenView(v){
   v=normalizeGardenView(v);
   if (!v || !game.inGarden) return false;
   if (v.x<-4 || v.y<-4 || v.x>GW+4 || v.y>GH+4) return false;
-  userZoom=v.z; calcZoom();
+  /* A reopened garden can be zoomed out as far as a new one, and a view saved
+     that far out comes back that far out. */
+  lowerZoomFloor(plotFitZoom());
+  userZoom=Math.max(zoomFloor/baseZoom,v.z); calcZoom();
   const safe=usableCanvasRect(), W=VW/ZOOM, H=VH/ZOOM;
   const [sx,sy]=screenOfFlat(v.x,v.y,W,H);
   cam.x+=sx-(safe.left+safe.right)/2/ZOOM;
