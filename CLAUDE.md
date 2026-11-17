@@ -7261,6 +7261,34 @@ Every water plant, and every bulb without cultivars, carries a sourced
 `heightIn` (2026-10-30: typical height in flower, `h` untouched); bulb
 families with cultivars wait until each cultivar has its own sourced height.
 
+**The bulb audit (0.9.124): a bulb's `h` is its drawn height in PIXELS.**
+`plantVisualH` scales every other herbaceous plant by `HERB_SCALE`, so a forb's `h`
+is its height in inches, and passes a bulb through, so a bulb authored like a forb
+drew at 1/1.75 of its height: Turk's-cap lily 46 in for 72, 'Gladiator' 31 for 42,
+'Apeldoorn' 15 for 24. Every bulb choice now has a `heightIn` (Missouri Botanical
+Garden first, then John Scheepers and DutchGrown; `docs/plant-data/bulb-sources.json`)
+and an `h` set so its top lands on it; `every bulb draws at its sourced height`
+holds all 114 within 15% or 1.5 in. A small bulb's flower is a fixed size, so its
+`h` can be far under 1.75 x its height; crocus, aconite and colchicum flowers were
+brought to real size and crocus stems shortened (`lenBase`) so the leaves survive.
+Redrawn: daffodils (`drawDaffodil`: tepals turned sideways round a corona tube,
+`reflexed`, `doubleFlower`), the tulip/crocus/colchicum goblet (round-tipped cup,
+the eye in its mouth, not a dot on its side; lily-flowered keeps its pointed fan),
+English bluebell (`arch`: a crook with bells hanging off one side), the fritillary
+(bell hangs beside the stem tip), *Scilla peruviana* (`dense`), dahlias (leafy
+stems), and **no bulb draws drawPlant's closing highlight strokes**, which floated
+above every one. Added: Siberian squill, glory-of-the-snow, dwarf iris, Dutch and
+autumn crocus, *Muscari latifolium* (`topShare`), wild tulip, crown imperial
+(`lilyStyle:'crown'`), spring beauty, regal, Oriental and Asiatic lilies
+(`lilyStyle:'trumpet'|'bowl'`), red spider lily (`spider`), golden garlic,
+tumbleweed onion (`uneven`) and crocosmia (`spikeStyle:'crocosmia'`), with new
+cultivars only where the look is new. Look-alike cultivars were FOLDED by alias
+('King Alfred' and 'Carlton' into 'Dutch Master', and five more); `no two choices
+of one bulb draw alike` holds that within a record every pair differs in colour,
+eye, drawing or height. Record: `docs/plant-data/bulb-audit.md`;
+`dev/bulb-review.html` shows every choice close up, in four seasons and at true
+scale with its height marked.
+
 Broadleaf fruit and nut trees can use `look.fruitShape:'round'|'pear'|'fig'|
 'oval'|'pod'|'nut'|'husk'|'bur'|'pomegranate'`, plus an optional bounded
 `fruitCluster` of 1–4. `seedN` remains the total fruit-glyph budget and `seedR`

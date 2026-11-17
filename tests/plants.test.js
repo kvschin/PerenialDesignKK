@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,818,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,834,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),642,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),651,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -904,9 +904,9 @@ test('the bulb audit keeps a complete morphology and catalog contract', () => {
     assertEqual(P.type,'bulb',`${k}: stays in the bulb layer`);
     assertEqual(JSON.stringify(P.bloomMonths),JSON.stringify(months),`${k}: bloom calendar`);
   }
-  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb').length,42,'audited base bulb count');
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb').length,58,'audited base bulb count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb')
-    .reduce((n,k)=>n+1+Object.keys(PLANTS[k].cv||{}).length,0),89,'audited exact bulb count');
+    .reduce((n,k)=>n+1+Object.keys(PLANTS[k].cv||{}).length,0),114,'audited exact bulb count');
 
   assertEqual(PLANTS.alliumChristophii.latin,'Allium cristophii','Star of Persia uses the accepted spelling');
   assertEqual(PLANTS.alliumcarinatum.latin,'Allium cirrhosum','Pretty garlic uses the accepted taxon');
@@ -948,8 +948,8 @@ test('the bulb audit keeps a complete morphology and catalog contract', () => {
         `${k} ${season} seedhead must dry to straw/tan instead of retaining bloom color (${seed})`);
     }
   }
-  assertEqual(PLANTS.camassialeichtlinii.cv.blueMelody.look.leafStripe,'#e6dfc9','Blue Melody carries real leaf variegation');
-  for(const v of ['kingalfred','dutchmaster','icefollies','carlton','tetatete','thalia','mountHood']){
+  assertEqual(PLANTS.camassiaquamash.cv.blueMelody.look.leafStripe,'#e6dfc9','Blue Melody carries real leaf variegation');
+  for(const v of ['dutchmaster','icefollies','tetatete','thalia','mountHood','jetfire','salome','tahiti']){
     assertEqual(PLANTS.daffodil.cv[v].provenance,'hybrid',`${v}: garden daffodil provenance`);
     assertEqual(PLANTS.daffodil.cv[v].nativeTo.length,0,`${v}: garden daffodil claims no wild range`);
   }
@@ -2220,7 +2220,8 @@ test('water plants and cultivar-free bulbs carry a real height', () => {
   }
   assertEqual(PLANTS.fragrantwaterlily.heightIn, 4, 'water lily floats');
   assertEqual(PLANTS.liliumsuperbum.heightIn, 72, "Turk's-cap lily heightIn");
-  assertEqual(PLANTS.alliumGlobemaster.h, 42, 'h untouched');
+  // since 0.9.124 a bulb's h is set to draw it at its heightIn (the bulb audit's own test)
+  assertEqual(PLANTS.alliumGlobemaster.heightIn, 30, 'Globemaster heightIn (MBG 1.5-2.5 ft, DutchGrown 36 in)');
 });
 
 // Herbaceous heightIn backfill, prairie forbs (2026-11-02): the milkweeds,
@@ -2275,4 +2276,82 @@ test('the pussytoes are in, as reviewed, with their sources', () => {
   // mountain everlasting is Europe's: in North America only on the Aleutians
   assert(!PLANTS.mountaineverlasting.nativeTo.includes('north-america'),'mountain everlasting is Eurasian');
   assertEqual(PLANTS.mountaineverlasting.cv.rubra.provenance,'selection',"'Rubra' is a selection");
+});
+
+// The 0.9.124 bulb audit: heights from Missouri Botanical Garden's Plant Finder and
+// bulb growers, sixteen bulbs the catalog lacked, and look-alike cultivars folded.
+test('the 0.9.124 bulb additions carry their sourced identities', () => {
+  const add={
+    scillasiberica:['Scilla siberica','spike',[3,4],'europe,asia',5],
+    glorysnow:['Scilla forbesii','spike',[3,4],'asia',6],
+    irisreticulata:['Iris reticulata','iris',[3],'asia',5],
+    crocusvernus:['Crocus vernus','bulbcup',[3,4],'europe',5],
+    crocusspeciosus:['Crocus speciosus','bulbcup',[9,10],'europe,asia',5],
+    muscarilatifolium:['Muscari latifolium','spike',[4],'asia',8],
+    tulipsylvestris:['Tulipa sylvestris','bulbcup',[4,5],'europe,africa,asia',14],
+    crownimperial:['Fritillaria imperialis','martagon',[4,5],'asia',42],
+    springbeauty:['Claytonia virginica','cone',[4],'north-america',7],
+    liliumregale:['Lilium regale','martagon',[7],'asia',48],
+    orientallily:['Lilium Oriental Group','martagon',[7,8],'',36],
+    asiaticlily:['Lilium Asiatic Group','martagon',[6,7],'',36],
+    lycorisradiata:['Lycoris radiata','martagon',[9,10],'asia',20],
+    alliummoly:['Allium moly','globe',[5,6],'europe',12],
+    alliumschubertii:['Allium schubertii','globe',[5,6],'asia',18],
+    crocosmia:["Crocosmia 'Lucifer'",'spike',[7,8],'',36],
+  };
+  for (const [k,[latin,form,months,range,height]] of Object.entries(add)){
+    const P=PLANTS[k];
+    assert(P,k+': missing');
+    assertEqual(P.latin,latin,k+': botanical name');
+    assertEqual(P.form,form,k+': drawing form');
+    assertEqual(P.type,'bulb',k+': in the bulb layer');
+    assertEqual(JSON.stringify(P.bloomMonths),JSON.stringify(months),k+': bloom months');
+    assertEqual(P.nativeTo.join(','),range,k+': native range');
+    assertEqual(P.heightIn,height,k+': sourced height');
+    assert(WIKIPEDIA_ARTICLES[k],k+': a Learn more article');
+  }
+  for (const k of ['orientallily','asiaticlily','crocosmia']) assertEqual(PLANTS[k].provenance,'hybrid',k+': a garden hybrid');
+  for (const [k,v] of [['daffodil','jetfire'],['daffodil','salome'],['daffodil','tahiti'],['irisreticulata','katharineHodgkin']]){
+    assertEqual(PLANTS[k].cv[v].provenance,'hybrid',k+':'+v+': hybrid');
+    assertEqual(PLANTS[k].cv[v].nativeTo.length,0,k+':'+v+': no wild range');
+  }
+  assertEqual(PLANTS.springbeauty.provenance,'species','spring beauty is the wild species');
+  // a crown imperial and a lily are now in families of their kind
+  for (const k of ['claudeshride','michiganlily','liliummartagon','liliumsuperbum','liliumregale','orientallily','asiaticlily'])
+    assertEqual(PLANTS[k].group,'lily',k+': in the lily family');
+  for (const k of ['crocus','crocuschrysanthus','crocusvernus','crocusspeciosus']) assertEqual(PLANTS[k].group,'crocus',k+': a crocus');
+});
+
+test('the folded bulb look-alikes open as the choice they looked like', () => {
+  const folded={
+    'daffodil|kingalfred':['daffodil','dutchmaster'], 'daffodil|carlton':['daffodil','dutchmaster'],
+    'crocus|barrspurple':['crocus','rubygiant'], 'crocus|whitewellpurple':['crocus','rubygiant'],
+    'snowdrop|atkinsii':['snowdrop','sArnott'], 'camassialeichtlinii|caerulea':['camassialeichtlinii',null],
+    'anemoneblanda|blueShades':['anemoneblanda',null], 'ipheion|wisleyBlue':['ipheion','rolfFiedler'],
+    // not a look-alike: 'Blue Melody' is a selection of common camas
+    'camassialeichtlinii|blueMelody':['camassiaquamash','blueMelody'],
+  };
+  for (const [from,[s,v]] of Object.entries(folded)){
+    const [fs,fv]=from.split('|');
+    assertEqual((PLANTS[fs].cv||{})[fv],undefined,from+': no longer a choice');
+    const ref=canonicalPlantRef(fs,fv);
+    assertEqual(ref.s,s,from+': species');
+    assertEqual(ref.v,v,from+': choice');
+    assert(PLANTS[s]&&(v===null||PLANTS[s].cv[v]),from+': opens as a choice that exists');
+  }
+  assertEqual(PLANTS.camassiaquamash.heightIn,15,'common camas: John Scheepers 15 in');
+});
+
+test('every bulb choice\'s height is in docs/plant-data/bulb-sources.json, with where it came from', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/bulb-sources.json')), rows=new Map(doc.choices.map(r=>[r.ref,r]));
+  let n=0;
+  for (const k of keys.filter(k=>PLANTS[k].type==='bulb')) for (const v of [null,...Object.keys(PLANTS[k].cv||{})]){
+    const ref=k+(v?'|'+v:''), row=rows.get(ref), C=v?PLANTS[k].cv[v]:PLANTS[k];
+    assert(row,ref+': has a row');
+    assertEqual(C.heightIn??PLANTS[k].heightIn,row.heightIn,ref+': the catalog carries the reviewed height');
+    assert(row.sources.every(u=>/^https?:\/\//.test(u)),ref+': sources are links');
+    assert(row.estimate&&row.estimate.length>5,ref+': says how the height was chosen');
+    n++;
+  }
+  assertEqual(n,rows.size,'no row for a choice the catalog no longer has');
 });

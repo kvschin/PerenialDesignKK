@@ -926,6 +926,44 @@ function drawBulbBell(ctx,cx,cy,w,h,col,tipCol,rot){
   ctx.restore();
 }
 
+/* A daffodil held out sideways on its neck (0.9.124): six broad tepals turned
+   away from the viewer, so they draw as a narrow ring, and the corona as a tube
+   standing out of it toward `dir`, its open mouth facing that way. It replaced a
+   spiky six-point star with a bell hung under it, which read as an orange star
+   at garden scale. `corona` is 'trumpet' (as long as the tepals), 'largeCup'
+   (shorter and wider) or 'disc' (a poet's daffodil's flat eye); `coronaRim` is
+   the mouth's edge. `reflexed` sweeps the tepals back (cyclamineus, triandrus),
+   `nodding` tips the face down, `doubleFlower` fills the face with rings of
+   tepals and corona segments instead of a tube. */
+function drawDaffodil(ctx,cx,cy,cup,S,L,dir){
+  const R=cup*1.2, col=S.bloom, cor=S.eye||shade(col,-10), rim=L.coronaRim||shade(cor,-10);
+  const sx=L.reflexed?0.42:0.62, back=L.reflexed?-dir*R*0.42:0, drop=L.nodding?0.42:0.14;
+  if(L.doubleFlower){
+    for(let ring=0;ring<3;ring++){
+      const r=R*(1-ring*0.27), n=ring===2?5:6, c=ring===1?cor:shade(col,ring*6);
+      for(let p=0;p<n;p++){
+        const a=p/n*Math.PI*2+ring*0.5;
+        drawLeaf(ctx,cx+dir*ring*0.5,cy,cx+dir*ring*0.5+Math.cos(a)*r*0.72,cy+Math.sin(a)*r*0.92,r*0.36,shade(c,p%2?4:-4),{shape:'ovate',rib:false});
+      }
+    }
+    return;
+  }
+  for(let p=0;p<6;p++){
+    const a=-Math.PI/2+p/6*Math.PI*2+0.26;
+    const tx=cx+back+Math.cos(a)*R*sx, ty=cy+Math.sin(a)*R*0.92;
+    drawLeaf(ctx,cx,cy,tx,ty,R*(L.tepalHW||0.42)*0.8,shade(col,p%2?6:-6),{shape:'ovate',rib:false});
+  }
+  const corona=L.corona||'trumpet';
+  const len=cup*(corona==='disc'?0.12:corona==='largeCup'?0.58:0.95);
+  const w0=cup*(corona==='disc'?0.3:0.24), w1=cup*(corona==='disc'?0.34:corona==='largeCup'?0.46:0.36);
+  const mx=cx+dir*len, my=cy+len*drop;
+  ctx.fillStyle=shade(cor,-8); ctx.beginPath();
+  ctx.moveTo(cx,cy-w0); ctx.lineTo(mx,my-w1); ctx.lineTo(mx,my+w1); ctx.lineTo(cx,cy+w0); ctx.closePath();
+  litFill(ctx,(cx+mx)/2,(cy+my)/2,Math.max(len,w1),cor,22,-16);
+  ctx.fillStyle=rim; ctx.beginPath(); ctx.ellipse(mx,my,w1*0.5,w1*1.08,dir*0.12,0,7); ctx.fill();
+  ctx.fillStyle=shade(cor,-26); ctx.beginPath(); ctx.ellipse(mx+dir*0.12,my,w1*0.3,w1*0.74,dir*0.12,0,7); ctx.fill();
+}
+
 /* A compact flower-class grammar for dahlias. Decorative heads hide the disc,
    peony heads keep it visible, and ball forms build a tight sphere of inrolled
    florets. Cultivars only override look.flowerStyle and a few size/count knobs. */
@@ -2307,7 +2345,9 @@ function drawAlliumHead(ctx,cx,cy,L,S,col,open,hr,stem){
     const y0=dome?1-1.15*(k+0.5)/n:1-2*(k+0.5)/n, rr=Math.sqrt(Math.max(0,1-y0*y0));
     const th=k*2.39996+stem*0.7, x=Math.cos(th)*rr, z=Math.sin(th)*rr;
     const y1=y0*ct-z*st, z1=y0*st+z*ct;
-    _alX[m]=cx+x*rx; _alY[m]=cy+oy-y1*ry; _alZ[m]=z1; _alA[m]=th; _alH[m]=y0;
+    // uneven: two pedicels in three stop short (Allium schubertii's tumbleweed)
+    const ru=L.uneven&&k%3?L.uneven:1;
+    _alX[m]=cx+x*rx*ru; _alY[m]=cy+oy-y1*ry*ru; _alZ[m]=z1; _alA[m]=th; _alH[m]=y0;
     _alB[m]=-0.45*x+0.6*y1+0.66*z1; m++;
   }
   const eye=L.headAccent==='lower'&&S.eye&&open?S.eye:null;
@@ -8422,6 +8462,26 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
                 else drawLobeliaFlower(ctx,px,py,L.floretR||2.7,col,S.eye,side);
               } else if(S.seed)drawFloret(ctx,px,py,1.1,col,{squash:1.35});
             }
+          } else if (L.spikeStyle==='crocosmia'){
+            /* Crocosmia (0.9.124): the stem forks at the top into wiry spikes
+               that arch out sideways, the florets standing up along their upper
+               side, open toward the base and still in bud toward the tip. In
+               seed the same spikes carry a row of round capsules. */
+            const dir=i%2?-1:1, n=Math.max(4,Math.min(14,Math.round(L.florets||9))), fr=L.floretR||1.8, reach=L.archReach||11;
+            const arms=[[dir,1,0],[-dir,0.62,2.6]];
+            for(const [d,k,oy] of arms){
+              const x0=hx, y0=hy+oy, cx1=hx+d*reach*k*0.45, cy1=y0-reach*k*0.32, x1=hx+d*reach*k, y1=y0+reach*k*0.1;
+              ctx.strokeStyle=shade(S.fol||col,-20); ctx.lineWidth=0.7; ctx.beginPath(); ctx.moveTo(x0,y0); ctx.quadraticCurveTo(cx1,cy1,x1,y1); ctx.stroke();
+              const m=Math.max(3,Math.round(n*k)), open=headOn?Math.max(1,Math.ceil(m*Math.min(1,blv)*0.7)):0;
+              for(let f=0;f<m;f++){
+                const t=0.16+0.82*f/(m-1), u=1-t, px=u*u*x0+2*u*t*cx1+t*t*x1, py=u*u*y0+2*u*t*cy1+t*t*y1, zig=(f%2?-1:1)*0.35;
+                if (headOn){
+                  const isOpen=f<open, s=isOpen?1:0.55+0.3*(1-t), fc=isOpen?shade(col,(f%2?5:-5)):shade(S.bud||col,-22);
+                  drawLeaf(ctx,px+zig,py,px+zig+d*fr*0.5*s,py-fr*1.9*s,fr*0.42*s,fc,{shape:'lance',rib:false,bow:d*0.12});
+                  if (isOpen && S.eye) drawFloret(ctx,px+zig+d*fr*0.42,py-fr*1.65,fr*0.28,S.eye,{squash:0.8});
+                } else if (S.seed){ ctx.fillStyle=shade(S.seed,f%2?6:-6); ctx.beginPath(); ctx.arc(px,py-0.6,0.75,0,7); ctx.fill(); }
+              }
+            }
           } else if (L.spikeStyle==='bulbRaceme'){
             const span=(L.racemeSpan===undefined?0.34:L.racemeSpan)*H;
             const florets=Math.max(3,Math.round(L.florets||9));
@@ -8432,9 +8492,32 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               for(let f=0;f<shown;f++){
                 const u=shown===1?0:f/(florets-1), side=f%2?-1:1, taper=0.58+0.42*Math.min(1,u*2.4);
                 const fx=hx+side*(0.45+rnd()*0.75), fy=hy+u*span;
-                drawBulbBell(ctx,fx,fy,fr*taper,fr*1.15*taper,col,L.rim||shade(col,34),side*0.08);
+                // topShare: the sterile bells at the top of the spike are another
+                // colour (Muscari latifolium's pale cap over violet-black)
+                const fc=headOn&&L.topShare&&S.eye&&u<L.topShare?S.eye:col;
+                drawBulbBell(ctx,fx,fy,fr*taper,fr*1.15*taper,fc,L.rim||shade(fc,34),side*0.08);
                 if(L.doubleFlorets) drawBulbBell(ctx,fx+side*fr*0.55,fy-fr*0.15,fr*0.72,fr*0.86,shade(col,8),L.rim||shade(col,36),-side*0.16);
               }
+            } else if(shape==='noddingBell' && L.arch){
+              /* The raceme's top bends over like a crook and the bells hang from
+                 it on short stalks, smallest at the tip (0.9.124): an English
+                 bluebell, and Siberian squill's few bells. Laid down a straight
+                 diagonal, as before, the bells ran together into a blue bar.
+                 `arch` is how far the crook reaches out, as a share of the span. */
+              const dir=i%2?-1:1, reach=span*L.arch, fr=L.floretR||1.7, tipCol=L.rim||shade(col,18);
+              const x0=hx, y0=hy+span*0.35, cxa=hx+dir*reach*0.25, cya=hy-span*0.5, x1=hx+dir*reach, y1=hy+span*0.12;
+              const at=t=>{const u=1-t; return [u*u*x0+2*u*t*cxa+t*t*x1, u*u*y0+2*u*t*cya+t*t*y1];};
+              ctx.strokeStyle=shade(S.fol||col,-22); ctx.lineWidth=0.8; ctx.beginPath();
+              ctx.moveTo(x0,y0); ctx.quadraticCurveTo(cxa,cya,x1,y1);
+              const pts=[];
+              for(let f=0;f<shown;f++){
+                const t=florets===1?0.9:0.2+0.8*f/(florets-1), [px,py]=at(t), side=L.oneSided?dir:(f%2?-1:1);
+                const bx=px+side*fr*0.5, by=py+fr*0.9;
+                ctx.moveTo(px,py); ctx.quadraticCurveTo(px+side*fr*0.4,py,bx,by-fr*0.5);
+                pts.push([bx,by,1-0.4*t,side]);
+              }
+              ctx.stroke();
+              for(const [bx,by,k,side] of pts) drawBulbBell(ctx,bx,by+fr*0.3*k,fr*k,fr*1.5*k,col,tipCol,side*0.18);
             } else if(shape==='noddingBell'){
               ctx.strokeStyle=shade(S.fol||col,-22); ctx.lineWidth=0.8; ctx.beginPath();
               for(let f=0;f<shown;f++){
@@ -8924,10 +9007,29 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const stems=Math.max(1,L.stems||1), dots=L.dots||28;
       for(let st=0;st<stems;st++){
         const ox=(st-(stems-1)/2)*5+(rnd()-0.5)*2, len=H*(0.74+rnd()*0.12);
-        const topY=-len, baseY=-len*0.38, headW=L.headW||11;
+        const topY=-len, baseY=-len*(1-(L.headSpan||0.62)), headW=L.headW||11;
         ctx.strokeStyle=shade(S.fol||col,-22); ctx.lineWidth=1.2;
         ctx.beginPath(); ctx.moveTo(ox*0.35,0); ctx.lineTo(ox+sway*1.5,topY); ctx.stroke();
         const shown=blooming?Math.max(5,Math.ceil(dots*blv)):Math.max(8,Math.ceil(dots*0.55));
+        /* `dense`: a broad cone packed with stars, the far half darker, two fills
+           and a batch of eyes rather than a lit fill per floret (0.9.124) */
+        if (blooming && L.dense){
+          const pts=[], fr=L.floretR||1.55, cxh=ox+sway*1.5;
+          for(let d=0;d<shown;d++){
+            const f=rnd(), a=rnd()*Math.PI*2, w=headW*(1-f)*0.5+1.2;
+            pts.push([cxh+Math.cos(a)*w, baseY+(topY-baseY)*f+Math.sin(a)*w*0.3, Math.sin(a)]);
+          }
+          pts.sort((p,q)=>p[2]-q[2]);
+          for(const back of [true,false]){
+            ctx.fillStyle=shade(col,back?-16:6); ctx.beginPath();
+            for(const [x,y,z] of pts) if((z<0)===back) bulbStarPath(ctx,x,y,fr,6,-Math.PI/2,0.8);
+            ctx.fill();
+          }
+          if(S.eye){ ctx.fillStyle=S.eye; ctx.beginPath();
+            for(const [x,y,z] of pts) if(z>=0){ ctx.moveTo(x+fr*0.25,y); ctx.arc(x,y,fr*0.25,0,7); }
+            ctx.fill(); }
+          continue;
+        }
         for(let d=0;d<shown;d++){
           const f=rnd(), rowY=baseY+(topY-baseY)*f, w=headW*(1-f)*0.9+2;
           const fx=ox+sway*1.5+(rnd()-0.5)*w, fy=rowY+(rnd()-0.5)*2;
@@ -9234,11 +9336,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           drawLeaf(ctx,ox,y,ox+side*(4+rnd()*2),y-2,0.7,S.fol,{shape:'linear',rib:false,bow:side*0.04});
         }
         if(blooming&&mature){
-          const w=L.bellW||2.8, h=L.bellH||5.0, cy=-len+4;
-          drawBulbBell(ctx,tip,cy,w,h,S.bloom,S.eye,0);
+          /* The bell hangs from a crook at the top of the stem, out to one side
+             (0.9.124). Hung straight under the tip, with the stem running up
+             behind it, it read as a cup standing on the stem. */
+          const w=L.bellW||2.8, h=L.bellH||5.0, dir=st%2?-1:1, nx=tip+dir*w*0.95, cy=-len+h*0.62;
+          ctx.strokeStyle=stemCol; ctx.lineWidth=0.8; ctx.beginPath();
+          ctx.moveTo(tip,-len); ctx.quadraticCurveTo(tip+dir*w*0.5,-len-h*0.18,nx,cy-h*0.5); ctx.stroke();
+          drawBulbBell(ctx,nx,cy,w,h,S.bloom,S.eye,dir*0.12);
           if(L.checker){ ctx.fillStyle=shade(S.eye||S.bloom,-18);
             for(let row=0;row<3;row++) for(let c=0;c<3;c++) if((row+c)%2===0){
-              ctx.fillRect(tip-w*0.62+c*w*0.42,cy-h*0.28+row*h*0.24,w*0.24,h*0.16); }
+              ctx.fillRect(nx-w*0.62+c*w*0.42,cy-h*0.28+row*h*0.24,w*0.24,h*0.16); }
           }
         }
       }
@@ -9259,11 +9366,105 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             const a=f/flowers*Math.PI*2, fx=top+Math.cos(a)*5.2, fy=-len+Math.sin(a)*2.6;
             ctx.strokeStyle=stemCol; ctx.lineWidth=0.7; ctx.beginPath(); ctx.moveTo(top,-len); ctx.lineTo(fx,fy); ctx.stroke();
             for(let p=0;p<6;p++){ const pa=p/6*Math.PI*2;
-              drawLeaf(ctx,fx,fy,fx+Math.cos(pa)*3.6,fy+Math.sin(pa)*2.7,0.72,S.bloom,{shape:'lance',rib:false,bow:0.07}); }
+              drawLeaf(ctx,fx,fy,fx+Math.cos(pa)*3.6,fy+Math.sin(pa)*2.7,L.tepalHW||0.72,S.bloom,{shape:'lance',rib:false,bow:L.spider?0.22:0.07}); }
+            if(L.spider){
+              // red spider lily: the long stamens sweep out and up past the tepals
+              ctx.strokeStyle=S.bloom; ctx.lineWidth=0.4; ctx.beginPath();
+              for(let q=0;q<6;q++){ const qa=a+(q-2.5)*0.3, ex=fx+Math.cos(qa)*6.5, ey=fy-3.2-Math.abs(q-2.5)*0.4;
+                ctx.moveTo(fx,fy); ctx.quadraticCurveTo(fx+Math.cos(qa)*3,fy+1,ex,ey); }
+              ctx.stroke(); continue;
+            }
             ctx.strokeStyle=S.eye||shade(S.bloom,-20); ctx.lineWidth=0.55; ctx.beginPath();
             for(let q=0;q<3;q++){ ctx.moveTo(fx,fy); ctx.lineTo(fx+(q-1)*1.3,fy+4.5); } ctx.stroke();
           }
         }
+      }
+    } else if(style==='trumpet'||style==='bowl'){
+      /* The garden lilies (0.9.124): one stem leafy to the top, carrying a head
+         of big flowers on stalks. 'trumpet' holds them out sideways, a funnel
+         of six tepals round a throat (regal, Casa Blanca); 'bowl' turns them
+         up and open, tips curled back (Asiatic lilies, 'Stargazer'). `flush`
+         colours the outside of the tube, `spotted` freckles the throat. */
+      const sn=Math.max(1,L.stems||1), up=style==='bowl', R=L.flowerR||4.6;
+      for(let st=0;st<sn;st++){
+        const ox=(st-(sn-1)/2)*7+(rnd()-0.5)*2, len=H*(0.86+rnd()*0.08), tip=ox+sway*len*0.03;
+        ctx.strokeStyle=stemCol; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(ox+sway*1.5,-len*0.5,tip,-len*0.9); ctx.stroke();
+        if (snowLv) snowLv.push([tip,-len*0.9,0]);
+        if (S.fol){
+          const nl=Math.max(4,Math.min(16,L.stemLeaves||10)), ll=L.leafLen||6;
+          for(let j=0;j<nl;j++){
+            const t=0.12+0.72*j/(nl-1), y=-len*0.9*t, x=ox+(tip-ox)*t*t, side=j%2?-1:1, l=ll*(1-0.35*t);
+            drawLeaf(ctx,x,y,x+side*l,y-l*0.45,L.leafHW||0.9,shade(S.fol,side*4),{shape:'lance',rib:false,bow:side*0.06});
+          }
+        }
+        if (!mature || !((blooming&&S.bloom)||S.seed)) continue;
+        const flowers=blooming?Math.max(1,Math.ceil((L.flowers||4)*blv)):Math.min(3,L.flowers||4);
+        const order=[];
+        for(let f=0;f<flowers;f++){
+          const side=f%2?-1:1, k=f/Math.max(1,flowers-1);
+          const py=-len*(0.86-k*0.1), fx=tip+side*(R*0.7+k*R*0.5)+(rnd()-0.5), fy=-len*(0.93-k*0.08)-(up?R*0.2:0);
+          order.push({side,py,fx,fy,z:rnd()});
+        }
+        order.sort((a,b)=>a.z-b.z);
+        for(const {side,py,fx,fy} of order){
+          ctx.strokeStyle=stemCol; ctx.lineWidth=0.8; ctx.beginPath();
+          ctx.moveTo(tip,py); ctx.quadraticCurveTo(tip+side*R*0.3,py-R*0.5,fx-side*(up?0:R*0.6),fy+(up?R*0.35:0)); ctx.stroke();
+          if (!(blooming&&S.bloom)){ ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(fx,fy,1.3,2.8,0,0,7); ctx.fill(); continue; }
+          if (up){
+            // an open bowl seen from the side: back tepals, the throat, front tepals
+            for(const back of [true,false]) for(let p=0;p<3;p++){
+              const a=(p-1)*0.95+(back?0:0.48)-(back?0:0.48*0.5);
+              const tx=fx+Math.sin(a)*R*(back?0.95:1.05), ty=fy-R*(back?0.62:0.38)-Math.cos(a)*R*0.18;
+              drawLeaf(ctx,fx,fy+R*0.2,tx,ty,R*0.3,shade(S.bloom,back?-10:4),{shape:'lance',rib:false,bow:-Math.sin(a)*0.18});
+              if(back&&p===2){ ctx.fillStyle=S.eye||shade(S.bloom,-20); ctx.beginPath(); ctx.ellipse(fx,fy-R*0.32,R*0.42,R*0.16,0,0,7); ctx.fill(); }
+            }
+          } else {
+            // a funnel lying on its side, mouth toward `side`
+            const mx=fx+side*R*0.6, my=fy-R*0.08;
+            for(const k2 of [-1,0,1]) drawLeaf(ctx,fx-side*R*0.6,fy,mx+side*R*0.25,my+k2*R*0.7,R*0.28,shade(S.bloom,-12),{shape:'lance',rib:false,bow:k2*0.1});
+            ctx.fillStyle=L.flush||shade(S.bloom,-8); ctx.beginPath();
+            ctx.moveTo(fx-side*R*0.7,fy-R*0.12); ctx.lineTo(mx-side*R*0.15,my-R*0.36); ctx.lineTo(mx-side*R*0.15,my+R*0.36); ctx.lineTo(fx-side*R*0.7,fy+R*0.12); ctx.closePath(); ctx.fill();
+            ctx.fillStyle=S.eye||shade(S.bloom,-18); ctx.beginPath(); ctx.ellipse(mx,my,R*0.22,R*0.5,0,0,7); ctx.fill();
+            for(const k2 of [-0.55,0.55]) drawLeaf(ctx,mx-side*R*0.3,my,mx+side*R*0.35,my+k2*R*1.05,R*0.3,shade(S.bloom,6),{shape:'lance',rib:false,bow:-k2*0.12});
+          }
+          if(L.spotted){ ctx.fillStyle=L.spotCol||shade(S.eye||S.bloom,-40); ctx.beginPath();
+            for(let d=0;d<5;d++){ const dx=fx+(up?(d-2)*R*0.16:side*R*0.45), dy=fy-(up?R*0.36:0)+(up?((d%2)*R*0.08):(d-2)*R*0.16); ctx.moveTo(dx+0.35,dy); ctx.arc(dx,dy,0.35,0,7); }
+            ctx.fill(); }
+        }
+      }
+    } else if(style==='crown'){
+      /* Crown imperial (0.9.124): a stout stem, glossy leaves in whorls round its
+         lower half, and at the top a ring of hanging bells under a tuft of short
+         leaves. In seed the capsules stand up where the bells hung. */
+      const len=H*(0.9+rnd()*0.06), tip=sway*len*0.03, ring=L.bells||6, bw=L.bellW||2.2, bh=L.bellH||4.2, cr=L.crownR||3.4;
+      ctx.strokeStyle=stemCol; ctx.lineWidth=2.6;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(sway*1.2,-len*0.5,tip,-len); ctx.stroke();
+      if (S.fol){
+        // broad glossy leaves, longest at the foot, the near ones over the stem
+        const lr=L.leafR||10, nw=L.whorls||4;
+        for(const near of [false,true]) for(let w=0;w<nw;w++){
+          const wy=-len*(0.06+w*0.09), r=lr*(1-w*0.16);
+          for(let j=0;j<5;j++){ const a=j/5*Math.PI*2+w*0.6; if((Math.sin(a)>0)!==near) continue;
+            drawLeaf(ctx,0,wy,Math.cos(a)*r,wy+Math.sin(a)*r*0.35-r*0.42,1.9*(1-w*0.12),shade(S.fol,near?6:-10),{shape:'lance',rib:false,bow:0.1}); }
+        }
+      }
+      if (!mature) {}
+      else if (blooming&&S.bloom){
+        const by=-len*0.86, bells=[];
+        for(let b=0;b<ring;b++){ const a=b/ring*Math.PI*2+0.3; bells.push([tip+Math.cos(a)*cr,by+Math.sin(a)*cr*0.35,Math.sin(a)]); }
+        bells.sort((p,q)=>p[2]-q[2]);
+        const bell=([x,y])=>{ ctx.strokeStyle=stemCol; ctx.lineWidth=0.7; ctx.beginPath(); ctx.moveTo(tip,by-1); ctx.quadraticCurveTo(x,by-1.6,x,y); ctx.stroke();
+          drawBulbBell(ctx,x,y+bh*0.55,bw,bh,S.bloom,S.eye,(x-tip)*0.06); };
+        for(const p of bells) if(p[2]<0) bell(p);
+        if (S.fol) for(let j=0;j<(L.tuft||12);j++){ const a=-Math.PI/2+(j/((L.tuft||12)-1)-0.5)*2.4, l=4+rnd()*1.6;
+          drawLeaf(ctx,tip,by-1.2,tip+Math.cos(a)*l,by-1.2+Math.sin(a)*l,0.7,shade(S.fol,(rnd()-0.5)*10),{shape:'lance',rib:false,bow:0.05}); }
+        for(const p of bells) if(p[2]>=0) bell(p);
+      } else if (S.seed){
+        ctx.fillStyle=S.seed; ctx.beginPath();
+        for(let b=0;b<ring;b++){ const a=b/ring*Math.PI*2+0.3, x=tip+Math.cos(a)*cr*0.7, y=-len*0.88+Math.sin(a)*cr*0.25;
+          ctx.moveTo(x+1.1,y); ctx.ellipse(x,y,1.1,2.2,0,0,7); }
+        ctx.fill();
       }
     } else {
       const sn=Math.max(1,L.stems||1);
@@ -9651,6 +9852,37 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const full=flowerStyle==='star'||flowerStyle==='openStar';
         const rings=flowerStyle==='fullyDouble'?3:flowerStyle==='double'?2:1;
         if(full){ drawBulbStar(ctx,fx,fy,scale*1.35,S.bloom,6,-Math.PI/2,0.72,S.eye); return; }
+        /* A tulip, a crocus or a colchicum seen from the side is a CUP: three
+           tepals behind, three in front, round-tipped and overlapping. A fan of
+           pointed tepals read as a flame or a crown (0.9.124), and the eye, which
+           sits at the bottom of the cup, was drawn on its outside as a dot. It
+           is drawn in the mouth now, where the front tepals hide all but its top.
+           Lily-flowered tulips keep the pointed fan: that is their shape. */
+        if(flowerStyle!=='lily'){
+          const hw=scale*(L2.tepalHW||0.44)*1.18, by=fy+scale*0.22, tw=L2.cupWidth||1;
+          const tepal=(a,len,w,col)=>drawLeaf(ctx,fx,by,fx+Math.sin(a)*len*0.62*tw,by-Math.cos(a)*len,w,col,
+            {shape:'obovate',rib:false,bow:Math.sin(a)*0.05});
+          for(let p=0;p<3;p++) tepal((p-1)*0.46,scale*1.76,hw,shade(S.bloom,-12+p*3));
+          if(S.eye&&!L2.pattern){
+            ctx.fillStyle=shade(S.eye,-6); ctx.beginPath();
+            ctx.ellipse(fx,fy-scale*1.42,scale*0.46*tw,scale*0.2,0,0,7); ctx.fill();
+          }
+          for(let ring=0;ring<rings;ring++){
+            const k=1-ring*0.2, lift=ring*scale*0.34;
+            for(let p=0;p<3;p++){
+              const a=(p-1)*(0.58-ring*0.12);
+              drawLeaf(ctx,fx,by-lift,fx+Math.sin(a)*scale*1.6*k*0.62*tw,by-lift-Math.cos(a)*scale*1.6*k,hw*(1.06-ring*0.12),
+                shade(S.bloom,ring*8+(p===1?6:0)),{shape:'obovate',rib:false,bow:Math.sin(a)*0.05});
+            }
+          }
+          if(L2.pattern && S.eye){
+            ctx.strokeStyle=S.eye; ctx.lineWidth=Math.max(0.55,scale*0.18); ctx.beginPath();
+            for(const side of [-1,0,1]){ ctx.moveTo(fx+side*scale*0.25*tw,fy);
+              ctx.quadraticCurveTo(fx+side*scale*0.38*tw,fy-scale*0.75,fx+side*scale*0.46*tw,fy-scale*1.34); }
+            ctx.stroke();
+          }
+          return;
+        }
         for(let ring=0;ring<rings;ring++){
           const petals=ring===2?5:6;
           for(let p=0;p<petals;p++){
@@ -9696,15 +9928,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           bulbStarPath(ctx,fx,fy+1.0,cup*1.12,10,-Math.PI/2,0.62);
           ctx.fill(); drawBulbStar(ctx,fx,fy-cup*0.25,cup,S.bloom,7,-Math.PI/2,0.78,S.eye);
         } else if(style==='daffodil'){
-          const flowers=Math.max(1,L2.flowersPerStem||1);
+          const flowers=Math.max(1,L2.flowersPerStem||1), face=i%2?-1:1;
           for(let f=0;f<flowers;f++){
             const side=flowers===1?0:(f%2?-1:1), cx=fx+side*(2.2+f*0.5), cy=fy+f*cup*0.78+(L2.nodding?cup*0.45:0);
             if(side){ ctx.strokeStyle=stemCol; ctx.lineWidth=0.75; ctx.beginPath(); ctx.moveTo(fx,fy+2); ctx.quadraticCurveTo(fx+side*1.2,cy-1,cx,cy); ctx.stroke(); }
-            drawBulbStar(ctx,cx,cy,cup*1.18,S.bloom,6,-Math.PI/2,L2.nodding?0.56:0.72);
-            const corona=L2.corona||'trumpet';
-            const cw=cup*(corona==='disc'?0.52:corona==='largeCup'?0.78:0.66);
-            const ch=cup*(corona==='disc'?0.28:corona==='largeCup'?0.48:0.72);
-            drawBulbBell(ctx,cx,cy+(L2.nodding?ch*0.34:0),cw,ch,S.eye||shade(S.bloom,-10),L2.coronaRim||shade(S.eye||S.bloom,-8),L2.nodding?0.12:0);
+            drawDaffodil(ctx,cx+(side||face)*0.8,cy,cup,S,L2,side||face);
           }
         } else if(style==='legacy'){
           ctx.strokeStyle=S.bloom; ctx.lineWidth=1.8;
@@ -11672,7 +11900,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // A habit tree lights each clump itself, and its crown has sky in it where
   // these would land. So does a plant whose stems stand only when it flowers:
   // the rest of the year H is air, and big leaves on stalks light themselves.
-  if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
+  // A bulb is a few straps and stems, never a mass filling H (0.9.124): over a
+  // crocus or a tulip these strokes floated in the air, wider than the plant.
+  if (!AMBIENCE[season].snow && S.fol && growth>0.28 && P.type!=='bulb' && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
       && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look))
       && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)
       && !(P.form==='fern' && fernBladeOn(P.look)) && !(P.look && P.look.leafStyle==='hosta')

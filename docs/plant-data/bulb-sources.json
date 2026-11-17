@@ -1,0 +1,900 @@
+{
+ "reviewed": "2026-11-17",
+ "note": "Bulb audit (0.9.124): every bulb choice's height in flower, read from Missouri Botanical Garden's Plant Finder first, then John Scheepers and DutchGrown's catalogs, then Wikipedia. A range is quoted at its midpoint unless the estimate says otherwise. A bulb's px-art h is set so it draws at this height (1.75 px an inch); tests/game.test.js holds every choice within 15% or 1.5 in.",
+ "choices": [
+  {
+   "ref": "snowdrop",
+   "heightIn": 7,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=275672"
+   ],
+   "estimate": "MBG 6-9 in."
+  },
+  {
+   "ref": "snowdrop|florePleno",
+   "heightIn": 7,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=245580",
+    "https://www.dutchgrown.com/products/galanthus-nivalis-flore-pleno-snowdrops"
+   ],
+   "estimate": "MBG 6-9 in, DutchGrown 6 in."
+  },
+  {
+   "ref": "snowdrop|sArnott",
+   "heightIn": 8,
+   "sources": [],
+   "estimate": "Kept from the October 2026 backfill: taller than the species."
+  },
+  {
+   "ref": "winteraconite",
+   "heightIn": 4,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286152"
+   ],
+   "estimate": "MBG 3-6 in."
+  },
+  {
+   "ref": "crocus",
+   "heightIn": 4,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244106"
+   ],
+   "estimate": "MBG 3-6 in."
+  },
+  {
+   "ref": "crocus|rubygiant",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244107"
+   ],
+   "estimate": "MBG 3-6 in, its text 4-6 in."
+  },
+  {
+   "ref": "crocuschrysanthus",
+   "heightIn": 4,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281067"
+   ],
+   "estimate": "MBG 3-6 in."
+  },
+  {
+   "ref": "crocuschrysanthus|bluePearl",
+   "heightIn": 4,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244072"
+   ],
+   "estimate": "MBG 3-4 in."
+  },
+  {
+   "ref": "crocuschrysanthus|creamBeauty",
+   "heightIn": 4,
+   "sources": [],
+   "estimate": "Not found; inherits the species."
+  },
+  {
+   "ref": "crocusvernus",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281107",
+    "https://www.dutchgrown.com/products/crocus-jeanne-darc"
+   ],
+   "estimate": "MBG 3-6 in, DutchGrown 5 in for its cultivars."
+  },
+  {
+   "ref": "crocusvernus|jeanneDarc",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244096",
+    "https://www.dutchgrown.com/products/crocus-jeanne-darc"
+   ],
+   "estimate": "MBG 3-6 in, DutchGrown 5 in."
+  },
+  {
+   "ref": "crocusvernus|pickwick",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244098",
+    "https://www.dutchgrown.com/products/crocus-pickwick"
+   ],
+   "estimate": "MBG 3-6 in, DutchGrown 5 in."
+  },
+  {
+   "ref": "crocusspeciosus",
+   "heightIn": 5,
+   "sources": [
+    "https://en.wikipedia.org/wiki/Crocus_speciosus"
+   ],
+   "estimate": "Wikipedia 10-15 cm. Not in MBG. Zones 4-8 an estimate."
+  },
+  {
+   "ref": "irisreticulata",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281313",
+    "https://en.wikipedia.org/wiki/Iris_reticulata"
+   ],
+   "estimate": "MBG 3-6 in, Wikipedia to 15 cm."
+  },
+  {
+   "ref": "irisreticulata|harmony",
+   "heightIn": 5,
+   "sources": [],
+   "estimate": "Listed by MBG under the species; not read. Inherits."
+  },
+  {
+   "ref": "irisreticulata|katharineHodgkin",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256220",
+    "https://www.dutchgrown.com/products/dwarf-iris-katharine-hodgkins"
+   ],
+   "estimate": "MBG 3-6 in, DutchGrown 6 in."
+  },
+  {
+   "ref": "scillasiberica",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281913",
+    "https://www.dutchgrown.com/products/scilla-siberica",
+    "https://en.wikipedia.org/wiki/Scilla_siberica"
+   ],
+   "estimate": "MBG 3-6 in, DutchGrown 6 in, Wikipedia 10-20 cm."
+  },
+  {
+   "ref": "glorysnow",
+   "heightIn": 6,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244278",
+    "https://www.dutchgrown.com/products/chionodoxa-lucilea",
+    "https://en.wikipedia.org/wiki/Scilla_forbesii"
+   ],
+   "estimate": "MBG 6-12 in, DutchGrown 5 in, Wikipedia stem to 10.5 cm. 6 in."
+  },
+  {
+   "ref": "glorysnow|pinkGiant",
+   "heightIn": 6,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=257588",
+    "https://www.johnscheepers.com/chionodoxa-forbesii-pink-giant.html"
+   ],
+   "estimate": "MBG 6-9 in, John Scheepers 5-6 in."
+  },
+  {
+   "ref": "puschkinia",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281802"
+   ],
+   "estimate": "MBG 3-6 in."
+  },
+  {
+   "ref": "anemoneblanda",
+   "heightIn": 7,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286103"
+   ],
+   "estimate": "MBG 6-9 in."
+  },
+  {
+   "ref": "anemoneblanda|whiteSplendour",
+   "heightIn": 6,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=242824",
+    "https://www.dutchgrown.com/products/anemone-blanda-white-splendour"
+   ],
+   "estimate": "MBG 3-6 in, DutchGrown 6 in."
+  },
+  {
+   "ref": "anemoneblanda|pinkStar",
+   "heightIn": 7,
+   "sources": [],
+   "estimate": "Not found; inherits the species."
+  },
+  {
+   "ref": "ipheion",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281959"
+   ],
+   "estimate": "MBG 3-6 in."
+  },
+  {
+   "ref": "ipheion|rolfFiedler",
+   "heightIn": 5,
+   "sources": [],
+   "estimate": "Not found; inherits the species."
+  },
+  {
+   "ref": "ipheion|album",
+   "heightIn": 5,
+   "sources": [],
+   "estimate": "Not found; inherits the species."
+  },
+  {
+   "ref": "woodanemone",
+   "heightIn": 6,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286193"
+   ],
+   "estimate": "MBG 6-18 in; kept at 6 in, the usual garden height."
+  },
+  {
+   "ref": "springbeauty",
+   "heightIn": 7,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285500"
+   ],
+   "estimate": "MBG 6-9 in."
+  },
+  {
+   "ref": "yellowtroutlily",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282235"
+   ],
+   "estimate": "MBG 3-6 in."
+  },
+  {
+   "ref": "daffodil",
+   "heightIn": 12,
+   "sources": [],
+   "estimate": "Narcissus pseudonarcissus is in neither MBG nor a bulb catalog read. 12 in is an estimate for the wild Lent lily, shorter than the garden trumpets."
+  },
+  {
+   "ref": "daffodil|dutchmaster",
+   "heightIn": 18,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251062",
+    "https://www.dutchgrown.com/products/daffodil-dutch-master-landscapers-special"
+   ],
+   "estimate": "MBG 18-21 in, DutchGrown 18 in."
+  },
+  {
+   "ref": "daffodil|icefollies",
+   "heightIn": 18,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251090",
+    "https://www.johnscheepers.com/narcissus-ice-follies.html",
+    "https://www.dutchgrown.com/products/daffodil-ice-follies-landscaper-special"
+   ],
+   "estimate": "MBG 12-18 in, Scheepers 18-20 in, DutchGrown 18-20 in."
+  },
+  {
+   "ref": "daffodil|tetatete",
+   "heightIn": 8,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251190",
+    "https://www.dutchgrown.com/products/mini-daffodil-tete-deluxe"
+   ],
+   "estimate": "MBG 6-9 in, DutchGrown 10-12 in. 8 in."
+  },
+  {
+   "ref": "daffodil|jetfire",
+   "heightIn": 10,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251095",
+    "https://www.dutchgrown.com/products/mini-daffodil-jetfire"
+   ],
+   "estimate": "MBG 9-12 in, DutchGrown 10 in."
+  },
+  {
+   "ref": "daffodil|thalia",
+   "heightIn": 15,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251191"
+   ],
+   "estimate": "MBG 12-18 in."
+  },
+  {
+   "ref": "daffodil|mountHood",
+   "heightIn": 17,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251130",
+    "https://www.johnscheepers.com/narcissus-mount-hood.html",
+    "https://www.dutchgrown.com/products/daffodil-mount-hood-landscapers-special"
+   ],
+   "estimate": "MBG 12-18 in, Scheepers 18-20 in, DutchGrown 16-18 in."
+  },
+  {
+   "ref": "daffodil|salome",
+   "heightIn": 19,
+   "sources": [
+    "https://www.johnscheepers.com/narcissus-salome.html"
+   ],
+   "estimate": "John Scheepers 18-20 in, zones 3-7."
+  },
+  {
+   "ref": "daffodil|tahiti",
+   "heightIn": 17,
+   "sources": [
+    "https://www.dutchgrown.com/products/daffodil-tahiti-landscapers-special"
+   ],
+   "estimate": "DutchGrown 16-18 in."
+  },
+  {
+   "ref": "daffodil|actaea",
+   "heightIn": 17,
+   "sources": [],
+   "estimate": "Not found. An estimate for a poeticus daffodil, about the height of Mount Hood."
+  },
+  {
+   "ref": "muscari",
+   "heightIn": 8,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282356"
+   ],
+   "estimate": "MBG 6-9 in, scapes to 8 in."
+  },
+  {
+   "ref": "muscari|valerieFinnis",
+   "heightIn": 8,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=255530",
+    "https://www.dutchgrown.com/products/muscari-valerie-finnis"
+   ],
+   "estimate": "MBG 6-9 in, DutchGrown 6 in."
+  },
+  {
+   "ref": "muscari|album",
+   "heightIn": 8,
+   "sources": [],
+   "estimate": "Not found; inherits the species."
+  },
+  {
+   "ref": "muscari|blueSpike",
+   "heightIn": 8,
+   "sources": [],
+   "estimate": "Not found; inherits the species."
+  },
+  {
+   "ref": "muscarilatifolium",
+   "heightIn": 8,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=292132",
+    "https://www.dutchgrown.com/products/muscari-latifolium"
+   ],
+   "estimate": "MBG 6-12 in, DutchGrown 6 in."
+  },
+  {
+   "ref": "hyacinth",
+   "heightIn": 10,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281784"
+   ],
+   "estimate": "MBG 6-12 in."
+  },
+  {
+   "ref": "hyacinth|delftBlue",
+   "heightIn": 10,
+   "sources": [
+    "https://www.johnscheepers.com/hyacinthus-orientalis-delft-blue.html"
+   ],
+   "estimate": "John Scheepers 8-12 in."
+  },
+  {
+   "ref": "hyacinth|pinkPearl",
+   "heightIn": 10,
+   "sources": [
+    "https://www.johnscheepers.com/hyacinthus-orientalis-pink-pearl.html"
+   ],
+   "estimate": "John Scheepers 8-12 in."
+  },
+  {
+   "ref": "hyacinth|carnegie",
+   "heightIn": 10,
+   "sources": [
+    "https://www.dutchgrown.com/products/hyacinth-carnegie"
+   ],
+   "estimate": "DutchGrown 10 in."
+  },
+  {
+   "ref": "tulip",
+   "heightIn": 10,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281818"
+   ],
+   "estimate": "MBG 9-12 in."
+  },
+  {
+   "ref": "tulipatarda",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281837"
+   ],
+   "estimate": "MBG 3-6 in."
+  },
+  {
+   "ref": "tuliplinifolia",
+   "heightIn": 8,
+   "sources": [
+    "https://en.wikipedia.org/wiki/Tulipa_linifolia"
+   ],
+   "estimate": "Wikipedia to 20 cm."
+  },
+  {
+   "ref": "tulipsylvestris",
+   "heightIn": 14,
+   "sources": [
+    "https://www.dutchgrown.com/products/tulip-sylvestris",
+    "https://en.wikipedia.org/wiki/Tulipa_sylvestris"
+   ],
+   "estimate": "DutchGrown 14 in, zones 3-9."
+  },
+  {
+   "ref": "gardentulip",
+   "heightIn": 20,
+   "sources": [],
+   "estimate": "The Garden Group as a whole: an estimate between the Triumph and Darwin heights below."
+  },
+  {
+   "ref": "gardentulip|queenoftheNight",
+   "heightIn": 22,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=253711",
+    "https://www.johnscheepers.com/tulip-queen-of-night.html",
+    "https://www.dutchgrown.com/products/tulip-queen-of-night"
+   ],
+   "estimate": "MBG 21-24 in, Scheepers 24 in, DutchGrown 22 in."
+  },
+  {
+   "ref": "gardentulip|apeldoorn",
+   "heightIn": 24,
+   "sources": [
+    "https://www.dutchgrown.com/products/tulip-apeldoorns-elite"
+   ],
+   "estimate": "DutchGrown 24 in for 'Apeldoorn's Elite', its sport."
+  },
+  {
+   "ref": "gardentulip|goldenParade",
+   "heightIn": 24,
+   "sources": [
+    "https://www.dutchgrown.com/products/tulip-golden-parade"
+   ],
+   "estimate": "DutchGrown 24 in, a Darwin hybrid."
+  },
+  {
+   "ref": "gardentulip|purissima",
+   "heightIn": 17,
+   "sources": [
+    "https://www.johnscheepers.com/tulip-flaming-purissima.html"
+   ],
+   "estimate": "John Scheepers 16-18 in for 'Flaming Purissima', its sport."
+  },
+  {
+   "ref": "gardentulip|negrita",
+   "heightIn": 16,
+   "sources": [
+    "https://www.dutchgrown.com/products/tulip-negrita"
+   ],
+   "estimate": "DutchGrown 16 in, a Triumph tulip."
+  },
+  {
+   "ref": "gardentulip|angelique",
+   "heightIn": 20,
+   "sources": [
+    "https://www.dutchgrown.com/products/tulip-angelique"
+   ],
+   "estimate": "DutchGrown 20 in."
+  },
+  {
+   "ref": "gardentulip|apricotBeauty",
+   "heightIn": 18,
+   "sources": [
+    "https://www.johnscheepers.com/tulip-apricot-beauty.html"
+   ],
+   "estimate": "John Scheepers 18 in."
+  },
+  {
+   "ref": "gardentulip|springGreen",
+   "heightIn": 20,
+   "sources": [],
+   "estimate": "Not found. An estimate for a viridiflora tulip."
+  },
+  {
+   "ref": "gardentulip|ballerina",
+   "heightIn": 22,
+   "sources": [],
+   "estimate": "Not found. An estimate for a lily-flowered tulip."
+  },
+  {
+   "ref": "gardentulip|princessIrene",
+   "heightIn": 12,
+   "sources": [
+    "https://www.johnscheepers.com/tulip-princess-irene.html"
+   ],
+   "estimate": "John Scheepers 12 in."
+  },
+  {
+   "ref": "camassia",
+   "heightIn": 24,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282045"
+   ],
+   "estimate": "MBG 1-3 ft."
+  },
+  {
+   "ref": "camassiaquamash",
+   "heightIn": 15,
+   "sources": [
+    "https://www.johnscheepers.com/camassia-quamash.html"
+   ],
+   "estimate": "John Scheepers 15 in."
+  },
+  {
+   "ref": "camassiaquamash|blueMelody",
+   "heightIn": 15,
+   "sources": [
+    "https://www.johnscheepers.com/camassia-quamash-blue-melody.html"
+   ],
+   "estimate": "John Scheepers 15 in, and lists it under C. quamash."
+  },
+  {
+   "ref": "camassialeichtlinii",
+   "heightIn": 36,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282043",
+    "https://www.johnscheepers.com/camassia-leichtlinii-pink-stars.html"
+   ],
+   "estimate": "MBG 3-4 ft; Scheepers 24-30 in for its 'Pink Stars'. 36 in between."
+  },
+  {
+   "ref": "camassialeichtlinii|alba",
+   "heightIn": 36,
+   "sources": [],
+   "estimate": "Not found; inherits the species."
+  },
+  {
+   "ref": "scillaperuviana",
+   "heightIn": 10,
+   "sources": [
+    "https://www.dutchgrown.com/products/scilla-peruviana"
+   ],
+   "estimate": "DutchGrown 6-12 in."
+  },
+  {
+   "ref": "englishbluebell",
+   "heightIn": 15,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282392"
+   ],
+   "estimate": "MBG 12-18 in."
+  },
+  {
+   "ref": "leucojum",
+   "heightIn": 15,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=275800"
+   ],
+   "estimate": "MBG 12-18 in."
+  },
+  {
+   "ref": "leucojum|gravetyeGiant",
+   "heightIn": 24,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244703"
+   ],
+   "estimate": "MBG 18-30 in."
+  },
+  {
+   "ref": "fritillaria",
+   "heightIn": 10,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281768"
+   ],
+   "estimate": "MBG 9-12 in."
+  },
+  {
+   "ref": "fritillaria|alba",
+   "heightIn": 10,
+   "sources": [],
+   "estimate": "Inherits the species."
+  },
+  {
+   "ref": "crownimperial",
+   "heightIn": 42,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=263696"
+   ],
+   "estimate": "MBG 3-4 ft."
+  },
+  {
+   "ref": "crownimperial|lutea",
+   "heightIn": 36,
+   "sources": [
+    "https://www.dutchgrown.com/products/fritillaria-imperialis-lutea-maxima"
+   ],
+   "estimate": "DutchGrown 36 in for 'Lutea Maxima'."
+  },
+  {
+   "ref": "claudeshride",
+   "heightIn": 42,
+   "sources": [
+    "https://www.dutchgrown.com/products/lily-claude-shride"
+   ],
+   "estimate": "DutchGrown 3-4 ft. It had carried 60 in, unsourced."
+  },
+  {
+   "ref": "michiganlily",
+   "heightIn": 48,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282239"
+   ],
+   "estimate": "MBG 2-5 ft; kept at 48 in."
+  },
+  {
+   "ref": "liliummartagon",
+   "heightIn": 48,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281787"
+   ],
+   "estimate": "MBG 3-6 ft; kept at 48 in."
+  },
+  {
+   "ref": "liliumsuperbum",
+   "heightIn": 72,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282240"
+   ],
+   "estimate": "MBG 4-7 ft; kept at 72 in."
+  },
+  {
+   "ref": "liliumregale",
+   "heightIn": 48,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281788",
+    "https://www.johnscheepers.com/lily-regale.html"
+   ],
+   "estimate": "MBG 3-5 ft, Scheepers 4-6 ft."
+  },
+  {
+   "ref": "orientallily",
+   "heightIn": 36,
+   "sources": [],
+   "estimate": "The Oriental Group as a whole: an estimate between its two cultivars."
+  },
+  {
+   "ref": "orientallily|stargazer",
+   "heightIn": 33,
+   "sources": [
+    "https://www.dutchgrown.com/products/lily-stargazer"
+   ],
+   "estimate": "DutchGrown up to 90 cm."
+  },
+  {
+   "ref": "orientallily|casaBlanca",
+   "heightIn": 42,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244724"
+   ],
+   "estimate": "MBG 3-4 ft, zones 5-8."
+  },
+  {
+   "ref": "asiaticlily",
+   "heightIn": 36,
+   "sources": [],
+   "estimate": "The Asiatic Group as a whole: an estimate. Zones 3-8 also an estimate."
+  },
+  {
+   "ref": "asiaticlily|landini",
+   "heightIn": 42,
+   "sources": [
+    "https://www.dutchgrown.com/products/lily-landini"
+   ],
+   "estimate": "DutchGrown 3-4 ft."
+  },
+  {
+   "ref": "lycoris",
+   "heightIn": 21,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=275706"
+   ],
+   "estimate": "MBG 18-24 in."
+  },
+  {
+   "ref": "lycorisradiata",
+   "heightIn": 20,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=275807",
+    "https://www.dutchgrown.com/products/lycoris-red-spider-lily"
+   ],
+   "estimate": "MBG 12-24 in, DutchGrown 18-24 in."
+  },
+  {
+   "ref": "colchicum",
+   "heightIn": 7,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282050"
+   ],
+   "estimate": "MBG 6-9 in."
+  },
+  {
+   "ref": "colchicum|waterlily",
+   "heightIn": 6,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244395"
+   ],
+   "estimate": "MBG 3-6 in."
+  },
+  {
+   "ref": "colchicum|album",
+   "heightIn": 7,
+   "sources": [],
+   "estimate": "Inherits the species."
+  },
+  {
+   "ref": "colchicum|theGiant",
+   "heightIn": 8,
+   "sources": [],
+   "estimate": "Not found. An estimate: larger than the species."
+  },
+  {
+   "ref": "cyclamenhederifolium",
+   "heightIn": 5,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285539"
+   ],
+   "estimate": "MBG 3-6 in."
+  },
+  {
+   "ref": "dahlia",
+   "heightIn": 40,
+   "sources": [],
+   "estimate": "The Garden Group as a whole: an estimate."
+  },
+  {
+   "ref": "dahlia|cafeAuLait",
+   "heightIn": 42,
+   "sources": [
+    "https://www.dutchgrown.com/products/dahlia-cafe-au-lait"
+   ],
+   "estimate": "DutchGrown 36-48 in."
+  },
+  {
+   "ref": "dahlia|bishopOfLlandaff",
+   "heightIn": 40,
+   "sources": [],
+   "estimate": "Not found. An estimate."
+  },
+  {
+   "ref": "dahlia|thomasEdison",
+   "heightIn": 40,
+   "sources": [],
+   "estimate": "Not found. An estimate."
+  },
+  {
+   "ref": "dahlia|kelvinFloodlight",
+   "heightIn": 48,
+   "sources": [],
+   "estimate": "Not found. An estimate for a giant decorative dahlia."
+  },
+  {
+   "ref": "dahlia|arabianNight",
+   "heightIn": 38,
+   "sources": [
+    "https://www.dutchgrown.com/products/dahlia-arabian-night"
+   ],
+   "estimate": "DutchGrown 35-40 in."
+  },
+  {
+   "ref": "dahlia|cornelBronze",
+   "heightIn": 40,
+   "sources": [
+    "https://www.dutchgrown.com/products/dahlia-cornel-bronze"
+   ],
+   "estimate": "DutchGrown up to 44 in."
+  },
+  {
+   "ref": "crocosmia",
+   "heightIn": 36,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244061"
+   ],
+   "estimate": "MBG 2-4 ft, zones 5-9."
+  },
+  {
+   "ref": "alliumGlobemaster",
+   "heightIn": 30,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=243553",
+    "https://www.dutchgrown.com/products/allium-globemaster"
+   ],
+   "estimate": "MBG 18-30 in, DutchGrown 36 in."
+  },
+  {
+   "ref": "alliumPurpleSensation",
+   "heightIn": 30,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=243555",
+    "https://www.dutchgrown.com/products/allium-purple-sensation"
+   ],
+   "estimate": "MBG 24-30 in, DutchGrown 30 in."
+  },
+  {
+   "ref": "alliumGladiator",
+   "heightIn": 42,
+   "sources": [
+    "https://www.dutchgrown.com/products/allium-gladiator"
+   ],
+   "estimate": "DutchGrown 42 in."
+  },
+  {
+   "ref": "alliumMountEverest",
+   "heightIn": 36,
+   "sources": [
+    "https://www.dutchgrown.com/products/allium-mount-everest"
+   ],
+   "estimate": "DutchGrown 36 in."
+  },
+  {
+   "ref": "alliumPinkJewel",
+   "heightIn": 30,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=365980"
+   ],
+   "estimate": "MBG 24-33 in."
+  },
+  {
+   "ref": "alliumAtropurpureum",
+   "heightIn": 30,
+   "sources": [
+    "https://www.johnscheepers.com/allium-atropurpureum.html",
+    "https://www.dutchgrown.com/products/allium-atropurpureum"
+   ],
+   "estimate": "John Scheepers 24-34 in, DutchGrown 34 in."
+  },
+  {
+   "ref": "alliumChristophii",
+   "heightIn": 18,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282301"
+   ],
+   "estimate": "MBG 12-24 in."
+  },
+  {
+   "ref": "alliumRedMohican",
+   "heightIn": 34,
+   "sources": [],
+   "estimate": "Not found; kept."
+  },
+  {
+   "ref": "alliumcarinatum",
+   "heightIn": 16,
+   "sources": [],
+   "estimate": "Kept from the October 2026 backfill."
+  },
+  {
+   "ref": "alliumcaeruleum",
+   "heightIn": 18,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282298"
+   ],
+   "estimate": "MBG 12-24 in."
+  },
+  {
+   "ref": "alliumsphaerocephalon",
+   "heightIn": 28,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282226",
+    "https://www.dutchgrown.com/products/allium-sphaerocephalon"
+   ],
+   "estimate": "MBG 24-36 in, DutchGrown 24 in."
+  },
+  {
+   "ref": "alliummoly",
+   "heightIn": 12,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281724",
+    "https://www.dutchgrown.com/products/allium-moly"
+   ],
+   "estimate": "MBG 9-18 in (its text: scapes 9-15 in), DutchGrown 16 in."
+  },
+  {
+   "ref": "alliumschubertii",
+   "heightIn": 18,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282305"
+   ],
+   "estimate": "MBG 12-24 in. DutchGrown says 32-36 in, which is not the plant most sources describe."
+  }
+ ]
+}

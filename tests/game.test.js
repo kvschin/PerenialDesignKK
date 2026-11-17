@@ -24528,3 +24528,108 @@ test('source files are text', () => {
     assert(!m, f + ': a control character (0x' + (m ? m[0].charCodeAt(0).toString(16) : '') + ') at offset ' + (m ? m.index : -1));
   }
 });
+
+/* ---------- the 0.9.124 bulb audit ---------- */
+const bulbKeys=()=>PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb');
+const bulbChoices=()=>bulbKeys().flatMap(k=>[null,...Object.keys(PLANTS[k].cv||{})].map(v=>[k,v]));
+
+test('every bulb draws at its sourced height', () => {
+  // A bulb's h passes through plantVisualH unscaled, where every other herbaceous
+  // plant is drawn at h*HERB_SCALE. Authored like a forb, with h near its height,
+  // a bulb drew at 1/1.75 of it: lilies, alliums, dahlias and garden tulips stood a
+  // third short of the perennials and fences beside them. Each h is now set so the
+  // drawing's top lands on heightIn, read off the recorded geometry as the sun
+  // perennials' test does, in the bloom season, over three seeds.
+  const topOf=(k,v,season,seed)=>{
+    let top=0;
+    const ctx=new Proxy({fillStyle:'',strokeStyle:''},{get(o,p){ if(p in o) return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return ()=>({addColorStop(){}});
+      if(p==='measureText') return ()=>({width:0});
+      return (...a)=>{ if(p==='ellipse') top=Math.min(top,a[1]-a[3]); else if(p==='arc') top=Math.min(top,a[1]-a[2]);
+        else if(p==='moveTo'||p==='lineTo') top=Math.min(top,a[1]); else if(p==='quadraticCurveTo') top=Math.min(top,a[3]);
+        else if(p==='bezierCurveTo') top=Math.min(top,a[5]); }; },
+      set(o,p,val){ o[p]=val; return true; }});
+    drawPlant(ctx,0,0,k,1,season,seed,0,v,1);
+    return -top/HERB_SCALE;
+  };
+  let n=0;
+  for (const [k,v] of bulbChoices()){
+    const D=plantDef(k,v), id=k+(v?':'+v:'');
+    assert(typeof D.heightIn==='number'&&D.heightIn>0,id+': a sourced height');
+    const ss=SEASONS.filter(s=>D.sea[s]&&D.sea[s].bloom);
+    let top=0;
+    for (const s of (ss.length?ss:SEASONS)) for (const seed of [9137,4410,77]) top=Math.max(top,topOf(k,v,s,seed));
+    assert(Math.abs(top-D.heightIn)<=Math.max(1.5,D.heightIn*0.15),id+': drawn '+top.toFixed(1)+' in for a '+D.heightIn+' in bulb');
+    n++;
+  }
+  assert(n>=110,'checked '+n+' choices');
+});
+
+test('every bulb choice stays inside its sprite box', () => {
+  for (const [k,v] of bulbChoices()){
+    const D=plantDef(k,v), box=plantDrawBox(D,k,1), id=k+(v?':'+v:'');
+    for (const season of SEASONS) for (const seed of [7,4410]){
+      for (const o of wetOps(k,season,v,1,seed)){
+        if ((o.op!=='moveTo'&&o.op!=='lineTo')||typeof o.a[0]!=='number') continue;
+        assert(Math.abs(o.a[0])<=box.halfW+1,id+' '+season+' x '+o.a[0].toFixed(1)+' within '+box.halfW.toFixed(1));
+        assert(-o.a[1]<=box.top+1,id+' '+season+' top');
+      }
+    }
+  }
+});
+
+test('no highlight stroke floats in the air over a bulb', () => {
+  // drawPlant's closing highlight strokes assume foliage fills the plant's box,
+  // which a crocus, a tulip or a lily never does; they hung over every bulb,
+  // wider than the plant. An ordinary forb keeps them.
+  for (const k of bulbKeys()) for (const season of SEASONS){
+    const S=plantDef(k).sea[season]||{}; if (!S.fol) continue;
+    assertEqual(wetStroked(wetOps(k,season),mixHex(S.fol,'#fff1c4',0.42)),0,k+' '+season);
+  }
+  const S=plantDef('pallida').sea.Summer;
+  assert(wetStroked(wetOps('pallida','Summer'),mixHex(S.fol,'#fff1c4',0.42))>0,'a coneflower still carries them');
+});
+
+test('no two choices of one bulb draw alike', () => {
+  // Several daffodils, crocuses and camassias were the same picture under two names
+  // (0.9.124 folded them together). Within one record, every pair of choices must
+  // differ visibly: in flower colour, in the eye or corona, in the drawing's own
+  // look, or in height by a quarter.
+  const lab=h=>oklabOf(h);
+  for (const k of bulbKeys()){
+    const refs=[null,...Object.keys(PLANTS[k].cv||{})]; if (refs.length<2) continue;
+    for (let i=0;i<refs.length;i++) for (let j=i+1;j<refs.length;j++){
+      const A=plantDef(k,refs[i]), B=plantDef(k,refs[j]);
+      const season=SEASONS.find(s=>A.sea[s]&&A.sea[s].bloom);
+      const a=A.sea[season]||{}, b=B.sea[season]||{};
+      const dBloom=a.bloom&&b.bloom?oklabDist(lab(a.bloom),lab(b.bloom)):1;
+      const dEye=a.eye&&b.eye?oklabDist(lab(a.eye),lab(b.eye)):(!!a.eye!==!!b.eye?1:0);
+      const dLook=JSON.stringify(A.look)!==JSON.stringify(B.look);
+      const dH=Math.abs(A.heightIn-B.heightIn)/Math.max(A.heightIn,B.heightIn)>0.25;
+      assert(dBloom>=0.05||dEye>=0.08||dLook||dH,k+': '+(refs[i]||'species')+' and '+refs[j]+' draw alike (bloom '+dBloom.toFixed(3)+')');
+    }
+  }
+});
+
+test('the bulb audit\'s drawings: a daffodil has a corona, a fritillary hangs, a bluebell arches', () => {
+  // daffodil: a tube stands out of the tepals toward one side, its mouth in the rim colour
+  const ops=wetOps('daffodil','Spring',null,1,9137);
+  const rim=shade(PLANTS.daffodil.sea.Spring.eye,-10);
+  assert(ops.some(o=>o.op==='fill'&&o.fill===rim),'a corona mouth in the rim colour');
+  // the doubled one has no tube, and the swept-back one draws differently from the trumpet
+  const tr=v=>JSON.stringify(wetOps('daffodil','Spring',v,1,9137).map(o=>[o.op,...o.a.map(x=>typeof x==='number'?Math.round(x*10):x)]));
+  assertEqual(new Set(['dutchmaster','jetfire','tahiti','salome'].map(tr)).size,4,'trumpet, cyclamineus, double and large-cup traces differ');
+  // a fritillary's bell hangs off a crook to one side of its stem tip: the crook
+  // starts at the tip (the moveTo before the bell), the bell is translated out from it
+  const fr=PLANTS.fritillaria.look, fops=wetOps('fritillaria','Spring');
+  let bells=0, lastMove=null;
+  for (const o of fops){
+    if (o.op==='moveTo') lastMove=o.a;
+    if (o.op==='translate' && lastMove){ bells++; assert(Math.abs(o.a[0]-lastMove[0])>=fr.bellW*0.8,'the bell hangs beside the stem tip, not on it'); }
+  }
+  assert(bells>=1,'bells are drawn');
+  // English bluebell: the bells hang on one side of the crook
+  const L=PLANTS.englishbluebell.look;
+  assert(L.arch>0&&L.oneSided,'bluebell racemes arch over to one side');
+  assert(fr.lilyStyle==='fritillary','fritillary grammar');
+});
