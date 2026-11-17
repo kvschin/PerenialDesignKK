@@ -126,7 +126,8 @@ async function exercise(scenario){
   for(let i=0;i<3;i++){stale=0;render(await raf());check(stale===0,'the frame after landing used outdated artwork');}
   check(groundKeyStruct===groundStructKey(calClock().season,game.rot),'ground and planting disagree on the destination');
   // Compare the adopted scene/shade with a fresh synchronous calculation.
-  const sceneRecord=(k,v)=>k==='aheadFor'||k==='_spec'?undefined:v;
+  // bookkeeping, not content: the look-ahead mark and the draw-time memos (_spec, _kk, _g ...)
+  const sceneRecord=(k,v)=>k==='aheadFor'||k[0]==='_'?undefined:v;
   const sceneJson=JSON.stringify(scene.ents,sceneRecord);
   const shadeJson=JSON.stringify(shadeMapCache); resetShadeMapCache(); buildScene(VW/ZOOM,VH/ZOOM);
   check(JSON.stringify(scene.ents,sceneRecord)===sceneJson,'prepared scene differs from a fresh build');

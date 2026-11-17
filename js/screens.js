@@ -3803,9 +3803,24 @@ const IDLE_FRAME_MS=1000/30;
 const IDLE_GRACE_MS=250;
 const HUD_IDLE_MS=500;
 let prev=performance.now(), lastMenuRender=-Infinity, lastGardenRender=-Infinity, lastHudUpdate=0;
-let lastMeaningfulChange=performance.now(), lastRenderSig='';
+let lastMeaningfulChange=performance.now(), lastRenderSig='', lastHoverSig='';
 
-function markLoopActivity(){ lastMeaningfulChange=performance.now(); }
+/* Raw input, anywhere on the page, says the gardener is HERE. It does not say
+   the garden's picture changed, and it used to be taken for that: every one of
+   these events restarted the grace below, so the garden was redrawn at the
+   display's full rate for as long as a pointer moved over the plant library, a
+   wheel scrolled its list, a finger scrolled the sheet on a phone or a key went
+   down in Find. Measured at 164Hz on a 1,482-plant quarter acre: 20% of the
+   main thread with the pointer still and 74% while it moved, for a picture that
+   was the same in both (36 against 184ms of script a second on the demo
+   garden). On a phone that work competes with the list being scrolled.
+   What needs a frame is a change to the picture, and that is renderStateSig's
+   job (plus hoverSig, and hasTransientGardenWork for a gesture in progress).
+   So input is only remembered, for the one reader that wants to know whether
+   anybody is about: speculative work, which waits for a quiet moment
+   (groundViewIdle). */
+let lastInputAt=performance.now();
+function markLoopActivity(){ lastInputAt=performance.now(); }
 ['pointerdown','pointermove','pointerup','wheel','keydown','keyup','touchstart','touchmove'].forEach(type=>
   addEventListener(type,markLoopActivity,{passive:true}));
 function screenOpen(id){
@@ -3838,15 +3853,46 @@ function buildingDraftSig(){
   const h=(typeof buildingHover!=='undefined' && buildingHover) ? buildingHover.join(',') : '';
   return (d&&d.pts?d.pts.length:0)+'@'+h;
 }
+/* The site photo is drawn every frame and edited from DOM controls (opacity,
+   width, rotation, the nudge buttons), none of which moves game.rev. Those
+   edits were repainted only because any input restarted the grace. */
+function underlaySig(){
+  const c=game.underlayCalibration;
+  return (game.underlayRev||0)+(game.photoEditing?'e':'')+(c&&c.points?'c'+c.points.length:'');
+}
 function renderStateSig(){
   return [
     game.rev, game.groundRev, game.terrainRev, game.rot, effectiveSiteNorthDeg(), absDay(),
     GW, GH, VW, VH, ZOOM.toFixed(3), cam.x.toFixed(1), cam.y.toFixed(1),
     game.tool, game.toolVar||'', game.eraseMode, game.brushSize,
     game.previewMode, game.edgeStyle, layerVisibilitySig(),
-    game.hoverTile?game.hoverTile.join(','):'', selectionSig(), rulerSig(),
-    buildingDraftSig(), game.focusTile?game.focusTile.join(','):''
+    selectionSig(), rulerSig(),
+    buildingDraftSig(), game.focusTile?game.focusTile.join(','):'', underlaySig(),
+    // the cursor diamond: a tap moves it and may change nothing else
+    game.actX, game.actY
   ].join('|');
+}
+/* What the pointer's position changes on the canvas, kept apart from the
+   signature above because of what each is owed. A change up there may have
+   deferred a repaint (the crisp ground bake after a pan, the sprite rescale
+   after a zoom), so it is followed by the grace. A ghost that moved to another
+   tile defers nothing: it is owed one frame, now.
+   Under most tools something is drawn AT the hovered tile (a brush footprint,
+   a placement ghost), so the tile is the answer. Under the four below nothing
+   is, and the only thing hovering changes is the spread ring of a shrub the
+   pointer is over (render's hoverShrub), so the answer is which shrub. Hand is
+   the tool every garden opens in: with the tile in the signature, moving the
+   pointer across a garden redrew it at full rate for a ring that was not there.
+   A tool that is not listed gets the tile, so a new one is right by default. */
+const HOVER_RING_ONLY=new Set(['hand','select','ruler','pick']);
+function hoverSig(){
+  const h=game.hoverTile;
+  if (!h) return '';
+  if (HOVER_RING_ONLY.has(game.tool)){
+    const sh=layerShown('woody') ? shrubAt(h[0],h[1]) : null;
+    return sh ? 's'+sh.key : '';
+  }
+  return h[0]+','+h[1];
 }
 function hasActiveGesture(){
   return (typeof activePtrs!=='undefined' && activePtrs.size>0)
@@ -3868,12 +3914,14 @@ function hasTransientGardenWork(){
 }
 function shouldRenderGarden(t){
   if (fullScreenRenderBlocked()) return false;
-  const sig=renderStateSig();
+  const sig=renderStateSig(), hover=hoverSig();
   if (sig!==lastRenderSig){
-    lastRenderSig=sig;
+    lastRenderSig=sig; lastHoverSig=hover;
     lastMeaningfulChange=t;
     return true;
   }
+  // the pointer is over something that draws differently: one frame, no grace
+  if (hover!==lastHoverSig){ lastHoverSig=hover; return true; }
   if (hasTransientGardenWork()) return true;
   if (t-lastMeaningfulChange<IDLE_GRACE_MS) return true;
   return t-lastGardenRender>=IDLE_FRAME_MS;

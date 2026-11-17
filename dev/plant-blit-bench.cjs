@@ -93,7 +93,12 @@ const DRIVER = `
     await new Promise(r=>setTimeout(r,900));
 
     const cx = cnv.getContext('2d');
-    const flush = () => cx.getImageData(0,0,1,1);
+    // through a 1x1 CPU canvas, never `cnv` itself: a canvas that is read back in a
+    // loop is moved off the GPU (Chrome for good after ~100 reads; Firefox counts
+    // readbacks against it too), and the bench then times that. See dev/ff-bench.cjs.
+    const probeCv = document.createElement('canvas'); probeCv.width = probeCv.height = 1;
+    const probeCx = probeCv.getContext('2d', { willReadFrequently: true });
+    const flush = () => { probeCx.drawImage(cnv,0,0,1,1); probeCx.getImageData(0,0,1,1); };
     const FFSTEP = FF_RATE*16.7;
     const origMake = window.makePlantSprite, origDraw = window.drawPlantMaybeCached;
     let bakeMs=0,bakes=0,drawMs=0,draws=0,swayForced=null;

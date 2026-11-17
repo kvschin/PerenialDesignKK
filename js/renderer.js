@@ -201,8 +201,12 @@ function seasonTurnAhead(){
   const at=(s*DAYS_PER_SEASON-game.dayOffset)*DAY_MS;
   return (at-elapsedGameMs())/rate<=GROUND_SEASON_LEAD_MS ? {season:SEASONS[((s%4)+4)%4], at} : null;
 }
+/* Quiet in both senses: the picture has not changed, and nobody has touched
+   anything. The second is its own clock (lastInputAt, screens.js) since input
+   stopped counting as a change to the picture. */
 function groundViewIdle(t){
   return !game.ffActive && typeof lastMeaningfulChange!=='undefined' && t-lastMeaningfulChange>GROUND_IDLE_MS
+    && !(typeof lastInputAt!=='undefined' && t-lastInputAt<=GROUND_IDLE_MS)
     && !(typeof hasActiveGesture==='function' && hasActiveGesture());
 }
 /* Once a frame, after the blit: queue work nothing is waiting for yet (the
@@ -1978,6 +1982,7 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail,lB){
 function bakePlantKeyParts(rec,key,variant,season,seed,detail){
   rec.kSlot=seed+'|'+key+'|'+(variant||'')+'|'+season;
   rec.kTail='|'+(detail?JSON.stringify(detail):'');
+  rec._kg=-1; rec._kk='';   // the whole key drawPlantMaybeCached keeps is built from these
   rec.sv=key+'|'+(variant||'');
   rec.hasBloom=!!bloomAppearanceFor(plantDef(key,variant),season);
   // a deciduous tree or shrub in spring carries its leaf-out stage
@@ -1990,17 +1995,39 @@ function bakePlantKeyParts(rec,key,variant,season,seed,detail){
    one per species (0.324us each, 0.17ms a frame). Keyed on the record's baked
    `sv` so the lookup allocates nothing, and cleared per frame off pspriteFrame's
    counter, which increments exactly once per render. */
-let bloomMemo=new Map(), bloomMemoFrame=-1;
+/* ...and while the garden's clock stands still the answer does not change from
+   one frame to the next either. A planner opens paused and mostly stays paused,
+   so "per frame" was every frame for the same numbers: with bloomWindowsFor,
+   about 50ms a second on a 1,482-plant garden of many species (8 on the demo
+   garden). The memo is now kept until the instant it was filled at moves.
+   gardenClockStamp is that instant, or NaN while the clock runs on wall time,
+   which is then never equal to itself, so a running clock clears every frame as
+   before. Fast-forward and a Skip move game.elapsedMs, which moves the stamp.
+   The look-ahead bakes borrow the clock and ask bloomLevel directly, so they
+   never read this. */
+function gardenClockStamp(){
+  return clockActive() ? NaN : (game.elapsedMs||0)+game.dayOffset*DAY_MS;
+}
+let bloomMemo=new Map(), bloomMemoFrame=-1, bloomMemoAt=NaN;
 function bloomLevelForFrame(sv,key,variant){
-  if (bloomMemoFrame!==PSPRITE.frame){ bloomMemoFrame=PSPRITE.frame; bloomMemo.clear(); }
+  if (bloomMemoFrame!==PSPRITE.frame){
+    bloomMemoFrame=PSPRITE.frame;
+    const at=gardenClockStamp();
+    if (at!==bloomMemoAt){ bloomMemoAt=at; bloomMemo.clear(); }
+  }
   let v=bloomMemo.get(sv);
   if (v===undefined){ v=bloomLevel(key,variant); bloomMemo.set(sv,v); }
   return v;
 }
-// the leaf stage, like bloom one answer per species per frame (and season)
-let leafMemo=new Map(), leafMemoFrame=-1, leafMemoSeason=null;
+// the leaf stage, like bloom one answer per species per frame (and season),
+// and likewise kept while the clock stands still
+let leafMemo=new Map(), leafMemoFrame=-1, leafMemoSeason=null, leafMemoAt=NaN;
 function leafStageForFrame(sv,key,variant,season){
-  if (leafMemoFrame!==PSPRITE.frame || leafMemoSeason!==season){ leafMemoFrame=PSPRITE.frame; leafMemoSeason=season; leafMemo.clear(); }
+  if (leafMemoFrame!==PSPRITE.frame || leafMemoSeason!==season){
+    const at=gardenClockStamp(), moved=at!==leafMemoAt || leafMemoSeason!==season;
+    leafMemoFrame=PSPRITE.frame; leafMemoSeason=season; leafMemoAt=at;
+    if (moved) leafMemo.clear();
+  }
   let v=leafMemo.get(sv);
   if (v===undefined){ v=leafStageNow(plantDef(key,variant),season); leafMemo.set(sv,v); }
   return v;
@@ -2012,7 +2039,18 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   const gB=gbucket(growth,9);
   const bB=rec.hasBloom?gbucket(bloomLevelForFrame(rec.sv,key,variant),4):0;
   const lB=rec.leafOut?leafStageForFrame(rec.sv,key,variant,season):-1;
-  const kk=rec.kSlot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+rec.kTail;
+  /* The key is the baked parts plus three small integers, and the integers move
+     a few times a season. It was concatenated again on every frame, which made
+     a new string for every plant drawn and left the cache lookups below to
+     flatten and hash it each time. The record keeps the string it built last,
+     with the three buckets it was built from; the same string object carries
+     its hash with it. Only the STRING is kept: the lookups still run, so every
+     rule about what is in the cache is untouched. The underscore marks these as
+     memos, like `_spec`: a scene record's content is everything without one
+     (tests/browser-skips.cjs compares a prepared scene with a fresh build so). */
+  let kk;
+  if (rec._kg===gB && rec._kb===bB && rec._kl===lB) kk=rec._kk;
+  else { kk=rec.kSlot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+rec.kTail; rec._kg=gB; rec._kb=bB; rec._kl=lB; rec._kk=kk; }
   /* This clump's own SLOT — what identifies the plant rather than the moment.
 
      Growth and bloom are bucketed off the clock, so the instant either moves,
@@ -2092,11 +2130,33 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
 function blitPlantSprite(ctx,e,bx,by,sway){
   if (!e.cv.width) return;   // a closed bitmap (retireSpriteImage) — drawImage would throw
   const dw=e.cv.width/e.s, dh=e.cv.height/e.s, lx=bx-e.ox, ly=by-e.oy;
-  if (sway){
-    ctx.save(); ctx.translate(bx,by); ctx.transform(1,0,sway*0.05,1,0,0); ctx.translate(-bx,-by);
-    ctx.drawImage(e.cv,lx,ly,dw,dh); ctx.restore();
-  } else ctx.drawImage(e.cv,lx,ly,dw,dh);
+  if (!sway){ ctx.drawImage(e.cv,lx,ly,dw,dh); return; }
+  /* The wind: a shear about the plant's foot, x' = x + k(y-by). */
+  const k=sway*0.05;
+  if (plantBlitScale && ctx===cx){
+    /* In render's entity pass the garden canvas's transform is a plain scale
+       (plantBlitScale), so the sheared matrix can be SET and the scale set back:
+       three context calls a plant where save, translate, shear, translate back,
+       draw, restore were six. Translate-shear-translate multiplies out to
+       [1,0,k,1,-k*by,0], times the scale. Measured on a 1,482-plant garden with
+       every frame drawing: 2.89 -> 2.60ms of script a frame.
+       Set, not composed and undone: multiplying by the inverse shear came out
+       the same speed, but it leaves a matrix that is only exactly a scale again
+       where the multiply is not fused (it is on ARM), and everything drawn after
+       a plant wants an axis-aligned matrix. */
+    const s=plantBlitScale;
+    ctx.setTransform(s,0,s*k,s,-s*k*by,0);
+    ctx.drawImage(e.cv,lx,ly,dw,dh);
+    ctx.setTransform(s,0,0,s,0,0);
+    return;
+  }
+  // anywhere else the caller's transform is its own business: save and restore it
+  ctx.save(); ctx.translate(bx,by); ctx.transform(1,0,k,1,0,0); ctx.translate(-bx,-by);
+  ctx.drawImage(e.cv,lx,ly,dw,dh); ctx.restore();
 }
+/* The scale of the garden canvas's transform while render's entity pass runs,
+   0 at any other time. See blitPlantSprite. */
+let plantBlitScale=0;
 /* What to draw for a clump whose own sprite is waiting for bake time, as the
    key of a cached sprite, or null when nothing will do. In order:
      1. this clump at the growth or bloom bucket it showed last — a growth
@@ -2590,7 +2650,12 @@ function drawStructMaybeCached(e,W,H,season,lit,ctx=cx){
   if (SSPRITE.off || !SSPRITE.active){ drawStructEnt(ctx,e,W,H,season,lit); return; }
   const spec=structSpriteSpec(e);
   if (!spec){ drawStructEnt(ctx,e,W,H,season,lit); return; }
-  const kk=spec.key+'|'+season+'|'+game.rot+'|'+(lit?1:0);
+  // the string is kept with the three things appended to it, as a plant's is
+  // (drawPlantMaybeCached): it was rebuilt per structure per frame
+  let kk;
+  const lit1=lit?1:0;
+  if (spec.kSeason===season && spec.kRot===game.rot && spec.kLit===lit1) kk=spec.kk;
+  else { kk=spec.key+'|'+season+'|'+game.rot+'|'+lit1; spec.kSeason=season; spec.kRot=game.rot; spec.kLit=lit1; spec.kk=kk; }
   let sp=SSPRITE.map.get(kk);
   // a sprite baked at a very different zoom blits soft: rebake it, budget
   // permitting, but keep using the old one this frame rather than dropping to
@@ -2619,7 +2684,10 @@ function drawStructMaybeCached(e,W,H,season,lit,ctx=cx){
   sp.used=SSPRITE.frame;
   SSPRITE.map.set(kk,sp);
   if (!sp.cv.width) return;   // a closed bitmap (retireSpriteImage) — drawImage would throw
-  const [ax,ay]=structAnchor(e,W,H);
+  // the anchor baked with the scene plus this frame's camera (setEntDrawPoint)
+  let ax, ay;
+  if (e.px!==undefined){ ax=e.px+W/2-cam.x; ay=e.py+H*0.24-cam.y; }
+  else { const a=structAnchor(e,W,H); ax=a[0]; ay=a[1]; }
   ctx.drawImage(sp.cv, ax+sp.ox, ay+sp.oy, sp.cv.width/sp.s, sp.cv.height/sp.s);
 }
 /* ---- dev-only: prove the cached path draws the same picture ----
@@ -2898,7 +2966,15 @@ function verifySceneCull(opts){
           if (e.ox1+offX<0||e.ox0+offX>W||e.oy1+offY<0||e.oy0+offY>H) culled++;
           e.ox0=-1e9; e.ox1=1e9; e.oy0=-1e9; e.oy1=1e9;
         }
-        const b=settle();
+        /* The entity pass reads the boxes PACKED (scene.bounds), not off the
+           records, so widening the records alone would leave this arm culling
+           exactly as the first one did and the two would always agree. Disown
+           the packed boxes for the arm, which sends the pass back to the records. */
+        const wasScene=scene, wasFor=scene.boundsFor;
+        scene.boundsFor=null;
+        let b;
+        try{ b=settle(); }
+        finally{ if (wasScene.boundsFor===null) wasScene.boundsFor=wasFor; }
         ents.forEach((e,i)=>{ e.ox0=saved[i][0]; e.ox1=saved[i][1]; e.oy0=saved[i][2]; e.oy1=saved[i][3]; });
         const d=diff(a,b), c=diff(a,ctrl);
         out.push({rot:r, cam:dx+','+dy, culled, kept:ents.length-culled, diff:d.n, worst:d.w, control:c.n});
@@ -3194,6 +3270,26 @@ function setEntScreenBounds(e){
   }
   e.ox0=ox0-pad; e.ox1=ox1+pad; e.oy0=oy0-up; e.oy1=oy1+down;
 }
+/* ...and the point a plant is drawn at, with the camera taken out the same way.
+   plantScreenOf was asked for every drawn plant on every frame: is it in a pot,
+   its sub-tile offset, the view rotation, the tile's elevation, then the camera.
+   Only the last of those can change without rebuilding this list (pots,
+   elevation and plants all carry `scene` in LAYER_CACHES; rotation and plot size
+   are in sceneKey), so the rest is asked once here and a frame adds
+   W/2-cam.x and H*0.24-cam.y, as it does to the cull box above. Measured on a
+   1,482-plant garden: about 25ms a second of projection, and two arrays a plant
+   a frame. Asked of plantScreenOf itself with the camera and canvas zeroed, so
+   it cannot disagree with it; the camera is put back in a finally. */
+function setEntDrawPoint(e){
+  const cx0=cam.x, cy0=cam.y;
+  cam.x=0; cam.y=0;
+  try{
+    // a structure's sprite is placed from structAnchor, which reads the same things
+    const s=(e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB) ? plantScreenOf(e.x,e.y,e.p,0,0) : structAnchor(e,0,0);
+    e.px=s[0]; e.py=s[1];
+  }
+  finally{ cam.x=cx0; cam.y=cy0; }
+}
 /* The tallest vessel any container stands a plant on, and the furthest one can
    pull that plant sideways off its own origin tile — so a potted plant's box
    covers both without asking which vessel it is in. */
@@ -3401,14 +3497,40 @@ function* sceneBuildSteps(W,H){
   ents.sort((a,b)=>a.d-b.d);
   yield;
   const season=calClock().season;      // sceneKey always distinguishes seasons
-  for (const e of ents){
+  /* The cull boxes again, side by side: [ox0,ox1,oy0,oy1] for ents[i] at i*4.
+     The frame tests every record in the garden against the screen, and read off
+     the records that was a cache miss apiece (each is its own object, wherever
+     the heap put it): 19ms a second for 2,100 records at 164Hz, more than the
+     four compares could cost. Float64, so the test is the same test. */
+  const bounds=new Float64Array(ents.length*4);
+  for (let i=0;i<ents.length;i++){
+    const e=ents[i];
     if (++count%32===0) yield;
     setEntScreenBounds(e);
+    bounds[i*4]=e.ox0; bounds[i*4+1]=e.ox1; bounds[i*4+2]=e.oy0; bounds[i*4+3]=e.oy1;
+    setEntDrawPoint(e);
     if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB)
       bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
   }
   scene={key:sceneKey(), refs:sceneRefs(),
-    ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders, stunted};
+    ents, bounds, boundsFor:ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders, stunted};
+}
+/* How big a record's plant is drawn. Under the Established preview that is 1.
+   Under Today it is plantGrowth, establishment times the seasonal envelope,
+   which reads the clock four times and walks the calendar: asked for every
+   plant on every frame (38ms a second on a 1,482-plant garden), for an answer
+   that cannot change until the garden's clock moves, which in a paused planner
+   is never. So it is kept on the record with the instant it was worked out at
+   (gardenClockStamp: NaN while the clock runs on wall time, so a running clock
+   is still asked every frame, and fast-forward and a Skip move the instant). A
+   record holds one plant for its life, and a plant record is never edited in
+   place. The look-ahead bakes borrow the clock and ask plantGrowth themselves. */
+function sceneEntGrowth(e){
+  if (establishedPreviewActive()) return 1;
+  const at=gardenClockStamp();
+  if (e._gAt===at) return e._g;
+  e._gAt=at;
+  return (e._g=plantGrowth(e.p));
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
 function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===cx){
@@ -3444,14 +3566,20 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===
       // ahead of the underground test: a bulb that comes UP at the turn has no
       // picture of its own to stand in, so it is the one most worth baking early
       if (AHEAD.season && useSprites && ctx===cx) aheadBakePlant(e);
-      const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
-      const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
+      const g=sceneEntGrowth(e); if (g<=0.02) return 0;   // underground
+      // the baked draw point plus this frame's camera (setEntDrawPoint); a record
+      // from anywhere but buildScene is asked the long way
+      let sx, sy;
+      if (e.px!==undefined){ sx=e.px+W/2-cam.x; sy=e.py+H*0.24-cam.y; }
+      else { const s=plantScreenOf(e.x,e.y,e.p,W,H); sx=s[0]; sy=s[1]; }
       drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e);
       return 1;
     }
     case SCENE_K.PLANT:{
-      let g=displayPlantGrowth(e.p); if (e.stunt) g*=STUNT_GROWTH;      // struggling under canopy
-      const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
+      let g=sceneEntGrowth(e); if (e.stunt) g*=STUNT_GROWTH;      // struggling under canopy
+      let sx, sy;
+      if (e.px!==undefined){ sx=e.px+W/2-cam.x; sy=e.py+H*0.24-cam.y; }
+      else { const s=plantScreenOf(e.x,e.y,e.p,W,H); sx=s[0]; sy=s[1]; }
       drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
       if (AHEAD.season && useSprites && ctx===cx) aheadBakePlant(e);
       return 1;
@@ -3829,6 +3957,132 @@ function preparePendingSkip(t){
   lastMeaningfulChange=t;
   return true;
 }
+/* ---------- the tree-shade wash ----------
+   Every tile a canopy shades is tinted, under the planting. That was a loop over
+   the visible tiles on every frame: project the tile, build an rgba() string for
+   its alpha, set it as the fill style (which parses it), trace a diamond, fill.
+   0.83us a shaded tile a frame, measured, which under a canopy is a large share
+   of the whole frame: 0.28 of 0.97ms of script on a 27x27 garden with fourteen
+   trees, and on a quarter acre with seventy (2,002 shaded tiles, the whole plot
+   on screen) the frame was 5.3ms of script at 38fps against 4.0ms and 52fps with
+   the wash switched off.
+   None of it moves with the camera except by translation, and it changes only
+   when the shade map does (a tree edit, the season, a rotation) or the ground
+   under it is raised. So what the loop worked out is kept, in camera-free space
+   (the cull box's trick): the shaded tiles, grouped into BLOCKS of 4x4 tiles and,
+   within a block, by alpha stepped to 0.01. A frame culls the blocks to the
+   screen and then draws them one of two ways, by how many shaded tiles are on
+   screen (TILES_MAX):
+     few: a fill a tile, as before, from the kept points and the kept style
+       strings. The same drawing the loop sent, for less script.
+     many: each block's tiles of one step as ONE kept Path2D, translated.
+       Next to no script, and far fewer draws.
+   Why two, and why blocks, is all measurement (Chrome 153 and Firefox 157):
+     one path per alpha for the whole plot is free in script and 45fps on the
+       quarter acre fitted, but zoomed in to 100% it is SLOWER than the loop
+       (139 against 161fps): the tiles off screen are still tessellated;
+     the same batched on the context each frame is slower than the loop in
+       script as well (13.6 against 5.3ms; a long context path is costly);
+     blocks culled to the screen are 48fps fitted and level with the loop
+       zoomed in at 4 tiles a side (8 a side gave some of that back, 16 most);
+     and in Firefox block paths are 142 against 119fps panning that quarter
+       acre, but 1-2% BEHIND the loop on a small plot (338 and 729 shaded
+       tiles on screen), where a fill a tile costs it nothing to speak of.
+   The map's alphas run 0.09-0.24 and a tile is one flat tint, so a step of a
+   hundredth is not something to see; both ways use the stepped tint, so the wash
+   does not change as the view crosses from one to the other. Inside a path the
+   hairline where two antialiased diamonds met is gone.
+   The dashed outline of a FUTURE canopy (a young tree, Today view) is still
+   drawn a tile at a time: there are few, and one stroke over shared edges would
+   draw them once where they are drawn twice now. */
+const SHADE_WASH={BLOCK:4, STEP:0.01, TILES_MAX:900, cache:null, vis:[]};
+function shadeWashElevSame(c,E){
+  if (c.grid===E) return true;
+  let same=!!(c.grid.empty && E.empty);
+  if (!same && !c.grid.empty && !E.empty && c.grid.g.length===E.g.length){
+    same=true;
+    const a=c.grid.g, b=E.g;
+    for (let i=0;i<a.length;i++) if (a[i]!==b[i]){ same=false; break; }
+  }
+  // the grid object is rebuilt on any terrain edit; the heights usually are not
+  if (same) c.grid=E;
+  return same;
+}
+function shadeWashBlocks(shadeMap){
+  const E=elevationGrid(), c0=SHADE_WASH.cache;
+  if (c0 && c0.map===shadeMap && c0.rot===game.rot && c0.gw===GW && c0.gh===GH && shadeWashElevSame(c0,E)) return c0;
+  const B=SHADE_WASH.BLOCK, STEP=SHADE_WASH.STEP, hw=TILE_W/2;
+  const blocks=new Map(), future=[];
+  const cx0=cam.x, cy0=cam.y;
+  cam.x=0; cam.y=0;                        // camera-free, as setEntDrawPoint
+  try{
+    for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+      const si=y*GW+x, a=shadeMap.activeAlpha[si];
+      if (a<=0){
+        if (shadeMap.futureDrawScore[si]>=SHADE_FUTURE_SCORE){ const s=screenOf(x,y,0,0); future.push(s[0],s[1]); }
+        continue;
+      }
+      const s=screenOf(x,y,0,0), sx=s[0], sy=s[1];
+      const step=Math.round(Math.max(0.035,a)/STEP), bk=((y/B)|0)*4096+((x/B)|0);
+      let bl=blocks.get(bk);
+      if (!bl){ bl={x0:Infinity,x1:-Infinity,y0:Infinity,y1:-Infinity,n:0,fills:new Map()}; blocks.set(bk,bl); }
+      let f=bl.fills.get(step);
+      // pts: where each tile's diamond starts (its top corner); path: built from them when first wanted
+      if (!f){ f={style:'rgba(32,52,42,'+(step*STEP).toFixed(2)+')', pts:[], path:null}; bl.fills.set(step,f); }
+      f.pts.push(sx,sy); bl.n++;
+      if (sx-hw<bl.x0) bl.x0=sx-hw; if (sx+hw>bl.x1) bl.x1=sx+hw;
+      if (sy<bl.y0) bl.y0=sy; if (sy+TILE_H>bl.y1) bl.y1=sy+TILE_H;
+    }
+  } finally { cam.x=cx0; cam.y=cy0; }
+  const list=[];
+  for (const bl of blocks.values()) list.push({x0:bl.x0,x1:bl.x1,y0:bl.y0,y1:bl.y1,n:bl.n,fills:[...bl.fills.values()]});
+  return (SHADE_WASH.cache={map:shadeMap, rot:game.rot, gw:GW, gh:GH, grid:E, blocks:list, future});
+}
+// isoDiamondPath's diamond for each kept point, as one path
+function shadeWashPath(pts){
+  const p=new Path2D(), hw=TILE_W/2, hh=TILE_H/2;
+  for (let i=0;i<pts.length;i+=2){
+    const sx=pts[i], sy=pts[i+1];
+    p.moveTo(sx,sy); p.lineTo(sx+hw,sy+hh); p.lineTo(sx,sy+TILE_H); p.lineTo(sx-hw,sy+hh); p.closePath();
+  }
+  return p;
+}
+function drawShadeWash(ctx,W,H,shadeMap){
+  const c=shadeWashBlocks(shadeMap), ox=W/2-cam.x, oy=H*0.24-cam.y;
+  const vis=SHADE_WASH.vis; vis.length=0;
+  let n=0;
+  for (const bl of c.blocks){
+    if (bl.x1+ox<0 || bl.x0+ox>W || bl.y1+oy<0 || bl.y0+oy>H) continue;
+    vis.push(bl); n+=bl.n;
+  }
+  let last='';
+  if (n>SHADE_WASH.TILES_MAX && typeof Path2D==='function'){
+    ctx.save(); ctx.translate(ox,oy);
+    for (const bl of vis) for (const f of bl.fills){
+      if (f.style!==last){ ctx.fillStyle=f.style; last=f.style; }
+      ctx.fill(f.path || (f.path=shadeWashPath(f.pts)));
+    }
+    ctx.restore();
+  } else {
+    const hw=TILE_W/2, hh=TILE_H/2;
+    for (const bl of vis) for (const f of bl.fills){
+      if (f.style!==last){ ctx.fillStyle=f.style; last=f.style; }
+      const p=f.pts;
+      for (let i=0;i<p.length;i+=2){
+        const sx=p[i]+ox, sy=p[i+1]+oy;
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+hw,sy+hh); ctx.lineTo(sx,sy+TILE_H); ctx.lineTo(sx-hw,sy+hh); ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+  vis.length=0;
+  const F=c.future;
+  for (let i=0;i<F.length;i+=2){
+    const sx=F[i]+ox, sy=F[i+1]+oy;
+    if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
+    tileDiamond(ctx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
+  }
+}
 function render(t){
   if (gardenOpening && !game.photo && !prepareGardenOpen(t)) return;
   if (!game.photo && !preparePendingSkip(t)) return;
@@ -4019,16 +4273,7 @@ function render(t){
   // edge. Hoist the shade map once (the At() helpers re-check the cache key
   // per call — a string build per tile per frame) and skip treeless gardens.
   const shadeMap=ensureShadeMap();
-  if (shadeMap.hasShade) for (let yy=y0; yy<=y1; yy++) for (let xx=x0; xx<=x1; xx++){
-    const si=yy*GW+xx;
-    const a=shadeMap.activeAlpha[si];
-    const fut=a>0?0:shadeMap.futureDrawScore[si];
-    if (a<=0 && fut<SHADE_FUTURE_SCORE) continue;
-    const [sx,sy]=screenOf(xx,yy,W,H);
-    if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
-    if (a>0) tileDiamond(cx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
-    else tileDiamond(cx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
-  }
+  if (shadeMap.hasShade) drawShadeWash(cx,W,H,shadeMap);
   // Shade-suitability overlay (Layers view): wash every tile by how much
   // canopy reaches it — amber = full sun, teal = shade, between = part shade
   if (game.layerVis.shade){
@@ -4141,16 +4386,28 @@ function render(t){
   // numeric compares as before; they just answer the question that was asked.
   const offX=W/2-cam.x, offY=H*0.24-cam.y;
   let plantCount=0, drawn=0, di=0;
-  for (let i=0;i<sents.length;i++){
-    const e=sents[i];
-    while (di<dyn.length && dyn[di].d<=e.d){
+  /* The pass draws under a plain scale, stated here rather than inherited from
+     whatever ran above, because a sheared sprite blit sets the matrix and sets
+     this scale back (plantBlitScale, blitPlantSprite). */
+  cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
+  plantBlitScale=DPR*ZOOM;
+  // the same boxes packed in one array (sceneBuildSteps); a scene from anywhere
+  // else has none, and its records are read as before
+  // (nor has a list a dev tool swapped in: the boxes belong to the array they were built for)
+  const sb=scene.bounds && scene.boundsFor===sents ? scene.bounds : null;
+  try{
+    for (let i=0;i<sents.length;i++){
+      const e=sents[i];
+      while (di<dyn.length && dyn[di].d<=e.d){
+        plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
+      if (sb){ const j=i*4; if (sb[j+1]+offX<0 || sb[j]+offX>W || sb[j+3]+offY<0 || sb[j+2]+offY>H) continue; }
+      else if (e.ox1+offX<0 || e.ox0+offX>W || e.oy1+offY<0 || e.oy0+offY>H) continue;
+      plantCount+=drawSceneEnt(e,W,H,cal.season,sway,useSprites);
+      drawn++;
+    }
+    while (di<dyn.length){
       plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
-    if (e.ox1+offX<0 || e.ox0+offX>W || e.oy1+offY<0 || e.oy0+offY>H) continue;
-    plantCount+=drawSceneEnt(e,W,H,cal.season,sway,useSprites);
-    drawn++;
-  }
-  while (di<dyn.length){
-    plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
+  } finally { plantBlitScale=0; }
   dmark('draw',tDraw);
   // Diagnostic speculative readiness; explicit skips check their destination
   // scene separately, including its shade, scale and visible working set.

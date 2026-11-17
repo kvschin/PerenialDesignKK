@@ -223,9 +223,25 @@ function normalizeStartProgress(v){
   if (!v || typeof v!=='object' || Array.isArray(v)) return null;
   return {north:v.north===true, dismissed:v.dismissed===true};
 }
+/* Asked on every frame (syncStartHere, from updateHUD), and the loop below is
+   not the early exit it looks like: a layer map is a dictionary-mode object, and
+   `for...in` over one collects ALL of its keys before the first iteration. So
+   "return true on the first plant" walked every plant in the garden, every
+   frame: measured 15ms a second at 164Hz on a 1,482-plant garden.
+   A WITNESS makes the common answer O(1): the last live record found is still
+   proof while it is still live in the same map. It is re-read from the map each
+   time, so it needs no revision and cannot go stale however the map was written
+   (undo, a scheme switch and a load swap the map; an erase tombstones the
+   record), and "no planting" is never cached, so it is always a fresh scan. */
+let plantingWitness=null;
 function gardenHasPlanting(){
-  for (const k in game.plants){ const p=game.plants[k]; if (p && !p.removed) return true; }
-  for (const k in game.bulbs){ const b=game.bulbs[k]; if (b && !b.removed) return true; }
+  const w=plantingWitness;
+  if (w && game[w.layer]===w.map){ const p=w.map[w.key]; if (p && !p.removed) return true; }
+  for (const layer of ['plants','bulbs']){
+    const map=game[layer];
+    for (const k in map){ const p=map[k]; if (p && !p.removed){ plantingWitness={layer,map,key:k}; return true; } }
+  }
+  plantingWitness=null;
   return false;
 }
 function startStepDone(id){
@@ -1988,8 +2004,12 @@ function updateHUD(){
   // the season box fills across the whole season, tinted by the season colour
   const fill=document.getElementById('seasonFill');
   if (fill){
+    /* Moved, not resized. The fill is the box's full width and slides in from
+       the left (styles.css), so a step is a transform: no layout. As a width it
+       was a layout of the top bar on every frame of a fast-forward (113 a second
+       measured), which also left the layout dirty for whatever read it next. */
     const w=Math.round(seasonFrac*1000)/10;
-    if (w!==game._fillW){ fill.style.width=w+'%'; game._fillW=w; }
+    if (w!==game._fillW){ fill.style.transform='translateX('+(w-100).toFixed(1)+'%)'; game._fillW=w; }
     const fillBg=game.pausedAt ? '#8c867c' : (SEASON_FILL[cal.season]||'#7fc24e');
     if (fillBg!==game._fillBg){ fill.style.background=fillBg; game._fillBg=fillBg; }
   }

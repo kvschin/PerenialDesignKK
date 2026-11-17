@@ -73,7 +73,9 @@ function calibrateUnderlayDistance(u,a,b,knownFt){
   return normalizeUnderlay(Object.assign({},u,{widthTiles,
     cx:a[0]+(u.cx-a[0])*scale,cy:a[1]+(u.cy-a[1])*scale}));
 }
-function markUnderlayChanged(){ game.dirty=true; }
+// underlayRev is part of renderStateSig: the photo is drawn every frame, and its
+// editor's sliders and buttons change it without touching game.rev
+function markUnderlayChanged(){ game.dirty=true; game.underlayRev=(game.underlayRev||0)+1; }
 function tileAreaSqFt(n){ return Math.max(0,+n||0)*TILE_IN*TILE_IN/144; }
 function mulchYards(areaSqFt,depthIn){ return Math.max(0,+areaSqFt||0)*(Math.max(0,+depthIn||0)/12)/27; }
 function plantsForTiles(n,spaceIn){
@@ -930,8 +932,24 @@ function pulseShrubFootprint(hit){
    `bloomDay` remains the exact day-in-season override for bulbs, onions, and
    other carefully staggered single-season species. */
 function bloomMonthPhase(month){ return ((month-3+12)%12)*(YEAR_DAYS/12); }
+/* A plant's windows are a pure function of its record, and bloomLevel asks for
+   them once per species per frame: the filter, the twelve-slot array and the
+   run walk below were rebuilt each time, 17ms a second of it on a garden of many
+   species. Kept per definition object, and checked against the three fields it
+   reads, so a record whose bloom data is REPLACED (plants.js's BLOOM_MONTHS
+   copy, a test's stand-in plant) is answered afresh. Callers only read the
+   result; it is shared, so none may write to it. */
+const _bloomWindows=new WeakMap();
 function bloomWindowsFor(P){
   if (!P) return [];
+  if (typeof P!=='object') return computeBloomWindows(P);
+  const m=_bloomWindows.get(P);
+  if (m && m.months===P.bloomMonths && m.win===P.bloomWindow && m.sea===P.sea) return m.out;
+  const out=computeBloomWindows(P);
+  _bloomWindows.set(P,{months:P.bloomMonths, win:P.bloomWindow, sea:P.sea, out});
+  return out;
+}
+function computeBloomWindows(P){
   const explicit=P.bloomWindow;
   if (explicit && Number.isFinite(explicit.start) && Number.isFinite(explicit.end)){
     const start=((explicit.start-3+12)%12)*(YEAR_DAYS/12);
@@ -1000,13 +1018,18 @@ function bloomWindowLevel(day,start,end){
    rise/hold/fade instead, so it cannot blink off at a seasonal boundary. */
 function bloomLevel(key,variant){
   const P=plantDef(key,variant)||{};
-  const seasonDay=(((absDay()%DAYS_PER_SEASON)+DAYS_PER_SEASON)%DAYS_PER_SEASON)+calClock().frac;
+  // the clock is read once: it was read four times a call (absDay and calClock,
+  // twice each), and calClock builds an object every time
+  const ms=elapsedGameMs(), day=Math.floor(ms/DAY_MS)+game.dayOffset, frac=(ms%DAY_MS)/DAY_MS;
   if (P.bloomDay!==undefined){
+    const seasonDay=(((day%DAYS_PER_SEASON)+DAYS_PER_SEASON)%DAYS_PER_SEASON)+frac;
     const t2=Math.max(0,1-Math.abs(seasonDay-P.bloomDay)/7);
     return t2*t2*(3-2*t2);
   }
-  const annualDay=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
-  return bloomWindowsFor(P).reduce((level,[start,end])=>Math.max(level,bloomWindowLevel(annualDay,start,end)),0);
+  const annualDay=(((day%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+frac;
+  let level=0;
+  for (const w of bloomWindowsFor(P)){ const l=bloomWindowLevel(annualDay,w[0],w[1]); if (l>level) level=l; }
+  return level;
 }
 /* ---------- leaf-out ----------
    Leaves are authored once per season, so a deciduous tree was either in full

@@ -3524,7 +3524,7 @@ function renderDiscoveryCategories(strip,selectCat){
 function verifyTrayCache(){
   if (!document.getElementById('trayTabs')){ console.warn('verifyTrayCache: no tray in the DOM.'); return null; }
   const dom=()=>{ const t=document.getElementById('trayTabs'), b=document.getElementById('toolTray');
-    return (t?t.innerHTML:'')+' '+(b?b.innerHTML:''); };
+    return (t?t.innerHTML:'')+'\0'+(b?b.innerHTML:''); };
   const g=game;
   const cases=[
     /* Arm a species that is actually IN the open category. 'shovel' looked like

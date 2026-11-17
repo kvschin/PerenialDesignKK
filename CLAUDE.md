@@ -531,6 +531,27 @@ See §13a.
   refuses a window narrower than ~500px and a "phone" profile silently came out
   500x394 landscape. Read the **rAF gap**, not the JS: the ground bake's cost is
   almost entirely outside every phase timer.
+  **Its pinned half flushes through a 1x1 CPU canvas** (0.9.123), as
+  `ff-bench.cjs` does and `plant-blit-bench.cjs` now does too. Both read the
+  garden canvas itself back until then, which is the trap the ff-bench note
+  above records: past about a hundred reads Chrome keeps that canvas on the
+  CPU, so whatever they printed after that described a canvas no gardener has.
+  A test holds all three tools to the scratch canvas.
+- **Source files are text, and a test holds them to it** (0.9.123).
+  `js/tray.js` carried a raw NUL byte inside a string literal (a separator in
+  `verifyTrayCache`). It ran, and it made `grep` and ripgrep treat the app's
+  largest module as a binary file: a search across `js/` printed "Binary file
+  js/tray.js matches" or nothing, for everything in it. Spell a control
+  character as an escape (`'\0'`).
+- **Audits that find nothing are worth recording too** (`docs/perf-findings.md`,
+  2026-11-17). A soak in headed Chrome, reading DOM nodes, listeners and the
+  heap after a forced GC on each cycle: six kinds of session (garden to menu
+  and back, every dialog, pan/zoom/rotate, a year of Skips, planting with
+  undo, the Library and the guidebook) leave nodes and listeners flat, and
+  the heap levels off after about ten garden round trips. The Library's 811
+  rows are built once (7,754 nodes) and kept, on purpose. A
+  `getBoundingClientRect` per pointermove (`canvasViewportRect`) is 7us with
+  no forced layout behind it, so it is not worth caching.
 - **The drivers that launch a real browser close it by its PROFILE PATH**
   (`dev/close-test-browser.cjs`, used by perf-audit, ground-verify,
   wash-verify, plant-blit-bench and ff-accel-check). `child.kill()` is not enough on Windows:
@@ -1384,6 +1405,17 @@ logic is split across ordered modules. They map onto the section list below
   `blob.start`. It STANDS IN for beat 1 in an empty garden — the tip was step 5
   alone, in a second widget beside it — and `syncStartHere` runs from `updateHUD`,
   so it returns on booleans unless the list is up.
+  **One of those booleans walked every plant in the garden, every frame**
+  (`gardenHasPlanting`, 0.9.123). It reads as an early exit, `for (k in
+  game.plants)` returning on the first live record, and is not one: a layer map
+  is a dictionary-mode object, and `for...in` over one collects ALL its keys
+  before the first iteration. Measured 15ms a second at 164Hz on a 1,482-plant
+  garden. It keeps a WITNESS now, the last live record it found, re-read from the
+  map on each call: still live in the same map object is proof in O(1), and
+  nothing is remembered about an empty garden, so no revision is involved and a
+  direct write, an erase, an undo or a scheme switch cannot make it wrong. **Any
+  `for...in` over a layer map that means to stop early costs the whole map**;
+  where one runs per frame or per pointer event, keep an index or a witness.
   **On a phone a step folds the list before it runs** (`runStartStep`, 0.9.118):
   open, the list is 293px over 288px of clear ground at 375x812, so "Choose plants
   and plant" left nothing to tap and the next tap armed another row of the list.
@@ -1987,6 +2019,55 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     every clump of a species has the same answer within a frame — 532 calls
     become one per species. Measured after: `computeStructSpriteSpec` 0 calls a
     frame, `structRecordSig` 0, `bloomAppearanceFor` 0, `bloomLevel` 532 -> 140.
+    **What a frame still worked out for every record, and no longer does**
+    (0.9.123). A sampling profile of perfBench's quarter acre (1,482 plants,
+    2,101 records) with every frame drawing found a third of the frame's script
+    in answers that had not changed since the last frame. Each is now kept, and
+    each is kept against the thing that can change it:
+    *The clock.* `bloomLevelForFrame`, `leafStageForFrame` and
+    **`sceneEntGrowth`** (Today view's `plantGrowth`, on the record) keep their
+    answer until **`gardenClockStamp()`** moves: the garden instant, or NaN
+    while the clock runs on wall time, which never equals itself, so a running
+    clock asks every frame as before. A planner opens paused and mostly stays
+    paused; fast-forward and a Skip move `game.elapsedMs`, which moves the
+    stamp. The look-ahead bakes borrow the clock and ask `bloomLevel` and
+    `displayPlantGrowth` directly. `bloomWindowsFor` is kept per definition
+    object (it rebuilt its arrays on every call) and its result is SHARED, so a
+    caller may not write to it; `bloomLevel` reads the clock once, not four times.
+    *The camera.* **`setEntDrawPoint`** bakes each record's draw point with the
+    camera taken out (`e.px`/`e.py`: `plantScreenOf` for a plant or bulb,
+    `structAnchor` for a structure, asked with the camera and canvas zeroed and
+    the camera put back in a `finally`), and a frame adds `W/2-cam.x` and
+    `H*0.24-cam.y`, as it does to the cull box. Pots, elevation and plants all
+    carry `scene` in `LAYER_CACHES`, and rotation and plot size are in
+    `sceneKey`, so nothing it reads can change without a rebuild.
+    **`scene.bounds`** is the cull boxes again as one `Float64Array`
+    (`[ox0,ox1,oy0,oy1]` at `i*4`): read off the records, the cull was a cache
+    miss a record, 19ms a second. `scene.boundsFor` names the array they were
+    built for, so a list a dev tool swaps into `scene.ents` falls back to the
+    records.
+    *The bucket.* The sprite key STRING (`rec._kk`, `spec.kk`) is rebuilt when a
+    growth, bloom or leaf bucket (or the season, rotation or lighting) moves,
+    not concatenated per record per frame. Only the string is kept: every cache
+    lookup still runs, so no rule about what is in the caches changed. A draw-time
+    memo on a scene record is named with an underscore (`_kk`, `_g`, `_spec`):
+    `tests/browser-skips.cjs` compares a prepared scene with a fresh build, and
+    a record's content is everything without one.
+    *The wind* is three context calls a plant, not six (`blitPlantSprite`,
+    `plantBlitScale`): inside `render`'s entity pass the garden canvas's
+    transform is a plain scale, stated at the top of the pass, so the sheared
+    matrix is SET (`setTransform(s,0,s*k,s,-s*k*by,0)`) and the scale set back.
+    Composing the inverse shear measured the same and was not used: it leaves a
+    matrix that is exactly a scale again only where the multiply is not fused,
+    and it is on ARM. Any other caller (the selection ghost, the opening
+    preparation's own canvas) keeps save and restore.
+    Together, script per frame with every frame drawing: 3.47 -> 2.33ms on the
+    quarter acre, 0.98 -> 0.73ms on the demo garden. Against the release with a
+    software raster (where the release is bit-identical to itself), at most 122
+    of 789,000 pixels differ, by 1/255: the folded matrix rounds differently.
+    Not done, on purpose: keeping the cache ENTRY on the record, and skipping
+    the LRU re-insert for a sprite drawn last frame. Both touch what the caches
+    hold (35 tests clear `PSPRITE.map` directly) for about 3% each.
     **The shrub-footprint pass culls the same way**, and it is the third place
     this trap was found: the resting `'base'` discs were drawn for every shrub
     surviving the tile bbox, and each is a large translucent ellipse fill and
@@ -2010,7 +2091,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     still reports a handful of isolated pixels at ±1-8 of 255 — that is
     rasteriser batching between two draw sequences, does not respond to the
     slack, and is not what a dropped entity looks like (that is a contiguous
-    blob of hundreds).
+    blob of hundreds). **Its no-cull arm has to switch off the PACKED boxes
+    too** (`scene.boundsFor=null`, 0.9.123): it widens each record's box, and
+    the entity pass no longer reads the records (`scene.bounds`, above), so
+    without that both arms cull alike and it passes whatever the cull does.
+    Checked both ways: 0 of 16 cases on the demo garden, and 7 of 16 with every
+    box cut 260 units short.
     The ground (grass / walkway / laid path /
     bed / flagstone doorstep) was the whole frame cost — 961 tiles of
     fills/strokes/blades redrawn every frame — so it's **cached in a
@@ -2985,6 +3071,41 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     it now, and the sprite and ground tests still do.)
     Full-sun plants under a tree canopy render stunted (growth × 0.45,
     `shadeTrees` precomputed per frame); the plant card says "Struggling".
+    **The tree-shade wash keeps what it works out, by block, and draws it one
+    of two ways** (0.9.123; `SHADE_WASH`, `shadeWashBlocks`, `drawShadeWash`).
+    Every tile a canopy shades is tinted under the planting, and that was a
+    loop over the visible tiles every frame: project the tile, build an
+    `rgba()` string, set it (which parses it), trace a diamond, fill. 0.83us a
+    shaded tile a frame, measured, which under a canopy is a large part of the
+    frame: 0.28 of 0.97ms of script on the demo garden with fourteen trees
+    added, and on the quarter acre with seventy (2,002 shaded tiles, fitted)
+    8.0ms and 37fps. The shaded tiles are now kept in camera-free space,
+    grouped into 4x4 BLOCKS of tiles and, within a block, by alpha stepped to
+    0.01; a frame culls the blocks to the screen, counts the shaded tiles on
+    it, and then: **few (`TILES_MAX`, 900): a fill a tile**, from the kept
+    points and style strings, which is the drawing the old loop sent for less
+    script; **many: each block's tiles of one step as ONE kept `Path2D`**,
+    translated, which is next to no script and far fewer draws. After: 1.24 ->
+    0.86ms a frame on the small garden, and 8.0ms/37fps -> 4.4ms/45fps on the
+    quarter acre (Chrome); in Firefox that quarter acre pans at 141 against
+    124-130fps and fast-forwards at 106-135 against 89-91, and the small plots
+    are level. It is laid out again when the shade map object changes (a tree
+    edit, the season, a rotation) or a tile's HEIGHT does (`shadeWashElevSame`
+    compares the heights, since the elevation grid object is replaced by any
+    terrain edit). **Every simpler shape was measured and loses somewhere**:
+    one path per alpha for the whole plot is free in script and slower than
+    the old loop once zoomed in (139 against 161fps at 100%: the tiles off
+    screen are still tessellated); batching the same on the context every
+    frame is slower in script too (13.6 against 5.3ms); blocks of 8 or 16
+    tiles a side give back some or most of the zoomed-in parity that 4 has;
+    and block paths ALWAYS, which is best in Chrome, run 1-2% behind the old
+    loop in Firefox on a small plot (338 and 729 shaded tiles), which is what
+    the count is for. Both ways use the stepped tint (the map's alphas run
+    0.09-0.24), so the wash does not change as a view crosses from one to the
+    other; against the old wash it differs by at most 3/255, mean 1, on shaded
+    pixels (5 where paths have closed the hairline between two diamonds). A
+    FUTURE canopy's dashed outline is still drawn a tile at a time. Without
+    `Path2D` (the test sandbox) it is always a fill a tile.
     Woody visual rings are separate from legality: placement ghosts,
     plan circles, and the Mature Canopies overlay all draw dashed mature crowns
     from `woodyRadiusTiles(P)` (`spread` inches), while `drawPlant` keeps using
@@ -5987,7 +6108,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     fills left-to-right with the season's progress, tinted by `SEASON_FILL`
     (Spring easter green, Summer dark green, Fall the bronze, Winter a darker
     blue) — this replaced the old thin progress line and the Advance/Pause
-    buttons. The fill runs at `.55` opacity with a crisp 2px ink-channel
+    buttons. **The fill is MOVED, not resized** (0.9.123): it is the box's full
+    width, slid in from the left by `updateHUD` (`translateX(progress-100%)`)
+    and clipped by the box. As a `width` it was a layout of the top bar every
+    time it stepped, which under fast-forward is every frame (113 layouts a
+    second measured, under 1 now), and it left the layout dirty for whatever
+    read it next. No `will-change` on it: a layer there would take the season
+    name off sub-pixel text. The fill runs at `.55` opacity with a crisp 2px ink-channel
     leading edge (`.season-fill::after`): at the old `.18` it washed out to
     grey and the season's end was invisible, and the edge is what makes "how
     far through am I" legible rather than a soft gradient guess. **The opacity
@@ -6740,8 +6867,37 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     The shorter grace is only safe because the **signature is now honest about
     the footprint draft**: its rubber-band edge follows a tile CORNER, finer
     than `game.hoverTile`, and used to be covered only because any pointermove
-    kept the long grace alive (`buildingDraftSig`);
-    render is skipped entirely under the full-screen Library/Plan/Bloom/Export
+    kept the long grace alive (`buildingDraftSig`).
+    **Input is not a change to the picture, and no longer restarts the grace**
+    (0.9.123; `markLoopActivity`, `lastInputAt`, `hoverSig`, `underlaySig`).
+    Every pointer, wheel, key and touch event anywhere on the page used to set
+    `lastMeaningfulChange`, so the garden was redrawn at the display's rate for
+    as long as a pointer moved over the plant library, a wheel scrolled its
+    list, a finger scrolled the sheet on a phone or a key went down in Find.
+    Measured at 164Hz (Chrome 153): on perfBench's quarter acre (1,482 plants)
+    the main thread was 20% busy with the pointer still and 74% while it moved,
+    for the same picture; on the demo garden 63 against 306ms of task time a
+    second. After: 117 and 69ms a second with the pointer moving over the
+    canvas, 159 and 127 over the library (what is left there is the library's
+    own hover styling). Raw input is now only remembered (`lastInputAt`), for
+    `groundViewIdle`, which holds speculative work until the gardener is quiet.
+    What asks for a frame is: a change in `renderStateSig` (a frame, then the
+    grace, since a pan or zoom defers a repaint); a change in **`hoverSig`** (a
+    frame and NO grace: a ghost that moved a tile defers nothing); a gesture or
+    effect in progress; and the 30fps cadence, which draws the wind. `hoverSig`
+    is the hovered tile for a tool that draws there (a plant, the eraser, a
+    sized brush, the house, wall, terrace and pergola tools) and, for Hand,
+    Select, Ruler and Pick (`HOVER_RING_ONLY`), only WHICH shrub's spread the
+    pointer is in, the one thing hovering changes under those. A tool that is
+    not listed gets the tile, so a new one is right by default. Three things
+    were repainted only because input restarted the grace, and are in the
+    signature now: the site photo (`game.underlayRev`, moved by
+    `markUnderlayChanged`; its sliders never touch `game.rev`), its editing and
+    calibration state, and `game.actX`/`actY`, the cursor diamond a Hand tap on
+    open ground moves. Anything else that is missed still repaints inside 33ms,
+    by the cadence. The debug HUD's FPS counts frames DRAWN, so it now reads
+    about 30 while the pointer merely moves, as it always has with it still.
+    Render is skipped entirely under the full-screen Library/Plan/Bloom/Export
     overlays, and the menu border draws at 30fps. A **glass governor**
     (`updateGlassMode`, `GLASS`) watches frame *spacing* on interaction frames
     only — the backdrop-blur recomposite is GPU cost the JS phase timers can't

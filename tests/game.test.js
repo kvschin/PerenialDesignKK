@@ -24001,3 +24001,530 @@ test('pussytoes is a woolly mat with paws of fuzzy heads in spring, cotton in se
   for (const k of fam) assert(staticPlantRoles(k).includes('host')&&staticPlantRoles(k).includes('deerOk'),k+': an American lady host that deer pass by');
   assert(PLANTS.fieldpussytoes.look.flags,'field pussytoes carries the papery flags on its stem leaves');
 });
+
+/* ---------- 0.9.123: what a frame costs when the picture has not changed ----------
+   The sandbox cannot time anything, so these pin the WORK and the answers: a
+   pointer that only moves must not ask for full-rate frames, a paused clock must
+   not re-ask what every plant looks like, and each thing kept across frames
+   must still be the thing that would have been worked out. The figures quoted
+   were measured in Chrome 153 at 164Hz on the demo garden and on perfBench's
+   furnished quarter acre (1,482 plants). */
+/* The sandbox's elements start with no classes, so every full-screen surface
+   reads as open and nothing would ever be drawn behind it. */
+function closeFullScreens(){
+  for (const id of ['libraryScreen', 'guideScreen', 'planScreen', 'bloomScreen', 'exportScreen', 'challengeScreen', 'challengeFinishScreen'])
+    document.getElementById(id).classList.add('hidden');
+  assert(!fullScreenRenderBlocked(), 'no full-screen surface is up');
+  // and nothing left over from another test that keeps frames coming
+  game.fx = []; game.shrubFx = []; game.ffActive = false; resetSeasonFade();
+  assert(!hasTransientGardenWork(), 'nothing transient: ' + [!!gardenOpening, !!game.ffActive, hasActiveGesture(), game.fx.length, game.shrubFx.length, seasonFadeActive(), skipPending()].join(','));
+}
+function countCalls(names, fn){
+  const saved = {}, n = {};
+  for (const k of names){
+    saved[k] = globalThis[k]; n[k] = 0;
+    globalThis[k] = function(){ n[k]++; return saved[k].apply(this, arguments); };
+  }
+  try { fn(); } finally { for (const k of names) globalThis[k] = saved[k]; }
+  return n;
+}
+
+test('input alone does not put the garden on full-rate redraws', () => {
+  /* Every pointer, wheel, key and touch event anywhere on the page used to
+     restart the grace, so the garden redrew at the display's rate for as long as
+     a pointer moved over the plant library or a finger scrolled the sheet:
+     74% of the main thread against 20% with the pointer still, same picture. */
+  setup(21, 21); closeFullScreens();
+  const keep = { c: lastMeaningfulChange, r: lastGardenRender, s: lastRenderSig, h: lastHoverSig, i: lastInputAt };
+  try {
+    const t0 = 5e6;
+    shouldRenderGarden(t0);                         // adopts the current signature
+    lastMeaningfulChange = t0 - 5000; lastGardenRender = t0;
+    markLoopActivity();
+    assertEqual(lastMeaningfulChange, t0 - 5000, 'an input event does not restart the grace');
+    assert(lastInputAt > 0 && lastInputAt !== keep.i || lastInputAt === performance.now(), 'it is remembered as input');
+    assert(!shouldRenderGarden(t0 + 2), 'nothing changed and the last frame is 2ms old: no frame');
+    assert(shouldRenderGarden(t0 + IDLE_FRAME_MS + 1), 'the idle cadence still draws the wind');
+    lastGardenRender = t0 + IDLE_FRAME_MS + 1;
+    // a change to the picture is a frame at once, and the grace after it
+    cam.x += 12;
+    assert(shouldRenderGarden(t0 + 40), 'a camera move draws');
+    lastGardenRender = t0 + 40;
+    assert(shouldRenderGarden(t0 + 40 + IDLE_GRACE_MS - 5), 'and the grace follows a change to the picture');
+    // speculative work waits for the gardener to be quiet as well as the picture
+    lastMeaningfulChange = t0 - 5000; lastInputAt = t0;
+    assert(!groundViewIdle(t0 + 10), 'input just now: not idle');
+    assert(groundViewIdle(t0 + GROUND_IDLE_MS + 10), 'quiet on both counts: idle');
+    assert(!/lastMeaningfulChange\s*=/.test(String(markLoopActivity)), 'markLoopActivity leaves the grace alone');
+  } finally {
+    lastMeaningfulChange = keep.c; lastGardenRender = keep.r; lastRenderSig = keep.s; lastHoverSig = keep.h; lastInputAt = keep.i;
+  }
+});
+
+test('the pointer redraws the garden when what is under it changes, not when it moves', () => {
+  setup(21, 21);
+  const forb = firstOfType('forb');
+  const shrub = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'shrub' && PLANTS[k].spread >= 72);
+  setTile('plants', '10,10', { s: shrub, d: absDay() - 9000, t: 1 });
+  closeFullScreens();
+  const keep = { c: lastMeaningfulChange, r: lastGardenRender, s: lastRenderSig, h: lastHoverSig };
+  try {
+    // the tile is no longer in the signature that restarts the grace
+    game.tool = 'hand'; game.hoverTile = [2, 2];
+    const sig = renderStateSig();
+    game.hoverTile = [5, 6];
+    assertEqual(renderStateSig(), sig, 'the hovered tile is not part of the view signature');
+
+    // Hand: open ground draws nothing under the pointer; a shrub's spread draws its ring
+    game.hoverTile = [2, 2]; const open = hoverSig();
+    game.hoverTile = [3, 2];
+    assertEqual(hoverSig(), open, 'Hand over open ground: another tile, the same picture');
+    game.hoverTile = [10, 10]; const ring = hoverSig();
+    assert(ring !== open, 'over a shrub the spread ring appears');
+    game.hoverTile = [11, 10];
+    assertEqual(hoverSig(), ring, 'and stays the same ring anywhere in that spread');
+    game.layerVis.woody = false;
+    assertEqual(hoverSig(), open, 'no ring for a hidden layer');
+    game.layerVis.woody = true;
+    game.hoverTile = null;
+    assertEqual(hoverSig(), '', 'pointer off the canvas');
+
+    // a brush draws at the tile itself
+    game.tool = forb; game.hoverTile = [2, 2]; const a = hoverSig();
+    game.hoverTile = [3, 2];
+    assert(hoverSig() !== a, 'with a plant armed the ghost follows the tile');
+    game.tool = 'shovel'; game.hoverTile = [2, 2]; const e1 = hoverSig(); game.hoverTile = [2, 3];
+    assert(hoverSig() !== e1, 'and so does the erase footprint');
+
+    /* Why those four tools and no others: render draws at the hovered tile for
+       a plant, the eraser, a sized brush, the house, wall, terrace and pergola
+       tools. A tool that is not listed keeps the tile, so the list can only be
+       too short, never wrong. */
+    for (const t of HOVER_RING_ONLY){
+      assert(!PLANTS[t], t + ' is not a plant');
+      assert(!toolMeta(t).sizable, t + ' has no brush footprint');
+      assert(!['shovel', 'house', 'wall', 'terrace', 'pergola', 'building'].includes(t), t + ' draws no ghost');
+    }
+
+    // one frame for a hover change, and no grace after it
+    game.tool = forb; game.hoverTile = [4, 4];
+    const t0 = 7e6;
+    shouldRenderGarden(t0);
+    lastMeaningfulChange = t0 - 5000; lastGardenRender = t0;
+    assert(!shouldRenderGarden(t0 + 1), 'still pointer: nothing to draw');
+    game.hoverTile = [5, 4];
+    assert(shouldRenderGarden(t0 + 2), 'the ghost moved a tile: a frame now');
+    lastGardenRender = t0 + 2;
+    assertEqual(lastMeaningfulChange, t0 - 5000, 'which does not start the grace');
+    assert(!shouldRenderGarden(t0 + 3), 'so the next frame is not drawn for it');
+  } finally {
+    lastMeaningfulChange = keep.c; lastGardenRender = keep.r; lastRenderSig = keep.s; lastHoverSig = keep.h;
+    game.hoverTile = null;
+  }
+});
+
+test('what used to be repainted only because input restarted the grace is in the signature', () => {
+  setup(21, 21);
+  // the site photo, edited from sliders and buttons that never touch game.rev
+  game.underlay = { cx: 5, cy: 5, widthTiles: 10, rotation: 0, opacity: 0.4, visible: true };
+  let sig = renderStateSig();
+  game.underlay.opacity = 0.6; markUnderlayChanged();
+  assert(renderStateSig() !== sig, 'a site photo edit redraws');
+  sig = renderStateSig();
+  game.photoEditing = true;
+  assert(renderStateSig() !== sig, 'so does entering its editor');
+  sig = renderStateSig();
+  game.underlayCalibration = { points: [] };
+  assert(renderStateSig() !== sig, 'and starting a calibration');
+  sig = renderStateSig();
+  game.underlayCalibration.points.push([1, 1]);
+  assert(renderStateSig() !== sig, 'and each calibration point');
+  game.underlay = null; game.photoEditing = false; game.underlayCalibration = null;
+  // the cursor diamond: a Hand tap on open ground moves it and nothing else
+  sig = renderStateSig();
+  game.actX = 3; game.actY = 4;
+  assert(renderStateSig() !== sig, 'the tile a tap addressed is part of the picture');
+});
+
+test('"is anything planted" is answered from a witness, and never wrongly', () => {
+  /* It looked like an early exit and was not: for...in over a layer map
+     collects every key before the first iteration, so each frame walked every
+     plant. A witness is O(1) and is re-read from the map, so it cannot go stale. */
+  setup(21, 21);
+  const forb = firstOfType('forb'), bulb = firstOfType('bulb');
+  assert(!gardenHasPlanting(), 'an empty garden');
+  setTile('plants', '3,3', { s: forb, d: 0, t: 1 });
+  assert(gardenHasPlanting(), 'one plant');
+  setTile('plants', '4,4', { s: forb, d: 0, t: 1 });
+  clearTile('plants', '3,3');
+  assert(gardenHasPlanting(), 'the witness was erased; the other plant answers');
+  clearTile('plants', '4,4');
+  assert(!gardenHasPlanting(), 'both erased: tombstones are not planting');
+  game.bulbs['5,5'] = { s: bulb, d: 0, t: 1 };          // written directly, no revision moved
+  assert(gardenHasPlanting(), 'nothing is remembered about an empty garden, so a direct write is seen');
+  game.bulbs = {};                                      // a load, an undo, a scheme switch
+  assert(!gardenHasPlanting(), 'a witness from a map that is gone proves nothing');
+
+  // and with a witness the map is not walked again
+  let walks = 0;
+  const real = {};
+  for (let i = 0; i < 50; i++) real[i + ',1'] = { s: forb, d: 0, t: 1 };
+  game.plants = new Proxy(real, { ownKeys(t){ walks++; return Reflect.ownKeys(t); } });
+  assert(gardenHasPlanting(), 'planted');
+  const after = walks;
+  for (let i = 0; i < 20; i++) assert(gardenHasPlanting(), 'still planted');
+  assertEqual(walks, after, 'twenty more frames, no more walks of the map');
+  game.plants = {};
+});
+
+test('bloom windows are worked out once per plant record', () => {
+  let n = 0;
+  for (const k of PLANT_KEYS) for (const v of [null, ...Object.keys(PLANTS[k].cv || {})]){
+    const P = plantDef(k, v), w = bloomWindowsFor(P);
+    assert(w === bloomWindowsFor(P), k + ': the same array the second time');
+    assertEqual(JSON.stringify(w), JSON.stringify(computeBloomWindows(P)), k + (v ? ':' + v : '') + ': and it is the worked-out answer');
+    n++;
+  }
+  assert(n > 900, 'every choice in the catalog');
+  // replaced bloom data is answered afresh (plants.js copies BLOOM_MONTHS over records; tests make stand-ins)
+  const fake = { bloomMonths: [5, 6], sea: {} };
+  const may = bloomWindowsFor(fake);
+  fake.bloomMonths = [9];
+  const sep = bloomWindowsFor(fake);
+  assert(sep !== may && sep[0][0] !== may[0][0], 'new months, new windows');
+  fake.bloomWindow = { start: 3, end: 4 };
+  assert(bloomWindowsFor(fake) !== sep, 'an explicit window too');
+  assertEqual(bloomWindowsFor(null).length, 0, 'no plant, no windows');
+  // bloomLevel reads the clock once and agrees with the windows it is given
+  setup(21, 21);
+  const key = PLANT_KEYS.find(k => PLANTS[k].bloomDay === undefined && (PLANTS[k].bloomMonths || []).length === 2 && !PLANTS[k].hidden);
+  game.pausedAt = Date.now();
+  for (const d of [0, 3.25, 9.5, 17, 30.75, 47.9, 63.5]){
+    game.elapsedMs = d * DAY_MS;
+    const annual = (((absDay() % YEAR_DAYS) + YEAR_DAYS) % YEAR_DAYS) + calClock().frac;
+    const want = computeBloomWindows(PLANTS[key]).reduce((l, [a, b]) => Math.max(l, bloomWindowLevel(annual, a, b)), 0);
+    assert(Math.abs(bloomLevel(key, null) - want) < 1e-12, key + ' day ' + d + ': the level the old arithmetic gave');
+  }
+});
+
+test('bloom and leaf stages are kept while the garden clock stands still', () => {
+  /* "One answer per species per frame" was every frame for the same numbers in
+     a paused planner: about 50ms a second on the quarter acre. */
+  setup(21, 21);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb' && (PLANTS[k].bloomMonths || []).length);
+  const sv = key + '|';
+  game.pausedAt = Date.now(); game.elapsedMs = 20.5 * DAY_MS;
+  let v1, v2;
+  let n = countCalls(['bloomLevel'], () => {
+    pspriteFrame(); v1 = bloomLevelForFrame(sv, key, null);
+    pspriteFrame(); bloomLevelForFrame(sv, key, null);
+    pspriteFrame(); v2 = bloomLevelForFrame(sv, key, null);
+  });
+  assert(n.bloomLevel <= 1, 'three frames of a paused garden ask once at most (' + n.bloomLevel + ')');
+  assertEqual(v2, v1, 'and get the same answer');
+  assertEqual(v1, bloomLevel(key, null), 'which is the real one');
+  // the clock moved (a Skip, fast-forward, an imported day): asked again
+  game.elapsedMs += 9 * DAY_MS;
+  n = countCalls(['bloomLevel'], () => { pspriteFrame(); v2 = bloomLevelForFrame(sv, key, null); });
+  assertEqual(n.bloomLevel, 1, 'a moved clock is a new question');
+  assertEqual(v2, bloomLevel(key, null), 'answered for the new instant');
+  game.dayOffset += 16;
+  n = countCalls(['bloomLevel'], () => { pspriteFrame(); bloomLevelForFrame(sv, key, null); });
+  assertEqual(n.bloomLevel, 1, 'a day offset moves the instant too');
+  game.dayOffset -= 16;
+  // a clock running on wall time is asked every frame, as before
+  game.pausedAt = 0; game.startTs = Date.now();
+  assert(clockActive(), 'the clock is running');
+  assert(Number.isNaN(gardenClockStamp()), 'so there is no instant to keep an answer for');
+  n = countCalls(['bloomLevel'], () => {
+    pspriteFrame(); bloomLevelForFrame(sv, key, null);
+    pspriteFrame(); bloomLevelForFrame(sv, key, null);
+  });
+  assertEqual(n.bloomLevel, 2, 'two frames, two questions');
+  // the leaf stage follows the same rule
+  const tree = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'tree' && woodyLeafOut(PLANTS[k]));
+  game.pausedAt = Date.now(); game.elapsedMs = 9 * DAY_MS;      // mid-spring
+  n = countCalls(['leafStageNow'], () => {
+    pspriteFrame(); v1 = leafStageForFrame(tree + '|', tree, null, 'Spring');
+    pspriteFrame(); v2 = leafStageForFrame(tree + '|', tree, null, 'Spring');
+  });
+  assert(n.leafStageNow <= 1, 'the leaf stage is kept across paused frames');
+  assertEqual(v2, leafStageNow(PLANTS[tree], 'Spring'), 'and is the real one');
+  game.elapsedMs = 11 * DAY_MS;
+  pspriteFrame();
+  assertEqual(leafStageForFrame(tree + '|', tree, null, 'Spring'), leafStageNow(PLANTS[tree], 'Spring'), 'two days on, the stage two days on');
+});
+
+test('a plant\'s growth is kept on its record until the clock moves', () => {
+  setup(21, 21);
+  const forb = firstOfType('forb');
+  game.previewMode = 'today'; game.pausedAt = Date.now(); game.elapsedMs = 5.5 * DAY_MS;
+  game.plants['4,4'] = { s: forb, d: absDay() - 3, t: 1 };
+  const e = { p: game.plants['4,4'] };
+  let g1, g2;
+  let n = countCalls(['plantGrowth'], () => { g1 = sceneEntGrowth(e); sceneEntGrowth(e); g2 = sceneEntGrowth(e); });
+  assertEqual(n.plantGrowth, 1, 'three frames of a paused Today garden work it out once');
+  assertEqual(g2, g1, 'the same size each time');
+  assertEqual(g1, plantGrowth(e.p), 'the size plantGrowth gives');
+  game.elapsedMs += 4 * DAY_MS;
+  n = countCalls(['plantGrowth'], () => { g2 = sceneEntGrowth(e); });
+  assertEqual(n.plantGrowth, 1, 'four days on it is asked again');
+  assertEqual(g2, plantGrowth(e.p), 'and has grown');
+  assert(g2 !== g1, 'a plant three days in the ground is still growing');
+  game.pausedAt = 0; game.startTs = Date.now();
+  n = countCalls(['plantGrowth'], () => { sceneEntGrowth(e); sceneEntGrowth(e); });
+  assertEqual(n.plantGrowth, 2, 'a running clock is asked every frame');
+  game.previewMode = 'established';
+  n = countCalls(['plantGrowth'], () => { g2 = sceneEntGrowth(e); });
+  assertEqual(g2, 1, 'the Established preview is full size');
+  assertEqual(n.plantGrowth, 0, 'with nothing to work out');
+});
+
+test('a record\'s baked draw point and cull box are the ones the frame used to work out', () => {
+  /* plantScreenOf (is it in a pot, its sub-tile offset, the rotation, the
+     tile's height, then the camera) ran for every drawn plant on every frame.
+     Only the camera can change without rebuilding the scene, so the rest is
+     baked. Checked against plantScreenOf itself, at every rotation. */
+  setup(21, 21);
+  const forb = firstOfType('forb'), bulb = firstOfType('bulb'), grass = firstOfType('grass');
+  game.previewMode = 'established';
+  game.plants['5,5'] = { s: forb, d: 0, t: 1 };
+  game.plants['7,6'] = { s: grass, d: 0, t: 1, ox: 0.31, oy: -0.22 };       // free planting
+  game.bulbs['8,3'] = { s: bulb, d: 0, t: 1 };
+  for (let x = 12; x < 15; x++) for (let y = 12; y < 15; y++) setElevationAt(x, y, 2);
+  game.plants['13,13'] = { s: forb, d: 0, t: 1 };                           // on a terrace
+  game.pots['9,9'] = { style: 'terracotta', size: 'p30', t: 1 };            // a 2x1 vessel
+  game.plants['9,9'] = { s: forb, d: 0, t: 1 };                             // standing in it
+  game.fences['2,10'] = { style: 'black', height: 4, gate: false, t: 1 };
+  game.seats['16,4'] = { type: 'bench4', finish: 'teak', face: 1, t: 1 };
+  game.houses = [{ x: 15, y: 15, w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] }];
+  game.sceneRev++; game.potsRev++; game.plantsRev++;
+  const W = 811, H = 603;
+  let plants = 0, structs = 0;
+  for (let rot = 0; rot < 4; rot++){
+    game.rot = rot; cam.x = 37.5; cam.y = -12.25;
+    buildScene(W, H);
+    assert(cam.x === 37.5 && cam.y === -12.25, 'rot ' + rot + ': the camera is put back after the bake');
+    assert(scene.boundsFor === scene.ents && scene.bounds.length === scene.ents.length * 4, 'one cull box per record');
+    cam.x = -203.75; cam.y = 91.5;                                          // and the frame's camera is another one
+    scene.ents.forEach((e, i) => {
+      const want = (e.kind === SCENE_K.PLANT || e.kind === SCENE_K.BULB) ? plantScreenOf(e.x, e.y, e.p, W, H) : structAnchor(e, W, H);
+      const got = [e.px + W / 2 - cam.x, e.py + H * 0.24 - cam.y];
+      assert(Math.abs(got[0] - want[0]) < 1e-6 && Math.abs(got[1] - want[1]) < 1e-6,
+        `rot ${rot} kind ${e.kind} at ${e.x},${e.y}: baked ${got.map(n => n.toFixed(3))} against ${want.map(n => n.toFixed(3))}`);
+      if (e.kind === SCENE_K.PLANT || e.kind === SCENE_K.BULB) plants++; else structs++;
+      const j = i * 4;
+      assert(scene.bounds[j] === e.ox0 && scene.bounds[j + 1] === e.ox1 && scene.bounds[j + 2] === e.oy0 && scene.bounds[j + 3] === e.oy1,
+        'the packed box is the record\'s box, to the bit');
+    });
+  }
+  assert(plants >= 5 * 4 && structs >= 3 * 4, 'plants, a bulb, a potted plant, a terrace and three kinds of structure were all checked');
+  // a list swapped in by a dev tool is not read against boxes built for another
+  assert(/scene\.boundsFor===sents/.test(String(render)), 'the frame uses the packed boxes only for the list they were built for');
+  // and the dev verifier that switches the cull off has to switch THESE off, or it compares a cull with itself
+  assert(/scene\.boundsFor=null/.test(String(verifySceneCull)), 'verifySceneCull disowns the packed boxes for its no-cull arm');
+  game.rot = 0; cam.x = 0; cam.y = 0;
+});
+
+test('the wind is three context calls a plant in the entity pass, and saved and restored anywhere else', () => {
+  const e = { cv: { width: 40, height: 60 }, s: 2, ox: 10, oy: 25 };
+  const rec = () => { const ops = []; return { ops, ctx: new Proxy({}, { get: (o, p) => (...a) => { ops.push([p, a]); } }) }; };
+  // anywhere but render's entity pass: the caller's transform is kept for it
+  let r = rec();
+  blitPlantSprite(r.ctx, e, 100, 200, 0.5);
+  assertEqual(r.ops.map(o => o[0]).join(','), 'save,translate,transform,translate,drawImage,restore', 'outside the pass: saved and restored');
+  r = rec();
+  blitPlantSprite(r.ctx, e, 100, 200, 0);
+  assertEqual(r.ops.map(o => o[0]).join(','), 'drawImage', 'no wind, no transform');
+  r = rec();
+  blitPlantSprite(r.ctx, { cv: { width: 0, height: 0 }, s: 1, ox: 0, oy: 0 }, 1, 1, 0.5);
+  assertEqual(r.ops.length, 0, 'a closed bitmap is not drawn');
+
+  // inside it, on the garden canvas: set the sheared matrix, draw, set the scale back
+  const ops = [], names = ['setTransform', 'drawImage', 'save', 'restore', 'translate', 'transform'];
+  const was = plantBlitScale;
+  for (const nm of names) cx[nm] = (...a) => { ops.push([nm, a]); };
+  try {
+    plantBlitScale = 1.5;
+    const bx = 100, by = 200, sway = 0.5, k = sway * 0.05, s = 1.5;
+    blitPlantSprite(cx, e, bx, by, sway);
+    assertEqual(ops.map(o => o[0]).join(','), 'setTransform,drawImage,setTransform', 'three calls');
+    const m = ops[0][1];
+    // the matrix is scale x (translate, shear, translate back): x' = s(x + k(y-by)), y' = s*y
+    for (const [x, y] of [[0, 0], [100, 200], [133.5, 12.25], [-40, 310]]){
+      const X = m[0] * x + m[2] * y + m[4], Y = m[1] * x + m[3] * y + m[5];
+      assert(Math.abs(X - s * (x + k * (y - by))) < 1e-9 && Math.abs(Y - s * y) < 1e-9, 'the shear about the plant\'s foot, at the canvas scale');
+    }
+    assertEqual(ops[1][1].slice(1).join(','), [bx - e.ox, by - e.oy, 20, 30].join(','), 'the sprite goes where it went');
+    assertEqual(ops[2][1].join(','), [s, 0, 0, s, 0, 0].join(','), 'and the plain scale is set back exactly');
+  } finally {
+    plantBlitScale = was;
+    for (const nm of names) delete cx[nm];
+  }
+  assertEqual(plantBlitScale, 0, 'outside a frame the garden canvas has no known scale');
+  const src = String(render);
+  assert(/plantBlitScale=DPR\*ZOOM/.test(src) && /finally\s*\{\s*plantBlitScale=0/.test(src),
+    'render states the scale for the length of its entity pass and clears it on every path out');
+});
+
+test('a sprite key string is built when a bucket moves, not every frame', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0; PSPRITE.off = false;
+  const ctx = document.createElement('canvas').getContext('2d'), rec = {};
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.50, 'Summer', 4242, 0, null, undefined, true, rec);
+  const k1 = rec._kk;
+  assert(k1 && PSPRITE.map.has(k1), 'the record holds the key its sprite is cached under');
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.50, 'Summer', 4242, 0, null, undefined, true, rec);
+  assert(rec._kk === k1, 'same buckets, same string');
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.95, 'Summer', 4242, 0, null, undefined, true, rec);
+  assert(rec._kk !== k1 && PSPRITE.map.has(rec._kk) && !PSPRITE.map.has(k1), 'a new growth bucket is a new key, and the old sprite is retired');
+  assertEqual(rec._kk, rec.kSlot + '|' + rec._kg + '|' + rec._kb + rec.kTail, 'and it is the key the parts spell');
+  bakePlantKeyParts(rec, key, null, 'Fall', 4242, undefined);
+  assertEqual(rec._kk, '', 're-baking the parts forgets the string built from the old ones');
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0;
+});
+
+test('the shade wash keeps what it works out, by block, until the shade or the grade moves', () => {
+  /* It was a loop over the visible tiles every frame, 0.83us a shaded tile:
+     0.28 of 0.97ms on a small garden with fourteen trees, 36 against 45fps on a
+     quarter acre with seventy. Now the tiles are kept by block and drawn one of
+     two ways. The sandbox has no Path2D, so a stand-in records what the real
+     one would be handed. */
+  setup(31, 31);
+  const tree = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'tree' && PLANTS[k].spread >= 300);
+  game.previewMode = 'established';
+  setTile('plants', '15,15', matureWoodyDraft(tree, null));
+  const had = globalThis.Path2D, keepMax = SHADE_WASH.TILES_MAX;
+  class FakePath { constructor(){ this.starts = []; } moveTo(x, y){ this.starts.push([x, y]); } lineTo(){} closePath(){} }
+  const keepCam = [cam.x, cam.y];
+  // a context that records each fill: its argument (a path, or nothing) and the style it was filled in
+  const recorder = () => {
+    const fills = []; let style = null, starts = 0;
+    const ctx = new Proxy({}, {
+      get: (o, p) => (...a) => { if (p === 'fill') fills.push({ path: a[0], style, starts }); if (p === 'moveTo') starts++; if (p === 'beginPath') starts = 0; },
+      set: (o, p, v) => { if (p === 'fillStyle') style = v; return true; }
+    });
+    return { ctx, fills };
+  };
+  try {
+    SHADE_WASH.cache = null;
+    cam.x = 55.5; cam.y = -20.25;
+    const m = ensureShadeMap();
+    assert(m.hasShade, 'a mature tree shades');
+    const c = shadeWashBlocks(m);
+    assert(cam.x === 55.5 && cam.y === -20.25, 'the camera is put back after the tiles are laid out');
+    // every shaded tile once, where the old loop put its diamond, in the colour it was painted within a step
+    const want = new Map();
+    cam.x = 0; cam.y = 0;
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++){
+      const a = m.activeAlpha[y * GW + x];
+      if (a > 0){ const s = screenOf(x, y, 0, 0); want.set(s[0].toFixed(3) + ',' + s[1].toFixed(3), Math.max(0.035, a)); }
+    }
+    cam.x = 55.5; cam.y = -20.25;
+    assert(want.size >= 20, 'a canopy shades a good many tiles (' + want.size + ')');
+    let seen = 0;
+    for (const bl of c.blocks){
+      assert(bl.x1 - bl.x0 <= SHADE_WASH.BLOCK * TILE_W + 1e-6 && bl.y1 - bl.y0 <= SHADE_WASH.BLOCK * TILE_H + 1e-6, 'a block is no wider than its tiles');
+      let inBlock = 0;
+      for (const f of bl.fills){
+        const alpha = +/rgba\(32,52,42,([\d.]+)\)/.exec(f.style)[1];
+        for (let i = 0; i < f.pts.length; i += 2){
+          const x = f.pts[i], y = f.pts[i + 1], a = want.get(x.toFixed(3) + ',' + y.toFixed(3));
+          assert(a !== undefined, 'a diamond for a tile that is not shaded');
+          assert(Math.abs(alpha - a) <= SHADE_WASH.STEP / 2 + 1e-9, 'tinted within half a step of its own alpha');
+          assert(x - TILE_W / 2 >= bl.x0 - 1e-9 && x + TILE_W / 2 <= bl.x1 + 1e-9 && y >= bl.y0 - 1e-9 && y + TILE_H <= bl.y1 + 1e-9, 'inside its block\'s box');
+          seen++; inBlock++;
+        }
+      }
+      assertEqual(bl.n, inBlock, 'a block knows how many tiles it holds');
+    }
+    assertEqual(seen, want.size, 'every shaded tile, once');
+    // the step bounds how far a tile's tint can be from the old loop's: half of it, in alpha
+    assert(SHADE_WASH.STEP <= 0.01, 'alpha is stepped no coarser than a hundredth');
+    assert(SHADE_WASH.BLOCK >= 2 && SHADE_WASH.BLOCK <= 6, 'a block stays small: at 8 tiles a side the wash cost frames zoomed in, at 16 more');
+
+    // kept: the same map, and a terrain edit that changes no height
+    assert(shadeWashBlocks(m) === c, 'the same shade map is the same blocks');
+    setTile('terrain', '2,2', { k: 'bed', c: 'soil', t: 1 });
+    assert(shadeWashBlocks(ensureShadeMap()) === c, 'painting a bed does not lay them out again');
+    // rebuilt: the ground under a shaded tile is raised, and its diamond rises with it
+    const probe = [...want.keys()][0].split(',').map(Number);
+    let px = -1, py = -1;
+    cam.x = 0; cam.y = 0;
+    for (let y = 0; y < GH && px < 0; y++) for (let x = 0; x < GW; x++){ const s = screenOf(x, y, 0, 0); if (Math.abs(s[0] - probe[0]) < 1e-3 && Math.abs(s[1] - probe[1]) < 1e-3){ px = x; py = y; break; } }
+    setElevationAt(px, py, 2);
+    const c2 = shadeWashBlocks(ensureShadeMap());
+    assert(c2 !== c, 'a terrace under the shade lays them out again');
+    const lifted = c2.blocks.some(bl => bl.fills.some(f => { for (let i = 0; i < f.pts.length; i += 2) if (Math.abs(f.pts[i] - probe[0]) < 1e-3 && Math.abs(f.pts[i + 1] - (probe[1] - 2 * ELEV_STEP)) < 1e-3) return true; return false; }));
+    assert(lifted, 'and the tile is tinted where it now stands');
+    const total = c2.blocks.reduce((n, bl) => n + bl.n, 0);
+
+    // FEW shaded tiles on screen: a fill a tile, from the kept points, in the kept (stepped) styles.
+    // Path2D is there from here on, so it is the COUNT that picks the way.
+    globalThis.Path2D = FakePath;
+    SHADE_WASH.TILES_MAX = total;                 // exactly at the limit is still "few"
+    let r = recorder();
+    drawShadeWash(r.ctx, 4000, 4000, ensureShadeMap());
+    assertEqual(r.fills.length, total, 'a fill for every shaded tile');
+    assert(r.fills.every(f => f.path === undefined && f.starts === 1 && /^rgba\(32,52,42,0\.\d\d\)$/.test(f.style)), 'each one diamond, in a stepped tint');
+    assert(c2.blocks.every(bl => bl.fills.every(f => f.path === null)), 'and no path is built that nobody asked for');
+    // MANY: one more tile than the limit, and each block's tiles of one step are one kept path
+    SHADE_WASH.TILES_MAX = total - 1;
+    r = recorder();
+    drawShadeWash(r.ctx, 4000, 4000, ensureShadeMap());
+    const groups = c2.blocks.reduce((n, bl) => n + bl.fills.length, 0);
+    assertEqual(r.fills.length, groups, 'one fill per block per step');
+    assert(r.fills.every(f => f.path instanceof FakePath), 'of a kept path');
+    assertEqual(r.fills.reduce((n, f) => n + f.path.starts.length, 0), total, 'which between them hold every shaded tile');
+    const first = r.fills[0].path;
+    r = recorder();
+    drawShadeWash(r.ctx, 4000, 4000, ensureShadeMap());
+    assert(r.fills[0].path === first, 'the same path object on the next frame');
+    // either way, a block off the screen is not drawn
+    cam.x = 1e6;
+    for (const max of [0, 1e9]){
+      SHADE_WASH.TILES_MAX = max; r = recorder();
+      drawShadeWash(r.ctx, 800, 600, ensureShadeMap());
+      assertEqual(r.fills.length, 0, 'nothing on screen, nothing filled');
+    }
+    // and without Path2D it is always a fill a tile
+    globalThis.Path2D = had; SHADE_WASH.TILES_MAX = 0; cam.x = 0; cam.y = 0;
+    assert(typeof Path2D === 'undefined', 'the sandbox has no Path2D');
+    r = recorder();
+    drawShadeWash(r.ctx, 4000, 4000, ensureShadeMap());
+    assertEqual(r.fills.length, total, 'no Path2D: a fill a tile');
+  } finally {
+    globalThis.Path2D = had; SHADE_WASH.TILES_MAX = keepMax; SHADE_WASH.cache = null; cam.x = keepCam[0]; cam.y = keepCam[1];
+  }
+  assert(SHADE_WASH.TILES_MAX >= 730 && SHADE_WASH.TILES_MAX <= 2000,
+    'the switch sits between the two measured cases: a 27x27 plot wholly in shade (729 tiles, a fill a tile is faster in Firefox) and a quarter acre (2,002, paths are faster in both)');
+});
+
+test('the season bar moves by transform, and the dev tools do not read the garden canvas back', () => {
+  // a width is a layout of the top bar every time it steps: every frame of a fast-forward
+  assert(!/style\.width/.test(String(updateHUD)), 'updateHUD sizes nothing');
+  assert(/style\.transform='translateX\(/.test(String(updateHUD)), 'it slides the fill');
+  const css = readRepoFile('styles.css');
+  assert(/\.season-fill\{[^}]*width:100%[^}]*transform:translateX\(-100%\)/.test(css), 'the fill is full width and starts slid out');
+  assert(/\.season-box\{[^}]*overflow:hidden/.test(css), 'and the box clips it');
+  /* A canvas that is read back in a loop is taken off the GPU (Chrome for good
+     after about a hundred reads), and a tool that does it then measures that. */
+  for (const f of ['dev/perf-audit.cjs', 'dev/plant-blit-bench.cjs', 'dev/ff-bench.cjs']){
+    const src = readRepoFile(f);
+    assert(/probeCx\.drawImage\(cnv,\s*0,\s*0,\s*1,\s*1\)/.test(src), f + ' flushes through a 1x1 scratch canvas');
+    assert(!/const flush\s*=\s*\(\)\s*=>\s*(\{\s*try\s*\{\s*)?cx2?\.getImageData\(0,\s*0,\s*1,\s*1\)/.test(src), f + ' does not flush by reading the garden canvas');
+  }
+});
+
+test('source files are text', () => {
+  /* js/tray.js carried a raw NUL byte inside a string literal. It ran, and it
+     made grep and ripgrep treat the app's largest module as a binary file, so a
+     search across js/ quietly missed everything in it after that line. */
+  const files = ['index.html', 'styles.css', 'sw.js', 'js/plants.js', 'js/core.js', 'js/draw.js', 'js/world.js', 'js/view.js', 'js/renderer.js',
+    'js/commands.js', 'js/input.js', 'js/io.js', 'js/collections.js', 'js/ui.js', 'js/tray.js', 'js/photos.js', 'js/library.js', 'js/guide.js', 'js/screens.js'];
+  for (const f of files){
+    const m = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.exec(readRepoFile(f));
+    assert(!m, f + ': a control character (0x' + (m ? m[0].charCodeAt(0).toString(16) : '') + ') at offset ' + (m ? m.index : -1));
+  }
+});

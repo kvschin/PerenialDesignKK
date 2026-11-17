@@ -71,8 +71,18 @@ const ENG = ENGINES[ENGNAME];
 /* ------------------------------------------------------------------ in page */
 function inPage(env) {
   const out = { probe: {}, notes: [] };
-  const cx2 = cnv.getContext('2d');
-  const flush = () => { try { cx2.getImageData(0, 0, 1, 1); } catch (e) { } };
+  /* Flushed through a 1x1 CPU canvas, never by reading `cnv` itself. Chrome
+     moves a 2D canvas that is read back to the CPU, for good after about a
+     hundred reads, and from then on every sprite blit is a readback of its own:
+     a few ms a frame becomes a couple of hundred. This probe read `cnv` in its
+     pinned loops, so the numbers after the first hundred flushes described a
+     canvas no gardener has. dev/ff-bench.cjs has the full record. Drawing the
+     garden into the scratch canvas still waits for its queued raster, which is
+     all a flush is for. */
+  const probeCv = document.createElement('canvas');
+  probeCv.width = probeCv.height = 1;
+  const probeCx = probeCv.getContext('2d', { willReadFrequently: true });
+  const flush = () => { try { probeCx.drawImage(cnv, 0, 0, 1, 1); probeCx.getImageData(0, 0, 1, 1); } catch (e) { } };
   const st = a => {
     if (!a.length) return null;
     const s = a.slice().sort((x, y) => x - y), n = s.length;

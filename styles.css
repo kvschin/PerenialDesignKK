@@ -1241,7 +1241,11 @@ canvas.world-thumb{object-fit:contain}
   transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
 .season-box:hover{border-color:var(--border-strong)}
 .season-box:active{border-color:var(--bronze);transform:translateY(1px)}
-.season-fill{position:absolute;top:0;left:0;bottom:0;width:0%;background:#7fc24e;opacity:.58;
+/* Full width, slid in from the left by updateHUD (translateX(progress - 100%)),
+   and clipped by the box. It was sized by `width`, which is a layout of the top
+   bar every time it steps: every frame of a fast-forward. Its trailing edge
+   (::after) travels with it. */
+.season-fill{position:absolute;top:0;left:0;bottom:0;width:100%;transform:translateX(-100%);background:#7fc24e;opacity:.58;
   transition:background .45s ease;pointer-events:none}
 /* A crisp leading edge on the fill. The fill alone is a soft wash with no
    defined end, so "how far through the season am I / when does it turn" was

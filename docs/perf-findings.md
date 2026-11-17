@@ -244,3 +244,51 @@ Counted: `tileAtElevation` calls per 100 `tileAt` calls went **600 → 0** on a 
    - Proposed fix: pass the parsed coordinates in. It is pure JS, but it lives in renderer.js and the scene path, so the owner should review it rather than this routine.
    - How to measure: `?debug`'s `scene` event during a drift drag on the demo garden.
    - Expected gain: GC churn only. Risk: low.
+
+## 2026-11-17 — whole-app audit on the owner's machine, in real browsers (0.9.123)
+
+Unlike the entries above, this one was measured: headed Chrome 153 at 164Hz (RTX 3080 Ti, 1440x900 window), a throwaway profile, the service worker off, and the app's own loop driving the frames. The release and the working tree were served side by side and run alternately. Two gardens: the demo garden (323 plants, fitted) and `perfBench({gw:69})` at 100% zoom (1,482 plants, 2,101 scene records). Numbers are main-thread time unless they say fps.
+
+**Method.** Three passes, in this order:
+1. A soak for things that ACCUMULATE: six kinds of session cycled, with DOM nodes, listeners and the heap read after a forced GC each cycle.
+2. Per-interaction cost from `Performance.getMetrics` (script, style, layout, task time per second), layout reads counted by wrapping `getBoundingClientRect` and `getComputedStyle`, and rAF pacing.
+3. A sampling CPU profile per interaction (100us), self time by function and, for the hot ones, by line.
+
+**Found nothing (worth knowing).**
+- No leak. Nodes and listeners are flat across every scenario. The heap levels off after about ten garden round trips. The Library builds its 811 rows once (7,754 nodes, 871 listeners) and keeps them.
+- 2026-11-04 proposal 1 (`canvasViewportRect` per pointermove) is closed: 7us a call, 2 layouts a second during a drag. No forced layout is behind it.
+
+**Fixed.**
+
+| What | Before | After |
+| --- | --- | --- |
+| Pointer moving over the canvas, Hand tool (quarter acre) | 689ms/s, 156 frames/s drawn | 117ms/s, 28 drawn |
+| Pointer moving over the plant library (quarter acre) | 691ms/s | 159ms/s |
+| Same two, demo garden | 306 and 365ms/s | 69 and 127ms/s |
+| Script per frame, every frame drawing (quarter acre) | 3.47ms | 2.33ms |
+| Same, demo garden | 0.98ms | 0.73ms |
+| Same, demo garden with 14 trees (the shade wash) | 1.24ms | 0.86ms |
+| Quarter acre with 70 trees, fitted, every frame drawing | 8.0ms, 37fps | 4.4ms, 45fps |
+| The same garden in Firefox 157: pan / fast-forward / night pan | 124-130 / 89-91 / 123-125fps | 119-143 / 106-135 / 143-152fps |
+| Layouts a second during fast-forward | 113 | under 1 |
+
+1. **Input was taken for a change to the picture** (screens.js). Any pointer, wheel, key or touch event on the page restarted the 250ms grace, so the garden drew at the display's rate while a pointer moved over the library or a finger scrolled the sheet. Input is now only remembered, for `groundViewIdle`. A hover change (`hoverSig`) gets one frame and no grace. The site photo, its editor state and the cursor diamond joined `renderStateSig`, since they were repainted only by that grace.
+2. **Answers recomputed every frame with the clock paused** (renderer.js, world.js): bloom level and its windows, leaf stage, Today-view growth. Kept until `gardenClockStamp()` moves.
+3. **Per-record work the camera cannot change**: the draw point is baked with the scene (`setEntDrawPoint`); the cull boxes are packed into one `Float64Array`.
+4. **The wind**: three context calls a sprite, not six (`plantBlitScale`).
+5. **Key strings** rebuilt per record per frame: kept until a bucket moves.
+6. **The tree-shade wash**: 0.83us a shaded tile a frame. The tiles are now kept by 4x4 block and culled to the screen; with few on screen it is still a fill a tile (from kept points and styles), with many each block is a kept `Path2D`. A whole-plot path, a per-frame batch, larger blocks, and paths always were each measured and are each worse somewhere: paths always is 1-2% behind the old loop in Firefox on a small plot (see `SHADE_WASH` in renderer.js).
+7. **`gardenHasPlanting`** walked every plant each frame: `for...in` over a dictionary-mode object collects all keys before the first iteration. A witness now.
+8. **The season bar** was animated by `width`, a layout per frame under fast-forward. A transform now.
+9. **Two dev tools read the garden canvas back in a loop** (`perf-audit.cjs`, `plant-blit-bench.cjs`), which takes it off the GPU in Chrome after about a hundred reads. Both flush through a 1x1 scratch canvas now.
+10. **`js/tray.js` held a raw NUL byte**, so grep and ripgrep treated it as binary.
+
+Checked: 1,131 tests (13 new, each mutation-tested). Against the release under a software raster, where the release is bit-identical to itself, the entity changes differ on at most 122 of 789,000 pixels by 1/255, and the shade wash by at most 3/255 (mean 1) on shaded pixels. Firefox (`dev/ff-accel-check.cjs`, three canopy gardens) stayed on the GPU in every run of the working tree; the release was demoted once on the quarter acre with seventy trees.
+
+### Proposals not taken (ranked by expected benefit)
+
+1. **Release the garden's caches on leaving for the menu.** After a session the menu holds the garden's sprites, both ground canvases (6.4MB each at 1440x900, 16.5MB at 2114x1241) and its own border (17MB). Measured 23MB kept on the demo garden. It is well inside every limit, and releasing it makes reopening the same garden a cold open (300ms on a desktop, about 0.9s on a slow phone), which is what a trip to the Plant Library and back is. Worth doing only if a phone is ever seen short of canvas memory; the spare ground canvas alone could go at no cost.
+2. **Skip the LRU re-insert for a sprite drawn last frame**, and keep the cache entry on the record. About 3% of the frame each. Both change what the sprite caches hold, and 35 tests clear `PSPRITE.map` directly, so a kept entry needs a validity check that gives most of it back.
+3. **`renderStateSig` builds about 25 short strings every animation frame** (2026-10-28 proposal 2). Measured now: 1-3ms a second at 164Hz. Not worth the risk of a missed field.
+4. **The idle garden still draws 28 frames a second for the wind**: 54ms/s on the demo garden, 116 on the quarter acre. With motion reduced nothing needs to move, so it could stop entirely there. Not measured on a phone.
+5. **`snapshotState` copy-on-write** (2026-11-04 proposal 2) is unchanged: 0.2ms/s in a profile of a planting drag on the quarter acre, so it stays unranked.
