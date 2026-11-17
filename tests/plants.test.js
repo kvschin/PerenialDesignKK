@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,834,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,836,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),651,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),649,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -127,6 +127,8 @@ test('catalog cleanup leaves only intentional base-taxon aliases', () => {
     'yucca|colorguard':'adamsneedle|colorguard',
     'yucca|brightedge':'adamsneedle|brightedge',
     'yucca|goldensword':'adamsneedle|goldensword',
+    'bamboo|clumping':'umbrellabamboo|',
+    'bamboo|black':'blackbamboo|',
   };
   for (const [from,to] of Object.entries(expectedAliases)){
     assertEqual(PLANT_REF_ALIASES[from],to,`${from}: durable migration`);

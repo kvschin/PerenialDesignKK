@@ -2024,12 +2024,15 @@ function hedgeRenderDetail(x,y,p,W,H){
 function bambooRenderDetail(x,y,p,W,H){
   const P=p && plantDef(p.s,p.v);
   if (!P || P.form!=='bamboo') return null;
-  const group=P.group||p.s, [sx,sy]=screenOf(x,y,W,H), bambooDirs=[];
+  /* A grove is one SPECIES: black bamboo beside a clumping Fargesia is two
+     plantings, not one stand. (It linked by presentation group while all bamboo
+     was one record; a selection still joins its own species.) */
+  const [sx,sy]=screenOf(x,y,W,H), bambooDirs=[];
   [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]].forEach(([dx,dy])=>{
     const np=game.plants[`${x+dx},${y+dy}`];
     if (!np || np.removed) return;
     const NP=plantDef(np.s,np.v);
-    if (!NP || NP.form!=='bamboo' || (NP.group||np.s)!==group) return;
+    if (!NP || NP.form!=='bamboo' || np.s!==p.s) return;
     const [nx,ny]=screenOf(x+dx,y+dy,W,H);
     bambooDirs.push([nx-sx,ny-sy]);
   });

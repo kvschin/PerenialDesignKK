@@ -1044,7 +1044,7 @@ function staticPlantRoles(k){
   if (isTreeDef(P)) roles.add('structure'), roles.add('canopy');
   if (P.form==='fern') roles.add('fern'), roles.add('shade'), roles.add('woodland');
   if (P.form==='leafmound') roles.add('groundcover'), roles.add('shade'), roles.add('woodland');
-  if (['globe','spike','drumstick','rosette','agave','cycad','fanpalm','ocotillo','vertgrass','fountaingrass','cloudgrass','conifer','emergent'].includes(P.form))
+  if (['globe','spike','drumstick','rosette','agave','cycad','fanpalm','ocotillo','vertgrass','fountaingrass','cloudgrass','conifer','emergent','bamboo'].includes(P.form))
     roles.add('architectural');
   if (['umbel','cone','pincushion','bractstack'].includes(P.form)) roles.add('flower');
   if (P.form==='hydrangea') roles.add('hydrangea'), roles.add('cottage'), roles.add('romantic'), roles.add('shade');
@@ -1070,7 +1070,7 @@ function staticPlantRoles(k){
     roles.add('dry'), roles.add('gravel'), roles.add('mediterranean');
   if (roleMatches(text,['silver','blue fescue','yucca','eryngium','echinops','yarrow','stachys','rattlesnake','pussytoes','antennaria']))
     roles.add('silver');
-  if (roleMatches(text,['japanese maple','flowering cherry','hakonechloa','hosta','fern','astilbe','heuchera','hydrangea','ginkgo','birch','yew','boxwood']))
+  if (roleMatches(text,['japanese maple','flowering cherry','hakonechloa','hosta','fern','astilbe','heuchera','hydrangea','ginkgo','birch','yew','boxwood','bamboo']))
     roles.add('japanese');
   if (roleMatches(text,['fountain grass','miscanthus','feather reed','calamagrostis','fescue','hakonechloa','boxwood','yew','hydrangea','allium','ginkgo','maple','cherry','birch','rattlesnake','eryngium','echinops']))
     roles.add('modern'), roles.add('block');

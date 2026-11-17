@@ -7332,6 +7332,29 @@ eye, drawing or height. Record: `docs/plant-data/bulb-audit.md`;
 `dev/bulb-review.html` shows every choice close up, in four seasons and at true
 scale with its height marked.
 
+**Bamboo names three species (0.9.127, audit D08).** It was one record, latin
+'Fargesia / Phyllostachys selections', whose choices ('Clumping bamboo', 'Golden
+groove', 'Black bamboo') named no plant. Now: `bamboo` is yellow groove bamboo
+(*Phyllostachys aureosulcata*, the green grove the old record drew) with its old
+`golden` choice kept on its key as 'Spectabilis', the yellow-caned form it drew;
+`blackbamboo` (*P. nigra*); `umbrellabamboo` (*Fargesia murielae*), the clumping one.
+Saved 'Clumping' and 'Black' choices open as the new records through
+`PLANT_REF_ALIASES`. **A running bamboo's `spread` is a planted clump, not a colony**:
+MBG's 12-25 ft is how far yellow groove runs, which has no end, and sized to that it
+drew squat. The blurbs say which run, and that MBG lists yellow groove as a Midwest
+noxious weed and NC State says not to plant it. Opt-in look keys in the `bamboo` form,
+none of which spends a random number: `caneStripe` (the groove; at 0.7 wide the
+green species read yellow), `caneYoung`/`youngShare` (black bamboo's green new
+canes), `caneW`, `caneArch` and `leafScale` (the Fargesia fountain). Snow lies on the
+leaves through `_snowLeaves`; the generic scatter hung it in the air between the
+canes. **A grove links within a SPECIES** (`bambooRenderDetail` compares `p.s`), not
+the presentation group: with all bamboo in one record the group was the species.
+The fall and winter `seed` colours went, since bamboo rarely flowers, and with them
+the `seedhead` and `winter` roles they earned; bamboo is named in the Japanese role
+list and its form in the architectural one, so it is still a Japanese and Modern
+plant (and Shade where it takes part shade, which yellow groove does not). Sources:
+`docs/plant-data/bamboo-sources.json`; `dev/bamboo-review.html` (`?grove`, `?check`).
+
 Broadleaf fruit and nut trees can use `look.fruitShape:'round'|'pear'|'fig'|
 'oval'|'pod'|'nut'|'husk'|'bur'|'pomegranate'`, plus an optional bounded
 `fruitCluster` of 1–4. `seedN` remains the total fruit-glyph budget and `seedR`

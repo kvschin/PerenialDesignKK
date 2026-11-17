@@ -11072,48 +11072,80 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       });
       ctx.restore();
     }
-    const canes=stemFor((L.canes||11)+dirs.length*3);
+    /* Species are told apart by opt-in look keys (0.9.127), each spending no
+       random number, so a grove keeps its shape whichever are set:
+       caneStripe  the groove down one side of each cane (yellow groove bamboo)
+       caneYoung   the colour of this year's canes, on youngShare of them,
+                   chosen by a fixed stride (black bamboo comes up green)
+       caneW       cane thickness (a Fargesia cane is a quarter of a Phyllostachys)
+       caneArch    0..1, canes bow outward and the tips fall a little (a fountain)
+       leafScale   leaf size (Fargesia leaves are about half as long) */
+    const canes=stemFor((L.canes||11)+dirs.length*3), cwK=L.caneW||1, arch=L.caneArch||0, lk=L.leafScale||1;
     for (let i=0;i<canes;i++){
       const pull=dirs.length && i%3===0 ? dirs[(i/3|0)%dirs.length] : null;
       let ox=(rnd()-0.5)*cw*0.62, lean=(rnd()-0.5)*6+sway*2;
       if (pull){ const len=Math.hypot(pull[0],pull[1])||1; ox+=(pull[0]/len)*cw*0.20; lean+=(pull[0]/len)*4; }
-      const ht=H*(0.72+rnd()*0.34);
-      ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=3.2*vs;
-      ctx.beginPath(); ctx.moveTo(ox+1,0); ctx.quadraticCurveTo(ox+lean*0.25,-ht*0.45,ox+lean,-ht); ctx.stroke();
-      ctx.strokeStyle=shade(cane,(rnd()-0.5)*24); ctx.lineWidth=2.1*vs;
-      ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(ox+lean*0.25,-ht*0.45,ox+lean,-ht); ctx.stroke();
-      ctx.strokeStyle='rgba(246,236,202,0.24)'; ctx.lineWidth=0.8*vs;
+      let ht=H*(0.72+rnd()*0.34);
+      // the curve: from the foot (ox,0) through (cx,cy) to the tip (tx,ty)
+      let cx=ox+lean*0.25, cy=-ht*0.45, tx=ox+lean, ty=-ht;
+      if (arch){
+        // An arching cane climbs nearly straight and bends out near the top, the
+        // outer canes most; the tip ends lower than the cane is long.
+        const out=(ox<0?-1:1)*(0.35+Math.min(1,Math.abs(ox)/(cw*0.31+1)))*arch;
+        tx=ox+lean+out*cw*0.42; ty=-ht*(1-arch*0.14);
+        cx=ox+lean*0.15+out*cw*0.06; cy=-ht*0.82;
+      }
+      const at=f=>{ const g=1-f; return [g*g*ox+2*g*f*cx+f*f*tx, 2*g*f*cy+f*f*ty]; };
+      const young=L.caneYoung && ((i*0.6180339887)%1)<(L.youngShare||0);
+      ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=3.2*vs*cwK;
+      ctx.beginPath(); ctx.moveTo(ox+1,0); ctx.quadraticCurveTo(cx,cy,tx,ty); ctx.stroke();
+      ctx.strokeStyle=shade(young?L.caneYoung:cane,(rnd()-0.5)*24); ctx.lineWidth=2.1*vs*cwK;
+      ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(cx,cy,tx,ty); ctx.stroke();
+      if (L.caneStripe){
+        // a groove, not a second colour: at 0.7 wide the species read yellow
+        const d=0.65*vs*cwK;
+        ctx.strokeStyle=L.caneStripe; ctx.lineWidth=0.38*vs*cwK;
+        ctx.beginPath(); ctx.moveTo(ox+d,0); ctx.quadraticCurveTo(cx+d,cy,tx+d,ty); ctx.stroke();
+      }
+      ctx.strokeStyle='rgba(246,236,202,0.24)'; ctx.lineWidth=0.8*vs*cwK;
+      const ring=2.4*vs*cwK;
       if (art2On(L)){
         // The four node rings on a cane share one style and are contiguous, so
         // they are one path and one stroke instead of four. On a 13-cane grove
         // that is 52 stroke calls a frame down to 13 — which is what pays for
         // the shaped leaves below.
         ctx.beginPath();
-        for (let n=1;n<5;n++){ const yy=-ht*n/5, xx=ox+lean*(n/5);
-          ctx.moveTo(xx-2.4*vs,yy); ctx.lineTo(xx+2.4*vs,yy); }
+        for (let n=1;n<5;n++){ const [xx,yy]=at(n/5);
+          ctx.moveTo(xx-ring,yy); ctx.lineTo(xx+ring,yy); }
         ctx.stroke();
       } else {
-        for (let n=1;n<5;n++){ const yy=-ht*n/5, xx=ox+lean*(n/5);
-          ctx.beginPath(); ctx.moveTo(xx-2.4*vs,yy); ctx.lineTo(xx+2.4*vs,yy); ctx.stroke(); }
+        for (let n=1;n<5;n++){ const [xx,yy]=at(n/5);
+          ctx.beginPath(); ctx.moveTo(xx-ring,yy); ctx.lineTo(xx+ring,yy); ctx.stroke(); }
       }
       if (S.fol){
         const leaves=Math.max(2,Math.round((L.leafN||36)/canes));
+        // Winter snow lies on the leaves (drawLeaf records each one). Left to the
+        // generic scatter it hung in the air between the canes.
+        _snowLeaves=snowLv;
         for (let j=0;j<leaves;j++){
-          const f=0.45+rnd()*0.48, lx=ox+lean*f, ly=-ht*f;
+          const f=0.45+rnd()*0.48, [lx,ly]=at(f);
           const side=rnd()<0.5?-1:1;
           if (art2On(L)){
             // Bamboo leaves are narrow lance straps that hang off the node in
             // one plane. rib:false — a midrib is invisible at 16px and costs a
             // whole stroke per leaf, so the leaf count stays the fill count.
-            const bx=lx+side*(1.5+rnd()*2)*vs, by=ly+(rnd()-0.5)*4;
-            drawLeaf(ctx, bx,by, bx+side*(11+rnd()*5)*vs, by+(2.5+rnd()*4)*vs,
-                     2.4*vs, shade(fol,(rnd()-0.5)*22),
+            const bx=lx+side*(1.5+rnd()*2)*vs*lk, by=ly+(rnd()-0.5)*4;
+            drawLeaf(ctx, bx,by, bx+side*(11+rnd()*5)*vs*lk, by+(2.5+rnd()*4)*vs*lk*(arch?1.5:1),
+                     2.4*vs*lk, shade(fol,(rnd()-0.5)*22),
                      {shape:'lance', rib:false, bow:side*0.10});
           } else {
             ctx.fillStyle=shade(fol,(rnd()-0.5)*26);
-            ctx.beginPath(); ctx.ellipse(lx+side*(5+rnd()*7)*vs,ly+(rnd()-0.5)*5,8*vs,2.1*vs,side*0.35,0,7); ctx.fill();
+            const ex=lx+side*(5+rnd()*7)*vs, ey=ly+(rnd()-0.5)*5;
+            ctx.beginPath(); ctx.ellipse(ex,ey,8*vs,2.1*vs,side*0.35,0,7); ctx.fill();
+            snowLeafAt(ex,ey,2.1*vs);
           }
         }
+        _snowLeaves=null;
       }
     }
   }

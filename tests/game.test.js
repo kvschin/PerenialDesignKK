@@ -7125,6 +7125,43 @@ test('bamboo trees expose grove neighbors when planted together', () => {
   assertEqual(applyToolAt(6, 5), 'plant', 'second bamboo planted');
   const d = plantRenderDetail(5, 5, game.plants['5,5'], 1024, 768);
   assert(d && d.bambooDirs && d.bambooDirs.length, 'adjacent bamboo links into a grove');
+  // a grove is one species: black bamboo beside it stands apart, a selection joins
+  game.plants['7,5'] = { s: 'blackbamboo', d: 0, t: 1 };
+  game.plants['5,6'] = { s: 'bamboo', v: 'golden', d: 0, t: 1 };
+  const black = plantRenderDetail(7, 5, game.plants['7,5'], 1024, 768);
+  assert(!black, 'a different bamboo beside the grove does not join it');
+  const own = plantRenderDetail(6, 5, game.plants['6,5'], 1024, 768);
+  assertEqual(own.bambooDirs.length, 2, 'the species links to its own selection, and not to the black bamboo');
+});
+
+test('every bamboo names one species, and the old choices open as the plants they were', () => {
+  const bamboos = PLANT_KEYS.filter(k => PLANTS[k].form === 'bamboo');
+  assertEqual(bamboos.sort().join(), 'bamboo,blackbamboo,umbrellabamboo');
+  for (const k of bamboos){
+    const P = PLANTS[k];
+    assert(/^[A-Z][a-z]+ [a-z]+$/.test(P.latin), `${k}: one binomial, not a list (${P.latin})`);
+    assertEqual(P.nativeTo.join(), 'asia', `${k}: an Asian species`);
+    assertEqual(P.provenance, 'species', `${k}: a straight species`);
+    assert(P.heightIn && P.spread && P.zones, `${k}: sized and zoned from its sources`);
+    assert(!Object.values(P.sea).some(s => s.seed), `${k}: no seedheads; bamboo rarely flowers`);
+    assert(/barrier|does not run/.test(P.blurb), `${k}: says whether it runs`);
+    // a staple of Japanese and modern gardens by what it is, not by seedheads it
+    // never grows (the old record earned 'winter' and 'seedhead' from a made-up seed colour)
+    const roles = staticPlantRoles(k);
+    assert(roles.includes('japanese') && roles.includes('architectural'), `${k}: japanese and architectural`);
+    assert(!roles.includes('seedhead') && !roles.includes('winter'), `${k}: no seedhead roles`);
+  }
+  assertEqual(staticPlantRoles('bamboo').includes('shade'), false, 'yellow groove wants full sun, so it is not a shade plant');
+  // saved gardens: the three old choices that named no species
+  const ref = (s, v) => { const r = canonicalPlantRef(s, v); return r.s + '|' + (r.v || ''); };
+  assertEqual(ref('bamboo', 'clumping'), 'umbrellabamboo|', 'Clumping opens as umbrella bamboo');
+  assertEqual(ref('bamboo', 'black'), 'blackbamboo|', 'Black opens as black bamboo');
+  assertEqual(ref('bamboo', 'golden'), 'bamboo|golden', 'Golden groove keeps its yellow canes, as Spectabilis');
+  assertEqual(plantDef('bamboo', 'golden').name, 'Yellow Groove Bamboo Spectabilis');
+  assertEqual(ref('bamboo', null), 'bamboo|', 'the plain grove is yellow groove bamboo');
+  // and each one draws as itself
+  const looks = bamboos.map(k => PLANTS[k].look);
+  assert(looks[0].caneStripe && looks[1].caneYoung && looks[2].caneArch, 'groove, young green canes, an arching clump');
 });
 
 test('boxwood and yew cultivars are documented but not selectable variants', () => {

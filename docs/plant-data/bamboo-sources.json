@@ -1,0 +1,91 @@
+{
+  "reviewed": "2026-11-17",
+  "note": "Sources for the bamboo records rebuilt in 0.9.127 (audit D08). The one record before named no species ('Fargesia / Phyllostachys selections') and its choices were 'Clumping bamboo', 'Golden groove' and 'Black bamboo'. `estimates` names every field that is a planning value rather than a published figure, and why. NC State returned 404 for Phyllostachys nigra, Fargesia murielae and Fargesia rufa.",
+  "migration": {
+    "bamboo|": "bamboo| (now Phyllostachys aureosulcata): the old base drew a green 25 ft grove, which is this species",
+    "bamboo|golden": "bamboo|golden (now 'Spectabilis'): MBG lists 'golden groove bamboo' as a common name of the species, but the old choice drew yellow canes, which is 'Spectabilis' (yellow culm, green groove). Kept on its key so saved gardens keep the picture they show",
+    "bamboo|clumping": "umbrellabamboo| (PLANT_REF_ALIASES): the old choice was 12 x 6 ft, 'Fargesia-style', which is the classic clumping Fargesia",
+    "bamboo|black": "blackbamboo| (PLANT_REF_ALIASES)"
+  },
+  "records": {
+    "bamboo": {
+      "latin": "Phyllostachys aureosulcata",
+      "sources": {
+        "mbg": {
+          "url": "https://plantfinder.mobot.org/PlantFinderDetails.aspx?taxonid=285361",
+          "says": "Zone 4 to 9; height 12-18 ft; spread 12-25 ft; full sun, tolerates some light shade; medium water; native to northeastern China. Culms to 25-30 ft, but 12-18 ft in USDA zones 5-6. A running bamboo that naturalizes into dense colonies; root barriers advised. Flagged 'Midwest Noxious Weed: Do Not Plant'; listed as a noxious weed in one or more Midwestern states outside Missouri. Common names include golden groove bamboo."
+        },
+        "ncstate": {
+          "url": "https://plants.ces.ncsu.edu/plants/phyllostachys-aureosulcata/",
+          "says": "Height 12-18 ft, width 12-25 ft; zones 4a-10a; 'a running type of bamboo with very invasive tendencies... an invasive species and should not be planted'."
+        },
+        "bambooGarden": {
+          "url": "https://www.bamboogarden.com/bamboo/phyllostachys-aureosulcata",
+          "says": "Height 30 ft max, 25 ft average (Portland, OR); hardy to -10F; USDA zones 5-10; one of the hardiest bamboos; about one cane in ten zig-zags at the base; cultivars 'Spectabilis', 'Aureocaulis', 'Harbin Inversa'."
+        },
+        "wikipedia": "Phyllostachys aureosulcata: native to Zhejiang Province, China."
+      },
+      "estimates": {
+        "heightIn": "216 (18 ft): the top of MBG's and NC State's 12-18 ft, which both give for colder zones; it runs to 25-30 ft where winters are mild",
+        "spread": "120 (10 ft): a planted clump, not a colony. MBG and NC State's 12-25 ft is how far a stand runs, which a running bamboo has no end to; sized to the colony it drew squat",
+        "zones": "[4,10]: MBG 4-9, NC State 4a-10a, Bamboo Garden 5-10",
+        "sun": "full: MBG",
+        "space": "36: unchanged from the old record, no source",
+        "grow": "5: RHS gives 5-10 years to mature size for both bamboos it lists"
+      },
+      "cultivars": {
+        "golden": {
+          "name": "Spectabilis",
+          "sources": {
+            "bambooGarden": {
+              "url": "https://www.bamboogarden.com/bamboo/phyllostachys-aureosulcata-spectabilis",
+              "says": "Colours reversed from the species: bright yellow culms with a green sulcus; new culms flush red in sun. Height 30 ft max, 25 ft average; -10F; zones 5-10."
+            }
+          },
+          "estimates": { "size": "the species' figures; no source gives a different size" }
+        }
+      }
+    },
+    "blackbamboo": {
+      "latin": "Phyllostachys nigra",
+      "sources": {
+        "rhs": {
+          "url": "https://www.rhs.org.uk/plants/12869/phyllostachys-nigra/details",
+          "says": "Max height 2.5-4 m, max spread 2.5-4 m, 5-10 years to maturity; full sun or partial shade; moist but well-drained; sheltered; H5."
+        },
+        "bambooGarden": {
+          "url": "https://www.bamboogarden.com/bamboo/phyllostachys-nigra",
+          "says": "Height 40 ft max, 20-25 ft average; hardy to 5F; USDA zones 7-10. Usually 25-30 ft in Portland gardens. New culms emerge green and turn black in one to three years. Currently unavailable after gregarious flowering."
+        },
+        "wikipedia": "Phyllostachys nigra: native to Hunan Province, China; up to 10 m."
+      },
+      "estimates": {
+        "heightIn": "240 (20 ft): the low end of Bamboo Garden's 20-25 ft average in a mild garden. The RHS's 2.5-4 m is a British figure",
+        "spread": "120 (10 ft): the top of the RHS's 2.5-4 m; a planted clump, as for yellow groove",
+        "zones": "[7,10]: Bamboo Garden and most nurseries; some report it surviving zone 6 with damage",
+        "sun": "part: the RHS gives full sun or partial shade"
+      }
+    },
+    "umbrellabamboo": {
+      "latin": "Fargesia murielae",
+      "synonyms": ["Arundinaria murielae", "Sinarundinaria murielae"],
+      "sources": {
+        "rhs": {
+          "url": "https://www.rhs.org.uk/plants/82475/fargesia-murielae/details",
+          "says": "Max height 2.5-4 m, max spread 1-1.5 m, 5-10 years to maturity; full sun or partial shade; sheltered."
+        },
+        "bambooGarden": {
+          "url": "https://www.bamboogarden.com/bamboo/fargesia-murielae",
+          "says": "Height 14 ft max, 10-12 ft average; 0.5 in canes; hardy to -20F; USDA zones 5-9. Not recommended for climates with intense heat or high summer humidity, including most of the southern USA. Shade-loving; leaves yellow or burn in too much summer sun. Introduced by E. H. Wilson in 1910."
+        },
+        "wikipedia": "Fargesia murielae: a large, clump-forming evergreen bamboo with yellow canes, close to F. nitida."
+      },
+      "estimates": {
+        "heightIn": "144 (12 ft): the top of Bamboo Garden's 10-12 ft average; the old 'Clumping bamboo' was also 12 ft",
+        "spread": "60 (5 ft): the top of the RHS's 1-1.5 m",
+        "sun": "part: Bamboo Garden calls it shade-loving; the RHS allows full sun in Britain"
+      }
+    }
+  },
+  "notConsidered": "Fargesia rufa (MBG: zones 5-8, 6-10 ft, non-running; https://plantfinder.mobot.org/PlantFinderDetails.aspx?taxonid=285374) would give a smaller clumping choice, and river cane (Arundinaria gigantea) a North American native one. Neither was in the old record; both are candidates for a later batch."
+}

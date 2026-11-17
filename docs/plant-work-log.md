@@ -317,3 +317,22 @@ later runs do not redo or touch the same records.
   whose siblings at `h:8` and `h:10` touch it too.
 - Next: a fit for those tray previews; the faint highlight strokes that float above every arching-stem
   plant (drawPlant's closing strokes, as the mats and bulbs had).
+
+## 2026-11-17 — bamboo with real species (0.9.127, audit D08)
+
+- One record, 'Fargesia / Phyllostachys selections', became three species: yellow groove bamboo
+  (*Phyllostachys aureosulcata*, the `bamboo` key, with its old 'golden' choice now 'Spectabilis'),
+  black bamboo (*P. nigra*) and umbrella bamboo (*Fargesia murielae*). Saved 'Clumping' and 'Black'
+  choices open as the new records (`PLANT_REF_ALIASES`). Record: `docs/plant-data/bamboo-sources.json`.
+- Sources: MBG Plant Finder (yellow groove: zone 4-9, 12-18 ft, a Midwest noxious weed), NC State
+  (invasive, should not be planted), the RHS (black and umbrella), Bamboo Garden (zones, US heights).
+- Sizes: 18 x 10 ft, 20 x 10 ft and 12 x 5 ft. `spread` is a planted clump, not a colony; `h`/`cw`
+  solved with `dev/cultivar-size.cjs` against the old record.
+- Drawing (opt-in, bamboo only): `caneStripe` (the groove), `caneYoung`/`youngShare` (black bamboo's
+  green new canes), `caneW`, `caneArch` and `leafScale` (the Fargesia fountain). Snow lies on the
+  leaves; it floated between the canes. Groves link within a species, not across the group.
+- Roles: the fall and winter `seed` colours went (bamboo rarely flowers), which had made it a
+  seedhead and winter plant. Bamboo is now named in the Japanese and architectural role tables.
+- Review: `dev/bamboo-review.html` (`?grove` draws three linked tiles; `?check` sweeps sprites: 48 clean).
+- Next: Fargesia rufa as a smaller clumping choice, and river cane (*Arundinaria gigantea*) as the
+  North American native one.

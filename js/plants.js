@@ -5530,20 +5530,36 @@ const PLANTS = {
     }},
 
   /* ---------- trees ---------- */
-  bamboo:{ name:'Bamboo', latin:'Fargesia / Phyllostachys selections', form:'bamboo', type:'tree', h:96, cw:90, heightIn:300,
-    group:'bamboo', groupLabel:'Bamboo', chip:'Grove',
-    space:36, spread:96, zones:[5,9], _legacyNative:false, sun:'part', moist:'medium', phen:'warm', grow:3,
-    look:{art2:true, canes:13, leafN:42, cane:'#5f7f42'},
-    blurb:'Bamboo for a linked grove or screen. Use clumping types where possible; running bamboo needs serious containment.',
-    sea:{Spring:{fol:'#86a86a'}, Summer:{fol:'#4f7c50'}, Fall:{fol:'#63794b',seed:'#8a7a4c'}, Winter:{fol:'#4e6a4a',seed:'#8a7a4c'}},
+  /* Bamboo (0.9.127). Until then one record, 'Fargesia / Phyllostachys
+     selections', held a generic grove and three choices with no species behind
+     them (audit D08). Each is now a real taxon; the key `bamboo` is yellow groove
+     bamboo, whose green grove the old record drew, and its old 'golden' choice is
+     'Spectabilis', the yellow-caned form it drew. 'Clumping' and 'Black' moved to
+     records of their own (PLANT_REF_ALIASES). Sizes: docs/plant-data/bamboo-sources.json.
+     `spread` is a planted clump, not a colony: a running bamboo has no mature
+     width, and the 12-25 ft its sources quote is how far one runs. */
+  bamboo:{ name:'Yellow Groove Bamboo', latin:'Phyllostachys aureosulcata', form:'bamboo', type:'tree', h:73, cw:102, heightIn:216,
+    group:'bamboo', groupLabel:'Bamboo', chip:'Yellow groove', nativeTo:['asia'], provenance:'species',
+    space:36, spread:120, zones:[4,10], _legacyNative:false, sun:'full', moist:'medium', phen:'warm', grow:5,
+    look:{art2:true, canes:14, leafN:44, cane:'#5d7a3a', caneStripe:'#c2a947'},
+    blurb:'One of the hardiest running bamboos: stiff upright green canes with a yellow groove on each section, about 12-18 ft where winters are cold and taller where they are mild. Some canes zig-zag near the base. It runs hard and forms a dense colony, so plant it only inside a rhizome barrier at least 2 ft deep, or in a large container sunk to the rim. The Missouri Botanical Garden notes it is a listed noxious weed in parts of the Midwest, and NC State advises against planting it. Evergreen; the leaves burn in hard winters.',
+    sea:{Spring:{fol:'#86a86a'}, Summer:{fol:'#4f7c50'}, Fall:{fol:'#56784c'}, Winter:{fol:'#5b6f49'}},
     cv:{
-      clumping:{name:'Clumping bamboo', note:'Fargesia-style clumping habit, calmer in gardens', h:60, cw:76, heightIn:144, spread:72,
-        look:{art2:true, canes:12, leafN:40, cane:'#5f7f42'}, sea:{Spring:{fol:'#8eaa70'}, Summer:{fol:'#537d52'}, Fall:{fol:'#667a4f'}, Winter:{fol:'#526b4d'}}},
-      golden:{name:'Golden groove', note:'yellow-grooved running bamboo look for a bold screen', h:96, cw:90, heightIn:300, spread:96,
-        look:{art2:true, canes:15, leafN:44, cane:'#b49a45'}, sea:{Spring:{fol:'#91ad6a'}, Summer:{fol:'#557d4d'}, Fall:{fol:'#6b7d4e',seed:'#a9904d'}, Winter:{fol:'#4f6b4a',seed:'#a9904d'}}},
-      black:{name:'Black bamboo', note:'dark culms with green leaves', h:96, cw:90, heightIn:300, spread:96,
-        look:{art2:true, canes:14, leafN:42, cane:'#38322d'}, sea:{Spring:{fol:'#86a86a'}, Summer:{fol:'#4c7650'}, Fall:{fol:'#65764d'}, Winter:{fol:'#4b654a',seed:'#3e342c'}}},
+      golden:{name:'Spectabilis', note:'yellow canes with a green groove, the species reversed; new canes flush red in sun',
+        look:{art2:true, canes:14, leafN:44, cane:'#c4a443', caneStripe:'#5f7d3e'}},
     }},
+  blackbamboo:{ name:'Black Bamboo', latin:'Phyllostachys nigra', form:'bamboo', type:'tree', h:79, cw:102, heightIn:240,
+    group:'bamboo', groupLabel:'Bamboo', chip:'Black', nativeTo:['asia'], provenance:'species',
+    space:36, spread:120, zones:[7,10], _legacyNative:false, sun:'part', moist:'medium', phen:'warm', grow:5,
+    look:{art2:true, canes:13, leafN:46, cane:'#2e2925', caneYoung:'#5f7f42', youngShare:0.3},
+    blurb:'Canes come up green and turn glossy black over one to three years, so a stand is always a mix of the two, under fine dark leaves. About 20-25 ft in a mild garden, less where winters bite: canes are damaged below about 5°F. A running bamboo that spreads more slowly in cool climates and faster in warm, moist ground; give it a rhizome barrier all the same.',
+    sea:{Spring:{fol:'#7fa266'}, Summer:{fol:'#47704a'}, Fall:{fol:'#4e6e48'}, Winter:{fol:'#4d6849'}}},
+  umbrellabamboo:{ name:'Umbrella Bamboo', latin:'Fargesia murielae', synonyms:['Arundinaria murielae','Sinarundinaria murielae'], form:'bamboo', type:'tree', h:62, cw:68, heightIn:144,
+    group:'bamboo', groupLabel:'Bamboo', chip:'Umbrella', nativeTo:['asia'], provenance:'species',
+    space:36, spread:60, zones:[5,9], _legacyNative:false, sun:'part', moist:'medium', phen:'warm', grow:5,
+    look:{art2:true, canes:15, leafN:64, cane:'#8d9c4c', caneW:0.6, caneArch:0.55, leafScale:0.62},
+    blurb:'A clumping bamboo that does not run: a fountain of slender yellow-green canes arching under small bright leaves, about 10-12 ft tall and 4-5 ft across. The one to choose where a running bamboo would be trouble. It wants shade from afternoon sun, and it does poorly in hot, humid summers, which rules out most of the southern US. Hardy to about -20°F.',
+    sea:{Spring:{fol:'#9cba6e'}, Summer:{fol:'#6a9450'}, Fall:{fol:'#6c8e4d'}, Winter:{fol:'#68834f'}}},
   smoketree:{ name:'American Smoketree', latin:'Cotinus obovatus', form:'tree', type:'tree', h:86, cw:98, heightIn:300,
     group:'smokebush', groupLabel:'Smokebush', chip:'Tree form',
     space:180, spread:240, zones:[4,8], _legacyNative:true, sun:'full', moist:'dry', phen:'mid', grow:6,
@@ -8690,6 +8706,10 @@ const PLANT_REF_ALIASES=Object.freeze({
   'ipheion|wisleyBlue':'ipheion|rolfFiedler',
   // 'Blue Melody' is a selection of common camas, not great camas
   'camassialeichtlinii|blueMelody':'camassiaquamash|blueMelody',
+  // bamboo choices that named no species (0.9.127): the clumping one is umbrella
+  // bamboo, the black one black bamboo; 'golden' stays where it was, as 'Spectabilis'
+  'bamboo|clumping':'umbrellabamboo|',
+  'bamboo|black':'blackbamboo|',
 });
 function canonicalPlantRef(s,v){
   const source=String(s||'').trim(), variant=v==null?'':String(v).trim();
@@ -8783,7 +8803,7 @@ const BASE_HYBRID_KEYS=new Set(`
   autumnfire claudeshride
   germaniris gardentulip dahlia alliumPinkJewel alliumRedMohican hosta
   bloomeranglilac bridalwreath boxwoodround boxwoodsquare boxwoodcone boxwoodcolumn
-  boxwoodlow yewlow yewmedium yewtall bamboo crabapple saucermagnolia freemanmaple
+  boxwoodlow yewlow yewmedium yewtall crabapple saucermagnolia freemanmaple
   greengiantarborvitae leylandcypress bonicarose forsythia arnoldwitchhazel
   williamscamellia blueholly photinia littleredrobinphotinia hebe
   swansongironweed apple sourcherry europeanplum hybridplum
@@ -9625,7 +9645,9 @@ const WIKIPEDIA_ARTICLES = {
   slendersweetflag:       "Acorus gramineus",
   arrowhead:              "Sagittaria latifolia",
   lizardtail:             "Saururus cernuus",
-  bamboo:                 "Fargesia",
+  bamboo:                 "Phyllostachys aureosulcata",
+  blackbamboo:            "Phyllostachys nigra",
+  umbrellabamboo:         "Fargesia murielae",
   smoketree:              "Cotinus obovatus",
   serviceberry:           "Amelanchier laevis",
   floweringdogwood:       "Cornus florida",
