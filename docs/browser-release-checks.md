@@ -147,6 +147,28 @@ date and result when running the following on an iPhone and an Android phone:
 - [ ] Background/return from the destination app, then close and reopen the
   garden. Confirm edits, completion, image format and season choices survive.
 
+## Two tabs on one garden
+
+Run `npm run test:tabs` (`tests/browser-tabs.cjs`). Two real pages in one browser
+context share one IndexedDB, as two tabs do. It checks that:
+
+- A tab opened earlier and then put in the background no longer saves its old
+  garden over the other tab's edits (audit F01's reproduction).
+- A stale tab with no edits of its own shows the latest version when it comes back.
+- A stale tab with edits shows the bar and writes nothing; Keep mine as a copy
+  saves it beside the other version and carries on in the copy; Load latest asks
+  first, then drops the edits without making a copy; saving is normal afterwards.
+- A tab on screen beside the one being worked in is told and does not reload.
+- Five duplicates from each of two tabs at once keep every row, leave no stored
+  garden without a row, and share no name (F02).
+
+The duplicate race then runs again with Web Locks taken away, as a control. It is
+expected to lose rows, and did in four of six runs on Edge; the script prints which,
+and does not fail when the race happens not to show. Headless pages all report
+themselves visible, so the script sets `document.hidden` and fires the real
+`visibilitychange`. Two tabs on a phone (an installed app and a Safari tab) remain
+a device check.
+
 ## Short device checklist
 
 Use disposable test gardens and retain one exported backup. Record app

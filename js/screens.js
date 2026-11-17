@@ -1184,9 +1184,14 @@ async function enterWorld(id){
     if (ok){ game.worldId=id; game.inGarden=true; }
   }
   finally{ endWorldLoad(); }
-  if (!ok){ toast('That garden failed to load.'); return; }
+  if (!ok){ toast('That garden failed to load.'); return false; }
   funnel(FUNNEL_EVENTS.gardenOpened);
   enterGarden();
+  // Opening tidies a few things up (enterGarden); none of that is an edit made
+  // in this tab, so it must not count as one against another tab's (io.js).
+  saveSession.syncRev=game.rev;
+  syncStaleBar();
+  return true;
 }
 /* share-a-file: a garden is just a JSON blob, so export it to a file a friend
    can import (no backend). Export wraps the stored world in a small envelope;
@@ -1343,6 +1348,7 @@ async function deleteWorld(id){
   const done=await updateWorldsIndex(fresh=>({index:fresh.filter(w=>w.id!==id),
     del:['hortus:world:'+id]}));
   if (!done) toast('That garden could not be deleted. It is still in your list.');
+  else announceGardenChange(id);
   await openWorlds();
   return !!done;
 }
@@ -1368,10 +1374,16 @@ async function renameWorld(id){
       const blob=await sGet('hortus:world:'+id); if (!blob) return null;
       blob.name=name;
       if (!(await sSet('hortus:world:'+id,blob))) return null;
-      row.name=name; ok=true;
+      /* A rename is a change to the stored garden, so it takes a new stamp:
+         another tab with this garden open would otherwise save its old name
+         straight back over the new one (io.js, "a garden open in two tabs"). */
+      const stamp=newId('s');
+      row.name=name; row.stamp=stamp; ok=true;
+      if (saveSession.syncId===id) saveSession.stamp=stamp;
       return fresh;
     });
     if (!ok){ toast('That garden could not be renamed.'); return; }
+    announceGardenChange(id);
     // the open garden holds its own copy of the name for the plan/list headers
     if (game.worldId===id) game.worldName=name;
     toast(`Renamed to "${name}".`);
@@ -1389,9 +1401,7 @@ async function duplicateWorld(id){
      what made two rapid duplicates come out identically titled. */
   let name=null;
   await updateWorldsIndex(async fresh=>{
-    const siblingNames=new Set(fresh.map(w=>(w.name||'').toLowerCase()));
-    name=base+' copy';
-    for (let n=2; siblingNames.has(name.toLowerCase()); n++) name=`${base} copy ${n}`;
+    name=copyGardenName(base,fresh);
     const newIdv=newWorldId(new Set(fresh.map(w=>w.id)));
     copy.name=name;
     copy.savedAt=Date.now();
@@ -2373,10 +2383,8 @@ function quitToMenu(){
      left it standing on the title screen. */
   if (typeof tourRender==='function') tourRender();
   document.body.classList.remove('design-mode');
-  closeOverlay('exportScreen',false); closeOverlay('discoveryFilterScreen',false); closeOverlay('paletteScreen',false);
-  closeOverlay('planScreen',false); closeOverlay('bloomScreen',false);
-  closeOverlay('pauseScreen',false);
-  closeOverlay('gardenMenu',false);
+  closeGardenOverlays();
+  syncStaleBar();
   dismissCoachTip();
   hidePlantCard();   // it lives outside #hud, so hiding the HUD does not take it
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
@@ -2820,8 +2828,115 @@ if ($('plantGuidanceScreen')) $('plantGuidanceScreen').onclick=e=>{ if (e.target
 function autosaveNow(){ if (game.inGarden&&hasStorage) return saveSolo(true); }
 addEventListener('visibilitychange',()=>{
   if (document.hidden){ landSkipNow(); suspendClock(); autosaveNow(); }
-  else { resumeClockSession(); updateHUD(); }
+  else {
+    resumeClockSession(); updateHUD(); showDeferredGardenNotice();
+    // Coming back to a tab is when it is most likely to be behind another one.
+    if (game.inGarden) checkGardenFresh().then(r=>{ if (r) onGardenStale(r,true); });
+  }
 });
+/* ---------- the garden was changed in another tab ----------
+   io.js decides THAT this tab is behind (the stamp on the garden's row; see "a
+   garden open in two tabs" there). This is what the gardener sees.
+
+   A tab with no edits of its own that is brought back to the front simply loads
+   the newer version: there is nothing to choose between, and asking would only
+   be a chance to pick wrong. Anywhere else the tab stops saving over the other
+   version and says so, in a bar that stays until it is answered:
+   - changed: Load latest (asks first if this tab has edits, which it drops), or
+     Keep mine as a copy (this tab's version saved beside the other one).
+   - deleted: Keep it (saved back to the list) or Close (asks first if this tab
+     has edits, then leaves without saving).
+   It is a bar and not a modal for the update bar's reason: the garden in this
+   tab is still worth looking at, and nothing is lost while the question waits.
+   It never auto-reloads a tab that is merely on screen beside the one being
+   worked in: two windows side by side would reload on every save made in the
+   other, which is a lot of work for a tab nobody is looking at. */
+function syncStaleBar(){
+  const bar=$('staleBar'); if (!bar) return;
+  const reason=game.inGarden && game.worldId && saveSession.syncId===game.worldId ? saveSession.stale : null;
+  bar.hidden=!reason;
+  if (document.body) document.body.classList.toggle('has-stale',!!reason);
+  if (!reason) return;
+  const deleted=reason==='deleted';
+  hudText('staleBarText', deleted
+    ? 'This garden was deleted in another tab.'
+    : 'This garden was changed in another tab, so this tab can’t save over it.');
+  hudText('btnStalePrimary', deleted ? 'Keep it' : 'Load latest');
+  hudText('btnStaleSecondary', deleted ? 'Close' : 'Keep mine as a copy');
+}
+function onGardenStale(reason,returning){
+  if (!game.inGarden) return;
+  if (reason==='changed' && returning && !gardenEditedSinceSync()
+      && !pendSnap && !canvasGestureWouldLoseWork()){
+    reloadLatestGarden(true); return;
+  }
+  syncStaleBar();
+}
+/* The overlays that show this garden's contents. Leaving the garden closes them,
+   and so does reloading it, or they would go on describing the version left behind. */
+function closeGardenOverlays(){
+  closeOverlay('exportScreen',false); closeOverlay('discoveryFilterScreen',false); closeOverlay('paletteScreen',false);
+  closeOverlay('planScreen',false); closeOverlay('bloomScreen',false);
+  closeOverlay('pauseScreen',false);
+  closeOverlay('gardenMenu',false);
+}
+async function reloadLatestGarden(auto){
+  const id=game.worldId; if (!id || !game.inGarden) return false;
+  closeGardenOverlays(); hidePlantCard();
+  saveSession.stale=null; syncStaleBar();
+  const ok=await enterWorld(id);
+  if (ok) toast(auto ? 'This garden was changed in another tab. Showing the latest version.'
+                     : 'Showing the latest version of this garden.');
+  return ok;
+}
+let deferredGardenNotice='';
+function showDeferredGardenNotice(){
+  if (!deferredGardenNotice) return;
+  const msg=deferredGardenNotice; deferredGardenNotice='';
+  toast(msg,'warn');
+}
+/* A tab behind another one saved its edits as a copy (io.js): from the stale
+   bar's Keep mine as a copy, or because it was quitting or going into the
+   background when it found out. Say where the edits went, now or when the tab is
+   next looked at. */
+function onGardenForked(info,adopted){
+  if (adopted && game.inGarden && $('worldLabel')) $('worldLabel').textContent=info.name;
+  syncStaleBar();
+  const why=info.reason==='deleted' ? 'was deleted' : 'was changed';
+  const msg=`Your edits were saved as "${info.name}" because "${info.from}" ${why} in another tab.`;
+  if (pageHidden()) deferredGardenNotice=msg; else toast(msg,'warn');
+}
+if ($('btnStalePrimary')) $('btnStalePrimary').onclick=()=>{
+  const reason=saveSession.stale; if (!reason || !game.inGarden) return;
+  if (reason==='deleted'){
+    // Back into the list under its own id: a session that has not synced with
+    // a garden has nothing to be behind (gardenConflict), so the save writes.
+    saveSession.syncId=null; saveSession.stale=null; syncStaleBar();
+    saveSolo(true).then(ok=>{ if (ok) toast('Kept. This garden is back in your list.'); });
+    return;
+  }
+  if (!gardenEditedSinceSync()){ reloadLatestGarden(false); return; }
+  showConfirm('Load the latest version?',
+    'The edits made in this tab since it last saved will be lost. To keep them, choose Keep mine as a copy instead.',
+    'Load latest', ()=>{
+      // A save of this tab already on its way must not turn the dropped edits into a copy.
+      saveSession.discard=true;
+      reloadLatestGarden(false);
+    });
+};
+if ($('btnStaleSecondary')) $('btnStaleSecondary').onclick=()=>{
+  const reason=saveSession.stale; if (!reason || !game.inGarden) return;
+  if (reason==='deleted'){
+    const leave=()=>{ saveSession.discard=true; quitToMenu(); };
+    if (!gardenEditedSinceSync()){ leave(); return; }
+    showConfirm('Close without saving?',
+      'This garden was deleted in another tab, and the edits made here will not be kept.',
+      'Close', leave);
+    return;
+  }
+  saveSession.fork=true;
+  saveSolo(true);
+};
 addEventListener('pagehide',()=>{ landSkipNow(); suspendClock(); autosaveNow(); });
 if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ setLayerVis('night',!game.layerVis.night);
   updateDayNightBtn(); refreshCanvasTools();
@@ -3982,7 +4097,11 @@ function offerAppUpdate(worker){
          — an edge nobody should be stranded by — reload anyway. */
       setTimeout(()=>{ try{ location.reload(); }catch(_){ } }, 2000); };
     let p=null;
-    try{ if (game.inGarden && hasStorage) p=saveSolo(true); }catch(e){ noteError(e,'update-save'); }
+    try{ if (game.inGarden && hasStorage){
+      // The page is about to go: edits behind another tab's version are saved as a copy.
+      if (gardenEditedSinceSync()) saveSession.fork=true;
+      p=saveSolo(true);
+    } }catch(e){ noteError(e,'update-save'); }
     if (p && p.then) p.then(go2,go2); else go2();
   };
   return true;
@@ -4501,7 +4620,11 @@ function reportCrash(err,where){
   // Bank the garden before anything else can go wrong. saveSolo is async, so
   // the panel says "saving" and tells the truth once the write actually lands.
   let p=null;
-  try{ if (game.inGarden&&hasStorage) p=saveSolo(true); }catch(e){ noteError(e,'crash-save'); }
+  try{ if (game.inGarden&&hasStorage){
+    // Nobody can answer the stale bar from here: edits behind another tab go to a copy.
+    if (gardenEditedSinceSync()) saveSession.fork=true;
+    p=saveSolo(true);
+  } }catch(e){ noteError(e,'crash-save'); }
   if (p&&p.then) p.then(ok=>panel.setSave(ok?'saved':'failed'),()=>panel.setSave('failed'));
   else panel.setSave(game.inGarden?'failed':'none');
 }

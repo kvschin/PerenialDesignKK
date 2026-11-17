@@ -19264,6 +19264,245 @@ test('concurrent first saves create one slot and reopening waits for the latest 
   cancelGardenAutosave();
 });
 
+/* ---------- a garden open in two tabs (audit F01/F02) ----------
+   The sandbox is one page, so "another tab" is played by writing storage the
+   way another tab's save would: the garden blob and its row with a new stamp. */
+async function tabTestOpen(id, name){
+  await worldsIndexChain; await pendingSaves();
+  setup(21, 21); await clearStoredWorlds();
+  setTile('plants', '2,2', { s: 'bluestem', d: 0, t: 1 });
+  const blob = JSON.parse(JSON.stringify(buildSaveBlob()));
+  blob.name = name || 'Tab garden';
+  await sSet('hortus:world:' + id, blob);
+  await sSet('hortus:worlds', [{ id, name: blob.name, ts: 1, gw: 21, gh: 21, mode: 'design', stamp: 's0' }]);
+  const realEnter = enterGarden;
+  enterGarden = () => {};             // the load and adoption flow, without the DOM
+  try { assert(await enterWorld(id), 'the garden opens'); }
+  finally { enterGarden = realEnter; }
+  game.inGarden = true;
+  cancelGardenAutosave();
+}
+async function tabTestOtherSave(id, edit, stamp){
+  const blob = await sGet('hortus:world:' + id);
+  if (edit) edit(blob);
+  await sSet('hortus:world:' + id, blob);
+  const rows = await worldsIndex();
+  rows.find(w => w.id === id).stamp = stamp;
+  await sSet('hortus:worlds', rows);
+}
+async function tabTestToasts(fn){
+  const seen = [], realToast = toast;
+  toast = (m, k) => seen.push({ m, k });
+  try { await fn(); } finally { toast = realToast; }
+  return seen;
+}
+
+test('only a save that carries edits moves a garden\'s stamp', async () => {
+  await tabTestOpen('tab-stamp', 'Stamped');
+  assertEqual(saveSession.syncId, 'tab-stamp', 'opening a listed garden syncs with its row');
+  assertEqual(saveSession.stamp, 's0');
+  const announced = [], realAnnounce = announceGardenChange;
+  announceGardenChange = id => announced.push(id);
+  try {
+    assertEqual(await saveSolo(true), true);
+    assertEqual((await worldsIndex())[0].stamp, 's0', 'a save with nothing new keeps the stamp (clock and view only)');
+    assertEqual(announced.length, 0, 'and tells no other tab');
+    setTile('plants', '3,3', { s: 'karl', d: 0, t: 2 });
+    assertEqual(await saveSolo(true), true);
+    const moved = (await worldsIndex())[0].stamp;
+    assert(moved && moved !== 's0', 'an edited save takes a new stamp');
+    assertEqual(saveSession.stamp, moved, 'which this tab now holds');
+    assertEqual(announced.join(), 'tab-stamp', 'and the other tabs are told');
+    assertEqual(await saveSolo(true), true);
+    assertEqual((await worldsIndex())[0].stamp, moved, 'the next clean save keeps it');
+    // The update and crash paths ask for a copy in case of a conflict; with none,
+    // the request is spent, or a later conflict would copy instead of asking.
+    saveSession.fork = true;
+    assertEqual(await saveSolo(true), true);
+    assertEqual(saveSession.fork, false, 'a request to copy lasts one save');
+    assertEqual((await worldsIndex()).length, 1, 'and made no copy, there being nothing to conflict with');
+  } finally { announceGardenChange = realAnnounce; cancelGardenAutosave(); }
+});
+
+test('a tab behind another one never saves its old garden over the newer one (F01)', async () => {
+  await tabTestOpen('tab-behind', 'Behind');
+  await tabTestOtherSave('tab-behind', b => { b.plants['7,7'] = { s: 'karl', d: 0, t: 5 }; }, 's1');
+  // put in the background with nothing new: it used to write its old garden back
+  const quiet = await tabTestToasts(async () => { assertEqual(await saveSolo(true), true, 'nothing of this tab is lost'); });
+  let stored = await sGet('hortus:world:tab-behind');
+  assert(stored.plants['7,7'], 'the other tab\'s planting survives a clean save from the stale tab');
+  assertEqual((await worldsIndex())[0].stamp, 's1', 'and so does its stamp');
+  assertEqual(saveSession.stale, 'changed', 'the tab knows it is behind');
+  assertEqual(game.dirty, false, 'with nothing of its own left unsaved');
+  assertEqual(quiet.length, 0, 'and no storage warning, because storage is fine');
+  // now with an edit of its own, on screen: the gardener decides, nothing is written
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 6 });
+  const warned = await tabTestToasts(async () => { assertEqual(await saveSolo(true), false, 'the edit is waiting on the gardener'); });
+  stored = await sGet('hortus:world:tab-behind');
+  assert(stored.plants['7,7'] && !stored.plants['3,3'], 'still the other tab\'s version in storage');
+  assertEqual((await worldsIndex()).length, 1, 'and no copy made behind the gardener\'s back');
+  assert(game.dirty, 'the edit stays unsaved, not dropped');
+  assert(!warned.some(t => /device storage/.test(t.m)), 'a conflict is not reported as a full device');
+  cancelGardenAutosave();
+});
+
+test('a stale tab that quits or goes into the background saves its edits as a copy', async () => {
+  await tabTestOpen('tab-quit', 'Quitting');
+  await tabTestOtherSave('tab-quit', b => { b.plants['7,7'] = { s: 'karl', d: 0, t: 5 }; }, 's1');
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 6 });
+  game.inGarden = false;               // quitToMenu saves after leaving the garden
+  const said = await tabTestToasts(async () => { assertEqual(await saveSolo(true), true); });
+  const rows = await worldsIndex();
+  assertEqual(rows.length, 2, 'the original and a copy');
+  const orig = rows.find(w => w.id === 'tab-quit'), copy = rows.find(w => w.id !== 'tab-quit');
+  assertEqual(orig.stamp, 's1', 'the other tab\'s version is untouched');
+  const ob = await sGet('hortus:world:tab-quit'), cb = await sGet('hortus:world:' + copy.id);
+  assert(ob.plants['7,7'] && !ob.plants['3,3'], 'its garden too');
+  assertEqual(copy.name, 'Quitting copy', 'the copy is named the way Duplicate names one');
+  assert(cb.plants['3,3'] && cb.plants['2,2'] && !cb.plants['7,7'], 'and holds this tab\'s garden');
+  assertEqual(game.worldId, copy.id, 'this tab carries on in the copy');
+  assertEqual(saveSession.syncId, copy.id); assertEqual(saveSession.stale, null);
+  assert(said.some(t => /saved as "Quitting copy" because "Quitting" was changed in another tab/.test(t.m)), 'and says where the edits went');
+  game.inGarden = true;
+  setTile('plants', '4,4', { s: 'karl', d: 0, t: 7 });
+  assertEqual(await saveSolo(true), true, 'the copy saves as an ordinary garden after that');
+  assert((await sGet('hortus:world:' + copy.id)).plants['4,4']);
+  assertEqual((await worldsIndex()).length, 2, 'without making another');
+  cancelGardenAutosave();
+});
+
+test('the stale bar keeps this tab as a copy, or loads the latest version', async () => {
+  await tabTestOpen('tab-bar', 'Bar');
+  await tabTestOtherSave('tab-bar', b => { b.plants['7,7'] = { s: 'karl', d: 0, t: 5 }; }, 's1');
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 6 });
+  await saveSolo(true);
+  assertEqual(saveSession.stale, 'changed');
+  await tabTestToasts(async () => { $('btnStaleSecondary').onclick(); await pendingSaves(); });
+  let rows = await worldsIndex();
+  assertEqual(rows.length, 2, 'Keep mine as a copy saves this tab beside the other');
+  assertEqual(game.worldId, rows.find(w => w.id !== 'tab-bar').id, 'and carries on in it');
+  assertEqual(saveSession.stale, null, 'the bar goes');
+
+  // and the other way out, from the start
+  await tabTestOpen('tab-load', 'Load');
+  await tabTestOtherSave('tab-load', b => { b.plants['7,7'] = { s: 'karl', d: 0, t: 5 }; }, 's1');
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 6 });
+  await saveSolo(true);
+  const realConfirm = showConfirm, realEnter = enterGarden, realReload = reloadLatestGarden;
+  let asked = 0, reload = null, release;
+  showConfirm = (t, b, ok, fn) => { asked++; fn(); };
+  enterGarden = () => {};
+  reloadLatestGarden = auto => (reload = realReload(auto));
+  // a save of this tab is still on its way when the gardener chooses: started,
+  // and waiting inside the index queue (not merely queued behind the last save,
+  // which would find the reload under way and stop before reaching the conflict)
+  await pendingSaves();
+  const held = new Promise(r => { release = r; });
+  const queue = updateWorldsIndex(async () => { await held; return null; });
+  setTile('plants', '5,5', { s: 'karl', d: 0, t: 8 });
+  const inFlight = saveSolo(true);
+  assert(saveTail && !saveQueued, 'the save is running, not waiting its turn');
+  try {
+    await tabTestToasts(async () => { $('btnStalePrimary').onclick(); release(); await queue; await inFlight; await reload; });
+  } finally { release(); showConfirm = realConfirm; enterGarden = realEnter; reloadLatestGarden = realReload; }
+  assertEqual(asked, 1, 'Load latest asks first, because this tab has edits it will drop');
+  assert(game.plants['7,7'] && !game.plants['3,3'], 'the latest version is open');
+  assertEqual((await worldsIndex()).length, 1, 'and the dropped edits were not turned into a copy');
+  assertEqual(saveSession.stamp, 's1', 'this tab is in step again');
+  setTile('plants', '4,4', { s: 'karl', d: 0, t: 7 });
+  assertEqual(await saveSolo(true), true, 'so its next edit saves normally');
+  assert((await sGet('hortus:world:tab-load')).plants['7,7'], 'on top of the other tab\'s');
+  cancelGardenAutosave();
+});
+
+test('a garden deleted in another tab is kept or closed, never silently put back', async () => {
+  await tabTestOpen('tab-gone', 'Gone');
+  await sSet('hortus:worlds', []);      // the other tab's delete takes the row...
+  await sDel('hortus:world:tab-gone');  // ...and the blob, in one transaction
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 6 });
+  assertEqual(await saveSolo(true), false);
+  assertEqual(saveSession.stale, 'deleted');
+  assertEqual((await worldsIndex()).length, 0, 'not recreated behind the gardener\'s back');
+  await tabTestToasts(async () => { $('btnStalePrimary').onclick(); await pendingSaves(); });
+  const rows = await worldsIndex();
+  assertEqual(rows.length, 1, 'Keep it puts it back');
+  assertEqual(rows[0].id, 'tab-gone', 'under its own id');
+  assert((await sGet('hortus:world:tab-gone')).plants['3,3'], 'with this tab\'s edits');
+  cancelGardenAutosave();
+});
+
+test('checkGardenFresh reads the row, and a rename keeps the renaming tab in step', async () => {
+  await tabTestOpen('tab-fresh', 'Fresh');
+  assertEqual(await checkGardenFresh(), null, 'nothing has changed');
+  await tabTestOtherSave('tab-fresh', null, 's9');
+  assertEqual(await checkGardenFresh(), 'changed', 'another tab\'s save is seen');
+  // a session that never synced with this garden has nothing to be behind
+  saveSession.stale = null; saveSession.syncId = null;
+  assertEqual(await checkGardenFresh(), null);
+
+  await tabTestOpen('tab-rename', 'Before');
+  const realPrompt = showPrompt, realOpen = openWorlds;
+  let done = null;
+  showPrompt = (t, b, v, ok, fn) => { done = fn('After'); };
+  openWorlds = async () => {};
+  try { await tabTestToasts(async () => { await renameWorld('tab-rename'); await done; }); }
+  finally { showPrompt = realPrompt; openWorlds = realOpen; }
+  const row = (await worldsIndex())[0];
+  assertEqual(row.name, 'After');
+  assert(row.stamp && row.stamp !== 's0', 'a rename is a change another tab must see');
+  assertEqual(saveSession.stamp, row.stamp, 'but not the tab that made it');
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 6 });
+  assertEqual(await saveSolo(true), true, 'which goes on saving');
+  cancelGardenAutosave();
+});
+
+test('index writes take a lock that every tab shares, and never depend on it (F02)', async () => {
+  await worldsIndexChain; await pendingSaves();
+  setup(21, 21); await clearStoredWorlds();
+  const names = [];
+  let tail = Promise.resolve();
+  const locks = { request(name, opts, cb){
+    if (typeof opts === 'function') { cb = opts; opts = {}; }
+    names.push(name);
+    const run = tail.then(() => cb()); tail = run.then(() => {}, () => {});
+    return run;
+  } };
+  const hadLocks = 'locks' in navigator, realLocks = navigator.locks;
+  navigator.locks = locks;
+  try {
+    // "another tab" holds the lock: this tab's write must wait for it
+    let release; const held = new Promise(r => { release = r; });
+    let otherDone = false;
+    const other = locks.request('hortus:worlds', async () => {
+      const rows = await worldsIndex(); await held;
+      rows.push({ id: 'from-other-tab', name: 'Other', ts: 1, gw: 21, gh: 21 });
+      await sSet('hortus:worlds', rows); otherDone = true;
+    });
+    let sawOther = null;
+    const mine = updateWorldsIndex(fresh => {
+      sawOther = fresh.some(w => w.id === 'from-other-tab');
+      return fresh.concat([{ id: 'from-this-tab', name: 'Mine', ts: 2, gw: 21, gh: 21 }]);
+    });
+    release(); await other; await mine;
+    assert(otherDone && sawOther, 'this tab read the index only after the other tab had written it');
+    assertEqual((await worldsIndex()).length, 2, 'so neither row was lost');
+    assert(names.length === 2 && names.every(n => n === 'hortus:worlds'), 'one lock name for every writer');
+    // a throwing section is reported once, not retried without the lock
+    let calls = 0;
+    await updateWorldsIndex(() => { calls++; throw new Error('boom'); }).then(() => {}, () => {});
+    assertEqual(calls, 1, 'a section that started is never run twice');
+    // and a browser whose lock request itself throws still saves
+    navigator.locks = { request(){ throw new Error('SecurityError'); } };
+    const realWarn = console.warn; console.warn = () => {};
+    try {
+      const out = await updateWorldsIndex(fresh => fresh.concat([{ id: 'unlocked', name: 'U', ts: 3, gw: 21, gh: 21 }]));
+      assert(out && out.some(w => w.id === 'unlocked'), 'a lock that cannot be had is not a reason not to save');
+    } finally { console.warn = realWarn; }
+  } finally {
+    if (hadLocks) navigator.locks = realLocks; else delete navigator.locks;
+  }
+});
+
 test('the debug HUD keeps the size of a stall it classifies as a suspend', ()=>{
   /* Gaps over GAP_SUSPEND are kept out of gapMax so a tab resume cannot bury
      every real stall beneath it. Discarding the SIZE too was a blind spot: a

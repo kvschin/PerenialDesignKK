@@ -925,6 +925,16 @@ if ('serviceWorker' in navigator)
   <button type="button" id="btnUpdateNow" class="primary">Reload</button>
   <button type="button" id="btnUpdateLater" aria-label="Dismiss until next launch">Later</button>
 </div>
+<!-- The garden open here was changed (or deleted) in another tab. It stays until
+     answered: this tab has stopped saving over the other version, and its labels
+     are set by syncStaleBar (screens.js). -->
+<div id="staleBar" role="alert" hidden>
+  <span id="staleBarText">This garden was changed in another tab, so this tab can’t save over it.</span>
+  <span class="stale-actions">
+    <button type="button" id="btnStalePrimary" class="primary">Load latest</button>
+    <button type="button" id="btnStaleSecondary">Keep mine as a copy</button>
+  </span>
+</div>
 
 <!-- PLANT LIBRARY -->
 <div class="screen hidden" id="libraryScreen" data-libview="cats">

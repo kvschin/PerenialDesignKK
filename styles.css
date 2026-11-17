@@ -2013,6 +2013,31 @@ canvas.daily-history-thumb{object-fit:contain}
 #updateBar button.primary{background:var(--action-primary);border-color:var(--action-primary);color:var(--ink)}
 body.has-update #toast{top:calc(124px + env(safe-area-inset-top))}
 @media (pointer:coarse){ #updateBar button{min-height:44px;padding:11px 16px} }
+/* The garden was changed in another tab (screens.js, syncStaleBar). The update
+   bar's shape in the same band, with a warning edge, and its buttons on a line
+   of their own when the sentence and both labels will not fit beside each other.
+   The update offer and the toast step down below it while it is up. */
+#staleBar{position:fixed;top:calc(70px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  z-index:32;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px 10px;
+  width:max-content;max-width:min(92vw,520px);padding:10px 10px 10px 16px;
+  border:1.5px solid #c9843f;border-radius:var(--radius-panel);
+  background:var(--surface-dialog);color:var(--text-primary);box-shadow:var(--shadow-overlay);font-size:13px}
+#staleBar[hidden]{display:none}
+#staleBarText{flex:1 1 220px;line-height:1.35}
+#staleBar .stale-actions{display:flex;gap:8px;flex:0 0 auto}
+#staleBar button{min-height:32px;padding:7px 12px;border-radius:var(--radius-control);
+  border:1px solid var(--border-quiet);background:var(--surface-control);color:var(--text-primary);
+  font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif}
+#staleBar button.primary{background:var(--action-primary);border-color:var(--action-primary);color:var(--ink)}
+body.has-stale #toast{top:calc(150px + env(safe-area-inset-top))}
+body.has-stale #updateBar{top:calc(150px + env(safe-area-inset-top))}
+@media (pointer:coarse){ #staleBar button{min-height:44px;padding:11px 16px} }
+/* Narrower than the bar's sentence and buttons side by side, the buttons take a
+   line of their own and the bar is about 110px tall with finger-sized buttons. */
+@media (max-width:600px){
+  body.has-stale #toast, body.has-stale #updateBar{top:calc(196px + env(safe-area-inset-top))}
+}
+@media (forced-colors:active){ #staleBar{border-color:CanvasText} #staleBar button{border:1px solid ButtonText} }
 #buildingActions{position:absolute;z-index:18;display:flex;gap:5px;pointer-events:auto;
   transform:translate(-50%,-100%);padding:5px;border:1px solid var(--border-active);
   border-radius:var(--radius-panel);background:var(--surface-overlay);box-shadow:var(--shadow-overlay)}

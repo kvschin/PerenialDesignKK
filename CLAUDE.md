@@ -727,6 +727,49 @@ See §13a.
   carry it forever, so this is self-healing rather than a one-shot migration. It
   adopts only values that really look like a garden, or a stray key of another
   shape would become an un-openable row.
+- **Two tabs of the app share one storage, and both rules above have to hold
+  across them** (0.9.125, audit F01/F02; io.js "a garden open in two tabs").
+  *The list*: the promise chain only orders writers inside one page, so two tabs
+  could still each read the index and write back only their own change.
+  `updateWorldsIndex` now runs its section inside a **Web Lock**
+  (`withWorldsLock`, `WORLDS_LOCK`), which the browser holds across every page of
+  the origin. It must never be the reason a garden does not save: no Web Locks, a
+  request that throws (an opaque origin), or a wait past `WORLDS_LOCK_WAIT` (5s,
+  a frozen holder) runs the section unlocked, as before; a section that started
+  is never run twice. Measured in Chromium, five duplicates from each of two tabs
+  at once kept all ten rows; with the lock taken away the same run lost 2-4 rows
+  in four of six runs, leaving their gardens stored with no row.
+  *The garden*: a save wrote the tab's whole garden UNCONDITIONALLY, and a tab
+  saves when it is merely put in the background, so a tab left open from
+  yesterday wrote yesterday's garden over today's work the moment the gardener
+  switched away from it. Each garden's **row** now carries a `stamp`, and the tab
+  remembers the stamp it last loaded or wrote (`saveSession.syncId/stamp/syncRev`,
+  set by `loadSolo`, which reads the blob and row together inside the lock, and by
+  each save; `enterWorld` moves `syncRev` past the opening's own tidying). Inside
+  the locked section a save compares them (`gardenConflict`): a different stamp,
+  or no row at all, means another tab has written or deleted the garden since.
+  **Only a save carrying edits takes a new stamp** (`gardenEditedSinceSync`:
+  `game.rev` against `syncRev`), so an idle tab saving its clock and view never
+  makes another tab's next save look like a conflict, and a tab with nothing new
+  that finds itself behind simply stops writing. A tab WITH edits that is behind
+  never writes over the other version and never drops its edits: in the garden and
+  on screen the **stale bar** (`#staleBar`, `syncStaleBar`, screens.js) offers
+  Load latest (asks first, then drops this tab's edits; `saveSession.discard`
+  keeps a save already on its way from turning them into a copy) or Keep mine as
+  a copy (`saveSession.fork`); anywhere else (quitting, the background, pagehide)
+  nobody can be asked, so they are saved as a copy named the way Duplicate names
+  one (`copyGardenName`) and the tab carries on in it. A deleted garden offers
+  Keep it or Close. A clean tab brought back to the front just loads the latest
+  version (`onGardenStale`, `reloadLatestGarden`); a tab merely ON SCREEN beside
+  the one being worked in is told by a `BroadcastChannel` nudge
+  (`announceGardenChange`, sent on an edited save, a rename and a delete) and
+  shows the bar instead, or two windows side by side would reload on every save.
+  A rename takes a new stamp too, or an open tab would save the old name back.
+  The stamp is on the ROW, not in the blob, because the section already reads the
+  row and a site photo makes the blob ~1MB. A row with no stamp is a garden saved
+  before 0.9.125 and compares as null; a blob with no row is unknown to a session
+  until its first save lists it, rather than "deleted". `npm run test:tabs`
+  (`tests/browser-tabs.cjs`) drives two real tabs on one garden through all of it.
 - **Ids come from `newId`/`newWorldId` (core.js), never from `Date.now()` alone.**
   A world id is the key its garden is stored under, so a repeat overwrites a
   saved garden. The old form was `Date.now().toString(36)` plus at most two

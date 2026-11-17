@@ -268,9 +268,41 @@ async function adoptOrphanedWorlds(){
   return adopted;
 }
 
+/* ---------- every tab on this device, not just this one ----------
+   The chain below orders writers inside ONE page. Two tabs of the app are two
+   pages with two chains, and they share the same storage: both could read the
+   index, each write back only its own change, and the later one erased the
+   other's row (audit F02, reproduced in a real browser). A Web Lock is held by
+   the browser across every page of the origin, so taking one around the critical
+   section makes "a fresh read inside the section" true across tabs as well.
+
+   It must never be the reason a garden does not save. A browser without Web
+   Locks (or an opaque origin, where requesting one throws) runs the section
+   unlocked, which is exactly what it did before. So does a wait longer than
+   WORLDS_LOCK_WAIT: the section holds the lock for a few milliseconds, so a wait
+   that long means a holder that has stopped (a frozen tab), and saving without
+   the lock is better than not saving. Once the section has started, its own
+   failure is reported as it always was, and it is never run twice. */
+const WORLDS_LOCK='hortus:worlds', WORLDS_LOCK_WAIT=5000;
+function withWorldsLock(fn){
+  const locks=typeof navigator!=='undefined' && navigator ? navigator.locks : null;
+  if (!locks || typeof locks.request!=='function') return fn();
+  let started=false, timer=0;
+  const ac=typeof AbortController==='function' ? new AbortController() : null;
+  if (ac) timer=setTimeout(()=>ac.abort(),WORLDS_LOCK_WAIT);
+  const body=()=>{ started=true; clearTimeout(timer); return fn(); };
+  let req;
+  try{ req=locks.request(WORLDS_LOCK, ac?{signal:ac.signal}:{}, body); }
+  catch(e){ clearTimeout(timer); console.warn('worlds lock',e); return fn(); }
+  return Promise.resolve(req).catch(e=>{
+    if (started) throw e;
+    clearTimeout(timer); console.warn('worlds lock',e);
+    return fn();
+  });
+}
 let worldsIndexChain=Promise.resolve();
 function updateWorldsIndex(mutate){
-  const run=worldsIndexChain.then(async()=>{
+  const run=worldsIndexChain.then(()=>withWorldsLock(async()=>{
     const idx=await worldsIndex();
     const out=await mutate(idx.slice());
     if (!out) return null;
@@ -278,10 +310,96 @@ function updateWorldsIndex(mutate){
     if (!Array.isArray(out)) return (await sWriteBatch({'hortus:worlds':out.index},out.del||[]))
       ? out.index : null;
     return (await sSet('hortus:worlds',out)) ? out : null;
-  });
+  }));
   // A throwing mutation must not wedge every later write behind a rejection.
   worldsIndexChain=run.then(()=>{},()=>{});
   return run;
+}
+/* ---------- a garden open in two tabs (audit F01) ----------
+   Each save wrote the tab's whole garden, unconditionally, and a tab saves when
+   it is merely put in the background. So a tab opened yesterday and left behind
+   wrote yesterday's garden over everything done since in another tab, the moment
+   the gardener switched away from it.
+
+   Every garden's ROW carries a `stamp`, and a tab remembers the stamp of the
+   version it last loaded or wrote (saveSession.syncId/stamp/syncRev). Inside the
+   locked section a save compares the two. A different stamp, or no row at all,
+   means another tab has written (or deleted) this garden since, and nothing this
+   tab holds is newer than that.
+
+   Only a save that carries EDITS takes a new stamp. A tab with nothing new still
+   saves its clock and view, under the stamp it already had, so an idle tab left
+   open beside the one being worked in never makes that one's next save look like
+   a conflict. And a tab with nothing new that finds itself behind simply stops
+   writing: storage already holds a newer version of everything it has.
+
+   When a tab WITH edits is behind, its edits are never written over the other
+   version and never thrown away. In the garden, on screen, the gardener chooses
+   (screens.js, the stale bar). Anywhere else -- quitting, put in the background,
+   the page going away -- nobody can be asked, so they are saved as a copy.
+
+   The stamp lives on the row and not in the garden blob because the row is what
+   the locked section already reads; reading the whole blob (a site photo is
+   about 1MB) to compare would make every save pay for it. A row without a stamp
+   is a garden saved before stamps existed and compares as null. */
+const GARDEN_CHANNEL='hortus:gardens';
+let gardenChannel=null;
+try{ if (typeof BroadcastChannel==='function') gardenChannel=new BroadcastChannel(GARDEN_CHANNEL); }catch(_){ gardenChannel=null; }
+/* Tell the other tabs that a garden's stored version moved. The message is only
+   a nudge: a tab that hears it re-reads the row and decides from that. */
+function announceGardenChange(id){
+  if (!gardenChannel || !id) return;
+  try{ gardenChannel.postMessage({id}); }catch(_){ }
+}
+if (gardenChannel) gardenChannel.onmessage=e=>{
+  const d=e&&e.data;
+  if (!d || typeof d.id!=='string' || !game.inGarden || d.id!==game.worldId) return;
+  checkGardenFresh().then(r=>{ if (r && typeof onGardenStale==='function') onGardenStale(r,false); });
+};
+function pageHidden(){ return typeof document!=='undefined' && !!document.hidden; }
+/* Has this tab changed the garden since it last read or wrote it? A session that
+   never synced with its garden (a new one, before its first save) counts as
+   changed. game.rev moves on every model edit and on nothing else. */
+function gardenEditedSinceSync(session,id,rev){
+  session=session||saveSession;
+  if (id===undefined) id=game.worldId;
+  if (rev===undefined) rev=game.rev;
+  return !id || session.syncId!==id || rev!==session.syncRev;
+}
+/* 'changed', 'deleted' or null, for a session that knows this garden. A session
+   that never loaded or saved it has nothing to be behind. */
+function gardenConflict(session,id,rows){
+  if (!id || session.syncId!==id) return null;
+  const row=rows.find(w=>w.id===id);
+  if (!row) return 'deleted';
+  return (row.stamp||null)===(session.stamp||null) ? null : 'changed';
+}
+function noteGardenStale(reason,session){
+  session=session||saveSession;
+  session.stale=reason;
+}
+/* Is the garden open here still the newest stored version? Returns the reason
+   it is not, or null. Reads the row inside the locked section, after this tab's
+   own saves, so it can never mistake this tab's write for someone else's. */
+async function checkGardenFresh(){
+  const session=saveSession, id=game.worldId;
+  if (!game.inGarden || !hasStorage || !id || session.syncId!==id) return null;
+  if (session.stale) return session.stale;
+  await pendingSaves();
+  let rows=null;
+  await updateWorldsIndex(fresh=>{ rows=fresh; return null; });
+  if (!rows || session!==saveSession || game.worldId!==id || saveTail) return null;
+  const reason=gardenConflict(session,id,rows);
+  if (reason) noteGardenStale(reason,session);
+  return reason;
+}
+/* "<name> copy", "<name> copy 2"... against the names already listed. */
+function copyGardenName(name,rows){
+  const base=(name||'My garden').replace(/ copy(?: \d+)?$/i,'');
+  const taken=new Set(rows.map(w=>(w.name||'').toLowerCase()));
+  let out=base+' copy';
+  for (let n=2; taken.has(out.toLowerCase()); n++) out=`${base} copy ${n}`;
+  return out;
 }
 async function migrateLegacyWorld(){
   let idx=await worldsIndex();
@@ -581,10 +699,14 @@ async function saveSoloNow(silent){
   // A load is in flight: game.* still holds the OUTGOING garden. Silent by
   // design — nothing has gone wrong, and the load will save when it lands.
   if (loadingWorld) return false;
+  const session=saveSession;
+  // The gardener chose to leave this garden without saving it (the stale bar).
+  if (session.discard) return true;
   cancelGardenAutosave();
-  const session=saveSession, id=game.worldId, rev=game.rev, request=++saveRequest;
+  const id=game.worldId, rev=game.rev, request=++saveRequest;
+  const edited=gardenEditedSinceSync(session,id||session.id,rev);
   game.dirty=true;
-  let stored=null;
+  let stored=null, written=null, outcome=null;
   try{
     // Capture before ANY await: a queued save must not acquire a later
     // garden's name/layers, nor share mutable maps with subsequent edits.
@@ -593,18 +715,64 @@ async function saveSoloNow(silent){
     stored=await updateWorldsIndex(async fresh=>{
       const target=id || session.id || (session.id=newWorldId(new Set(fresh.map(w=>w.id))));
       if (session===saveSession && !game.worldId) game.worldId=target;
-      let saved=await sSet('hortus:world:'+target,blob);
+      if (session.discard){ outcome={discarded:true}; return null; }
+      // Behind another tab? See "a garden open in two tabs" above.
+      const conflict=gardenConflict(session,target,fresh);
+      let slot=target;
+      if (conflict){
+        if (!edited && !session.fork){ outcome={stale:conflict}; return null; }
+        // On screen, in the garden: leave the choice to the gardener.
+        if (!session.fork && session===saveSession && game.inGarden && !pageHidden()){
+          outcome={stale:conflict}; return null;
+        }
+        slot=newWorldId(new Set(fresh.map(w=>w.id)));
+        const from=blob.name||'My garden';
+        blob.name=copyGardenName(from,fresh);
+        outcome={copy:slot,name:blob.name,from,reason:conflict};
+      }
+      let saved=await sSet('hortus:world:'+slot,blob);
       if (!saved && blob.portrait){
         // An optional picture must never be what prevents saving the garden.
-        delete blob.portrait; saved=await sSet('hortus:world:'+target,blob);
+        delete blob.portrait; saved=await sSet('hortus:world:'+slot,blob);
       }
-      if (!saved) return null;
-      const out=fresh.filter(w=>w.id!==target);
-      out.push({id:target,name:blob.name||'My garden',ts:blob.savedAt,gw:blob.gw,gh:blob.gh,mode:'design'});
+      if (!saved){ outcome=null; return null; }
+      // Only edits move the stamp; a new row, or a session that never read this
+      // one, starts one of its own.
+      const stamp=(edited || conflict || session.syncId!==slot) ? newId('s') : (session.stamp||null);
+      const out=fresh.filter(w=>w.id!==slot);
+      const row={id:slot,name:blob.name||'My garden',ts:blob.savedAt,gw:blob.gw,gh:blob.gh,mode:'design'};
+      if (stamp) row.stamp=stamp;
+      out.push(row);
+      written={slot,stamp,moved:stamp!==(session.stamp||null)};
       return out;
     });
   }catch(e){ console.error('garden save',e); }
   const current=session===saveSession && game.worldId===(id||session.id) && request===saveRequest;
+  if (outcome && outcome.discarded) return true;
+  if (outcome && outcome.stale){
+    noteGardenStale(outcome.stale,session);
+    if (!edited){
+      // Storage already holds a newer version of everything this tab has.
+      if (current && game.rev===rev) game.dirty=false;
+    }
+    if (session===saveSession && typeof onGardenStale==='function') onGardenStale(outcome.stale,false);
+    return !edited;
+  }
+  if (stored && written){
+    session.syncId=written.slot; session.stamp=written.stamp; session.syncRev=rev;
+    session.fork=false;              // a request to copy applies to one conflict, not every later one
+    if (written.moved) announceGardenChange(written.slot);
+  }
+  if (stored && outcome && outcome.copy){
+    session.stale=null; session.fork=false;
+    // Carry on in the copy, unless this tab has already moved on to another garden.
+    const adopt=current;
+    if (adopt){ game.worldId=outcome.copy; game.worldName=outcome.name; }
+    if (current && game.rev===rev) game.dirty=false;
+    saveFailureReported=false;
+    if (typeof onGardenForked==='function') onGardenForked(outcome,adopt);
+    return true;
+  }
   if (!stored){
     if (!silent || !saveFailureReported){
       saveFailureReported=true;
@@ -756,7 +924,16 @@ function gardenFileProblem(env){
 async function loadSolo(id){
   await pendingSaves();             // a coalesced save is not on the chain yet
   await worldsIndexChain;           // reopening after Quit must see its queued save
-  const s=await sGet('hortus:world:'+id);
+  /* The garden and its row are read together inside the locked section, so the
+     stamp this tab remembers is the stamp of the version it actually read. Read
+     apart, another tab's save could land between them: this tab would hold the
+     old garden under the new stamp, and its next save would go over the newer
+     one unnoticed -- the very thing the stamp is for. */
+  let s=null, row=null;
+  await updateWorldsIndex(async fresh=>{
+    s=await sGet('hortus:world:'+id); row=fresh.find(w=>w.id===id)||null;
+    return null;
+  });
   if (!s) return false;
   // plot size: gw/gh (current), grid (square-era), or neither (13x13 era,
   // laid out around tile (6,6) — recenter on the classic plot)
@@ -826,6 +1003,12 @@ async function loadSolo(id){
   // so the old built-in path is finally shovel-able
   if (!s.wv) seedWalkway();
   rememberGardenPortrait(s.portrait);
+  // What this tab now holds (enterWorld moves syncRev past the opening's own
+  // tidying, which is not an edit). A garden is known through its ROW: a blob
+  // with no row yet (adopted or written by hand) is unknown until this tab's
+  // first save lists it, rather than "deleted in another tab".
+  saveSession.syncId=row?id:null; saveSession.stamp=(row&&row.stamp)||null; saveSession.syncRev=game.rev;
+  saveSession.stale=null;
   return true;
 }
 
