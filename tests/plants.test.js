@@ -682,6 +682,31 @@ test('every grass and every resized cultivar states its height, and every grass 
       if (Object.hasOwn(C, 'h')) assert(C.heightIn > 0, `${k}.${c}: a cultivar that redraws itself says how tall it is`);
   }
 });
+// The last forbs without a sourced height, nearly all shade perennials (0.9.125):
+// docs/plant-data/shade-heights.json. The card and the Library quote heightIn,
+// and fell back to the drawn px h, which is no measurement.
+test('every forb and every resized forb cultivar states its height, with its source', () => {
+  for (const k of keys.filter(k => PLANTS[k].type === 'forb')) {
+    assert(PLANTS[k].heightIn > 0, `${k}: real height`);
+    for (const [c, C] of Object.entries(PLANTS[k].cv || {}))
+      if (Object.hasOwn(C, 'h')) assert(C.heightIn > 0, `${k}.${c}: a cultivar that redraws itself says how tall it is`);
+  }
+  const doc = JSON.parse(readRepoFile('docs/plant-data/shade-heights.json'));
+  for (const row of [...doc.heights, ...doc.redrawn]) {
+    const [k, v] = row.ref.split('|'), D = PLANTS[k] && (v ? PLANTS[k].cv[v] && Object.assign({}, PLANTS[k], PLANTS[k].cv[v]) : PLANTS[k]);
+    assert(D, row.ref + ': in the catalog');
+    assertEqual(D.heightIn, row.heightIn, row.ref + ': reviewed height');
+    assertEqual(D.h, row.h, row.ref + ': drawn height as solved');
+  }
+  for (const row of doc.heights) {
+    assert(row.sources.length >= 1 && row.sources.every(u => /^https:\/\//.test(u)), row.ref + ': cites its source');
+    assert(row.estimates && row.estimates.heightIn && row.estimates.heightIn.length > 15, row.ref + ': says how its height was chosen');
+    if (row.measure) assert(/^(hosta|heuchera)\b/.test(row.ref) && row.measure === 'leaf mound', row.ref + ': only a hosta or heuchera is measured by its leaves');
+  }
+  assert(doc.heights.length >= 75, 'the shade backfill');
+  // the generic records quote a typical plant, not a giant
+  assert(PLANTS.hosta.heightIn < PLANTS.hosta.h && PLANTS.heuchera.heightIn < PLANTS.heuchera.h, 'leaf mounds sit under their flowers');
+});
 test('the grass corrections hold', () => {
   // Alkali Sacaton runs zones 4-10; April-May is the Southwest alone.
   assert(!PLANTS.alkalisacaton.bloomMonths.includes(4) && PLANTS.alkalisacaton.bloomMonths.includes(7), 'Alkali Sacaton flowers in summer');

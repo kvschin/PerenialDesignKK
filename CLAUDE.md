@@ -7353,7 +7353,7 @@ may read px-art fields. Do not let those two paths drift together again.
 | `space` | real inches | On-center planting distance. Used for export quantities, matrix spacing, spacing copy, and tree soft-spacing warnings. |
 | `spread` | real inches | Mature width. The source for woody crown/footprint radius through `woodyRadiusTiles(P)`; also used in cards/library/plan labels. |
 | `h` | pixels | Mature render height, a drawing hint for `drawPlant` and sprite sizing — displayed through **`plantVisualH(P)`** (the universal drawn-height transform: trees/shrubs rescale by the woody compression factor, herbaceous grass/sedge/forb/water scale by `HERB_SCALE` ≈1.75 so drifts read as masses (H1), bulbs pass through). Every herbaceous form derives its whole geometry from the drawn height, so this one factor scales width and height together and preserves each species' proportions. `h` is not a footprint, shade, order, or spacing unit. Cards/library report `heightIn||h`; herbaceous px h sits near 1:1 with inches. (`woodyVisualH` is a back-compat alias for `plantVisualH`.) |
-| `heightIn` | real inches | True mature height. Required on every woody (`type:'tree'` or `type:'shrub'`) species and on resized woody cultivars. `matureSizeText` (card + Library) prefers it; the height overlay reads `heightIn||height||h`. Herbaceous records are being backfilled in batches (sourced flowering height; `h` untouched): once a species has one, a cultivar overriding `h` must state its own, or the card quotes the species' height for it — a test holds the backfilled set to that. |
+| `heightIn` | real inches | True mature height. Required on every woody (`type:'tree'` or `type:'shrub'`) species and on resized woody cultivars. `matureSizeText` (card + Library) prefers it; the height overlay reads `heightIn||height||h`. Every herbaceous record has one now (sourced flowering height; a hosta's or heuchera's is the leaf mound): the last forbs were backfilled on 2026-11-17, and a cultivar overriding `h` must state its own, or the card quotes the species' height for it — tests hold every forb, grass and bulb to that. |
 | `cw` | pixels | Woody canopy/twig drawing width, via `woodyVisualCw(P)` (T10: trees blend `cw` toward true screen width in log space, so the stored value is the shape signal, not the on-screen size). It must not define shade reach, shrub reservations, plan circles, or mature canopy overlays. |
 | `look.topScale` | display multiplier | Optional extra sprite/canvas headroom for a plant whose flowering structure rises materially above its foliage mass (for example sotol). `plantArtTop(P)` applies it only to bounds and icon scaling; it must not change physical dimensions or placement footprint. |
 | `grow` | years | Woody establishment horizon. `plantEstab(p)` scales real age; `effectiveEstab(p)` is the visual lens described below. |
@@ -7778,6 +7778,21 @@ invasive filter in 0.9.117. Yellow archangel and creeping Jenny were left out as
 stalks in the season's `eye`, `berryEye` for doll's eyes' black dots, `berries`/`berryR`/`pedicel`/
 `berrySpan`), and `bellAt`/`bellW`/`bellH` on an archbell, hanging long bells from the end of the
 arch (bellwort). Every existing plant draws call for call as before.
+**Every forb now has a sourced height** (the shade backfill, 2026-11-17). The 53 forbs still quoting
+their px `h` as inches on the card and in the Library (all 18 ferns, hosta, heuchera, the lungworts,
+astilbe, astrantia, bleeding heart, columbine and the rest, nearly all on the Shade Perennials tab)
+took a `heightIn` by the 0.9.113 method: MBG first, then RHS, NC State, Mt. Cuba's trials, nurseries,
+and `h` solved in the renderer wherever the drawing missed by over 8% or 2 in. 22 of their cultivars
+took their own, as did two Sun Perennial cultivars that redraw themselves ('Album' bloody cranesbill,
+'Bees' Sunset'). Big fern `h` came down hard (cinnamon fern drew 62 in for a 30 in plant) and the
+arching stems went up, since an archbell draws about two thirds of `h`. The generic daylily and hosta
+records are read against all of MBG's listings (median 21 in over 178 daylilies, a 15 in mound over
+145 hostas), and a hosta's or heuchera's figure is its leaf mound, as in 0.9.106.
+The heuchera base record took `sideScale:0.64`: taller, it touched its library preview's edge.
+`every forb draws at its sourced height` (game.test) replaced the Sun Perennial-only test: every forb
+choice within 25% or 4 in, measured in a season without flowers for a leaf mound, with the runner
+mats (trailing bellflower, blue-eyed Mary, periwinkle) excused at `h:8`. Seven already-sourced shade
+and wet-ground forbs it caught were redrawn. Record: `docs/plant-data/shade-heights.json`.
 **Snow lies on the leaves of a plant with nothing standing in winter** (0.9.110; `_snowLeaves`,
 `snowLeafAt`, draw.js). A plant whose stems stand only in flower is its leaves alone in winter,
 and the cap scatter put its snow at the height of the stems it no longer has, `snowCrownFrac`

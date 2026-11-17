@@ -2540,13 +2540,18 @@ test('prairie smoke is a rosette all year, with plumes only after it flowers', (
     assertEqual(plume(season).length,0,`${season}: no plumes`);
   }
 });
-test('every sun perennial draws at its sourced height', () => {
+test('every forb draws at its sourced height', () => {
   // The px-art h is the drawn height in inches; heightIn is what the card quotes.
   // They had drifted apart by half again (pale coneflower drawn at 55 in for a
-  // 36 in plant). The top is read off the recorded geometry, a few inches short
-  // of the browser's ink. Desert rosettes are excluded: their heightIn is the
-  // rosette's and they draw a flower stalk (0.9.94).
-  const skip=new Set(['rosette','agave','sotol','ocotillo']);
+  // 36 in plant; cinnamon fern at 62 in for a 30 in one). The top is read off the
+  // recorded geometry, a few inches short of the browser's ink. Desert rosettes
+  // are excluded: their heightIn is the rosette's and they draw a flower stalk
+  // (0.9.94); a garden daylily is a rosette too and is held. A hosta's or a
+  // heuchera's heightIn is its leaf mound (0.9.106), so theirs is measured in a
+  // season with no flowers. The runner mats (periwinkle's habit without a
+  // cushion) draw their stems at a fixed size and keep h:8 to fit their sprites.
+  const skip=new Set(['agave','sotol','ocotillo']);
+  const mound=new Set(['hosta','heuchera','heucherella']);
   const topOf=(k,v,season)=>{
     let top=0;
     const ctx=new Proxy({fillStyle:'',strokeStyle:''},{get(o,p){ if(p in o) return o[p];
@@ -2559,17 +2564,20 @@ test('every sun perennial draws at its sourced height', () => {
     drawPlant(ctx,0,0,k,1,season,9137,0,v,1);
     return -top/HERB_SCALE;
   };
-  let n=0;
+  let n=0, shade=0;
   for (const k of PLANT_KEYS){
-    const p=PLANTS[k]; if(p.type!=='forb'||p.sun!=='full'||skip.has(p.form)) continue;
+    const p=PLANTS[k]; if(p.type!=='forb'||skip.has(p.form)||(p.form==='rosette'&&p.look&&p.look.leafShape)) continue;
     for (const v of [null,...Object.keys(p.cv||{})]){
       const D=plantDef(k,v); if(D.heightIn==null) continue;
-      const seasons=SEASONS.filter(s=>D.sea[s]&&D.sea[s].bloom), top=Math.max(...(seasons.length?seasons:SEASONS).map(s=>topOf(k,v,s)));
+      if(D.look&&D.look.habit==='mossphlox'&&!D.look.cushion) continue;
+      const bloom=SEASONS.filter(s=>D.sea[s]&&D.sea[s].bloom);
+      const seasons=mound.has(k) ? SEASONS.filter(s=>D.sea[s]&&D.sea[s].fol&&!D.sea[s].bloom) : (bloom.length?bloom:SEASONS);
+      const top=Math.max(...seasons.map(s=>topOf(k,v,s)));
       assert(Math.abs(top-D.heightIn)<=Math.max(4,D.heightIn*0.25),`${k}${v?':'+v:''}: drawn ${top.toFixed(1)} in for a ${D.heightIn} in plant`);
-      n++;
+      n++; if(p.sun==='part') shade++;
     }
   }
-  assert(n>250,`checked ${n} choices`);
+  assert(n>500 && shade>250,`checked ${n} choices, ${shade} of them shade perennials`);
 });
 test('a stonecrop is leafy up to its heads, and its dried heads stand into winter', () => {
   const H=plantVisualH(PLANTS.sedum), fol=PLANTS.sedum.sea.Summer.fol;
@@ -10739,8 +10747,10 @@ test('plant card mature size uses real tree heights (heightIn)', () => {
   const txt = matureSizeText(oak, false);
   assert(txt.startsWith(plantMeasure(oak.heightIn, false)), 'tree card height comes from heightIn');
   assert(txt.includes('90 ft'), `white oak reads 90 ft H (got "${txt}")`);
-  const forb = PLANTS.cardinallobelia;
-  assert(!forb.heightIn && matureSizeText(forb, false).startsWith(plantMeasure(forb.h, false)), 'a herbaceous plant not yet backfilled keeps the px-h fallback');
+  // every catalog forb has a sourced height now; a record without one still falls back to h
+  const forb = Object.assign({}, PLANTS.cardinallobelia, { heightIn: undefined });
+  assert(matureSizeText(forb, false).startsWith(plantMeasure(forb.h, false)), 'a plant with no heightIn keeps the px-h fallback');
+  assert(matureSizeText(PLANTS.cardinallobelia, false).startsWith(plantMeasure(36, false)), 'Cardinal Flower reads its sourced 3 ft');
   // a weeping cultivar's own heightIn overrides the species number
   const cq = plantDef('japanesemaple', 'crimsonqueen');
   assert(matureSizeText(cq, false).startsWith('9 ft'), `Crimson Queen reads 9 ft (got "${matureSizeText(cq, false)}")`);

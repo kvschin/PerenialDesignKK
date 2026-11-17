@@ -1,0 +1,1336 @@
+{
+ "reviewed": "2026-11-17",
+ "note": "Sourced heights for every forb that had none, nearly all on the Shade Perennials tab (0.9.125), and the drawn height h solved so each draws at it, as the 0.9.113 Sun Perennial audit did (docs/plant-data/meadow-audit.md). heightIn is the typical height in flower, except for a hosta or a heuchera, where it is the leaf mound (measure: 'leaf mound'), the convention of docs/plant-data/shade-cultivars.json. For a fern it is the height of its fronds. Sources: the Missouri Botanical Garden's Plant Finder first, then RHS, NC State Extension, Mt. Cuba Center's trials, and nursery listings where those have nothing; a range is quoted at its midpoint unless estimates says otherwise. drawnIn is the top of the drawing in inches at full growth in its flowering season (a season with no flowers for a leaf mound), read off the recorded geometry with seed 9137, before and after; h was changed only where that missed heightIn by more than 8% or 2 in. A cultivar not listed takes its species' height: 'Jack Frost', 'Sulphureum', 'Sherwood Purple', 'Burgundy Lace' and 'Silver Falls', whose sources agree with their species'.",
+ "heights": [
+  {
+   "ref": "persicaria",
+   "heightIn": 42,
+   "h": 48,
+   "drawnIn": {
+    "before": 42.7,
+    "after": 42.7
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=252583"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 3-4 ft. 42 in."
+   }
+  },
+  {
+   "ref": "bluestemmedgoldenrod",
+   "heightIn": 27,
+   "h": 30,
+   "drawnIn": {
+    "before": 26.7,
+    "after": 26.7
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=277522"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-3 ft. 27 in."
+   }
+  },
+  {
+   "ref": "cenolophium",
+   "heightIn": 48,
+   "h": 44,
+   "drawnIn": {
+    "before": 58.4,
+    "after": 47.8
+   },
+   "hBefore": 54,
+   "sources": [
+    "https://www.rhs.org.uk/plants/42450/details",
+    "https://www.luriegarden.org/plants/cenolophium-denudatum-baltic-parsley/"
+   ],
+   "estimates": {
+    "heightIn": "Not in the Missouri Botanical Garden's Plant Finder. RHS 1-1.5 m (filed as Cenolophium denudatum, the accepted name), Lurie Garden 3-5 ft. 48 in."
+   }
+  },
+  {
+   "ref": "dwarfcrestediris",
+   "heightIn": 8,
+   "h": 8,
+   "drawnIn": {
+    "before": 7.9,
+    "after": 7.9
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281151"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-9 in. 8 in."
+   }
+  },
+  {
+   "ref": "cardinallobelia",
+   "heightIn": 36,
+   "h": 37,
+   "drawnIn": {
+    "before": 40.8,
+    "after": 36
+   },
+   "hBefore": 42,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=278870"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-4 ft. 36 in."
+   }
+  },
+  {
+   "ref": "greatbluelobelia",
+   "heightIn": 30,
+   "h": 34,
+   "drawnIn": {
+    "before": 32.3,
+    "after": 32.3
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=278860"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "whiteturtlehead",
+   "heightIn": 30,
+   "h": 36,
+   "drawnIn": {
+    "before": 29.8,
+    "after": 29.8
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286965"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "goldenragwort",
+   "heightIn": 18,
+   "h": 19,
+   "drawnIn": {
+    "before": 22.8,
+    "after": 18
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=277220"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-30 in, the basal leaves low and the flowering stems the height. 18 in."
+   }
+  },
+  {
+   "ref": "shootingstar",
+   "heightIn": 14,
+   "h": 12,
+   "drawnIn": {
+    "before": 18.4,
+    "after": 14.4
+   },
+   "hBefore": 16,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285560"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 9-18 in (as Dodecatheon meadia). 14 in."
+   }
+  },
+  {
+   "ref": "bigrootgeranium",
+   "heightIn": 15,
+   "h": 12,
+   "drawnIn": {
+    "before": 19.9,
+    "after": 15.7
+   },
+   "hBefore": 16,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=280850"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in."
+   }
+  },
+  {
+   "ref": "lentenrose",
+   "heightIn": 15,
+   "h": 18,
+   "drawnIn": {
+    "before": 15.3,
+    "after": 15.3
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=260409",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286233"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in for the Ballard's Group hybrids and for Helleborus orientalis. 15 in."
+   }
+  },
+  {
+   "ref": "daylily",
+   "heightIn": 24,
+   "h": 24,
+   "drawnIn": {
+    "before": 25.1,
+    "after": 25.1
+   },
+   "sources": [
+    "https://plants.ces.ncsu.edu/plants/hemerocallis/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderListResults.aspx?basic=Hemerocallis"
+   ],
+   "estimates": {
+    "heightIn": "A record for garden daylilies in general, not one taxon. NC State Extension 1-3 ft for the genus; the 178 daylilies in the Missouri Botanical Garden's Plant Finder have a median height of 21 in, the middle half 21-27 in. 24 in."
+   }
+  },
+  {
+   "ref": "daylily|catherinewoodbery",
+   "heightIn": 33,
+   "h": 30,
+   "drawnIn": {
+    "before": 31.2,
+    "after": 31.2
+   },
+   "sources": [
+    "https://www.perennials.com/plants/hemerocallis-catherine-woodbery.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 31-35 in; not in the Missouri Botanical Garden's Plant Finder. 33 in."
+   }
+  },
+  {
+   "ref": "japaneseanemone",
+   "heightIn": 33,
+   "h": 32,
+   "drawnIn": {
+    "before": 55.3,
+    "after": 33.7
+   },
+   "hBefore": 54,
+   "sources": [
+    "https://plants.ces.ncsu.edu/plants/anemone-x-hybrida/"
+   ],
+   "estimates": {
+    "heightIn": "NC State Extension 2.5-3 ft for Anemone x hybrida; the Missouri Botanical Garden lists cultivars only (2-4 ft). 33 in."
+   }
+  },
+  {
+   "ref": "japaneseanemone|honorinejobert",
+   "heightIn": 42,
+   "h": 40,
+   "drawnIn": {
+    "before": 55.3,
+    "after": 41.5
+   },
+   "hBefore": 54,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=259405"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 3-4 ft. 42 in."
+   }
+  },
+  {
+   "ref": "brunnera",
+   "heightIn": 15,
+   "h": 12,
+   "drawnIn": {
+    "before": 20.4,
+    "after": 15.5
+   },
+   "hBefore": 16,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=243231"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in. 'Jack Frost' is the same (12-18 in) and takes it."
+   }
+  },
+  {
+   "ref": "brunnera|lookingglass",
+   "heightIn": 12,
+   "h": 9,
+   "drawnIn": {
+    "before": 20.4,
+    "after": 12
+   },
+   "hBefore": 16,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=260556"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-18 in. 12 in."
+   }
+  },
+  {
+   "ref": "creepingphlox",
+   "heightIn": 9,
+   "h": 10,
+   "drawnIn": {
+    "before": 7.7,
+    "after": 7.7
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285438"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 6-12 in. 9 in. 'Sherwood Purple' (Missouri Botanical Garden 3-6 in, Walters 6-12 in) takes it."
+   }
+  },
+  {
+   "ref": "foamflower",
+   "heightIn": 11,
+   "h": 12,
+   "drawnIn": {
+    "before": 14.8,
+    "after": 11.4
+   },
+   "hBefore": 16,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286882"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 9-12 in. 11 in."
+   }
+  },
+  {
+   "ref": "blackcohosh",
+   "heightIn": 60,
+   "h": 66,
+   "drawnIn": {
+    "before": 64.8,
+    "after": 64.8
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=290627"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 4-6 ft. 60 in."
+   }
+  },
+  {
+   "ref": "ladysmantle",
+   "heightIn": 15,
+   "h": 15,
+   "drawnIn": {
+    "before": 18.4,
+    "after": 15.5
+   },
+   "hBefore": 18,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286570"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in."
+   }
+  },
+  {
+   "ref": "barrenwort",
+   "heightIn": 11,
+   "h": 11,
+   "drawnIn": {
+    "before": 14.8,
+    "after": 11
+   },
+   "hBefore": 15,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=293198",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=246083"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 9-12 in for Epimedium x versicolor 'Discolor' and 'Sulphureum'; it lists no plain x versicolor. 11 in, which 'Sulphureum' takes."
+   }
+  },
+  {
+   "ref": "bleedingheart",
+   "heightIn": 30,
+   "h": 45,
+   "drawnIn": {
+    "before": 19.9,
+    "after": 28.7
+   },
+   "hBefore": 30,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=292782"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "bleedingheart|alba",
+   "heightIn": 27,
+   "h": 45,
+   "drawnIn": {
+    "before": 19.9,
+    "after": 28.7
+   },
+   "hBefore": 30,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=274719"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-2.5 ft. 27 in."
+   }
+  },
+  {
+   "ref": "bleedingheart|goldheart",
+   "heightIn": 21,
+   "h": 31,
+   "drawnIn": {
+    "before": 16.2,
+    "after": 20.2
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=258957"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-2 ft. 21 in."
+   }
+  },
+  {
+   "ref": "peachbellflower",
+   "heightIn": 27,
+   "h": 30,
+   "drawnIn": {
+    "before": 27.6,
+    "after": 27.6
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=278819"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-3 ft. 27 in."
+   }
+  },
+  {
+   "ref": "peachbellflower|telhambeauty",
+   "heightIn": 42,
+   "h": 46,
+   "drawnIn": {
+    "before": 32.5,
+    "after": 41.4
+   },
+   "hBefore": 36,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244584"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 3-4 ft. 42 in."
+   }
+  },
+  {
+   "ref": "peachbellflower|alba",
+   "heightIn": 30,
+   "h": 30,
+   "drawnIn": {
+    "before": 27.6,
+    "after": 27.6
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=244578"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "goatsbeard",
+   "heightIn": 60,
+   "h": 60,
+   "drawnIn": {
+    "before": 55.6,
+    "after": 55.6
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286433"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 4-6 ft. 60 in."
+   }
+  },
+  {
+   "ref": "goatsbeard|kneiffii",
+   "heightIn": 30,
+   "h": 30,
+   "drawnIn": {
+    "before": 28.9,
+    "after": 28.9
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=241889"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "dianaclarelungwort",
+   "heightIn": 11,
+   "h": 12,
+   "drawnIn": {
+    "before": 12.9,
+    "after": 12.9
+   },
+   "sources": [
+    "https://www.diggingdog.com/plant/P-2000",
+    "https://www.rhs.org.uk/plants/135762/details"
+   ],
+   "estimates": {
+    "heightIn": "Not in the Missouri Botanical Garden's Plant Finder. Digging Dog 10 in, RHS 0.1-0.5 m, British nurseries about 30 cm. 11 in."
+   }
+  },
+  {
+   "ref": "blueensignlungwort",
+   "heightIn": 12,
+   "h": 12,
+   "drawnIn": {
+    "before": 11.5,
+    "after": 11.5
+   },
+   "sources": [
+    "https://www.rhs.org.uk/plants/90767/details",
+    "https://www.perennials.com/plants/pulmonaria-blue-ensign.html"
+   ],
+   "estimates": {
+    "heightIn": "Not in the Missouri Botanical Garden's Plant Finder. RHS: to 30 cm; Walters 10-12 in. 12 in."
+   }
+  },
+  {
+   "ref": "sissinghurstlungwort",
+   "heightIn": 11,
+   "h": 10,
+   "drawnIn": {
+    "before": 10.3,
+    "after": 10.3
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=257712"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 9-12 in. 11 in."
+   }
+  },
+  {
+   "ref": "hosta",
+   "heightIn": 18,
+   "measure": "leaf mound",
+   "h": 30,
+   "drawnIn": {
+    "before": 18.1,
+    "after": 18.1
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderListResults.aspx?basic=Hosta"
+   ],
+   "estimates": {
+    "heightIn": "A record for garden hostas in general, not one taxon, so its height is the leaf mound, the figure the trade quotes. The 145 hostas in the Missouri Botanical Garden's Plant Finder have a median of 15 in, the middle half 10.5-21 in; this record's 3 ft spread is a larger plant than the median. 18 in, scapes above it."
+   }
+  },
+  {
+   "ref": "ostrichfern",
+   "heightIn": 54,
+   "h": 55,
+   "drawnIn": {
+    "before": 57.8,
+    "after": 57.8
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285874"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 3-6 ft. 54 in."
+   }
+  },
+  {
+   "ref": "ladyfern",
+   "heightIn": 24,
+   "h": 23,
+   "drawnIn": {
+    "before": 37.6,
+    "after": 23.9
+   },
+   "hBefore": 36,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285648"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1-3 ft. 24 in."
+   }
+  },
+  {
+   "ref": "ladyfern|victoriae",
+   "heightIn": 21,
+   "h": 21,
+   "drawnIn": {
+    "before": 32.4,
+    "after": 21.4
+   },
+   "hBefore": 32,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=242041"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-2 ft. 21 in."
+   }
+  },
+  {
+   "ref": "christmasfern",
+   "heightIn": 18,
+   "h": 19,
+   "drawnIn": {
+    "before": 27.9,
+    "after": 17.4
+   },
+   "hBefore": 30,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285770"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1-2 ft. 18 in."
+   }
+  },
+  {
+   "ref": "marginalwoodfern",
+   "heightIn": 21,
+   "h": 20,
+   "drawnIn": {
+    "before": 25.8,
+    "after": 21.5
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285665"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-2 ft. 21 in."
+   }
+  },
+  {
+   "ref": "cinnamonfern",
+   "heightIn": 30,
+   "h": 28,
+   "drawnIn": {
+    "before": 61.6,
+    "after": 29.5
+   },
+   "hBefore": 58,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=359554"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft; taller in wet ground. 30 in."
+   }
+  },
+  {
+   "ref": "royalfern",
+   "heightIn": 30,
+   "h": 29,
+   "drawnIn": {
+    "before": 51.7,
+    "after": 30.1
+   },
+   "hBefore": 50,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285737"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft for var. spectabilis; taller in wet ground. 30 in."
+   }
+  },
+  {
+   "ref": "interruptedfern",
+   "heightIn": 30,
+   "h": 26,
+   "drawnIn": {
+    "before": 50.2,
+    "after": 30
+   },
+   "hBefore": 44,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285735"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "maidenhairfern",
+   "heightIn": 21,
+   "h": 22,
+   "drawnIn": {
+    "before": 21.2,
+    "after": 21.2
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285642"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1-2.5 ft. 21 in."
+   }
+  },
+  {
+   "ref": "sensitivefern",
+   "heightIn": 30,
+   "h": 28,
+   "drawnIn": {
+    "before": 27.6,
+    "after": 29.4
+   },
+   "hBefore": 26,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285756",
+    "https://plants.ces.ncsu.edu/plants/onoclea-sensibilis/"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 3-4 ft, noting it grows taller in wet soil (sterile fronds 2-4 ft long); NC State Extension 1-2 ft. 30 in."
+   }
+  },
+  {
+   "ref": "hayscentedfern",
+   "heightIn": 21,
+   "h": 21,
+   "drawnIn": {
+    "before": 26.5,
+    "after": 21.2
+   },
+   "hBefore": 26,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285656"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-2 ft. 21 in."
+   }
+  },
+  {
+   "ref": "newyorkfern",
+   "heightIn": 18,
+   "h": 17,
+   "drawnIn": {
+    "before": 23.2,
+    "after": 17.9
+   },
+   "hBefore": 22,
+   "sources": [
+    "https://plants.ces.ncsu.edu/plants/thelypteris-noveboracensis/"
+   ],
+   "estimates": {
+    "heightIn": "Not in the Missouri Botanical Garden's Plant Finder. NC State Extension 1-2 ft. 18 in."
+   }
+  },
+  {
+   "ref": "goldiefern",
+   "heightIn": 42,
+   "h": 41,
+   "drawnIn": {
+    "before": 47.3,
+    "after": 42.1
+   },
+   "hBefore": 46,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=258474"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 3-4 ft. 42 in."
+   }
+  },
+  {
+   "ref": "japanesepaintedfern",
+   "heightIn": 15,
+   "h": 16,
+   "drawnIn": {
+    "before": 17,
+    "after": 14.9
+   },
+   "hBefore": 18,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=242044"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in. 'Burgundy Lace' and 'Silver Falls' (both 12-18 in there) take it."
+   }
+  },
+  {
+   "ref": "japanesepaintedfern|godzilla",
+   "heightIn": 36,
+   "h": 37,
+   "drawnIn": {
+    "before": 28.8,
+    "after": 35.4
+   },
+   "hBefore": 30,
+   "sources": [
+    "https://www.waltersgardens.com/variety.php?ID=ATHGO"
+   ],
+   "estimates": {
+    "heightIn": "Walters 3 ft; not in the Missouri Botanical Garden's Plant Finder. 36 in."
+   }
+  },
+  {
+   "ref": "japanesepaintedfern|ghost",
+   "heightIn": 27,
+   "h": 26,
+   "drawnIn": {
+    "before": 26.2,
+    "after": 26.2
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=254249"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-2.5 ft. 27 in."
+   }
+  },
+  {
+   "ref": "autumnfern",
+   "heightIn": 24,
+   "h": 24,
+   "drawnIn": {
+    "before": 25.8,
+    "after": 25.8
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285661"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-2.5 ft. 24 in."
+   }
+  },
+  {
+   "ref": "autumnfern|brilliance",
+   "heightIn": 18,
+   "h": 17,
+   "drawnIn": {
+    "before": 25.8,
+    "after": 18.4
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=265190"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1-2 ft. 18 in."
+   }
+  },
+  {
+   "ref": "malefern",
+   "heightIn": 30,
+   "h": 29,
+   "drawnIn": {
+    "before": 39.5,
+    "after": 30.1
+   },
+   "hBefore": 38,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285742"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "malefern|barnesii",
+   "heightIn": 33,
+   "h": 31,
+   "drawnIn": {
+    "before": 38,
+    "after": 32.5
+   },
+   "hBefore": 36,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256462"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2.5-3 ft. 33 in."
+   }
+  },
+  {
+   "ref": "softshieldfern",
+   "heightIn": 30,
+   "h": 32,
+   "drawnIn": {
+    "before": 31,
+    "after": 31
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285683"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "softshieldfern|plumosumdensum",
+   "heightIn": 16,
+   "h": 18,
+   "drawnIn": {
+    "before": 19.1,
+    "after": 15.7
+   },
+   "hBefore": 22,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=274331",
+    "https://thompson-morgan.com/p/polystichum-setiferum-plumosum-densum/WKF7486TM"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in for the Plumosomultilobum Group, of which 'Plumosum Densum' is a synonym; Thompson & Morgan 30-40 cm. 16 in."
+   }
+  },
+  {
+   "ref": "hartstonguefern",
+   "heightIn": 15,
+   "h": 16,
+   "drawnIn": {
+    "before": 15.3,
+    "after": 15.3
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285846"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 12-18 in. 15 in."
+   }
+  },
+  {
+   "ref": "hartstonguefern|crispum",
+   "heightIn": 11,
+   "h": 11,
+   "drawnIn": {
+    "before": 15.3,
+    "after": 10.4
+   },
+   "hBefore": 16,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=262992"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 9-12 in for the Crispum Group. 11 in."
+   }
+  },
+  {
+   "ref": "hollyfern",
+   "heightIn": 18,
+   "h": 16,
+   "drawnIn": {
+    "before": 24.8,
+    "after": 17.8
+   },
+   "hBefore": 22,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285815"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1-2 ft. 18 in."
+   }
+  },
+  {
+   "ref": "columbine",
+   "heightIn": 30,
+   "h": 32,
+   "drawnIn": {
+    "before": 30.5,
+    "after": 30.5
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286069"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2-3 ft. 30 in."
+   }
+  },
+  {
+   "ref": "woodlandphlox",
+   "heightIn": 15,
+   "h": 13,
+   "drawnIn": {
+    "before": 26.8,
+    "after": 16
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285428",
+    "https://www.prairiemoon.com/phlox-divaricata-wild-blue-phlox",
+    "https://mtcubacenter.org/trials/phlox-for-shade/phlox-divaricata/"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 9-12 in, Prairie Moon 12 in, Mt. Cuba's trial 18 in after three years (its 'Blue Moon' and 'May Breeze' 16 in). 15 in."
+   }
+  },
+  {
+   "ref": "wildgeranium",
+   "heightIn": 21,
+   "h": 24,
+   "drawnIn": {
+    "before": 22.6,
+    "after": 22.6
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=280854"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-2 ft. 21 in."
+   }
+  },
+  {
+   "ref": "solomonsseal",
+   "heightIn": 24,
+   "h": 38,
+   "drawnIn": {
+    "before": 24.6,
+    "after": 24.6
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281983"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1-3 ft for the species (var. commutatum, a separate choice, to 5 ft). 24 in."
+   }
+  },
+  {
+   "ref": "bluebells",
+   "heightIn": 21,
+   "h": 28,
+   "drawnIn": {
+    "before": 20.5,
+    "after": 20.5
+   },
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=277984"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-2 ft. 21 in."
+   }
+  },
+  {
+   "ref": "heuchera",
+   "heightIn": 12,
+   "measure": "leaf mound",
+   "h": 31,
+   "drawnIn": {
+    "before": 9.4,
+    "after": 12
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286871",
+    "https://mtcubacenter.org/trials/heuchera/heuchera-americana/"
+   ],
+   "estimates": {
+    "heightIn": "The leaf mound, as for every heuchera. Missouri Botanical Garden: a basal clump 12-15 in, flowers to 2 ft; Mt. Cuba's trial 10 in of leaves, flowers to 48 in. 12 in."
+   }
+  },
+  {
+   "ref": "heuchera|greenSpice",
+   "heightIn": 10,
+   "measure": "leaf mound",
+   "h": 26,
+   "drawnIn": {
+    "before": 9.4,
+    "after": 10.3
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-green-spice/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=263718"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 10 in of leaves, flowers to 44 in (Missouri Botanical Garden: a mound to 9 in). 10 in."
+   }
+  },
+  {
+   "ref": "heuchera|palacepurple",
+   "heightIn": 13,
+   "measure": "leaf mound",
+   "h": 31,
+   "drawnIn": {
+    "before": 9.4,
+    "after": 12
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-palace-purple/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=259276"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 13 in of leaves, flowers to 26 in (Missouri Botanical Garden: a mound to 12 in, flowers 15-24 in). 13 in."
+   }
+  },
+  {
+   "ref": "heuchera|caramel",
+   "heightIn": 15,
+   "measure": "leaf mound",
+   "h": 39,
+   "drawnIn": {
+    "before": 9.4,
+    "after": 15.2
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-caramel/",
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=262099"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 15 in of leaves, flowers to 24 in (Missouri Botanical Garden: a mound to 8 in). The trial measured the plant after three years; 15 in."
+   }
+  },
+  {
+   "ref": "heuchera|applecrisp",
+   "heightIn": 6,
+   "measure": "leaf mound",
+   "h": 14,
+   "drawnIn": {
+    "before": 5.6,
+    "after": 5.6
+   },
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-apple-crisp/",
+    "https://www.perennials.com/plants/heuchera-apple-crisp.html"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 6 in of leaves, flowers to 20 in; Walters 6-8 in. 6 in."
+   }
+  },
+  {
+   "ref": "heuchera|steelcity",
+   "heightIn": 12,
+   "measure": "leaf mound",
+   "h": 31,
+   "drawnIn": {
+    "before": 7.8,
+    "after": 12
+   },
+   "hBefore": 20,
+   "sources": [
+    "https://mtcubacenter.org/trials/heuchera/heuchera-steel-city/",
+    "https://theprimrosepath.com/Featured_Plants/Heuchera/steelcity.htm"
+   ],
+   "estimates": {
+    "heightIn": "Mt. Cuba's trial 12 in of leaves, flowers to 18 in; The Primrose Path, its raiser, a mound about 12 in, flowers to about 24 in. 12 in."
+   }
+  },
+  {
+   "ref": "astrantia",
+   "heightIn": 33,
+   "h": 30,
+   "drawnIn": {
+    "before": 37.4,
+    "after": 33.5
+   },
+   "hBefore": 34,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=276013"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 2.5-3 ft. 33 in."
+   }
+  },
+  {
+   "ref": "astrantia|hadspenblood",
+   "heightIn": 28,
+   "h": 25,
+   "drawnIn": {
+    "before": 37.4,
+    "after": 28.4
+   },
+   "hBefore": 34,
+   "sources": [
+    "https://www.perennials.com/plants/astrantia-major-hadspen-blood.html"
+   ],
+   "estimates": {
+    "heightIn": "Walters 27-29 in; not in the Missouri Botanical Garden's Plant Finder. 28 in."
+   }
+  },
+  {
+   "ref": "astrantiaroma",
+   "heightIn": 21,
+   "h": 17,
+   "drawnIn": {
+    "before": 29,
+    "after": 21.9
+   },
+   "hBefore": 24,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=261066"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 1.5-2 ft. 21 in."
+   }
+  },
+  {
+   "ref": "astilbe",
+   "heightIn": 24,
+   "h": 25,
+   "drawnIn": {
+    "before": 32.9,
+    "after": 24.6
+   },
+   "hBefore": 34,
+   "sources": [
+    "https://www.rhs.org.uk/plants/1825/details"
+   ],
+   "estimates": {
+    "heightIn": "The Missouri Botanical Garden lists only varieties and cultivars of Astilbe chinensis. RHS: about 60 cm, to 0.5-1 m. 24 in."
+   }
+  },
+  {
+   "ref": "astilbe|bridalveil",
+   "heightIn": 28,
+   "h": 29,
+   "drawnIn": {
+    "before": 32.9,
+    "after": 28.2
+   },
+   "hBefore": 34,
+   "sources": [
+    "https://www.provenwinners.com/plants/astilbe/bridal-veil-hybrid-astilbe-false-spirea-astilbe-japonica",
+    "https://www.perennials.com/plants/astilbe-arendsii-bridal-veil.html"
+   ],
+   "estimates": {
+    "heightIn": "Proven Winners 28 in in flower; Walters 16-18 in, the leaves. 28 in."
+   }
+  },
+  {
+   "ref": "sanguineumgeranium|album",
+   "heightIn": 14,
+   "h": 21,
+   "drawnIn": {
+    "before": 9.1,
+    "after": 13.5
+   },
+   "hBefore": 14,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=245831"
+   ],
+   "estimates": {
+    "heightIn": "Missouri Botanical Garden 9-18 in. 14 in."
+   }
+  },
+  {
+   "ref": "redhotpoker|beessunset",
+   "heightIn": 30,
+   "h": 34,
+   "drawnIn": {
+    "before": 37.2,
+    "after": 30.4
+   },
+   "hBefore": 42,
+   "sources": [
+    "https://www.rhs.org.uk/plants/70316/details",
+    "https://avondalenursery.co.uk/product/kniphofia-bees-sunset"
+   ],
+   "estimates": {
+    "heightIn": "Not in the Missouri Botanical Garden's Plant Finder. RHS 0.5-1 m, Avondale Nursery 75 cm. 30 in."
+   }
+  }
+ ],
+ "redrawnNote": "Forbs that already carried a sourced heightIn and drew more than 25% or 4 in off it, which the extended test now catches. Only h changed.",
+ "redrawn": [
+  {
+   "ref": "monkeyflower",
+   "heightIn": 24,
+   "h": 21,
+   "hBefore": 28,
+   "drawnIn": {
+    "before": 32.3,
+    "after": 24.6
+   },
+   "note": "Sourced at 24 in (0.9.79) and drawn at 32."
+  },
+  {
+   "ref": "drumstickprimrose",
+   "heightIn": 10,
+   "h": 8,
+   "hBefore": 12,
+   "drawnIn": {
+    "before": 14.2,
+    "after": 10.3
+   },
+   "note": "Sourced at 10 in (0.9.79) and drawn at 14."
+  },
+  {
+   "ref": "variegatedsolomonsseal",
+   "heightIn": 24,
+   "h": 36,
+   "hBefore": 24,
+   "drawnIn": {
+    "before": 16.2,
+    "after": 23.3
+   },
+   "note": "Sourced at 24 in (0.9.105); an arching stem draws about two thirds of h, so h equal to heightIn drew it at 16."
+  },
+  {
+   "ref": "fringedbleedingheart",
+   "heightIn": 15,
+   "h": 21,
+   "hBefore": 15,
+   "drawnIn": {
+    "before": 10.7,
+    "after": 14.5
+   },
+   "note": "Sourced at 15 in (0.9.105); drawn at 11, for the arching-stem reason."
+  },
+  {
+   "ref": "falsesolomonsseal",
+   "heightIn": 30,
+   "h": 45,
+   "hBefore": 30,
+   "drawnIn": {
+    "before": 19.9,
+    "after": 28.7
+   },
+   "note": "Sourced at 30 in (0.9.105); drawn at 20, for the arching-stem reason."
+  },
+  {
+   "ref": "bellwort",
+   "heightIn": 20,
+   "h": 29,
+   "hBefore": 20,
+   "drawnIn": {
+    "before": 13.8,
+    "after": 19.2
+   },
+   "note": "Sourced at 20 in (0.9.107); drawn at 14, for the arching-stem reason."
+  },
+  {
+   "ref": "roundleafragwort",
+   "heightIn": 16,
+   "h": 15,
+   "hBefore": 20,
+   "drawnIn": {
+    "before": 20.9,
+    "after": 15.8
+   },
+   "note": "Sourced at 16 in (0.9.106) and drawn at 21."
+  },
+  {
+   "ref": "creepingphlox|pinkridge",
+   "heightIn": 10,
+   "h": 13,
+   "hBefore": 10,
+   "drawnIn": {
+    "before": 7.7,
+    "after": 9.6
+   },
+   "note": "Sourced at 10 in (0.9.106) and drew at 7.7 with its species' h; it takes its own."
+  },
+  {
+   "ref": "ladyfern|ladyinred",
+   "heightIn": 30,
+   "h": 28,
+   "hBefore": 36,
+   "drawnIn": {
+    "before": 38.4,
+    "after": 29.8
+   },
+   "note": "Sourced at 30 in (0.9.106) and drew with its species' h, which this pass lowered; it takes its own."
+  }
+ ]
+}

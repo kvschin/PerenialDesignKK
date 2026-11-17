@@ -290,3 +290,30 @@ later runs do not redo or touch the same records.
 - Next: second sources for the wide-range figures the audit names (purple coneflower, Culver's root,
   *Penstemon digitalis*, 'Caradonna', 'Blue Spire', 'Jeana'); move scabiosa 'Blue Cockade' (an annual
   *S. atropurpurea*); heights for the Shade Perennials, which this pass did not touch.
+
+## 2026-11-17 — real heights for the last 53 forbs (shade backfill)
+
+- The 53 forbs with no `heightIn`, nearly all Shade Perennials (all 18 ferns, hosta, heuchera, the
+  lungworts, astilbe, astrantia, bleeding heart, columbine, woodland phlox and the rest), plus 22 of their
+  cultivars and two Sun Perennial cultivars that redraw themselves ('Album' bloody cranesbill,
+  'Bees' Sunset'). Record, with every figure, source and before/after drawn height:
+  `docs/plant-data/shade-heights.json`.
+- Sources: MBG Plant Finder by Node script for 64 of the 77 figures; RHS, NC State Extension, Mt. Cuba's
+  heuchera and phlox trials (read in the browser pane, which Mt. Cuba allows where Node gets 403), Walters
+  and other nurseries for the rest. Generic records: daylily 24 in (NC State 1-3 ft; MBG's 178 daylilies
+  median 21 in), hosta 18 in of leaves (MBG's 145 hostas median 15 in, this record a 3 ft plant).
+- Conflicts worth a second source: sensitive fern (MBG 3-4 ft, NC State 1-2 ft, set 30 in), woodland
+  phlox (MBG 9-12 in, Mt. Cuba 18 in, set 15), heuchera 'Caramel' (MBG an 8 in mound, Mt. Cuba 15 in),
+  cinnamon and royal fern (MBG 2-3 ft; both reach 5 ft in wet ground).
+- `h` solved in the renderer for 46 choices (cinnamon fern 58 -> 28, bleeding heart 30 -> 45, heuchera
+  24 -> 31). The heuchera record took `sideScale:0.64` so its taller mound fits its library preview.
+- The Sun Perennial height test now covers every forb. It caught seven already-sourced shade and
+  wet-ground forbs drawn off their height (the four arching-stem plants, monkey flower, drumstick
+  primrose, round-leaf ragwort), redrawn; the runner mats keep `h:8`.
+- Sprite sweep (`dev/shade-review.html`, every family, both renderers): no sprite touches its edge, and
+  the library previews are clean. Catalog tray previews of 21 choices of 12 wide or low shade plants
+  touch an edge (periwinkle, liriope, every creeping phlox, Lenten rose 'Wedding Bells' and 'New York
+  Night', Dutchman's breeches and others); this pass changed none of their drawings but 'Pink Ridge',
+  whose siblings at `h:8` and `h:10` touch it too.
+- Next: a fit for those tray previews; the faint highlight strokes that float above every arching-stem
+  plant (drawPlant's closing strokes, as the mats and bulbs had).
