@@ -1,6 +1,6 @@
 {
   "reviewed": "2026-11-17",
-  "note": "Sources for the bamboo records rebuilt in 0.9.127 (audit D08). The one record before named no species ('Fargesia / Phyllostachys selections') and its choices were 'Clumping bamboo', 'Golden groove' and 'Black bamboo'. `estimates` names every field that is a planning value rather than a published figure, and why. NC State returned 404 for Phyllostachys nigra, Fargesia murielae and Fargesia rufa.",
+  "note": "Sources for the bamboo records rebuilt in 0.9.127 (audit D08). The one record before named no species ('Fargesia / Phyllostachys selections') and its choices were 'Clumping bamboo', 'Golden groove' and 'Black bamboo'. `estimates` names every field that is a planning value rather than a published figure, and why. NC State returned 404 for Phyllostachys nigra, Fargesia murielae and Fargesia rufa. Green Panda bamboo and river cane were added in 0.9.128.",
   "migration": {
     "bamboo|": "bamboo| (now Phyllostachys aureosulcata): the old base drew a green 25 ft grove, which is this species",
     "bamboo|golden": "bamboo|golden (now 'Spectabilis'): MBG lists 'golden groove bamboo' as a common name of the species, but the old choice drew yellow canes, which is 'Spectabilis' (yellow culm, green groove). Kept on its key so saved gardens keep the picture they show",
@@ -42,7 +42,9 @@
               "says": "Colours reversed from the species: bright yellow culms with a green sulcus; new culms flush red in sun. Height 30 ft max, 25 ft average; -10F; zones 5-10."
             }
           },
-          "estimates": { "size": "the species' figures; no source gives a different size" }
+          "estimates": {
+            "size": "the species' figures; no source gives a different size"
+          }
         }
       }
     },
@@ -68,7 +70,10 @@
     },
     "umbrellabamboo": {
       "latin": "Fargesia murielae",
-      "synonyms": ["Arundinaria murielae", "Sinarundinaria murielae"],
+      "synonyms": [
+        "Arundinaria murielae",
+        "Sinarundinaria murielae"
+      ],
       "sources": {
         "rhs": {
           "url": "https://www.rhs.org.uk/plants/82475/fargesia-murielae/details",
@@ -85,7 +90,73 @@
         "spread": "60 (5 ft): the top of the RHS's 1-1.5 m",
         "sun": "part: Bamboo Garden calls it shade-loving; the RHS allows full sun in Britain"
       }
+    },
+    "greenpandabamboo": {
+      "latin": "Fargesia dracocephala 'Rufa'",
+      "synonyms": [
+        "Fargesia rufa",
+        "Fargesia dracocephala 'Rufus'",
+        "Fargesia rufa 'Green Panda'",
+        "Fargesia sp. 'Rufa'"
+      ],
+      "naming": "One tissue-cultured clone, sold as Green Panda. The RHS lists it as Fargesia dracocephala Green Panda ('Rufus') with 'Fargesia rufa misapplied' as a synonym; NVK as Fargesia dracocephala 'Rufa'; Bamboo Garden as Fargesia sp. 'Rufa', selected by Jan Oprins in Belgium; MBG as Fargesia rufa; NC State as Fargesia rufa 'Green Panda'. The record follows the RHS and NVK species with the 'Rufa' epithet Bamboo Garden and NVK use. The true Fargesia rufa is a larger plant (RHS 137830: 2.5-4 m).",
+      "sources": {
+        "mbg": {
+          "url": "https://plantfinder.mobot.org/PlantFinderDetails.aspx?taxonid=285374",
+          "says": "As Fargesia rufa: zone 5 to 8; height 6-10 ft; spread 6-10 ft (6-8 ft wide in the notes); part shade; medium water; tolerates deer and drought. Prefers cool summers, needs protection from hot afternoon sun, does not perform well in the hot, humid summers of the southeastern US. Does not run; not invasive. Bluish-green new culms with rusty red sheaths, bright green mature culms 1/2 in across. Native to the mountains of western Sichuan."
+        },
+        "ncstate": {
+          "url": "https://plants.ces.ncsu.edu/plants/fargesia-rufa-green-panda/",
+          "says": "'Green Panda', introduced 1995: 6-10 ft tall and wide; zones 5a-8b; vase-shaped with arching stems; evergreen, deer-resistant; part shade, tolerates full sun; reddish-brown culm sheaths."
+        },
+        "rhs": {
+          "url": "https://www.rhs.org.uk/plants/337178/fargesia-dracocephala-green-panda-rufus/details",
+          "says": "Max height 1.5-2.5 m, max spread 1-1.5 m, 5-10 years; full sun or partial shade; H6."
+        },
+        "bambooGarden": {
+          "url": "https://bamboogarden.com/bamboo/fargesia-sp-rufa-green-panda",
+          "says": "Height 10 ft max, 6-7 ft average; 0.5 in canes; hardy to -15F; zones 5-9, not for intense heat or humid summers including most of the southern USA; shade-loving outside the Pacific Northwest."
+        },
+        "nvk": {
+          "url": "https://www.nvknurseries.com/plant/Fargesia-dracocephala-Rufa"
+        }
+      },
+      "estimates": {
+        "heightIn": "96 (8 ft): the middle of MBG's and NC State's 6-10 ft; Bamboo Garden's average is 6-7 ft",
+        "spread": "72 (6 ft): the low end of MBG's and NC State's width, above the RHS's 1-1.5 m. A clumping bamboo, so this is the real clump",
+        "zones": "[5,8]: MBG and NC State; Bamboo Garden gives 5-9",
+        "roles": "deerOk: MBG (tolerates deer) and NC State (deer-resistant)"
+      }
+    },
+    "rivercane": {
+      "latin": "Arundinaria gigantea",
+      "common": "river cane, giant cane, giant river cane, canebrake bamboo",
+      "sources": {
+        "mbg": {
+          "url": "https://plantfinder.mobot.org/PlantFinderDetails.aspx?taxonid=285180",
+          "says": "Zone 5 to 9; height 5-12 ft, to 25 ft in zones 8-9; spread 8-20 ft; full sun, tolerates light shade; consistently moist soil; native to river banks, bottomlands, swamps and bogs of the southeastern US. A rhizomatous running bamboo forming canebrakes; barriers or a sunk pot where naturalizing is not wanted. Leaves to 12 in long and 1.5 in wide, evergreen in warm areas, killed below 0F further north, the canes leafing out again in spring."
+        },
+        "ncstate": {
+          "url": "https://plants.ces.ncsu.edu/plants/arundinaria-gigantea/",
+          "says": "Height 4-25 ft, usually 8-20 ft; width 8-20 ft; zones 5a-9b; full sun to deep shade, best in partial to full sun; moist, well-drained, occasionally wet; tolerates brief inundation but will not thrive in wet areas."
+        },
+        "wildflowerCenter": {
+          "url": "https://www.wildflower.org/plants/result.php?id_plant=ARGI",
+          "says": "Up to about 25 ft; evergreen; part shade; wet soils. Native from southern New Jersey to southern Illinois, south to northern Florida and east Texas. River banks, damp woods, bogs. Relied on by Swainson's warbler, Bachman's warbler and others; used for basketry by southeastern Indigenous peoples."
+        },
+        "bambooGarden": {
+          "url": "https://www.bamboogarden.com/bamboo/arundinaria-gigantea",
+          "says": "Height 25 ft max, 15-20 ft average; 1 in canes; hardy to -10F; zones 6-10; with its form 'Tecta' the only bamboos native to the United States."
+        },
+        "wikipedia": "Arundinaria gigantea: giant cane, river cane; endemic to the south-central and southeastern US, west to Oklahoma and Texas, north to New York."
+      },
+      "estimates": {
+        "heightIn": "144 (12 ft): the top of MBG's 5-12 ft for colder zones and inside NC State's usual 8-20 ft",
+        "spread": "96 (8 ft): a planted clump, the low end of MBG's and NC State's 8-20 ft, which is how far a stand runs",
+        "zones": "[5,9]: MBG and NC State; Bamboo Garden gives 6-10",
+        "sun": "part: the Wildflower Center gives part shade, NC State full sun to deep shade",
+        "moist": "moist: MBG consistently moist, the Wildflower Center wet soils, NC State moist with occasional wet; not set to stand in water, since NC State says it will not thrive in wet areas"
+      }
     }
-  },
-  "notConsidered": "Fargesia rufa (MBG: zones 5-8, 6-10 ft, non-running; https://plantfinder.mobot.org/PlantFinderDetails.aspx?taxonid=285374) would give a smaller clumping choice, and river cane (Arundinaria gigantea) a North American native one. Neither was in the old record; both are candidates for a later batch."
+  }
 }

@@ -7354,6 +7354,14 @@ the `seedhead` and `winter` roles they earned; bamboo is named in the Japanese r
 list and its form in the architectural one, so it is still a Japanese and Modern
 plant (and Shade where it takes part shade, which yellow groove does not). Sources:
 `docs/plant-data/bamboo-sources.json`; `dev/bamboo-review.html` (`?grove`, `?check`).
+**Two more in 0.9.128.** `rivercane` (*Arundinaria gigantea*) is the bamboo native
+to North America, so a native garden there has one; it runs, and takes `moist` but
+not `wades`, since NC State says it will not thrive in standing wet. `greenpandabamboo`
+is ONE clone, sold everywhere as Green Panda and labelled *Fargesia rufa* by MBG and
+NC State, which the RHS calls misapplied: the record is *Fargesia dracocephala*
+'Rufa' (provenance `selection`), with the names it is sold under in `synonyms` so a
+search for "rufa" finds it. The true *F. rufa* is a larger plant and is not here.
+Green Panda carries `deerOk` (MBG, NC State). Five bamboos in all.
 
 Broadleaf fruit and nut trees can use `look.fruitShape:'round'|'pear'|'fig'|
 'oval'|'pod'|'nut'|'husk'|'bur'|'pomegranate'`, plus an optional bounded

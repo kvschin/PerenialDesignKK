@@ -336,3 +336,16 @@ later runs do not redo or touch the same records.
 - Review: `dev/bamboo-review.html` (`?grove` draws three linked tiles; `?check` sweeps sprites: 48 clean).
 - Next: Fargesia rufa as a smaller clumping choice, and river cane (*Arundinaria gigantea*) as the
   North American native one.
+
+## 2026-11-17 — river cane and Green Panda bamboo (0.9.128)
+
+- River cane (*Arundinaria gigantea*), the North American native bamboo: 12 x 8 ft, zones 5-9,
+  part shade, moist; MBG, NC State, the Wildflower Center and Bamboo Garden. A straight native, so it
+  now reaches a North American native garden; it runs (canebrakes), and the blurb says so.
+- Green Panda bamboo, one clone filed as *Fargesia dracocephala* 'Rufa' after the RHS and NVK (the
+  RHS lists "Fargesia rufa" as misapplied to it; MBG and NC State use that name, kept as a synonym).
+  8 x 6 ft, zones 5-8, part shade, deer-resistant (MBG, NC State). The true *F. rufa* (RHS: 2.5-4 m)
+  was not added.
+- `h`/`cw` solved with `dev/cultivar-size.cjs`. Both use the 0.9.127 look keys; Green Panda's
+  `caneYoung` is its rusty red culm sheaths. Record: `docs/plant-data/bamboo-sources.json`.
+- Review: `dev/bamboo-review.html?check`, 72 sprites clean.

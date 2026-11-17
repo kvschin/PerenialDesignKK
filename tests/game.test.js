@@ -7134,14 +7134,14 @@ test('bamboo trees expose grove neighbors when planted together', () => {
   assertEqual(own.bambooDirs.length, 2, 'the species links to its own selection, and not to the black bamboo');
 });
 
-test('every bamboo names one species, and the old choices open as the plants they were', () => {
+test('every bamboo names one plant, and the old choices open as the plants they were', () => {
   const bamboos = PLANT_KEYS.filter(k => PLANTS[k].form === 'bamboo');
-  assertEqual(bamboos.sort().join(), 'bamboo,blackbamboo,umbrellabamboo');
+  assertEqual(bamboos.join(), 'bamboo,blackbamboo,umbrellabamboo,greenpandabamboo,rivercane');
   for (const k of bamboos){
     const P = PLANTS[k];
-    assert(/^[A-Z][a-z]+ [a-z]+$/.test(P.latin), `${k}: one binomial, not a list (${P.latin})`);
-    assertEqual(P.nativeTo.join(), 'asia', `${k}: an Asian species`);
-    assertEqual(P.provenance, 'species', `${k}: a straight species`);
+    assert(/^[A-Z][a-z]+ [a-z]+( '[A-Z][a-z]+')?$/.test(P.latin), `${k}: one species or one named clone, not a list (${P.latin})`);
+    assertEqual(P.nativeTo.join(), k === 'rivercane' ? 'north-america' : 'asia', `${k}: its native range`);
+    assertEqual(P.provenance, k === 'greenpandabamboo' ? 'selection' : 'species', `${k}: species, or the one selection`);
     assert(P.heightIn && P.spread && P.zones, `${k}: sized and zoned from its sources`);
     assert(!Object.values(P.sea).some(s => s.seed), `${k}: no seedheads; bamboo rarely flowers`);
     assert(/barrier|does not run/.test(P.blurb), `${k}: says whether it runs`);
@@ -7157,11 +7157,17 @@ test('every bamboo names one species, and the old choices open as the plants the
   assertEqual(ref('bamboo', 'clumping'), 'umbrellabamboo|', 'Clumping opens as umbrella bamboo');
   assertEqual(ref('bamboo', 'black'), 'blackbamboo|', 'Black opens as black bamboo');
   assertEqual(ref('bamboo', 'golden'), 'bamboo|golden', 'Golden groove keeps its yellow canes, as Spectabilis');
-  assertEqual(plantDef('bamboo', 'golden').name, 'Yellow Groove Bamboo Spectabilis');
+  assertEqual(plantDef('bamboo', 'golden').name, "Yellow Groove Bamboo 'Spectabilis'");
   assertEqual(ref('bamboo', null), 'bamboo|', 'the plain grove is yellow groove bamboo');
   // and each one draws as itself
   const looks = bamboos.map(k => PLANTS[k].look);
   assert(looks[0].caneStripe && looks[1].caneYoung && looks[2].caneArch, 'groove, young green canes, an arching clump');
+  // the one native: offered to a North American native garden, and not to a European one
+  assert(passesNativeFilter(plantDef('rivercane'), { nativeRegion: 'north-america', nativeMode: 'straight' }), 'river cane is a straight North American native');
+  assert(!passesNativeFilter(plantDef('rivercane'), { nativeRegion: 'europe', nativeMode: 'regional' }), 'and not a European one');
+  assert(!passesNativeFilter(plantDef('bamboo'), { nativeRegion: 'north-america', nativeMode: 'regional' }), 'yellow groove is not');
+  assert(staticPlantRoles('greenpandabamboo').includes('deerOk'), 'MBG and NC State: deer leave Green Panda alone');
+  assert(/Fargesia rufa/.test(PLANTS.greenpandabamboo.synonyms.join()), 'and it can be found under the name it is usually labelled with');
 });
 
 test('boxwood and yew cultivars are documented but not selectable variants', () => {
