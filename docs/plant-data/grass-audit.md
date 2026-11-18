@@ -3,8 +3,8 @@
 Audited November 7, 2026, against the catalog at 0.9.87: 40 records in the Grasses category, with
 45 cultivars. The data fixes, bugs and snow shipped in 0.9.88, a crown for every grass in 0.9.89, and the
 rebuilt forms in 0.9.90, the twelve "Add first" species in 0.9.91, the ten European and design grasses in 0.9.92,
-site headings in 0.9.93, the twelve "Worth adding next" with giant miscanthus in 0.9.130, and the seventeen missing
-cultivars in 0.9.131.
+site headings in 0.9.93, the twelve "Worth adding next" with giant miscanthus in 0.9.130, the seventeen missing
+cultivars in 0.9.131, and every grass drawn at its height in flower in 0.9.133.
 
 `dev/grass-review.html` is the page used for all of it. It shows every grass in four seasons, as a
 drift, and at true scale beside a 6 ft post. It takes `?base`, `?form=vertgrass`, `?only=`, `?check`
@@ -771,7 +771,8 @@ flowers late, 'MinnblueA' blue-grey turning burgundy; 'Desert Plains' a big purp
 Each sets its own `h` so it draws within 10% of its `heightIn` in the seasons a head stands (1.01-1.08), measured off
 the recorded geometry. That leaves two families uneven: 'Transparent' and 'Karl Foerster' themselves draw a third over
 their `heightIn`, so a sibling drawn true stands lower beside them at true scale. Fixing the parents would change how
-existing gardens look, and is left for a height pass over the grasses like 0.9.113's for the forbs.
+existing gardens look, and is left for a height pass over the grasses like 0.9.113's for the forbs. That pass is
+0.9.133, below.
 
 ### The clipped pictures
 
@@ -810,6 +811,152 @@ by 12% in all, 36% on Blue Moor Grass at the most. They are the smallest sprites
   transform and records where the drawing lands, in both renderers. Run against 0.9.130's data it names the twelve.
 - One procedural draw is 0.05-0.49ms, 'Thundercloud' in Winter the most, against 0.45 for Switchgrass and 0.46 for
   Giant Sacaton already here.
+
+## Shipped in 0.9.133
+
+Every grass choice drawn at the height in flower its `heightIn` states, the pass 0.9.113 made over the Sun Perennials
+and the 2026-11-17 backfill over every forb. No plant added, no drawing code changed: `h` and `sideScale` only.
+
+| | Before | After |
+| --- | --- | --- |
+| Choices more than 10% (or 2 in) off | 62 of 140 | 1 of 140, excused |
+| Drawn height over `heightIn` | 0.71-1.58 | 0.92-1.09 |
+| Choices with `h` solved | | 73 |
+
+### How it was measured
+
+The top of the tallest culm or head in the seasons a head stands (`bloom` or `seed`), at full growth and full bloom,
+read off the recorded geometry through every translate and scale a crown makes and along every curve, then the median
+of five clumps (seeds 9137, 7, 4410, 123, 2026). The earlier height tests read the endpoints of each curve, ignored the
+crown's translate and took one seed, which read some of the 0.9.130 and 0.9.131 grasses a few percent lower than they
+draw; five of them (Idaho Fescue, Blue Lyme Grass, Slender Wood Oats, 'Cape Breeze', 'Piglet') were
+re-solved here. It is measured in ART2, which is what a gardener sees; the Classic renderer (`?art2=0`, a development comparison) draws two plumes
+differently, 'Red October' at 1.10 and Slender Indiangrass at 0.88, and is not held.
+
+Where a choice drew more than 8% (or 1.5 in) off, `h` was solved: rescaled by the measured ratio, then the integer
+nearest the height chosen from the ones either side. Everything else was left alone. The test holds every choice to
+10% or 2 in, the 2 in being for the low fescues, where one step of `h` is a tenth of the plant.
+
+### What does not scale
+
+Most forms draw every part from `h`, so a choice drawn a third too tall came down by a third and kept its proportions,
+leaf to culm. Two forms draw part of themselves at a fixed size, and there `h` fell further than the error:
+
+- **A cloudgrass's cloud.** `cloudHeight` and `cloudWidth` are draw units, so the cloud stands the same height on any
+  plant. Tufted hair grass came down from `h` 36 to 19, Purple Lovegrass and Wavy Hairgrass to 12. That moved the leaf
+  toward the sources: tufted hair grass drew 31 in of leaf under a plant that stands 30 in, and now draws 17, against
+  UC Sonoma's "a foot or more above foot-tall tussocks". 'Fast Forward' and 'Undaunted' came out with less leaf than
+  their sources give (18 in where the trade gives 24-36, and 12 where Ruby Muhly's is 18). A smaller `cloudHeight` on
+  those would let `h` give the leaf back; that is a change to how the cloud looks, left for a pass that looks at it.
+- **A fountain grass's bottlebrush.** Seven florets 2.1 units apart, about 8 in of plume on any plant. **'Little Bunny'
+  is the one choice excused**: on a 12 in dwarf the plume alone is two thirds of the plant. It keeps `h` 9, the floor of
+  the audited range, which leaves 8.6 in of leaf, and draws 15 in. 'Burgundy Bunny' (`h` 13) and 'Piglet' (13) fit.
+
+### Widths
+
+A grass's width follows its `h`, so the choices drawn shorter are narrower, by about the same share. A cultivar's width
+is its species' drawn width times its spread over the species' (`plantVisualWidthScale` multiplies by the species'
+`h`), so when a species' `h` moved, all its cultivars' widths moved with it, whether or not their own height changed:
+'Avalanche' and 'Eldorado' are 17% narrower beside 'Karl Foerster', 'Bronzeschleier' 28%, the Molinia cultivars 18-22%,
+and fountain grass's, whose species was drawn too short and went from `h` 38 to 45, 11-24% wider. A cultivar drawn
+shorter over a fixed-size cloud widens that cloud, since the scale multiplies it as well: 'Shenandoah', 'Prairie Sky'
+and 'Heavy Metal' draw 11-16% wider. None of this was measured against the sources' spreads, which conflict
+(see "Sources"); it is how the families now read beside each other.
+
+### Pictures
+
+25 choices took a wider `sideScale`, because a fixed-size cloud or plume on a smaller plant reaches further past its
+height: first from the recorded geometry (sprite box and the three pictures), then 0.03-0.05 more on five, and a first
+`sideScale` on Indian Ricegrass and Nest Moor Grass, where the real pixels of `dev/grass-review.html?check` still
+painted a side column. Each carries 0.02 over what it measured. The largest moves: 'Little Bunny' 1.3 to 2.11,
+'Fast Forward' 1.09 to 1.63, Purple Lovegrass 0.92 to 1.63, 'Undaunted' 1.04 to 1.6, 'Lenca' (inherited 0.85) to 1.35.
+A plant with a large `sideScale` is drawn smaller in its picture, which is the price of not cutting it off.
+
+### How it was checked
+
+- `every grass draws at its sourced height in flower` (`tests/game.test.js`, `grassDrawnTop`) holds all 140 choices
+  and Sawgrass, and replaces the two narrower tests for the 0.9.130 and 0.9.131 grasses. Put back at 'Karl Foerster''s
+  old `h` it names that plant; 'Little Bunny' at its old `h` fails its excuse.
+- The sprite box and picture tests pass unchanged. Real pixels, in each renderer: 3,360 sprites with no ink on their
+  border and 1,680 library and catalog pictures with nothing cut off.
+- Screenshots of every grass at true scale beside its height line, in headless Chrome.
+- `node tests/run.js` and `npm run test:browser` pass.
+
+| Choice | `heightIn` | `h` | Drawn, before → after |
+| --- | --- | --- | --- |
+| Little Bluestem | 42 | 46 → 40 | 48.0 → 41.7 |
+| Little Bluestem 'The Blues' | 42 | 48 → 40 | 49.8 → 41.7 |
+| Little Bluestem 'Carousel' | 30 | 32 → 28 | 33.7 → 29.7 |
+| Little Bluestem 'Prairie Munchkin' | 22 | 24 → 20 | 25.5 → 21.4 |
+| Big Bluestem | 72 | 78 → 69 | 81.2 → 72.4 |
+| Big Bluestem 'Blackhawks' | 60 | 62 → 56 | 65.7 → 59.7 |
+| Switchgrass 'Northwind' | 66 | 66 → 57 | 75.3 → 66.5 |
+| Switchgrass 'Heavy Metal' | 56 | 60 → 45 | 70.3 → 55.6 |
+| Switchgrass 'Shenandoah' | 48 | 52 → 37 | 62.4 → 47.7 |
+| Switchgrass 'Prairie Sky' | 54 | 66 → 44 | 76.5 → 54.5 |
+| Switchgrass 'Dallas Blues' | 66 | 64 → 55 | 74.5 → 65.6 |
+| Switchgrass 'Purple Tears' | 48 | 48 → 40 | 56.3 → 48.4 |
+| Switchgrass 'Cape Breeze' | 30 | 25 → 22 | 32.8 → 30.0 |
+| Prairie Dropseed | 30 | 36 → 25 | 40.1 → 29.9 |
+| Prairie Dropseed 'Tara' | 24 | 24 → 21 | 27.1 → 24.5 |
+| Indiangrass | 72 | 70 → 59 | 85.3 → 71.7 |
+| Indiangrass 'Indian Steel' | 60 | 60 → 48 | 74.2 → 59.5 |
+| Indiangrass 'St. Louis' | 76 | 76 → 61 | 94.9 → 76.5 |
+| Blue Grama | 16 | 20 → 16 | 19.5 → 15.8 |
+| Feather Reed Grass 'Karl Foerster' | 60 | 62 → 46 | 80.7 → 60.2 |
+| Feather Reed Grass 'Overdam' | 48 | 48 → 37 | 62.7 → 48.5 |
+| Purple Lovegrass | 20 | 24 → 12 | 28.0 → 20.1 |
+| Pink Muhly Grass | 42 | 40 → 32 | 47.4 → 42.0 |
+| Pink Muhly Grass 'Lenca' | 36 | 36 → 24 | 44.6 → 36.4 |
+| Pink Muhly Grass 'Fast Forward' | 36 | 36 → 24 | 44.6 → 36.4 |
+| Mexican Feather Grass | 22 | 24 → 21 | 24.5 → 21.8 |
+| Tufted Hairgrass | 30 | 36 → 19 | 44.1 → 29.6 |
+| Tufted Hairgrass 'Goldtau' | 24 | 30 → 16 | 38.0 → 23.9 |
+| Tufted Hairgrass 'Bronzeschleier' | 42 | 42 → 33 | 49.5 → 41.8 |
+| Korean Feather Reed Grass | 48 | 42 → 37 | 55.2 → 48.6 |
+| Miscanthus | 72 | 76 → 68 | 80.5 → 72.3 |
+| Miscanthus 'Morning Light' | 72 | 60 → 67 | 64.3 → 72.0 |
+| Miscanthus 'Strictus' | 90 | 102 → 85 | 108.3 → 90.5 |
+| Miscanthus 'Malepartus' | 72 | 84 → 68 | 88.9 → 72.3 |
+| Fountain Grass | 42 | 38 → 45 | 37.4 → 42.2 |
+| Fountain Grass 'Hameln' | 24 | 24 → 21 | 26.7 → 24.4 |
+| Fountain Grass 'Little Bunny' | 12 | 12 → 9 | 17.6 → 15.4 (excused) |
+| Fountain Grass 'Burgundy Bunny' | 18 | 18 → 13 | 22.3 → 18.4 |
+| Fountain Grass 'Piglet' | 18 | 15 → 13 | 19.8 → 18.4 |
+| Blue Fescue 'Elijah Blue' | 15 | 12 → 14 | 12.8 → 15.2 |
+| Blue Fescue 'Boulder Blue' | 12 | 9 → 11 | 10.0 → 11.6 |
+| Blue Fescue 'Beyond Blue' | 18 | 12 → 17 | 12.8 → 18.3 |
+| Giant Feather Grass | 72 | 78 → 71 | 78.9 → 71.8 |
+| Purple Moor Grass 'Transparent' | 72 | 72 → 51 | 95.8 → 72.3 |
+| Sand Lovegrass | 36 | 42 → 26 | 50.6 → 36.0 |
+| Bottlebrush Grass | 42 | 42 → 39 | 45.4 → 42.1 |
+| Giant Sacaton | 72 | 72 → 58 | 84.7 → 71.9 |
+| Ruby Muhly | 28 | 28 → 20 | 33.8 → 28.1 |
+| Ruby Muhly 'Undaunted' | 24 | 24 → 15 | 30.8 → 24.1 |
+| Wavy Hairgrass | 20 | 22 → 12 | 28.7 → 20.1 |
+| Bushy Bluestem | 54 | 54 → 49 | 59.8 → 54.2 |
+| Sand Cordgrass | 48 | 48 → 40 | 56.9 → 48.6 |
+| Wiregrass | 30 | 30 → 28 | 32.7 → 30.3 |
+| Prairie Cordgrass | 78 | 78 → 66 | 91.7 → 78.3 |
+| Canada Wild Rye | 48 | 50 → 45 | 53.1 → 48.3 |
+| Nest Moor Grass | 22 | 22 → 19 | 25.1 → 21.5 |
+| Silver Moor Grass | 20 | 20 → 18 | 21.9 → 20.2 |
+| Greenlee's Moor Grass | 14 | 14 → 12 | 16.1 → 14.1 |
+| Pheasant's Tail Grass | 30 | 30 → 26 | 33.8 → 29.8 |
+| Large Blue Fescue | 20 | 20 → 18 | 22.0 → 20.2 |
+| Silky-spike Melic | 24 | 24 → 17 | 30.8 → 23.7 |
+| Idaho Fescue | 24 | 24 → 22 | 26.1 → 24.3 |
+| Blue Lyme Grass | 36 | 30 → 27 | 40.0 → 35.6 |
+| Slender Wood Oats | 36 | 36 → 33 | 39.0 → 36.0 |
+| Arizona Cottontop | 30 | 30 → 26 | 33.5 → 29.7 |
+| Deergrass | 60 | 48 → 43 | 67.0 → 60.3 |
+| Purple Needlegrass | 36 | 30 → 34 | 32.2 → 36.5 |
+| Roemer's Fescue | 36 | 32 → 29 | 39.0 → 36.1 |
+| Elliott's Lovegrass | 36 | 36 → 29 | 42.7 → 36.5 |
+| Dwarf Fakahatchee Grass | 36 | 36 → 27 | 46.7 → 35.5 |
+| Indian Ricegrass | 24 | 24 → 19 | 28.7 → 24.0 |
+| Lindheimer's Muhly | 60 | 48 → 43 | 66.9 → 60.0 |
+| Slender Indiangrass | 72 | 72 → 54 | 95.0 → 71.8 |
 
 ## How they look
 
@@ -912,3 +1059,4 @@ has the detail. The timed-out 3-year runs fit, since a slowed run needs far more
    The European and design grasses followed in 0.9.92, "Worth adding next" with giant miscanthus in 0.9.130, and
    the missing cultivars in 0.9.131.
 5. **Site headings on the tab,** as sedges have, once it passes 50 or so records. Shipped in 0.9.93, at 62.
+6. **Every grass at its height in flower,** `h` solved against `heightIn` and held by a test. Shipped in 0.9.133.

@@ -974,52 +974,60 @@ test('the sprite box holds every blade of a crowned grass, at every age', () => 
     }
   }
 });
-test('the 0.9.130 grasses draw at their sourced height in flower', () => {
-  // Read off the recorded geometry, as the forb test does, in the seasons a head stands.
-  const topOf=(k,v,season)=>{
-    let top=0;
+/* How tall a grass draws in flower, in inches: the top of its tallest culm or head in the seasons a head
+   stands, through every translate a crown makes and along every curve, the median of five clumps. A
+   clump's culms vary by seed, and the median is the clump a planting is mostly made of. */
+function grassDrawnTop(k,v){
+  const D=plantDef(k,v), heads=SEASONS.filter(s=>D.sea[s]&&(D.sea[s].bloom||D.sea[s].seed));
+  const once=(season,seed)=>{
+    let m=[1,0,0,1,0,0], top=0, px=0, py=0; const stack=[];
+    const mul=a=>{ const [A,B,C,E,F,G]=m; m=[A*a[0]+C*a[1],B*a[0]+E*a[1],A*a[2]+C*a[3],B*a[2]+E*a[3],A*a[4]+C*a[5]+F,B*a[4]+E*a[5]+G]; };
+    const pt=(x,y)=>{ const Y=m[1]*x+m[3]*y+m[5]; if(Y<top) top=Y; };
     const ctx=new Proxy({fillStyle:'',strokeStyle:''},{get(o,p){ if(p in o) return o[p];
       if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return ()=>({addColorStop(){}});
       if(p==='measureText') return ()=>({width:0});
-      return (...a)=>{ if(p==='ellipse') top=Math.min(top,a[1]-a[3]); else if(p==='arc') top=Math.min(top,a[1]-a[2]);
-        else if(p==='moveTo'||p==='lineTo') top=Math.min(top,a[1]); else if(p==='quadraticCurveTo') top=Math.min(top,a[3]); }; },
+      if(p==='save') return ()=>stack.push(m.slice());
+      if(p==='restore') return ()=>{ if(stack.length) m=stack.pop(); };
+      if(p==='setTransform') return (a,b,c,d,e,f)=>{ m=[a,b,c,d,e,f]; };
+      if(p==='translate') return (x,y)=>mul([1,0,0,1,x,y]);
+      if(p==='scale') return (x,y)=>mul([x,0,0,y===undefined?x:y,0,0]);
+      if(p==='rotate') return t=>mul([Math.cos(t),Math.sin(t),-Math.sin(t),Math.cos(t),0,0]);
+      if(p==='transform') return (a,b,c,d,e,f)=>mul([a,b,c,d,e,f]);
+      return (...a)=>{
+        if(p==='moveTo'||p==='lineTo'){ pt(a[0],a[1]); px=a[0]; py=a[1]; }
+        else if(p==='quadraticCurveTo'){ quadPts(px,py,a[0],a[1],a[2],a[3],pt); px=a[2]; py=a[3]; }
+        else if(p==='bezierCurveTo'){ for (const t of [0.25,0.5,0.75,1]){ const s=1-t;
+            pt(s*s*s*px+3*s*s*t*a[0]+3*s*t*t*a[2]+t*t*t*a[4],s*s*s*py+3*s*s*t*a[1]+3*s*t*t*a[3]+t*t*t*a[5]); } px=a[4]; py=a[5]; }
+        else if(p==='ellipse'){ const r=a[4]||0; for (let i=0;i<16;i++){ const t=i*Math.PI/8, ex=a[2]*Math.cos(t), ey=a[3]*Math.sin(t);
+            pt(a[0]+ex*Math.cos(r)-ey*Math.sin(r),a[1]+ex*Math.sin(r)+ey*Math.cos(r)); } }
+        else if(p==='arc'){ for (let i=0;i<16;i++){ const t=i*Math.PI/8; pt(a[0]+a[2]*Math.cos(t),a[1]+a[2]*Math.sin(t)); } }
+      }; },
       set(o,p,val){ o[p]=val; return true; }});
-    drawPlant(ctx,0,0,k,1,season,9137,0,v,1);
+    drawPlant(ctx,0,0,k,1,season,seed,0,v,1);
     return -top/HERB_SCALE;
   };
-  const refs=['broomsedge','splitbeardbluestem','splitbeardbluestem:blackmountain','coastrangemelic','idahofescue','coastalpanicgrass',
-    'giantwildrye','giantwildrye:canyonprince','bluelymegrass','purpletop','seaoats','mendocinoreedgrass','slenderwoodoats',
-    'americanbeachgrass','giantmiscanthus'];
-  for (const ref of refs){
-    const [k,v]=ref.split(':'), D=plantDef(k,v||null);
-    const heads=SEASONS.filter(s=>D.sea[s]&&(D.sea[s].bloom||D.sea[s].seed));
-    const top=Math.max(...heads.map(s=>topOf(k,v||null,s)));
-    assert(Math.abs(top-D.heightIn)<=Math.max(3,D.heightIn*0.12),`${ref}: drawn ${top.toFixed(1)} in for a ${D.heightIn} in plant`);
-  }
-});
-test('the 0.9.131 cultivars and sawgrass draw at their sourced height in flower', () => {
-  // As above. A cultivar sets its own h so its top lands on its heightIn, whatever its species does:
-  // 'Transparent' and 'Karl Foerster' themselves stand a third over theirs.
-  const topOf=(k,v,season)=>{
-    let top=0;
-    const ctx=new Proxy({fillStyle:'',strokeStyle:''},{get(o,p){ if(p in o) return o[p];
-      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return ()=>({addColorStop(){}});
-      if(p==='measureText') return ()=>({width:0});
-      return (...a)=>{ if(p==='ellipse') top=Math.min(top,a[1]-a[3]); else if(p==='arc') top=Math.min(top,a[1]-a[2]);
-        else if(p==='moveTo'||p==='lineTo') top=Math.min(top,a[1]); else if(p==='quadraticCurveTo') top=Math.min(top,a[3]); }; },
-      set(o,p,val){ o[p]=val; return true; }});
-    drawPlant(ctx,0,0,k,1,season,9137,0,v,1);
-    return -top/HERB_SCALE;
-  };
-  const refs=['bluegrama:blondeambition','purplemoorgrass:heidebraut','purplemoorgrass:poulpetersen','molinia:skyracer','molinia:windspiel',
-    'molinia:cordoba','indiangrass:siouxblue','karl:avalanche','karl:eldorado','switchgrass:rotstrahlbusch','switchgrass:thundercloud',
-    'switchgrass:capebreeze','bluestem:blaze','bluestem:twilightzone','bluestem:minnbluea','fountaingrass:desertplains','fountaingrass:piglet','sawgrass'];
-  for (const ref of refs){
-    const [k,v]=ref.split(':'), D=plantDef(k,v||null);
-    const heads=SEASONS.filter(s=>D.sea[s]&&(D.sea[s].bloom||D.sea[s].seed));
-    const top=Math.max(...heads.map(s=>topOf(k,v||null,s)));
-    assert(Math.abs(top-D.heightIn)<=Math.max(3,D.heightIn*0.1),`${ref}: drawn ${top.toFixed(1)} in for a ${D.heightIn} in plant`);
-  }
+  const tops=[9137,7,4410,123,2026].map(seed=>Math.max(...heads.map(s=>once(s,seed)))).sort((a,b)=>a-b);
+  return tops[2];
+}
+test('every grass draws at its sourced height in flower', () => {
+  // h is the drawn height in px-art and heightIn the height the card quotes; they had drifted apart by up
+  // to half again (tufted hair grass at 44 in for a 30 in plant, 'Karl Foerster' at 81 for 60), so a
+  // sibling drawn true stood visibly lower beside its species. Every choice was solved in 0.9.133; the
+  // 2 in floor is the low fescues', where one step of h is a tenth of the plant. ART2 is what a gardener
+  // sees: the dev-only Classic renderer draws two plumes differently and is not held.
+  // Excused: 'Little Bunny', whose bottlebrush is a stack of florets of fixed size, about 8 in tall, on
+  // a 12 in dwarf. It keeps h 9, the floor of the audited range and 8.6 in of leaf, and stands 15 in.
+  const excused={'fountaingrass:littlebunny':1.32};
+  const was=ART2.on; let n=0;
+  try { ART2.on=true;
+    for (const [k,v] of [...GRASS_REFS(),['sawgrass',null]]){
+      const ref=k+(v?':'+v:''), D=plantDef(k,v), top=grassDrawnTop(k,v);
+      if (excused[ref]) { assert(top>D.heightIn&&top<=D.heightIn*excused[ref],`${ref}: drawn ${top.toFixed(1)} in, within its excuse`); continue; }
+      assert(Math.abs(top-D.heightIn)<=Math.max(2,D.heightIn*0.1),`${ref}: drawn ${top.toFixed(1)} in for a ${D.heightIn} in plant`);
+      n++;
+    }
+  } finally { ART2.on=was; }
+  assert(n>=139,`checked ${n} choices`);
 });
 /* The catalog's row and tile pictures and the Library card fit a plant by its height and by the
    sideScale it declares, so a low grass wider than that was cut off at the sides: fourteen were, by

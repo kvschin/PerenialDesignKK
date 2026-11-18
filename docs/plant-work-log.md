@@ -404,3 +404,15 @@ later runs do not redo or touch the same records.
   `wades`, colony, coastal. Checked and not added: hurricanegrass, Florida whitetop, beachstar, swamp flatsedge,
   Gulf Coast spikerush, whitetop and giant whitetop; reasons in `sedge-audit.md`.
 - Drawing: no new code; 48,064 draws of every older choice identical to 0.9.130.
+
+## 2026-11-18 — every grass at its height in flower (0.9.133)
+
+- Direct to master. The record, with every choice's `h` and drawn height before and after, is "Shipped in 0.9.133"
+  in `docs/plant-data/grass-audit.md`.
+- Measured: the top of the tallest culm or head in the seasons a head stands, the median of five clumps, ART2. 62 of
+  140 grass choices drew more than 10% (or 2 in) off their `heightIn`, 0.71-1.58 of it.
+- `h` solved on the 73 more than 8% (or 1.5 in) off; all draw 0.92-1.09 now. 'Little Bunny' excused: its
+  bottlebrush is a fixed 8 in, so it keeps `h` 9 (the audited floor) and draws 15 in for 12.
+- `sideScale` widened on 25 choices whose fixed-size cloud or plume now sits on a smaller plant; real pixels clean in
+  both renderers. No `heightIn`, spread or source changed.
+- Test: `every grass draws at its sourced height in flower` replaces the two 0.9.130/0.9.131 height tests.

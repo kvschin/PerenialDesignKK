@@ -7592,7 +7592,7 @@ selections on `purplemoorgrass`, the tall subsp. *arundinacea* ones on `molinia`
 share, and the feather reed sports on `karl`. A cultivar that is a sibling rather than a selection of its record
 carries `fullName` and its own `latin`; none overrides `form`, which has no precedent and would inherit the record's
 `look` keys and roles (`staticPlantRoles` is keyed per record). Each sets its own `h` to draw within 10% of its
-`heightIn`, though 'Transparent' and 'Karl Foerster' themselves still draw a third over theirs. **A low grass needs
+`heightIn`; 'Transparent' and 'Karl Foerster' themselves drew a third over theirs until 0.9.133 (below). **A low grass needs
 the `sideScale` its ink measures**, or the catalog row (56 px, enlarged to fill since 0.9.115) cuts it off at the
 sides; fourteen were, and a test now runs `paintLibCanvas` for every grass and sedge onto a recording canvas.
 **The Grasses tab lists by site as the Sedges
@@ -7654,6 +7654,20 @@ widens it. **Chicago's widths include the flower spray**, 100 in for 'Dallas Blu
 cultivar's `spread`**, so editing one changes how wide that cultivar draws.
 Every grass has a `heightIn` and bloom months, and a test holds both; the calendar test also wants a
 `bloom` colour for those months, and a cloudgrass paints `seed` over `bloom` where it has both.
+**Every grass draws at its `heightIn` (0.9.133)**, held by `every grass draws at its sourced height in flower`
+(`grassDrawnTop`, game.test.js): the top of its tallest culm or head in the seasons a head stands, through every
+translate and along every curve, the median of five clumps, in ART2, within 10% or 2 in. 62 of 140 choices drew
+outside that (0.71-1.58 of their height; tufted hair grass 44 in for 30, 'Karl Foerster' 81 for 60), and 73 had `h`
+solved, everything more than 8% or 1.5 in off, as 0.9.113 did for the forbs; all now draw 0.92-1.09. **Two forms
+draw part of themselves at a fixed size**, so `h` is not linear there: a cloudgrass's cloud (`cloudHeight`,
+`cloudWidth` are draw units) and a fountain grass's bottlebrush (seven florets 2.1 units apart). Their `h` fell
+further than their error, which moved the leaf mass toward the sources (tufted hair grass from 31 in of leaf under a
+30 in plant to 17). 'Little Bunny' is the one excuse: its bottlebrush alone is 8 in, so it keeps `h:9`, the floor of
+the audited range, and draws 15 in for 12. **A species' `h` sets its cultivars' WIDTH** (`plantVisualWidthScale`
+multiplies by the species' `h`), so a species drawn shorter takes its cultivars narrower with it ('Avalanche' and
+'Eldorado' 17% narrower, 'Bronzeschleier' 28%), one drawn taller takes them wider (fountain grass's, 11-24%), and a
+cultivar drawn shorter over a fixed-size cloud widens that cloud. 25 choices took a wider `sideScale`, measured on real pixels in `dev/grass-review.html?check` and on the
+recorded geometry. The dev-only Classic renderer is not held: it draws 'Red October' and Slender Indiangrass 10-12% off.
 
 **Desert rosettes are built in the round (0.9.94)** (`drawSpikyRosette`, `ROSETTE_LEAF`,
 `drawRosetteScape`, `drawOcotillo`, draw.js). Yuccas, hesperaloe, agaves and sotol were a FAN
