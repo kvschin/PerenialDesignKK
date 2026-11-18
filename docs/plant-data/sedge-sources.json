@@ -1,6 +1,6 @@
 {
-  "reviewed": "2026-11-07",
-  "note": "Sources for the sedges added in 0.9.83 and 0.9.87, and for the habit and water fields added in 0.9.84. `estimates` names every field that is a planning value or a judgement rather than a published figure, and why. Sizes conflict widely between floras, nurseries and Mt. Cuba's trial (grown in Delaware, usually larger), so the reasoning is recorded per plant. Many pages were read through search summaries or a fetch; NC State, Calscape and Plant Delights pages were often unavailable.",
+  "reviewed": "2026-11-17",
+  "note": "Sources for the sedges added in 0.9.83, 0.9.87 and 0.9.131 (sawgrass, batch zone11, the first sedge for zone 11), and for the habit and water fields added in 0.9.84. `estimates` names every field that is a planning value or a judgement rather than a published figure, and why. Sizes conflict widely between floras, nurseries and Mt. Cuba's trial (grown in Delaware, usually larger), so the reasoning is recorded per plant. Many pages were read through search summaries or a fetch; NC State, Calscape and Plant Delights pages were often unavailable.",
   "plants": [
     {
       "suggestedKey": "woodssedge",
@@ -1270,6 +1270,55 @@
         "sun": "NC State and RHS both give full sun or part shade, so a canopy should not stunt it.",
         "sea": "NC State and Wikipedia call it evergreen and RHS deciduous, so it is semi-evergreen; the colours are authored."
       }
+    },
+    {
+      "suggestedKey": "sawgrass",
+      "batch": "zone11",
+      "proposed": {
+        "name": "Sawgrass",
+        "latin": "Cladium jamaicense",
+        "type": "sedge",
+        "form": "bunchgrass",
+        "heightIn": 72,
+        "spread": 48,
+        "space": 36,
+        "zones": [
+          8,
+          11
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america",
+          "south-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "moist",
+        "phen": "warm",
+        "roles": [
+          "coastal"
+        ]
+      },
+      "sources": [
+        "https://www.fnps.org/plant/cladium-jamaicense",
+        "https://www.regionalconservation.org/beta/nfyn/plantdetail.asp?tx=Cladjama",
+        "https://plants.ces.ncsu.edu/plants/cladium-jamaicense/",
+        "https://plant-directory.ifas.ufl.edu/plant-directory/cladium-jamaicense",
+        "https://www.wildflower.org/plants/result.php?id_plant=CLMAJ",
+        "https://en.wikipedia.org/wiki/Cladium_mariscus"
+      ],
+      "estimates": {
+        "zones": "FNPS: suitable to grow in 8A-11, the only zone figure read. It grows wild south to the Monroe County Keys (IRC) and north on the coast to Virginia (NC State), so the lower limit may be colder than 8; 8 is kept as the one source gives it.",
+        "availability": "IRC: available at native plant nurseries in central and South Florida. FNPS: native nurseries and specialty providers. Plant Real Florida (the Florida Association of Native Nurseries) lists it, with no current stock posted when read.",
+        "heightIn": "FNPS 3-6 (10) ft, IRC 3-6 ft and to 10 ft in flower, UF/IFAS stems 6-7 ft, NC State 8-9 ft in flower. 72 in, in flower; the leaves (UF/IFAS: typically 3 ft) are drawn to about 38 in.",
+        "spread": "It forms large patches from short runners (IRC, UF/IFAS, FNPS: spreads rapidly to cover large areas). 48 in is a planted clump, not a colony.",
+        "space": "Planning value.",
+        "sun": "NC State full sun, IRC full sun to light shade, Wildflower Center sun or part shade, FNPS part sun. Filed for sun: it is a plant of open marsh.",
+        "roles": "NC State: brackish and fresh tidal marshes, the upper edges of salt marshes, interdune swales, and naturalized coastal areas. FNPS: useful in brackish settings, high tolerance of salt spray. Coastal, and not prairie: IRC names wet prairies, but in the sense of the Everglades marsh.",
+        "sea": "FNPS: evergreen. Grey-green leaves (UF/IFAS) all year; brown seed heads summer into winter (IRC: summer-fall flowering; Wildflower Center fruiting April-October).",
+        "caution": "Every source warns that the leaf edges and midrib are toothed and cut skin (FNPS: plant it where nobody brushes by; NC State: not where there is foot traffic). Said in the blurb.",
+        "name": "Cladium jamaicense in FNPS, IRC, UF/IFAS and the Atlas of Florida Plants; NC State and the Wildflower Center treat it as Cladium mariscus subsp. jamaicense, kept as a synonym. Wikipedia covers it under Cladium mariscus."
+      }
     }
   ],
   "cultivars": [
@@ -1464,6 +1513,11 @@
       "tuftedsedge": {
         "value": "clump",
         "source": "https://www.rhs.org.uk/plants/3078/carex-elata/details"
+      },
+      "sawgrass": {
+        "value": "colony",
+        "source": "https://www.regionalconservation.org/beta/nfyn/plantdetail.asp?tx=Cladjama",
+        "note": "Clonal, sometimes spreading and forming large patches."
       }
     }
   },
@@ -1479,7 +1533,8 @@
       "awlfruitedsedge": "https://www.wildflower.org/plants/result.php?id_plant=CAST5",
       "whitetopsedge": "https://plants.ces.ncsu.edu/plants/rhynchospora-colorata/",
       "tuftedsedge": "https://plants.ces.ncsu.edu/plants/carex-elata",
-      "bowlesgoldensedge": "https://plants.ces.ncsu.edu/plants/carex-elata"
+      "bowlesgoldensedge": "https://plants.ces.ncsu.edu/plants/carex-elata",
+      "sawgrass": "https://plants.ces.ncsu.edu/plants/cladium-jamaicense/"
     }
   }
 }

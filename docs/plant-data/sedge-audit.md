@@ -3,7 +3,7 @@
 Audited November 6, 2026, against the catalog at 0.9.79: 32 records in the Sedge
 category (31 *Carex* plus *Luzula nivea*). The data fixes shipped in 0.9.80, the drawing
 in 0.9.81, recommendations and browsing by site in 0.9.82, and the missing species in
-0.9.83. The rest of the model below is still open.
+0.9.83, and a sedge for zone 11 in 0.9.131. The rest of the model below is still open.
 
 ## Sources
 
@@ -205,6 +205,32 @@ the addresses tried, which proves little. Seabeach and Barratt's are the likelie
 - **Clump or colony** is recorded for 53 of 58 sedges, from the trial first. The rest have no source
   read, so they show nothing rather than a guess. A colony earns a "Spreads" tag on its card.
 
+## Shipped in 0.9.131: a sedge for zone 11
+
+**Sawgrass**, *Cladium jamaicense*, the sedge of the Everglades. The [Florida Native Plant
+Society](https://www.fnps.org/plant/cladium-jamaicense) rates it for zones 8A-11, the only zone figure read, and
+the Institute for Regional Conservation's [Natives for Your
+Neighborhood](https://www.regionalconservation.org/beta/nfyn/plantdetail.asp?tx=Cladjama) finds it at native
+nurseries in central and South Florida; it grows wild to the Monroe County Keys. It stands in water and spreads into
+large patches (IRC, FNPS, NC State), so it carries `wades` and `colony`, and `coastal` from NC State's brackish
+marshes and interdune swales and FNPS's salt-spray tolerance. Its blurb says what every source says: the leaf edges
+and midrib cut skin, so it goes where nobody walks through it. It files under Wet meadow. Drawn with the sedge tufts
+at about 38 in of stiff grey-green leaf under 72 in culms, each topped with the small branched `openPanicle`; a
+`topScale` lets the previews fit its tall culms. Sources and reasoning are in `sedge-sources.json`.
+
+It is a big plant for a big wet site, more often used for restoration than in a border, and it is in because nothing
+smaller qualified. What else was checked, and why it is not here:
+
+| Candidate | Why not |
+| --- | --- |
+| Hurricanegrass, *Fimbristylis cymosa* (*F. spathacea*) | The Florida Association of Native Nurseries rates it 8b-11, and UF/IFAS calls it native, but also "easy to overlook". Its native status in the Keys is disputed, and the only nursery found selling it is in Tampa. |
+| Florida whitetop, *Rhynchospora floridensis* | The South Florida pine-rockland whitetop, but IRC says it is grown by enthusiasts and only occasionally by nurseries, and no source read gives it a zone. |
+| White-topped Sedge, *R. colorata* (in the catalog) | FNPS and the Florida Wildflower Foundation both stop at 10B. |
+| Giant whitetop, *R. latifolia* | FNPS 8A-10B, seed only. |
+| Beachstar, *Cyperus pedunculatus* | FANN gives 10a-10b; IRC: grown by enthusiasts. |
+| Swamp flatsedge, *Cyperus ligularis* | IRC lists it for seasides, but no zone was found. |
+| Gulf Coast spikerush, *Eleocharis cellulosa* | FNPS 8A-10B. |
+
 ## Checked and left alone
 
 - **Palm sedge in winter.** The trial says semi-evergreen, but
@@ -226,10 +252,6 @@ the addresses tried, which proves little. Seabeach and Barratt's are the likelie
   blade on a big clump reads as wisps. That belongs with the drawing work.
 
 ## Still open
-
-### Missing species
-
-- **Zone 11 has no sedge.** No source read reaches it. A South Florida flora might.
 
 ### The model
 

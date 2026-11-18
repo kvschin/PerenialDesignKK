@@ -375,3 +375,32 @@ later runs do not redo or touch the same records.
 - `dev/grass-review.html?check` threw on the retired `TRAY_ART_W`; it now checks `trayPlantArt` rows and tiles, and
   finds twelve older low grasses whose list-row picture is cut off (since 0.9.115). Not fixed.
 - Next: the missing cultivars; the clipped list-row pictures.
+
+## 2026-11-17 — grass audit, the missing cultivars; clipped pictures; a zone 11 sedge (0.9.131)
+
+- Direct to master. The audit's "Missing cultivars" table, seventeen choices: bluegrama `blondeambition`;
+  purplemoorgrass `heidebraut`, `poulpetersen`; molinia `skyracer`, `windspiel`, `cordoba`; indiangrass `siouxblue`;
+  karl `avalanche`, `eldorado`; switchgrass `rotstrahlbusch`, `thundercloud`, `capebreeze`; bluestem `blaze`,
+  `twilightzone`, `minnbluea`; fountaingrass `desertplains`, `piglet`. Sources and reasoning per choice in the
+  `cultivars` batch of `docs/plant-data/grass-sources.json`.
+- Placement: the Molinia subsp. caerulea selections on the species record (moorgrass drawing); the tall subsp.
+  arundinacea ones on `molinia` ('Transparent'), which draws them, each with `fullName` and its own `latin`, so no
+  new Molinia record; the feather reed sports on `karl`, also with `fullName`; the fountain grasses on
+  `fountaingrass` (*Cenchrus alopecuroides*). 'MinnblueA' carries `synonyms:['Blue Heaven']` (trade name).
+- Sources that answered: Hoffman from the browser pane, by genus listing (`/plants/?genus[]=Panicum`, paged with
+  `/plants/P8?genus[]=...`; detail pages render the site's default list); Chicago's Plant Evaluation Notes 43 (all
+  five Molinias, 'Blonde Ambition', 'Desert Plains', 'Rotstrahlbusch', 'Thundercloud', 'Blaze', 'MinnBlueA'); MBG;
+  NVK; Digging Dog by genus page (`diggingdog.com/genus/<genus>`); Walters (perennials.com); RHS; Lurie Garden; Knoll
+  (`?p=<id>`); Izel's switchgrass and little bluestem chart PDFs; Proven Winners; Greenleaf; Pleasant Run; American
+  Beauties. Hoffman's detail URLs and a headless Chrome both meet a Cloudflare check; the browser pane passes it.
+- Decisions: heights solved so each choice draws within 10% of its `heightIn` (the parents 'Transparent' and 'Karl
+  Foerster' draw a third over theirs, unchanged). 'Rotstrahlbusch' 4-9; 'Thundercloud' does not repeat the nurseries'
+  "stands through snow", which Chicago's lowered rating contradicts.
+- Clipped pictures: `sideScale` measured off each choice's reach, both renderers: bluegrama .72, sesleria .72,
+  bluemoorgrass 1.15, bluefescue .95 ('Beyond Blue' 1.2), silvermoorgrass .72, greenleemoorgrass 1.05,
+  bowlesgoldengrass .78, largebluefescue .9, dropseed .6 ('Tara' .73), 'Little Bunny' 1.3, 'Piglet' .89, 'Cape
+  Breeze' .7, 'Carousel' 1.42 (Classic Spring). `dev/grass-review.html?check` clean in both renderers.
+- Sawgrass (`sawgrass`, *Cladium jamaicense*): the zone 11 sedge, FNPS 8A-11, sold by Florida native nurseries (IRC).
+  `wades`, colony, coastal. Checked and not added: hurricanegrass, Florida whitetop, beachstar, swamp flatsedge,
+  Gulf Coast spikerush, whitetop and giant whitetop; reasons in `sedge-audit.md`.
+- Drawing: no new code; 48,064 draws of every older choice identical to 0.9.130.

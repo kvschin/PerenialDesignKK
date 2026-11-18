@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,851,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,852,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),651,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),668,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -322,6 +322,53 @@ test("the grass passes of 0.9.130 added 13 base records and 2 cultivars, and say
   assertEqual(members('miscanthus'),'giantmiscanthus,miscanthus','miscanthus: Chinese silvergrass and the giant hybrid');
   assertEqual(PLANTS.northernseaoats.name,'Northern Sea Oats','the old records keep their names');
   assertEqual(PLANTS.miscanthus.name,'Miscanthus','and Chinese silvergrass keeps its card name');
+});
+
+// The grass audit's "Missing cultivars" (0.9.131): seventeen choices, each on the record of the
+// species it belongs to, with its sources and its reasoning in grass-sources.json, batch 'cultivars'.
+test("the grass audit's missing cultivars are in, as reviewed, with their sources", () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/grass-sources.json'));
+  const rows=doc.cultivars.filter(c=>c.batch==='cultivars');
+  assertEqual(rows.length,17,"the audit's table names seventeen");
+  const want=['bluegrama|blondeambition','purplemoorgrass|heidebraut','purplemoorgrass|poulpetersen','molinia|skyracer','molinia|windspiel',
+    'molinia|cordoba','indiangrass|siouxblue','karl|avalanche','karl|eldorado','switchgrass|rotstrahlbusch','switchgrass|thundercloud',
+    'switchgrass|capebreeze','bluestem|blaze','bluestem|twilightzone','bluestem|minnbluea','fountaingrass|desertplains','fountaingrass|piglet'];
+  assertEqual(rows.map(r=>r.ref).sort().join(),want.slice().sort().join(),'the seventeen of the table, where they were placed');
+  for(const row of rows){
+    const [k,v]=row.ref.split('|'), C=PLANTS[k].cv&&PLANTS[k].cv[v];
+    assert(C,row.ref+': cultivar exists');
+    const D=Object.assign({},PLANTS[k],C);
+    for(const f of ['heightIn','spread','latin']) if(row.proposed[f]!==undefined) assertEqual(D[f],row.proposed[f],row.ref+': reviewed '+f);
+    for(const f of ['zones','bloomMonths']) if(row.proposed[f]) assertEqual(D[f].join(),row.proposed[f].join(),row.ref+': reviewed '+f);
+    assert(Object.hasOwn(C,'heightIn')&&Object.hasOwn(C,'h'),row.ref+': states its own height, and is drawn to it');
+    assert(C.note&&C.note.length>40,row.ref+': says what makes it different');
+    assert(row.sources.length>=3&&row.sources.every(u=>/^https:\/\//.test(u)),row.ref+': read against three sources or more');
+    assert(row.estimates.heightIn&&row.estimates.spread,row.ref+': says how its size was chosen');
+  }
+  // Purple moor grass: the compact subspecies' selections on the species record, the tall ones on
+  // 'Transparent', whose see-through drawing they share. No new record of the species.
+  const molinias=keys.filter(k=>/^Molinia/.test(PLANTS[k].latin));
+  assertEqual(molinias.sort().join(),'molinia,moorhexe,purplemoorgrass','still three Molinia records');
+  for(const v of ['heidebraut','poulpetersen']){
+    assert(/subsp\. caerulea/.test(PLANTS.purplemoorgrass.cv[v].latin),v+': subsp. caerulea, and says so');
+    assertEqual(PLANTS.purplemoorgrass.form,'moorgrass',v+': drawn as the compact moor grass');
+  }
+  for(const v of ['skyracer','windspiel','cordoba']){
+    const C=PLANTS.molinia.cv[v];
+    assert(/subsp\. arundinacea/.test(C.latin),v+': subsp. arundinacea, and says so');
+    assertEqual(C.fullName,"Purple Moor Grass "+C.name,v+': named in full, not as a selection of Transparent');
+    assert(!C.form,v+": drawn as 'Transparent' is, a veil over a tussock");
+  }
+  // the two feather reed grasses are sports of 'Karl Foerster', and fountain grasses of the Chinese species
+  for(const v of ['avalanche','eldorado']){
+    assertEqual(PLANTS.karl.cv[v].fullName,'Feather Reed Grass '+PLANTS.karl.cv[v].name,v+': named in full');
+    assert(/^Calamagrostis × acutiflora/.test(PLANTS.karl.cv[v].latin),v+': a feather reed grass');
+    assert(PLANTS.karl.cv[v].look.stripe,v+': striped down the leaf');
+  }
+  assertEqual(PLANTS.fountaingrass.latin,'Cenchrus alopecuroides','Desert Plains and Piglet are alopecuroides selections');
+  assert(PLANTS.bluestem.cv.minnbluea.synonyms.includes('Blue Heaven'),"'MinnblueA' is found by the name it is sold under");
+  assert(PLANTS.bluegrama.cv.blondeambition.look.headTilt===0,"'Blonde Ambition' holds its flags flat out");
+  assert(PLANTS.switchgrass.cv.thundercloud.heightIn>PLANTS.switchgrass.cv.cloudnine.heightIn,"'Thundercloud' is the tallest switchgrass");
 });
 
 test("the shade audit's first batch is in, as reviewed, with its sources", () => {
@@ -1183,7 +1230,7 @@ test('sedges carry visual archetypes and preserve signature seedheads', () => {
 test('a sedge is filed as a prairie or coastal plant only where a source says so', () => {
   const authored=role=>Object.keys(PLANTS).filter(k=>PLANTS[k].type==='sedge'&&(PLANTS[k].roles||[]).includes(role)).sort().join();
   assertEqual(authored('prairie'),'bicknellsedge,bluesedge,broomsedgecarex,clusteredfieldsedge,foxsedge,haydensedge,meadssedge,mountainsedge,sedge,sunsedge,tussocksedge,whitetopsedge','reviewed prairie and meadow sedges');
-  assertEqual(authored('coastal'),'bluesedge,californiameadowsedge,clusteredfieldsedge,orangesedge,seabeachsedge,sloughsedge,whitetopsedge','reviewed coastal sedges');
+  assertEqual(authored('coastal'),'bluesedge,californiameadowsedge,clusteredfieldsedge,orangesedge,sawgrass,seabeachsedge,sloughsedge,whitetopsedge','reviewed coastal sedges');
   assert(!/prairie swale/i.test(PLANTS.prairiesedge.blurb),'Prairie Sedge is a fen plant, whatever its name says');
   assertEqual(PLANTS.sloughsedge.sun,'part','two nurseries give Slough Sedge sun to shade, so a canopy does not stunt it');
   assert(!/woodland sedge/i.test(PLANTS.mountainsedge.blurb),'Mountain Sedge grows in dry meadows as well as open woods');
@@ -1219,7 +1266,7 @@ test('only the sedges a source puts in water may stand in it', () => {
 
 test('sedge batch preserves reviewed data and says which values are estimates', () => {
   const doc=JSON.parse(readRepoFile('docs/plant-data/sedge-sources.json')), rows=doc.plants;
-  assertEqual(rows.length,35,'the sedge passes added 35 base records');
+  assertEqual(rows.length,36,'the sedge passes added 36 base records, sawgrass the last');
   for(const row of rows){
     const P=PLANTS[row.suggestedKey], R=row.proposed;
     assert(P,row.suggestedKey+': missing species');
@@ -1247,7 +1294,10 @@ test('the new sedges keep their identity, and warn where a source does', () => {
   // the gaps the audit found
   const at=z=>sedges.filter(k=>PLANTS[k].zones[0]<=z&&PLANTS[k].zones[1]>=z).length;
   assert(at(10)>=4,'zone 10 has sedges, where it had none');
-  assertEqual(at(11),0,'and no source read reaches zone 11, so nothing claims to');
+  // 0.9.131: sawgrass, the one South Florida sedge a source rates for zone 11 and native nurseries grow
+  assertEqual(sedges.filter(k=>PLANTS[k].zones[1]>=11).join(),'sawgrass','and zone 11 has one sedge, from the one source that says so');
+  assert(/cut skin/.test(PLANTS.sawgrass.blurb)&&/nobody walks/.test(PLANTS.sawgrass.blurb),'sawgrass warns about its leaves');
+  assert(PLANTS.sawgrass.wades&&PLANTS.sawgrass.spreadHabit==='colony','it stands in water and spreads, as its sources say');
   assert(sedges.filter(k=>PLANTS[k].nativeTo.includes('europe')&&PLANTS[k].provenance==='species').length>=6,'a European garden has real native sedges');
   // cultivars are not their species
   assert(!PLANTS.plantainsedge.cv,"'Seersucker' is a common name for plantain sedge, not a cultivar");

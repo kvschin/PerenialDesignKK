@@ -7535,7 +7535,9 @@ was left out and why. Zones for trial plants come from Izel's copy of the Mt. Cu
 comes out by inflating its streams; every other trial figure is in the spreadsheet.
 **The 0.9.83 batch** took the tab from 32 to 58 records and 1 to 7 cultivars, closing most of
 the audit's gaps: zone 10 had no sedge and has five, Europe had 2 straight species and has 7.
-Zone 11 still has none, because no source read reaches it. Sources and estimates are in
+Zone 11 had none until **Sawgrass** (0.9.131, *Cladium jamaicense*, `wades`, colony, coastal), the one South
+Florida sedge a source rates for zone 11 (FNPS 8A-11) that native nurseries grow; a big, sharp-leaved marsh
+plant, and `sedge-audit.md` lists the smaller ones checked and why none qualified. Sources and estimates are in
 `docs/plant-data/sedge-sources.json`, and sedge sizes conflict badly between floras, nurseries
 and the trial, so read a row's `estimates` before "correcting" one. Three things it added: `group:
 'japanesesedge'` collects 'Evergold', 'Everest', 'Everillo' and 'Ice Dance' on one card without
@@ -7572,7 +7574,16 @@ Miscanthus from "Decide before adding" (Pampas Grass left out, Cal-IPC High; Buf
 existing forms: 75 grass records. It added three cards, Wood Oats, Wild Rye and Miscanthus (`group` on
 Northern Sea Oats, Canada Wild Rye and Miscanthus too). Where a grass escapes, runs or is protected, its blurb
 says so (the EU list for Broomsedge, Florida's statute for Sea Oats). Giant Miscanthus is the one grass
-allowed an `h` over 108. The missing cultivars are still open. **The Grasses tab lists by site as the Sedges
+allowed an `h` over 108. **The seventeen missing cultivars shipped in 0.9.131** (batch `cultivars`, 65 grass
+cultivars), each on the record of its species and drawn as that record draws: the Molinia subsp. *caerulea*
+selections on `purplemoorgrass`, the tall subsp. *arundinacea* ones on `molinia` ('Transparent'), whose veil they
+share, and the feather reed sports on `karl`. A cultivar that is a sibling rather than a selection of its record
+carries `fullName` and its own `latin`; none overrides `form`, which has no precedent and would inherit the record's
+`look` keys and roles (`staticPlantRoles` is keyed per record). Each sets its own `h` to draw within 10% of its
+`heightIn`, though 'Transparent' and 'Karl Foerster' themselves still draw a third over theirs. **A low grass needs
+the `sideScale` its ink measures**, or the catalog row (56 px, enlarged to fill since 0.9.115) cuts it off at the
+sides; fourteen were, and a test now runs `paintLibCanvas` for every grass and sedge onto a recording canvas.
+**The Grasses tab lists by site as the Sedges
 tab does** (`GRASS_SITES`, `grassSiteOf`, `SITE_LAYOUTS`, ui.js; a category names its layout with
 `sites` in `TRAY_CATS`): Dry meadow, Meadow, Wet meadow, Dry shade, Woodland, Moist shade, from light and
 moisture alone. **A family whose choices grow in different places is split** (`splitGroupBySite`): the

@@ -3,8 +3,8 @@
 Audited November 7, 2026, against the catalog at 0.9.87: 40 records in the Grasses category, with
 45 cultivars. The data fixes, bugs and snow shipped in 0.9.88, a crown for every grass in 0.9.89, and the
 rebuilt forms in 0.9.90, the twelve "Add first" species in 0.9.91, the ten European and design grasses in 0.9.92,
-site headings in 0.9.93, and the twelve "Worth adding next" with giant miscanthus in 0.9.130. The cultivars are
-still open.
+site headings in 0.9.93, the twelve "Worth adding next" with giant miscanthus in 0.9.130, and the seventeen missing
+cultivars in 0.9.131.
 
 `dev/grass-review.html` is the page used for all of it. It shows every grass in four seasons, as a
 drift, and at true scale beside a 6 ft post. It takes `?base`, `?form=vertgrass`, `?only=`, `?check`
@@ -139,6 +139,8 @@ Decided November 17, 2026.
 *Hordeum jubatum*, since the catalog holds perennials.
 
 ## Missing cultivars
+
+All seventeen shipped in 0.9.131; see below.
 
 | Species | Add | Evidence |
 | --- | --- | --- |
@@ -715,6 +717,94 @@ Miscanthus is recommended for Modern alone.
 One procedural draw measures 0.05-0.44ms, Sea Oats in Summer the most, against 0.46 for Switchgrass and 0.50 for Giant
 Sacaton already here. No existing plant draws differently, so a garden without the new grasses costs what it did.
 
+## Shipped in 0.9.131
+
+The seventeen of "Missing cultivars", and the twelve clipped pictures the 0.9.130 check found. Each cultivar was read
+against three to six sources; the figures, the sources and the reasoning where they disagree are in the `cultivars`
+batch of `docs/plant-data/grass-sources.json`. Hoffman was read this time, by genus listing in the browser pane (its
+detail pages and a headless Chrome both meet a Cloudflare check); it carries eleven of the seventeen.
+
+| | 0.9.130 | 0.9.131 |
+| --- | --- | --- |
+| Grass cultivars | 48 | 65 |
+| Records carrying a cultivar | 16 | 20: Blue Grama, Purple Moor Grass, 'Transparent', 'Karl Foerster' |
+
+### Where each one sits
+
+A cultivar belongs on the record of the species it is a selection of, and draws as that record does. Three needed
+thought.
+
+- **Purple moor grass.** The catalog holds the species (`purplemoorgrass`, *Molinia caerulea*, drawn as a compact
+  tussock under narrow heads) and two named selections as records of their own: 'Moorhexe' (subsp. *caerulea*) and
+  'Transparent' (subsp. *arundinacea*, drawn as a see-through veil over a low tussock). Chicago, the RHS and Digging Dog
+  agree on the subspecies: 'Heidebraut' and 'Poul Petersen' are subsp. *caerulea*, 'Skyracer', 'Windspiel' and
+  'Cordoba' subsp. *arundinacea*. So the first two are choices on the species record, with the compact drawing, and
+  the tall three are choices on 'Transparent', the record already drawn as a tall moor grass. They are not selections
+  of 'Transparent': each carries its own `latin` and a `fullName` ("Purple Moor Grass 'Skyracer'"), so it reads as a
+  sibling everywhere a name is shown. No new Molinia record was added, and the card still holds every choice. A
+  cultivar that changed `form` instead would have had no precedent, inherited the species' moor grass `look` keys, and
+  lost the roles `staticPlantRoles` gives 'Transparent', since roles are kept per record.
+- **Feather reed grass.** 'Avalanche' and 'Eldorado' are sports of 'Karl Foerster' (Walters, Digging Dog,
+  Greenleaf), so they sit on its record, named in full and striped: a white band on 'Avalanche', gold on 'Eldorado'.
+- **Fountain grass.** 'Desert Plains' (a seedling of 'Cassian') and 'Piglet' are *Pennisetum alopecuroides* in every
+  source, which is *Cenchrus alopecuroides*, the `fountaingrass` record; not the oriental one.
+
+'MinnblueA' is the cultivar name; Blue Heaven is the trade name it is sold under, kept as a synonym so a search finds
+it.
+
+### How they look
+
+No new drawing code: every one uses its species' form with its own `look` and colours. 'Blonde Ambition' holds bigger
+chartreuse flags flat out (`headTilt` 0) on stems twice the species' height over the same low tuft; 'Heidebraut' has
+near-black heads and gold culms; 'Poul Petersen' is a vase; the tall Molinias are 'Transparent''s veil, 'Skyracer'
+narrower, 'Windspiel' purple-pink, 'Cordoba' with the biggest heads and the brightest gold; 'Sioux Blue' is metallic
+blue; 'Rotstrahlbusch' reddens from the tips; 'Thundercloud' is a blue-green column, the tallest switchgrass here;
+'Cape Breeze' stays green into fall; 'Blaze' is the reddest little bluestem, 'Twilight Zone' a purple column that
+flowers late, 'MinnblueA' blue-grey turning burgundy; 'Desert Plains' a big purple-plumed mound; 'Piglet' a dwarf.
+
+Each sets its own `h` so it draws within 10% of its `heightIn` in the seasons a head stands (1.01-1.08), measured off
+the recorded geometry. That leaves two families uneven: 'Transparent' and 'Karl Foerster' themselves draw a third over
+their `heightIn`, so a sibling drawn true stands lower beside them at true scale. Fixing the parents would change how
+existing gardens look, and is left for a height pass over the grasses like 0.9.113's for the forbs.
+
+### The clipped pictures
+
+The catalog's row and tile pictures and the Library card fit a plant by its height and its declared `sideScale`, and
+since 0.9.115 a row is enlarged to fill its 56 px, so a low grass wider than its sideScale says was cut off at the
+sides. Each was measured off its own ink (`libSeed`, four seasons, both renderers) and given the `sideScale` that
+fits every picture with 1.5 px to spare:
+
+| Choice | `sideScale` |
+| --- | --- |
+| Prairie Dropseed, 'Tara' | 0.6, 0.73 |
+| Blue Grama | 0.72 |
+| Autumn Moor Grass, Silver Moor Grass | 0.72 |
+| Blue Moor Grass | 1.15 |
+| Greenlee's Moor Grass | 1.05 |
+| Blue Fescue, 'Beyond Blue' ('Boulder Blue' inherits) | 0.95, 1.2 |
+| Large Blue Fescue | 0.9 |
+| Bowles' Golden Grass | 0.78 |
+| 'Little Bunny' | 1.3, from 0.78 |
+| 'Carousel' (Classic renderer, Spring) | 1.42, from 1.32 |
+| 'Cape Breeze', 'Piglet' (new) | 0.7, 0.89 |
+
+`dev/grass-review.html?check` now reports nothing cut off for every grass choice in both renderers (3,360 sprites,
+1,680 pictures each), and the old Classic clips of Prairie Dropseed and 'Carousel' are gone too. `sideScale` also
+widens the sprite box where it is larger than the box's own allowance: on these fifteen choices the sprite area grows
+by 12% in all, 36% on Blue Moor Grass at the most. They are the smallest sprites in the tab.
+
+### How it was checked
+
+- Every older plant, all four seasons, both renderers, two seeds and two growths: 48,064 draws call for call identical
+  to 0.9.130 (`sideScale` changes boxes and previews, not the drawing).
+- Real pixels: 3,360 sprites with no ink on their border, and 1,680 library and catalog pictures with nothing cut off,
+  in each renderer. Screenshots of every new choice in four seasons, as a drift and at true scale.
+- New tests hold the seventeen to their reviewed figures and sources, the placement above, their drawn height within
+  10%, and every grass and sedge picture to holding its drawing: `paintLibCanvas` runs onto a canvas that follows the
+  transform and records where the drawing lands, in both renderers. Run against 0.9.130's data it names the twelve.
+- One procedural draw is 0.05-0.49ms, 'Thundercloud' in Winter the most, against 0.45 for Switchgrass and 0.46 for
+  Giant Sacaton already here.
+
 ## How they look
 
 Measured on 0.9.87, before any of the above, in the real renderer at full growth, in Fall, on a neutral grey backdrop with the cast shadow gated
@@ -813,6 +903,6 @@ has the detail. The timed-out 3-year runs fit, since a slowed run needs far more
 4. **The missing species,** after step 3, so new records use the new drawing. The "Add first" twelve shipped in
    0.9.91, Bottlebrush Grass with a bristle head of its own. The sedges' `brush` did not serve: it is a glyph a few
    pixels long with short awns, where these heads are a fifth of the culm with awns longer than their spikelets.
-   The European and design grasses followed in 0.9.92, and "Worth adding next" with giant miscanthus in 0.9.130.
-   Next are the cultivars.
+   The European and design grasses followed in 0.9.92, "Worth adding next" with giant miscanthus in 0.9.130, and
+   the missing cultivars in 0.9.131.
 5. **Site headings on the tab,** as sedges have, once it passes 50 or so records. Shipped in 0.9.93, at 62.

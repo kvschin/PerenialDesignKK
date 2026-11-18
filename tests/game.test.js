@@ -997,6 +997,70 @@ test('the 0.9.130 grasses draw at their sourced height in flower', () => {
     assert(Math.abs(top-D.heightIn)<=Math.max(3,D.heightIn*0.12),`${ref}: drawn ${top.toFixed(1)} in for a ${D.heightIn} in plant`);
   }
 });
+test('the 0.9.131 cultivars and sawgrass draw at their sourced height in flower', () => {
+  // As above. A cultivar sets its own h so its top lands on its heightIn, whatever its species does:
+  // 'Transparent' and 'Karl Foerster' themselves stand a third over theirs.
+  const topOf=(k,v,season)=>{
+    let top=0;
+    const ctx=new Proxy({fillStyle:'',strokeStyle:''},{get(o,p){ if(p in o) return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return ()=>({addColorStop(){}});
+      if(p==='measureText') return ()=>({width:0});
+      return (...a)=>{ if(p==='ellipse') top=Math.min(top,a[1]-a[3]); else if(p==='arc') top=Math.min(top,a[1]-a[2]);
+        else if(p==='moveTo'||p==='lineTo') top=Math.min(top,a[1]); else if(p==='quadraticCurveTo') top=Math.min(top,a[3]); }; },
+      set(o,p,val){ o[p]=val; return true; }});
+    drawPlant(ctx,0,0,k,1,season,9137,0,v,1);
+    return -top/HERB_SCALE;
+  };
+  const refs=['bluegrama:blondeambition','purplemoorgrass:heidebraut','purplemoorgrass:poulpetersen','molinia:skyracer','molinia:windspiel',
+    'molinia:cordoba','indiangrass:siouxblue','karl:avalanche','karl:eldorado','switchgrass:rotstrahlbusch','switchgrass:thundercloud',
+    'switchgrass:capebreeze','bluestem:blaze','bluestem:twilightzone','bluestem:minnbluea','fountaingrass:desertplains','fountaingrass:piglet','sawgrass'];
+  for (const ref of refs){
+    const [k,v]=ref.split(':'), D=plantDef(k,v||null);
+    const heads=SEASONS.filter(s=>D.sea[s]&&(D.sea[s].bloom||D.sea[s].seed));
+    const top=Math.max(...heads.map(s=>topOf(k,v||null,s)));
+    assert(Math.abs(top-D.heightIn)<=Math.max(3,D.heightIn*0.1),`${ref}: drawn ${top.toFixed(1)} in for a ${D.heightIn} in plant`);
+  }
+});
+/* The catalog's row and tile pictures and the Library card fit a plant by its height and by the
+   sideScale it declares, so a low grass wider than that was cut off at the sides: fourteen were, by
+   up to 31 device px, until 0.9.131 measured each one's reach. paintLibCanvas runs for real here,
+   onto a canvas that follows the transform and records where the drawing lands. Line widths and
+   antialiasing are not counted, so this is the floor of what dev/grass-review.html?check sees. */
+function previewOverflow(k,v,season,w,h,max){
+  let m=[1,0,0,1,0,0], lo=Infinity, hi=-Infinity, px=0, py=0; const stack=[];
+  const mul=a=>{ const [A,B,C,D,E,F]=m; m=[A*a[0]+C*a[1],B*a[0]+D*a[1],A*a[2]+C*a[3],B*a[2]+D*a[3],A*a[4]+C*a[5]+E,B*a[4]+D*a[5]+F]; };
+  const pt=(x,y)=>{ const X=m[0]*x+m[2]*y+m[4]; if(X<lo)lo=X; if(X>hi)hi=X; };
+  const ctx=new Proxy({},{get(o,p){ if(p in o) return o[p];
+    if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return ()=>({addColorStop(){}});
+    if(p==='measureText') return ()=>({width:0});
+    if(p==='save') return ()=>stack.push(m.slice());
+    if(p==='restore') return ()=>{ if(stack.length) m=stack.pop(); };
+    if(p==='setTransform') return (a,b,c,d,e,f)=>{ m=[a,b,c,d,e,f]; };
+    if(p==='translate') return (x,y)=>mul([1,0,0,1,x,y]);
+    if(p==='scale') return (x,y)=>mul([x,0,0,y,0,0]);
+    if(p==='rotate') return t=>mul([Math.cos(t),Math.sin(t),-Math.sin(t),Math.cos(t),0,0]);
+    if(p==='transform') return (a,b,c,d,e,f)=>mul([a,b,c,d,e,f]);
+    return (...a)=>{
+      if(p==='moveTo'||p==='lineTo'){ pt(a[0],a[1]); px=a[0]; py=a[1]; }
+      else if(p==='quadraticCurveTo'){ quadPts(px,py,a[0],a[1],a[2],a[3],pt); px=a[2]; py=a[3]; }
+      else if(p==='bezierCurveTo'){ pt(a[4],a[5]); px=a[4]; py=a[5]; }
+      else if(p==='ellipse'){ const t=a[4]||0, r=Math.hypot(a[2]*Math.cos(t),a[3]*Math.sin(t)); pt(a[0]-r,a[1]); pt(a[0]+r,a[1]); }
+      else if(p==='arc'){ pt(a[0]-a[2],a[1]); pt(a[0]+a[2],a[1]); }
+    }; }, set(o,p,val){ o[p]=val; return true; }});
+  paintLibCanvas({getContext:()=>ctx},k,v,season,w,h,max);
+  return Math.max(0,-lo,hi-2*w);   // the canvas is drawn at twice its CSS size
+}
+test('every grass and sedge picture in the catalog and the Library holds its drawing', () => {
+  const was=ART2.on, pics=[['card',88,120,1.15],...['row','tile'].map(n=>[n,TRAY_ART_KINDS[n].w,TRAY_ART_KINDS[n].h,TRAY_ART_KINDS[n].max])];
+  const refs=PLANT_KEYS.filter(k=>PLANTS[k].type==='grass'||PLANTS[k].type==='sedge').flatMap(k=>[[k,null],...Object.keys(PLANTS[k].cv||{}).map(v=>[k,v])]);
+  try { for (const art of [true,false]){
+    ART2.on=art;
+    for (const [k,v] of refs) for (const season of SEASONS) for (const [pic,w,h,max] of pics){
+      const o=previewOverflow(k,v,season,w,h,max);
+      assert(o===0,`${k}${v?':'+v:''} ${season}, ${pic} (${art?'ART2':'Classic'}): ${o.toFixed(1)} px past its side`);
+    }
+  } } finally { ART2.on=was; }
+});
 test('Japanese Forest Grass shows flower stalks only while it flowers', () => {
   const count=(bloom)=>{ let n=0; const ctx=new Proxy({},{
       get(o,p){ if(p in o)return o[p];

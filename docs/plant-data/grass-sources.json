@@ -1,6 +1,6 @@
 {
   "reviewed": "2026-11-17",
-  "note": "The grass audit's missing species (docs/plant-data/grass-audit.md), in four batches: 'add-first', the twelve of the 'Add first' table, added in 0.9.91, 'europe', the ten of 'Europe and design grasses', added in 0.9.92, 'worth-adding', the twelve of 'Worth adding next', added in 0.9.130, and 'decided', giant miscanthus from 'Decide before adding', added with them. Each row is the record as written, its sources, and where the sources disagree, what was chosen and why. Hoffman's figures come from its catalog listing at https://hoffmannursery.com/plants, read through a browser because the site refuses a plain fetch. RHS hardiness ratings are the RHS's own scale (H4 is -10 to -5 C, H5 -15 to -10, H6 -20 to -15, H7 below -20) and are not USDA zones; a European nursery gives no USDA zone at all, so the zones in the European batch lean on US nurseries. Colours are authored throughout.",
+  "note": "The grass audit's missing species (docs/plant-data/grass-audit.md), in four batches: 'add-first', the twelve of the 'Add first' table, added in 0.9.91, 'europe', the ten of 'Europe and design grasses', added in 0.9.92, 'worth-adding', the twelve of 'Worth adding next', added in 0.9.130, and 'decided', giant miscanthus from 'Decide before adding', added with them. The cultivars list ends in batch 'cultivars' (0.9.131), the audit's 'Missing cultivars' table: seventeen choices on the species they belong to, with the Molinia subsp. caerulea selections on the species record, the tall subsp. arundinacea ones on 'Transparent', which draws them, and the two feather reed grass sports on 'Karl Foerster'. Each row is the record as written, its sources, and where the sources disagree, what was chosen and why. Hoffman's figures come from its catalog listing at https://hoffmannursery.com/plants, read through a browser because the site refuses a plain fetch. RHS hardiness ratings are the RHS's own scale (H4 is -10 to -5 C, H5 -15 to -10, H6 -20 to -15, H7 below -20) and are not USDA zones; a European nursery gives no USDA zone at all, so the zones in the European batch lean on US nurseries. Colours are authored throughout.",
   "plants": [
     {
       "suggestedKey": "bottlebrushgrass",
@@ -1548,6 +1548,415 @@
         "heightIn": "Digging Dog 3-4 ft, MBG 2-3 ft, Cal Flora 2.5-5 ft; Devil Mountain puts the flower spikes 1-2 ft above the leaves. 42 in in flower.",
         "spread": "Digging Dog 2-3 ft, MBG 3-4 ft, Cal Flora 4-6 ft, and it keeps spreading. 36 in.",
         "origin": "Digging Dog: selected by Santa Barbara Botanic Garden from Prince Island in the Santa Barbara Channel."
+      }
+    },
+    {
+      "ref": "bluegrama|blondeambition",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 30,
+        "spread": 24,
+        "zones": [
+          4,
+          9
+        ],
+        "bloomMonths": [
+          7,
+          8,
+          9
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/bouteloua-gracilis-blonde-ambition-pp22048",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=273234",
+        "https://www.nvknurseries.com/plant/Bouteloua-gracilis-Blonde-Ambition",
+        "https://www.perennials.com/plants/bouteloua-gracilis-blonde-ambition.html",
+        "https://www.diggingdog.com/plant/G-0538"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 1 ft of leaf and 2.5-3 ft in flower, Digging Dog 2.5-3 ft, MBG flower stems to 2.5 ft, Chicago 36 in, NVK 50-60 cm, Walters 30-60 cm. 30 in.",
+        "spread": "Digging Dog 2.5-3 ft, Walters 30-60 cm, MBG 0.75-1.5 ft, NVK 25-30 cm; Chicago's 42 in takes in the flags. 24 in.",
+        "zones": "Hoffman and Walters 4-9, Digging Dog and NVK 4. MBG gives 3-10, the species' range. 4-9.",
+        "bloomMonths": "Hoffman midsummer, Chicago mid-July to October, MBG June-August, Digging Dog June-November. July-September.",
+        "look": "Chicago: chartreuse flowers in midsummer and blonde heads held horizontally on the culms like pennants, intact through winter. Digging Dog: the heads grow at right angles on stiff 2.5 ft stalks, orange and red in fall. The leaves stay the species' tuft (Hoffman 1 ft, NVK 30 cm), so leafLen and hairLen come down as h goes up.",
+        "origin": "Walters and Digging Dog: a chance find by David Salmon of High Country Gardens in a Santa Fe garden; Walters: Plant Select 2011."
+      }
+    },
+    {
+      "ref": "purplemoorgrass|heidebraut",
+      "batch": "cultivars",
+      "proposed": {
+        "latin": "Molinia caerulea subsp. caerulea 'Heidebraut'",
+        "heightIn": 50,
+        "spread": 28
+      },
+      "sources": [
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.rhs.org.uk/plants/49857/molinia-caerulea-subsp-caerulea-heidebraut/details",
+        "https://www.nvknurseries.com/plant/Molinia-caerulea-Heidebraut",
+        "https://www.diggingdog.com/plant/G-0549"
+      ],
+      "estimates": {
+        "subspecies": "Chicago, the RHS and Digging Dog all file it under subsp. caerulea, the compact one; NVK alone calls it tall moor grass. So it is a choice on the species record, which draws the compact form, and not beside 'Transparent'.",
+        "heightIn": "Chicago 58 in with flowers, RHS 1-1.5 m, NVK 120 cm in flower over 75 cm of leaf, Digging Dog 2.5-4 ft. 50 in.",
+        "spread": "RHS 0.1-0.5 m, Digging Dog 2-3 ft, NVK 100-125 cm; Chicago's 68 in takes in the flowers. 28 in, as 'Moorhexe'.",
+        "zones": "NVK 3, Digging Dog 5, RHS H7. The species' 4-8 kept.",
+        "look": "Chicago: a strong upright habit; purple-black anthers, darker than any other selection in the trial; muted gold culms that hold their colour after the leaves shrivel in November; silvery skeletons in winter. Heather Bride is the English name (NVK, Digging Dog)."
+      }
+    },
+    {
+      "ref": "purplemoorgrass|poulpetersen",
+      "batch": "cultivars",
+      "proposed": {
+        "latin": "Molinia caerulea subsp. caerulea 'Poul Petersen'",
+        "heightIn": 34
+      },
+      "sources": [
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://rhs.org.uk/plants/241096/molinia-caerulea-subsp-caerulea-poul-petersen/details",
+        "https://www.luriegarden.org/plants/moor-grass-poul-petersen/",
+        "https://www.knollgardens.co.uk/?p=109953",
+        "https://www.diggingdog.com/plant/G-0614"
+      ],
+      "estimates": {
+        "subspecies": "Chicago, the RHS and Digging Dog: subsp. caerulea. The RHS lists subsp. arundinacea 'Poul Petersen' as a synonym, so it is kept as one.",
+        "heightIn": "Chicago 44 in, Digging Dog 3-3.5 ft, Lurie Garden 2-3 ft, Knoll 60-80 cm, RHS 0.5-1 m. 34 in.",
+        "spread": "Lurie Garden 1.5-2 ft, RHS 0.1-0.5 m, Digging Dog 3.5-4 ft; Chicago 56 in with the flowers. The species' 24 in kept.",
+        "zones": "Lurie Garden 4-8, Digging Dog 4b: the species' 4-8.",
+        "look": "Chicago: one of the shortest in the trial and notably stout, a bushy vase of slightly arching green leaves, feathery dark purple and green heads in early July, clear gold in fall. Digging Dog: selected by Piet Oudolf and named for a Danish nurseryman."
+      }
+    },
+    {
+      "ref": "molinia|skyracer",
+      "batch": "cultivars",
+      "proposed": {
+        "latin": "Molinia caerulea subsp. arundinacea 'Skyracer'",
+        "heightIn": 80,
+        "spread": 36
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/molinia-caerulea-subsp-arundinacea-skyracer",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=250987",
+        "https://www.diggingdog.com/plant/G-0031"
+      ],
+      "estimates": {
+        "placement": "A tall subsp. arundinacea selection like 'Transparent', and drawn the same way, a see-through veil over a low tussock, so it is a choice on that record with its own full name and Latin name. It is not a selection of 'Transparent'.",
+        "heightIn": "Hoffman 3 ft of leaf and 6 ft in flower, MBG 6-8 ft, Digging Dog 7-8 ft, Chicago 78 in ('nearly 7 feet' in its text). 80 in.",
+        "spread": "MBG 2-4 ft, Digging Dog 3 ft; Chicago 68 in across the flowers. 36 in.",
+        "zones": "Hoffman 4-7, MBG 5-8, Digging Dog 4: the 4-8 of 'Transparent'.",
+        "look": "MBG: a narrow upright form, leaves to 2.5 ft, flower stalks that quiver in a breeze, buttery yellow in fall. Digging Dog: Kurt Bluemel's selection over a 2 ft mound. Chicago: slightly narrower than 'Windspiel', culms tinged pink in November."
+      }
+    },
+    {
+      "ref": "molinia|windspiel",
+      "batch": "cultivars",
+      "proposed": {
+        "latin": "Molinia caerulea subsp. arundinacea 'Windspiel'",
+        "heightIn": 78,
+        "spread": 40
+      },
+      "sources": [
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.rhs.org.uk/Plants/78820/Molinia-caerulea-subsp-arundinacea-Windspiel/Details",
+        "https://www.nvknurseries.com/plant/Molinia-caerulea%20ssp.%20arundinacea-Windspiel",
+        "https://www.diggingdog.com/plant/G-0019"
+      ],
+      "estimates": {
+        "placement": "As 'Skyracer': a tall subsp. arundinacea selection on the 'Transparent' record, named in full.",
+        "heightIn": "Chicago 80 in, Digging Dog 6-7 ft, NVK 175 cm in flower over 100 cm of leaf, RHS 1.5-2.5 m. 78 in.",
+        "spread": "RHS 0.5-1 m, NVK 100-120 cm, Digging Dog 5 ft; Chicago 75 in across the flowers. 40 in.",
+        "zones": "NVK and Digging Dog 4: 4-8.",
+        "look": "Chicago: coarse leaves, less arching than the others; large fine-textured heads of purple-pink and green on slender culms that turn golden tan in August, long before the leaves turn gold. Wind Play is its English name (NVK). Digging Dog lists it as Molinia litoralis, a synonym of the subspecies, over a 15 in mound."
+      }
+    },
+    {
+      "ref": "molinia|cordoba",
+      "batch": "cultivars",
+      "proposed": {
+        "latin": "Molinia caerulea subsp. arundinacea 'Cordoba'",
+        "heightIn": 84,
+        "spread": 36
+      },
+      "sources": [
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://diggingdog.com/plant.php/G-0543",
+        "https://www.pukulauki.lv/eng/new_in_assortment/plant/497/"
+      ],
+      "estimates": {
+        "placement": "As 'Skyracer': a tall subsp. arundinacea selection on the 'Transparent' record, named in full.",
+        "heightIn": "Chicago 84 in, Digging Dog 6-7 ft ('nearly 7 ft'), Puku Lauki 180 cm. 84 in.",
+        "spread": "Digging Dog 3 ft, Puku Lauki 50 cm; Chicago 72 in across the flowers. 36 in.",
+        "zones": "Digging Dog 5, Puku Lauki 4: the 4-8 of 'Transparent'.",
+        "look": "Chicago: the one to beat over eight years in the trial, arching culms to 84 in, copious purple-green heads up to 18 in long, vivid gold peaking in mid-November and sometimes lasting into February, silvery skeletons on ochre stems. Digging Dog: thought to be one of Ernst Pagels' last selections, reintroduced by Intrinsic Perennial Gardens."
+      }
+    },
+    {
+      "ref": "indiangrass|siouxblue",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 66,
+        "spread": 24
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=253798",
+        "https://www.nvknurseries.com/plant/Sorghastrum-nutans-Sioux-Blue",
+        "https://blogs.extension.msstate.edu/ornamentals/plant/tri17176/"
+      ],
+      "estimates": {
+        "heightIn": "MBG 3-5 ft, with flower stems rising to 5-6 ft; NVK 175-200 cm. 66 in.",
+        "spread": "MBG 2-3 ft, NVK 50-80 cm. 24 in.",
+        "zones": "MBG 4-9, NVK 4: the species' 4-9.",
+        "look": "MBG: narrower and more upright than the species, metallic blue leaves turning yellow in fall with gold into winter; Longwood Gardens introduced it. NVK: silvery-blue leaves going golden tan with orange. Mississippi State's trial (plants from Hoffman) gives a rating, not a size; Hoffman no longer lists it."
+      }
+    },
+    {
+      "ref": "karl|avalanche",
+      "batch": "cultivars",
+      "proposed": {
+        "latin": "Calamagrostis × acutiflora 'Avalanche'",
+        "heightIn": 50,
+        "spread": 24
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/calamagrostis-x-acutiflora-avalanche",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256636",
+        "https://www.perennials.com/plants/calamagrostis-acutiflora-avalanche.html",
+        "https://www.diggingdog.com/plant/G-0469"
+      ],
+      "estimates": {
+        "placement": "A sport of 'Karl Foerster' (Walters, Digging Dog), so it is a choice on that record, named in full.",
+        "heightIn": "Hoffman 2 ft of leaf and 5 ft in flower, Digging Dog 5 ft, MBG 2-4 ft in its text (3-5 ft in its facts), Walters 90-120 cm. 50 in.",
+        "spread": "MBG 1-2 ft, Walters 60-75 cm, Digging Dog 3 ft. 24 in, as 'Karl Foerster'.",
+        "zones": "Hoffman 4-8, Walters 4-9, Digging Dog 4/5, MBG 5-9: 'Karl Foerster''s 4-9.",
+        "look": "MBG and Digging Dog: a broad white band down the middle of each leaf with narrow green margins, and pink-tinged green plumes. Walters and Digging Dog: found by Steve Schmidt in Oregon."
+      }
+    },
+    {
+      "ref": "karl|eldorado",
+      "batch": "cultivars",
+      "proposed": {
+        "latin": "Calamagrostis × acutiflora 'Eldorado'",
+        "heightIn": 56,
+        "spread": 24
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/calamagrostis-x-acutiflora-eldorado-pp16486",
+        "https://www.perennials.com/plants/calamagrostis-acutiflora-eldorado.html",
+        "https://www.diggingdog.com/plant/G-0579",
+        "https://greenleafnursery.com/plant/ELDORADO-FEATHER-REED-GRASS-PP16486"
+      ],
+      "estimates": {
+        "placement": "A sport of 'Karl Foerster' (Digging Dog, Greenleaf), so it is a choice on that record, named in full.",
+        "heightIn": "Hoffman 3-5 ft of leaf and 5-6 ft in flower, Digging Dog 5 ft, Walters 120-150 cm, Greenleaf 4 ft. 56 in.",
+        "spread": "Walters 60-75 cm, Digging Dog 2-2.5 ft, Greenleaf 2 ft. 24 in.",
+        "zones": "Hoffman 4-8, Walters 4-9, Digging Dog 4, Greenleaf 3: 'Karl Foerster''s 4-9.",
+        "look": "Digging Dog and Greenleaf: a gold stripe down the middle of each leaf; plumes a little more open than 'Karl Foerster''s, mauve, then wheat. Found at Garden Gate Growers, Kettle Falls, Washington (Digging Dog). Walters' text calls the stripe white, copied from 'Avalanche', while its own foliage field says gold variegated."
+      }
+    },
+    {
+      "ref": "switchgrass|rotstrahlbusch",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 48,
+        "spread": 30,
+        "zones": [
+          4,
+          9
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/panicum-virgatum-rotstrahlbusch",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251781",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Rotstrahlbusch",
+        "https://www.diggingdog.com/plant/G-0059",
+        "https://www.izelplants.com/pub/media/pdf/Switchgrass_Chart-Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 3 ft of leaf and 4 ft in flower, Izel 4 ft, MBG 4-5 ft, Digging Dog 4-5 ft, NVK 100-125 cm, Chicago 45 in. 48 in.",
+        "spread": "MBG 2-3 ft, Digging Dog 2-2.5 ft, NVK 60-90 cm, Chicago 48 in. 30 in.",
+        "zones": "Hoffman 4-10, NVK 4, MBG 5-9, Digging Dog 5; Chicago recorded crown injury in 2008. 4-9.",
+        "look": "MBG and NVK: silver-green leaves that redden from the tips by midsummer and go deep burgundy-red in fall, pink panicles; Red Ray Bush in English (NVK, Digging Dog). MBG says the stems stay upright; Chicago lowered its rating for its habit."
+      }
+    },
+    {
+      "ref": "switchgrass|thundercloud",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 90,
+        "spread": 42,
+        "zones": [
+          4,
+          9
+        ],
+        "bloomMonths": [
+          8,
+          9,
+          10
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/panicum-virgatum-thundercloud-pp20665",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.diggingdog.com/plant/G-0601",
+        "https://www.izelplants.com/pub/media/pdf/Switchgrass_Chart-Izel_Native_Plants.pdf",
+        "https://www.pleasantrunnursery.com/plantname/Panicum-virgatum-Thundercloud",
+        "https://abnativeplants.com/products/panicum-virgatum-thundercloud"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 7 ft of leaf and 8 ft in flower, Izel 8 ft, Chicago 96 in, Digging Dog 7-8 ft, American Beauties 7-8 ft, Pleasant Run 84 in. 90 in.",
+        "spread": "Digging Dog 3-4 ft, Pleasant Run 36 in, American Beauties 4-5 ft; Chicago 68 in. 42 in.",
+        "zones": "Hoffman and American Beauties 4-9, Digging Dog and Pleasant Run 4. 4-9.",
+        "bloomMonths": "Chicago mid-August to November, Digging Dog August-October, Hoffman midsummer. August-October.",
+        "look": "Digging Dog: Gary Trucks' cross of 'Cloud Nine' and 'Northwind', broad blue-green leaves in an upright, slightly arching 8 ft profile, pinkish tan panicles. Izel: an upright vase. Nurseries say it stands through rain and snow; Chicago lowered its rating for lax stems, so the note does not repeat the claim."
+      }
+    },
+    {
+      "ref": "switchgrass|capebreeze",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 30,
+        "spread": 22,
+        "zones": [
+          4,
+          9
+        ],
+        "bloomMonths": [
+          7,
+          8,
+          9
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/panicum-virgatum-cape-breeze-pp24895",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Cape-Breeze",
+        "https://www.diggingdog.com/plant/G-0565",
+        "https://www.izelplants.com/pub/media/pdf/Switchgrass_Chart-Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 2 ft of leaf and 2-3 ft in flower, Izel 2-3 ft, Digging Dog 2-2.5 ft, NVK 60-90 cm. 30 in.",
+        "spread": "NVK 50-60 cm, Digging Dog 20-24 in. 22 in.",
+        "zones": "Hoffman 4-9, NVK and Digging Dog 4. 4-9.",
+        "bloomMonths": "Digging Dog July-October, Hoffman late summer, NVK late summer to mid-fall. July-September.",
+        "look": "NVK: a North Creek Nurseries introduction, a tight upright clump that stays green into fall under red cloud-like panicles. Digging Dog: amber seed heads, green until November and then buttery yellow, and it takes salt spray."
+      }
+    },
+    {
+      "ref": "bluestem|blaze",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 36,
+        "spread": 24
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/schizachyrium-scoparium-blaze",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=272432",
+        "https://www.nvknurseries.com/plant/Schizachyrium-scoparium-Blaze",
+        "https://www.izelplants.com/pub/media/pdf/Little_Bluestem_Chart_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 2 ft of leaf and 3 ft in flower, Izel 3 ft, MBG 2-3 ft, NVK 90-120 cm, Chicago 50 in. 36 in.",
+        "spread": "MBG 1.5-2 ft, NVK 50-70 cm, Chicago 30 in. 24 in.",
+        "zones": "MBG 3-9, Hoffman 3-8, NVK 3: the species' 3-9.",
+        "look": "MBG: light blue in spring, grey-green in summer with purple late, then pink-orange to reddish-purple to vivid red in fall, some colour held through winter. Chicago lowered its rating for its habit."
+      }
+    },
+    {
+      "ref": "bluestem|twilightzone",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 52,
+        "spread": 20,
+        "bloomMonths": [
+          9,
+          10
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/schizachyrium-scoparium-twilight-zone-ppaf",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=452072",
+        "https://www.nvknurseries.com/plant/Schizachyrium-scoparium-Twilight-Zone",
+        "https://www.izelplants.com/pub/media/pdf/Little_Bluestem_Chart_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 2 ft of leaf and 4-4.5 ft in flower, Izel 4-4.5 ft, MBG 4-4.5 ft, NVK 120-140 cm. 52 in.",
+        "spread": "MBG 1-2 ft, NVK 50-60 cm. 20 in.",
+        "zones": "Hoffman and MBG 3-9, NVK 3: the species' 3-9.",
+        "bloomMonths": "MBG September-October, later than other little bluestems; Hoffman early fall. September-October.",
+        "look": "NVK: a narrow, sturdy, columnar clump with a silvery mauve-purple cast from midsummer. MBG: blue-green tinged purple, deeper mauve-purple in fall. Izel: silvery bright purple in fall."
+      }
+    },
+    {
+      "ref": "bluestem|minnbluea",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 44,
+        "spread": 24
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/schizachyrium-scoparium-minnbluea-blue-heaven",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=261062",
+        "https://www.diggingdog.com/plant/G-0598",
+        "https://www.izelplants.com/pub/media/pdf/Little_Bluestem_Chart_Izel_Native_Plants.pdf"
+      ],
+      "estimates": {
+        "name": "'MinnblueA' is the cultivar (MBG, Chicago, Hoffman); Blue Heaven is the trade name it is sold under, kept as a synonym so a search finds it.",
+        "heightIn": "Hoffman 3 ft of leaf and 4 ft in flower, Izel 4 ft, Digging Dog 3-4 ft, MBG 2-4 ft, Chicago 46 in. 44 in.",
+        "spread": "MBG 1.5-2.5 ft, Digging Dog 2-3 ft, Chicago 33 in. 24 in.",
+        "zones": "Hoffman and MBG 3-9, Digging Dog 3: the species' 3-9.",
+        "look": "MBG: blue-grey leaves, purple late in summer, burgundy-red with pink and purple in fall; from the University of Minnesota. Chicago recorded crown injury in 2013."
+      }
+    },
+    {
+      "ref": "fountaingrass|desertplains",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 44,
+        "spread": 42,
+        "bloomMonths": [
+          8,
+          9,
+          10
+        ]
+      },
+      "sources": [
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.perennials.com/plants/pennisetum-alopecuroides-desert-plains.html",
+        "https://www.nvknurseries.com/plant/Pennisetum-alopecuroides-Prairie-Winds-Desert-Plains",
+        "https://www.provenwinners.com/plants/pennisetum/prairie-winds-desert-plains-fountain-grass-pennisetum-alopecuroides"
+      ],
+      "estimates": {
+        "species": "Pennisetum alopecuroides 'Desert Plains' in every source, which is Cenchrus alopecuroides, the species on the record.",
+        "heightIn": "Chicago 50 in, NVK 120 cm in flower over 90 cm of leaf, Walters 90-120 cm, Proven Winners 3-4 ft. 44 in.",
+        "spread": "Walters, NVK and Proven Winners 3-4 ft; Chicago 72 in. 42 in.",
+        "zones": "Walters, NVK and Proven Winners 5-9: the species'.",
+        "bloomMonths": "Chicago late August to late November, Proven Winners late summer through fall. August-October.",
+        "look": "Chicago: a seedling of 'Cassian' from western Michigan, a robust bushy mound, leaves tipped purple, orange and bronze in fall, purple and tan plumes 6 in long produced profusely just above the leaves; exceptionally cold-hardy in the trial, rated five stars. NVK: does not reseed. Hoffman does not list it."
+      }
+    },
+    {
+      "ref": "fountaingrass|piglet",
+      "batch": "cultivars",
+      "proposed": {
+        "heightIn": 18,
+        "spread": 18
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/pennisetum-alopecuroides-piglet-pp19074",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=269222",
+        "https://www.nvknurseries.com/plant/Pennisetum-alopecuroides-Piglet",
+        "https://www.diggingdog.com/plant/G-0516"
+      ],
+      "estimates": {
+        "species": "Pennisetum alopecuroides 'Piglet' in every source: Cenchrus alopecuroides, the species on the record.",
+        "heightIn": "Hoffman 1 ft of leaf and 1.5 ft in flower, MBG 18 in over an 8 in clump, Digging Dog 18 in, NVK 25-50 cm. 18 in.",
+        "spread": "MBG 24 in (1-2 ft in its facts), Digging Dog 18-24 in, NVK 30-40 cm. 18 in.",
+        "zones": "Hoffman and MBG 5-9, NVK 5, Digging Dog 5/6: the species' 5-9.",
+        "look": "Digging Dog: about half the size of 'Hameln' and bigger than 'Little Bunny', with tawny plumes; NVK: creamy tan plumes, golden yellow in fall."
       }
     }
   ]
