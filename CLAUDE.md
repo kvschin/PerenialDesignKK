@@ -1612,7 +1612,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    catalog to 495 base records / 377 nested choices. Botanical source reviews
    and authoring decisions live in `docs/plant-data/phase1-implementation.md`.
    This expansion does not change the zone picker, continental native model,
-   or seasonal growth rules (regional Phase 0 is deferred). Library and tray
+   or seasonal growth rules. (Phase 0's first deliverable landed later: the ZIP
+   zone lookup and the reviewed notes in `PLANT_GUIDANCE`. Still open: choosing
+   a region or ecoregion and matching plants to it, and local bloom timing.
+   Hawaii is out of scope.) Library and tray
    search include botanical synonyms, as exact discovery already does.
    New shared, opt-in drawing controls: `vertgrass` uses `foliageHeight` and
    `plumeW`; mound `bunchgrass` uses `seedStems` with `seedStyle:'openPanicle'`
@@ -1626,7 +1629,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    Low Oregon grape and salal remain woody shrubs with mature spreads.
    **Florida Phase 2:** ten straight species bring the catalog to 505 base
    records / 377 nested choices. Source reviews and authoring decisions live
-   in `docs/plant-data/phase2-implementation.md`. Phase 0 remains deferred.
+   in `docs/plant-data/phase2-implementation.md`. There is no region matching.
    Coontie and saw palmetto are shrubs for mature-spread purposes and use
    reusable `cycad` and `fanpalm` forms; neither renderer checks a species key.
    Low `shrub`/`matflower` plants can opt into `matHeadStyle:'button'|'puff'|
@@ -1640,7 +1643,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    both renderer modes, four-season previews, and sprite-edge checks.
    **Colorado/Rockies Phase 3:** ten straight species bring the catalog to 515
    base records / 377 nested choices. Source reviews and authoring decisions
-   live in `docs/plant-data/phase3-implementation.md`. Phase 0 remains deferred,
+   live in `docs/plant-data/phase3-implementation.md`. There is no region matching,
    so elevation, ecotype, provenance, drainage, host-risk, and local legal
    qualifications stay visible in the plant descriptions rather than becoming
    automatic regional claims. Prairie Junegrass and Indian ricegrass keep
@@ -1658,7 +1661,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    **Texas/Arizona Phase 4:** twelve straight species bring the catalog to 527
    base records / 377 nested choices. The independent Texas and Arizona source
    reviews and implementation decisions live in
-   `docs/plant-data/phase4-implementation.md`. Phase 0 remains deferred, so
+   `docs/plant-data/phase4-implementation.md`. There is no region matching, so
    Texas subregions, Arizona low desert versus high country, local origin,
    rainfall response, drainage, humidity, and safety limitations stay visible
    in descriptions rather than becoming automatic regional claims. Eight
@@ -1677,7 +1680,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    **Carolinas/humid Southeast Phase 5:** eight straight species bring the
    catalog to 535 base records / 377 nested choices. The independent woodland
    and meadow/woody source reviews and implementation decisions live in
-   `docs/plant-data/phase5-implementation.md`. Phase 0 remains deferred, so
+   `docs/plant-data/phase5-implementation.md`. There is no region matching, so
    Carolina mountain/Piedmont/coast distinctions, local origin, propagation,
    spreading, wet-site, sex/fruit, leaf-persistence, and regional mature-size
    limits remain explicit in descriptions instead of automatic claims.
@@ -8025,7 +8028,7 @@ every new one resolves, five through a redirect to a reclassified name
 (*Anemonoides nemorosa*, *Anemone hepatica*, *Valeriana rubra*, *Menyanthes*,
 *Cardoon*). `dev/europe3-review.html` covers all 32 exact choices.
 What the audit has left is no longer a layer but a long tail: more cultivar
-depth, and the regional/ecotype metadata that Phase 0 still defers.
+depth, and regional/ecotype metadata, which waits on region matching.
 **Hedging trees and highbush blueberry (0.9.45).** Europe's woody palette had
 no beech, hornbeam or yew -- the three plants its gardens are hedged and framed
 with, and the clipped blocks a naturalistic planting is set against. Beech

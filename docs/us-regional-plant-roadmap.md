@@ -1,8 +1,8 @@
 # US regional plant expansion roadmap
 
-Prepared August 30, 2026. Updated through local implementation of phases **1A/1B, 2, 3, 4, and 5**: 62 species plus the independently sized 'Howard McMinn' manzanita selection. Initial Phase 0 guidance was authorized and implemented September 6, 2026; complete local coverage remains open. Phase 6 remains a backlog.
+Prepared August 30, 2026. Updated through local implementation of phases **1A/1B, 2, 3, 4, and 5**: 62 species plus the independently sized 'Howard McMinn' manzanita selection. Initial Phase 0 guidance was authorized and implemented September 6, 2026; complete local coverage remains open. Phase 6's Alaska batch shipped October 8, 2026, and Hawaii was dropped from scope November 17, 2026; the national coverage audit remains a backlog.
 
-**The next regional gap is an initial Alaska/Hawaii and nationwide audit.** The implemented West Coast, Florida, Colorado, Texas, Arizona, and humid Southeast batches improve those regions without claiming automatic state-level suitability.
+**The next regional gap is the nationwide audit.** Alaska's starter batch shipped; Hawaii is out of scope. The implemented West Coast, Florida, Colorado, Texas, Arizona, and humid Southeast batches improve those regions without claiming automatic state-level suitability.
 
 The original roadmap contains **68 candidate taxa**; 62 are now implemented and 6 remain. Source reviews and implementation decisions are in [phase 1](plant-data/phase1-implementation.md), [phase 2](plant-data/phase2-implementation.md), [phase 3](plant-data/phase3-implementation.md), [phase 4](plant-data/phase4-implementation.md), and [phase 5](plant-data/phase5-implementation.md) notes. The last batch still requires production verification of dimensions, hardiness, local distribution, bloom timing, provenance, and nursery availability. A recommendation for a region is not a claim that the plant is native throughout it.
 
@@ -14,7 +14,7 @@ The original roadmap contains **68 candidate taxa**; 62 are now implemented and 
 | 3 | Colorado/Rockies — implemented locally | 10 |
 | 4 | Texas + Arizona/arid Southwest — implemented locally | 12 |
 | 5 | Carolinas/humid Southeast — implemented locally | 8 |
-| 6 | Nationwide gap audit + Alaska/Hawaii starters | 6 |
+| 6 | Nationwide gap audit + Alaska starters (Hawaii dropped) | 3 |
 
 Phases express priority, not a requirement to finish every region before starting another. The user chose to implement 1A/1B before Phase 0; these plants use existing filters and seasonal rules, with site caveats in their descriptions. They do not introduce automatic regional suitability claims. The first five plant phases contain 62 candidates for the areas requested; the final six begin the remaining nationwide work.
 
@@ -31,7 +31,7 @@ The initial audit counted **473 base records and 376 nested choices**. Through P
 | Texas/Arizona | Substantial dry-flower foundation; uneven structure | Red yucca, sotol, ocotillo, agaves, blackfoot daisy, desert willow, autumn sage, flame acanthus | Regional trees/shrubs, additional matrix grasses, shade and groundcover options |
 | Carolinas/humid Southeast | Better covered, with specific holes | Southern blue flag, eastern bluestar, native sedges, sweetspire, summersweet, oakleaf hydrangea | Coastal evergreen structure, characteristic southern perennials and low groundcovers |
 | Northeast/Midwest | Strongest starting coverage | Prairie grasses, forbs, sedges, woodland plants, shrubs, deciduous trees | Audit local suitability and cold edges rather than expand indiscriminately |
-| Alaska/Hawaii | Require dedicated work | Some cold-climate and warm-climate records overlap | Local palettes, full zone range, island/elevation distinctions, appropriate seasonality |
+| Alaska | Requires dedicated work | Some cold-climate records overlap | Local palettes, coastal/interior distinctions, appropriate seasonality. (Hawaii is out of scope.) |
 
 These are qualitative coverage judgments. The app has no state/ecoregion native data from which an honest regional coverage percentage could be calculated.
 
@@ -44,7 +44,7 @@ Do the smallest useful foundation first; do not make every new plant wait for a 
 - [ ] **Backfill local-origin and suitability coverage across regional palettes.** A garden-location/ecoregion selector and complete locality matching remain unimplemented. North American origin must never become a claim of California or Florida nativity.
 - [ ] **Use climate-aware regional choices.** Separate California coast/interior, PNW west/east of the Cascades, Colorado plains/foothills/mountains, humid east Texas/central Texas/arid west Texas, Arizona low desert/high country, and Florida north/central/south. Separate Carolina mountains/Piedmont/coast. State boundaries alone are insufficient; EPA ecoregions can support the reference data behind simpler user labels. [EPA framework](https://www.epa.gov/eco-research/ecoregions)
 - [x] **Introduce reviewed site qualifiers and explain filter limits.** Six species now have additional drainage, acidity, irrigation, heat/humidity, freeze-response, or coastal notes. Plant-filter matches are explicitly a starting point, not a site recommendation. Extend these notes across the remaining catalog; keep salt spray distinct from saline soil or inundation.
-- [x] **Complete an initial regional invasive review and expose cautions.** Nine reviewed species now carry region-specific advice and source links in plant details, catalog choices, and CSV exports. Unknown assessments stay unknown; existing gardens and planting schemes are preserved. [Coverage and follow-up](plant-data/regional-guidance.md). Further regional and exact-cultivar review remains open; this is not a complete invasive inventory or a nationwide ban list.
+- [x] **Complete an initial regional invasive review and expose cautions.** *Removed in 0.9.117: the filter, cautions and CSV column were taken out by decision, and plant descriptions say in prose where a plant escapes. The text below is the record of what shipped.* Nine reviewed species now carry region-specific advice and source links in plant details, catalog choices, and CSV exports. Unknown assessments stay unknown; existing gardens and planting schemes are preserved. [Coverage and follow-up](plant-data/regional-guidance.md). Further regional and exact-cultivar review remains open; this is not a complete invasive inventory or a nationwide ban list.
 - [ ] **Make seasonal presentation honest.** `seasonEnvelope()` in `js/world.js` applies spring cutback to non-woody plants, and the `BLOOM_MONTHS` table describes mostly broad zone 5–7 timing unless a species has southern/desert data. Add reviewed evergreen, summer-dormant, and warm-climate behavior where needed. Until then, identify the calendar as representative rather than a local flowering forecast. Florida has its own regional growing calendars and year-round gardening conditions. [UF/IFAS](https://gardeningsolutions.ifas.ufl.edu/care/florida-friendly/florida-gardening-for-new-residents/)
 
 **First deliverable:** a gardener can choose an accurate zone and a reviewed regional palette containing both existing and new plants, with honest limitations. The initial guidance uses separate optional review records and preserves existing plant and save schemas. Full local palette matching and seasonal corrections remain proposed work.
@@ -205,20 +205,22 @@ Focus on shaded ground layers, late-season flowers, and coastal woody structure.
 
 **Implementation:** the two four-plant batches reuse data-gated mat, spike, mistflower, sunflower, vertical-grass, shrub, and broadleaf-tree architecture. New reusable controls lift mat flowers above foliage, shape Indian-pink star tubes, add optional trumpet throats and magnolia flowers, and bend nodding grass plumes. Blue mistflower and swamp sunflower join their existing presentation groups without losing exact species records. The dev-only `dev/phase5-review.html` contact sheet covers both renderer modes, all seasons, and sprite-edge checks. Southern evergreen or semi-evergreen appearance is not extrapolated to every northern location.
 
-## Phase 6 — national coverage audit and Alaska/Hawaii starter batches: 6 candidates
+## Phase 6 — national coverage audit and Alaska starter batch: 3 candidates
 
-Completing the named regions is not enough to claim complete US coverage. Audit the inland Northwest/Great Basin, northern Plains, cold Northeast/Upper Midwest, Gulf Coast, Alaska, and Hawaii against the expanded catalog. Reuse appropriate earlier additions before adding more species.
+Hawaii is out of scope (decided November 17, 2026). Its three candidates are kept in the table below as a record, struck through.
+
+Completing the named regions is not enough to claim complete US coverage. Audit the inland Northwest/Great Basin, northern Plains, cold Northeast/Upper Midwest, Gulf Coast, and Alaska against the expanded catalog. Reuse appropriate earlier additions before adding more species.
 
 | ID | Plant | Initial target and role | Source |
 | --- | --- | --- | --- |
 | AK-01 · Added locally 2026-10-08 | Woolly geranium — *Geranium erianthum* | Alaska flowering perennial; catalog zones 3–7 remain provisional | [Source and implementation notes](plant-data/audit-additions.md) |
 | AK-02 · Added locally 2026-10-08 | Bunchberry — *Cornus canadensis* | Northern woodland dwarf shrub; cool summers and acidic, moist soil required | [Source and implementation notes](plant-data/audit-additions.md) |
 | AK-03 · Added locally 2026-10-08 | Prickly rose — *Rosa acicularis* | Northern flowering shrub; suckering and browse retained, upper zone 6 a planning limit | [Source and implementation notes](plant-data/audit-additions.md) |
-| HI-01 | Oahu sedge — *Carex wahuensis* subsp. *wahuensis* | Hawaiian grasslike matrix | [Native Plants Hawaii](https://nativeplants.hawaii.edu/landscape_uses/erosion-control/) |
-| HI-02 | Ilima — *Sida fallax* | Hawaiian low shrub/groundcover; specify growth form | [Native Plants Hawaii](https://nativeplants.hawaii.edu/plants/sida-fallax/) |
-| HI-03 | Hawaiian white hibiscus — *Hibiscus arnottianus* | Hawaiian flowering shrub/small tree | [University of Hawaii](https://www.ctahr.hawaii.edu/hawnprop/plants/hib-arno.htm) |
+| ~~HI-01~~ · Dropped | ~~Oahu sedge — *Carex wahuensis* subsp. *wahuensis*~~ | Out of scope | [Native Plants Hawaii](https://nativeplants.hawaii.edu/landscape_uses/erosion-control/) |
+| ~~HI-02~~ · Dropped | ~~Ilima — *Sida fallax*~~ | Out of scope | [Native Plants Hawaii](https://nativeplants.hawaii.edu/plants/sida-fallax/) |
+| ~~HI-03~~ · Dropped | ~~Hawaiian white hibiscus — *Hibiscus arnottianus*~~ | Out of scope | [University of Hawaii](https://www.ctahr.hawaii.edu/hawnprop/plants/hib-arno.htm) |
 
-The three Alaska entries were added locally October 8, 2026; Phase 6 remains open, including the national coverage audit and all three Hawaii candidates. These are starter choices for dedicated local review, not complete Alaska/Hawaii palettes. Alaska needs coastal/interior distinctions and local cold performance; Hawaii needs island, elevation, rainfall, and provenance distinctions. Hawaii cannot inherit a continental North America native label. Confirm current nomenclature, conservation status, and appropriate nursery sources before further implementation; use the older UAF checklist as evidence of garden experience, not a current invasive-plant clearance.
+The three Alaska entries were added locally October 8, 2026; Phase 6 remains open for the national coverage audit. These are starter choices for dedicated local review, not a complete Alaska palette. Alaska needs coastal/interior distinctions and local cold performance. Confirm current nomenclature, conservation status, and appropriate nursery sources before further implementation; use the older UAF checklist as evidence of garden experience, not a current invasive-plant clearance.
 
 ## Definition of done for every plant batch
 
