@@ -2007,6 +2007,7 @@ const GARDEN_TYPES=[
   ['any','Any garden','Every plant that suits the garden, in no particular style.'],
   ['cottage','Cottage','Romantic and abundant: layered perennials and self-seeders.'],
   ['prairie','Prairie / Meadow','Native grasses and forbs in naturalistic drifts.'],
+  ['rain','Rain garden','A basin that floods after storms and dries between: plants that take both.'],
   ['butterfly','Pollinator','Nectar and host plants for butterflies and bees.'],
   ['shade','Shade / Woodland','Understory calm: hostas, ferns, sedges, woodland bulbs.'],
   ['japanese','Japanese','Restraint and structure: evergreens, moss, stone.'],

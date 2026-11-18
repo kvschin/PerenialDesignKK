@@ -6777,7 +6777,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     require another choice. Manual choices invalidate pending responses, and a
     reopened page ignores an earlier page's request. No ZIP lookup changes
     existing saved gardens.
-    *Garden style* is eleven cards, each picturing three of the plants the
+    *Garden style* is twelve cards, each picturing three of the plants the
     style puts first, drawn by `drawPlant` (`styleCardKeys`, `paintStyleArt`,
     `STYLE_ART`): the menu's idea, that an entry shows what it opens. The three
     are the style's top-ranked plants for the zone and origin
@@ -7524,7 +7524,19 @@ otherwise, and absent where no source was read; it shows on the Library card, an
 **The same rule reaches the other plant types** (`styleCouldAsk`, ui.js; 0.9.85), because a sum cannot
 say no. Prairie and Coastal are places, so they need a plant recorded there: `prairie` is added to a
 native grass, forb or bulb of full sun and otherwise has to be authored with a source, and `coastal`
-is authored or matched by name. Cottage takes no water plant but its irises, and no palm or spine.
+is authored or matched by name. A record with an authored `dune` role (0.9.132: the beach and dune
+grasses, Spanish Dagger, Seaside Daisy, Beach Sunflower) is coastal and never takes the computed
+`prairie`. The name match reads `festuca glauca`, not `fescue`, which made Idaho Fescue a coastal,
+Mediterranean and gravel plant. Cottage takes no water plant but its irises, and no palm or spine.
+**Rain garden is the third place style** (`rain`, 0.9.132; `PLACE_STYLES`, `rainGardenPlant`,
+`RAIN_GARDEN_KEYS`). A plant earns `rain` where two rain garden lists from the garden's continent name
+it for the basin or the moist slope, or one puts it in the wet bottom and its record says moist soil
+(thirteen lists, every vote in `docs/plant-data/rain-sources.json`, a test holding the table to it),
+or where it is a native sedge or grass filed under Wet meadow, which is how Lake and Prairie Sedge get
+there. A floating plant never does; a marginal only where a list names it. A list speaks for its own
+continent, so the RHS's yellow flag and miscanthus are not recommended in North America, and a
+European rain garden is a short list. The old `rainGarden` role, authored with the pond and bog
+batches and read by nothing, is gone; most of the 0.9.79 bog perennials are on no list.
 `windPollinated` keeps grasses, sedges, rushes and catkin trees off `pollinator`, since a bloom colour
 was all it took. The Pollinator list stays broad on purpose: its own label says bees, so any
 insect-pollinated flower qualifies and nectar and native plants rank first. Raising its bar was tried

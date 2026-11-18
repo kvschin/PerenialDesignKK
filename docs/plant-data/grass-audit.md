@@ -712,6 +712,12 @@ sun, not place, as `style-recommendations.md` records. Coastal recommends seven,
 match on "fescue", which no source read supports. Shade takes the melic, the reed grass and Slender Wood Oats. Giant
 Miscanthus is recommended for Modern alone.
 
+Both were fixed in 0.9.132 (`style-recommendations.md`). American Beachgrass, Sea Oats and Coastal Panicgrass carry a
+`dune` role and leave Prairie for Coastal, and the word lists match `festuca glauca`, so Idaho, California and Roemer's
+Fescue are off Coastal, Mediterranean and Gravel. The new Rain garden style takes the wet meadow grasses: Prairie
+Cordgrass, Eastern Gamagrass, Bushy Bluestem and Sand Cordgrass, with Switchgrass, Big Bluestem, Indiangrass, Canada
+Wild Rye, Bottlebrush Grass and Northern Sea Oats from the rain garden lists.
+
 ### What it costs
 
 One procedural draw measures 0.05-0.44ms, Sea Oats in Summer the most, against 0.46 for Switchgrass and 0.50 for Giant

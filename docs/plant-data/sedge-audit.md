@@ -255,8 +255,11 @@ smaller qualified. What else was checked, and why it is not here:
 
 ### The model
 
-- **Lake, Awl-fruited, Bristly and Prairie Sedge are recommended for no style.** No style
-  asks for wet ground; they show under All eligible and in an unstyled garden.
+- ~~**Lake, Awl-fruited, Bristly and Prairie Sedge are recommended for no style.**~~ Closed in
+  0.9.132 by the Rain garden style (`style-recommendations.md`). Bristly and Awl-fruited Sedge are on
+  rain garden lists; every native sedge filed under Wet meadow carries the style's role, which is how
+  Lake and Prairie Sedge get there. The MPCA calls Lake Sedge too aggressive for a rain garden, and no
+  rain garden list names Prairie Sedge, a fen plant.
 - **Japanese Sedge 'Evergold' is not on the Japanese list**, which no sedge is. I found no
   source that names the use.
 - **Water depth is not modelled.** A wading sedge goes on any water tile, as a marginal does.

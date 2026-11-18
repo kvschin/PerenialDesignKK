@@ -834,6 +834,7 @@ const DESIGN_STYLE_LABELS={
   gravel:'Gravel / Rock',
   formal:'Formal',
   coastal:'Coastal',
+  rain:'Rain garden',
 };
 const ROLE_LABELS={
   architectural:'Architectural',
@@ -845,6 +846,7 @@ const ROLE_LABELS={
   cottage:'Cottage',
   deerOk:'Deer-resistant',
   dry:'Dry garden',
+  dune:'Dunes',
   early:'Early season',
   evergreen:'Evergreen',
   late:'Late season',
@@ -870,6 +872,7 @@ const ROLE_LABELS={
   pollinator:'Pollinator',
   prairie:'Prairie',
   rabbitOk:'Rabbit-resistant',
+  rain:'Rain garden',
   romantic:'Romantic',
   squirrelOk:'Squirrel-resistant bulb',
   seasonal:'Seasonal color',
@@ -887,7 +890,7 @@ const ROLE_DISPLAY_ORDER=[
   'orchard','fruit','nut','prairie','matrix','pollinator','nectar','host','shade','woodland','groundcover',
   'structure','hedge','evergreen','architectural','modern','formal','japanese',
   'cottage','romantic','bulbLayer','early','dry','gravel','mediterranean',
-  'coastal','wind','winter','seedhead','native','flower','seasonal','water','wet',
+  'coastal','dune','wind','winter','seedhead','native','flower','seasonal','rain','water','wet',
   'fern','hydrangea','aromatic','silver','movement','canopy','block',
   'late','deerOk','rabbitOk','squirrelOk'
 ];
@@ -902,6 +905,7 @@ const STYLE_ROLE_WEIGHTS={
   gravel:{gravel:9,dry:6,architectural:4,silver:3,matrix:2,mediterranean:2},
   formal:{formal:10,hedge:8,evergreen:5,structure:5,block:3,bulbLayer:2,architectural:1},
   coastal:{coastal:9,wind:6,matrix:3,dry:2,groundcover:1,movement:1},
+  rain:{rain:9,wet:4,native:4,prairie:3,pollinator:3,matrix:2,naturalistic:1,seedhead:1,structure:1},
 };
 const STYLE_RECOMMEND_MIN={
   cottage:9,
@@ -914,6 +918,28 @@ const STYLE_RECOMMEND_MIN={
   gravel:10,
   formal:10,
   coastal:10,
+  rain:10,
+};
+/* What the rain garden lists name (0.9.132), by the continent whose gardens a list describes.
+   Thirteen lists were read: extension services, botanic gardens, state agencies and the RHS.
+   A plant is here where two lists from its continent name it for the basin or the moist slope,
+   or one puts it in the wet bottom and its own record already says moist soil. Lists, zones and
+   every vote are in docs/plant-data/rain-sources.json. The continent matters: the RHS names
+   yellow flag, pendulous sedge, bugle and miscanthus, all of which escape in North America. */
+const RAIN_GARDEN_KEYS={
+  'north-america':new Set(['americanelder','americansweetflag','arrowhead','arrowwood','awlfruitedsedge','babyjoe','baldcypress',
+    'bigbluestem','bluebells','blueflagiris','bluemistflower','bottlebrushgrass','bristlysedge','broomsedgecarex','buttonbush',
+    'canadawildrye','cardinallobelia','chokeberry','cinnamonfern','cranberrybush','culvers','easternbluestar','falsesunflower',
+    'filipendula','foamflower','foxsedge','fringedsedge','goldenalexander','goldenragwort','grayssedge','greatbluelobelia',
+    'helenium','indiangrass','inkberry','interruptedfern','jackinthepulpit','joepye','lakesedge','liatrispycnostachya',
+    'liatrisspicata','marshfern','marshmarigold','monarda','monkeyflower','newengland','northernblueflag','northernseaoats',
+    'obedientplant','ostrichfern','palmsedge','penstemon','pickerelweed','porcupinesedge','prairiecordgrass','prairiedock',
+    'prairieironweed','redbud','redmaple','redtwig','riverbirch','riverbirchmulti','royalfern','rudbeckiatriloba',
+    'scarletbeebalm','sensitivefern','softrush','softstembulrush','spicebush','summersweet','swampmilkweed','swamprosemallow',
+    'swampwhiteoak','sweetbaymagnolia','switchgrass','tussocksedge','virginiamountainmint','virginiasweetspire',
+    'virginiawaterleaf','waterblueflag','whiteturtlehead','wildgeranium','willowamsonia','winterberry','woodlandphlox',
+    'yauponholly','zigzaggoldenrod']),
+  europe:new Set(['bugle','callalily','cardinallobelia','miscanthus','siberianiris','softrush','weepingsedge','yellowflag']),
 };
 const ROLE_CACHE={};
 const SEDGE_GROUNDCOVER_IN=18;
@@ -1066,7 +1092,11 @@ function staticPlantRoles(k){
   if (roleMatches(text,['antennaria','pussytoes','zizia','golden alexander'])) roles.add('host');
   if (roleMatches(text,['monarda','mountain mint','calamint','agastache','catmint','salvia','yarrow']))
     roles.add('aromatic');
-  if (roleMatches(text,['yucca','eryngium','rattlesnake','echinops','stipa','fescue','mexican feather','calamint','catmint','salvia','yarrow','agastache','allium','baptisia','leadplant','pussytoes','antennaria','pasque','pulsatilla','prairie smoke','geum','poppy mallow','callirhoe','gaura','blue-eyed grass','sisyrinchium']))
+  /* 'festuca glauca', not 'fescue': the word put Idaho and California Fescue on the
+     Mediterranean, Gravel and Coastal lists, and no source read places either there. Blue
+     fescue is the one the shore and gravel books name (the UW Miller Library's salt list
+     quotes Tenenbaum and Minnesota Extension). */
+  if (roleMatches(text,['yucca','eryngium','rattlesnake','echinops','stipa','festuca glauca','mexican feather','calamint','catmint','salvia','yarrow','agastache','allium','baptisia','leadplant','pussytoes','antennaria','pasque','pulsatilla','prairie smoke','geum','poppy mallow','callirhoe','gaura','blue-eyed grass','sisyrinchium']))
     roles.add('dry'), roles.add('gravel'), roles.add('mediterranean');
   if (roleMatches(text,['silver','blue fescue','yucca','eryngium','echinops','yarrow','stachys','rattlesnake','pussytoes','antennaria']))
     roles.add('silver');
@@ -1076,8 +1106,10 @@ function staticPlantRoles(k){
     roles.add('modern'), roles.add('block');
   if (roleMatches(text,['boxwood','yew','hydrangea','allium','japanese maple','flowering cherry','ginkgo','serviceberry']))
     roles.add('formal'), roles.add('structure');
-  if (roleMatches(text,['muhly','fescue','stipa','panicum','switchgrass','dropseed','sideoats','yucca','bald cypress','birch']))
+  if (roleMatches(text,['muhly','festuca glauca','stipa','panicum','switchgrass','dropseed','sideoats','yucca','bald cypress','birch']))
     roles.add('coastal'), roles.add('wind');
+  // a plant of the dunes is a coastal plant, whatever else its record says
+  if (roles.has('dune')) roles.add('coastal');
   // late-season bloom — drives the "Late-Season Glow" prompt
   if (P.sea && P.sea.Fall && P.sea.Fall.bloom) roles.add('late');
   // deer & rabbit resistance: broad texture cues + the curated lists above.
@@ -1097,7 +1129,7 @@ function plantRoles(k,criteria,v){
   const P=plantDef(k,v||null); if (!P) return [];
   const roles=new Set(staticPlantRoles(k));
   const source=criteria || (typeof game!=='undefined'&&game.filters) || {};
-  const relation=nativeRelation(P,normalizeFilters(source).nativeRegion);
+  const region=normalizeFilters(source).nativeRegion, relation=nativeRelation(P,region);
   if (relation.regional){
     roles.add('native'); roles.add('naturalistic');
     /* A native grass, forb or bulb of open ground reads as a prairie plant unless its
@@ -1105,11 +1137,27 @@ function plantRoles(k,criteria,v){
        and woods, so Prairie recommended water lilies, ferns and eastern hemlock. A
        sedge, a shrub, or a plant of part shade carries it only where its own record
        does, which a source has to back. */
-    if (['grass','forb','bulb'].includes(P.type) && P.sun==='full' && !frondOrSpine(P)) roles.add('prairie');
+    if (['grass','forb','bulb'].includes(P.type) && P.sun==='full' && !frondOrSpine(P) && !roles.has('dune')) roles.add('prairie');
   }
   // the style asks for the garden's own natives, so the role means nothing elsewhere
   else roles.delete('prairie');
+  if (rainGardenPlant(k,P,region,relation)) roles.add('rain');
   return [...roles].sort();
+}
+/* A rain garden fills after a storm, drains in a day or two, and dries out between, so its
+   plants take both. A plant earns the role two ways. The lists name it (RAIN_GARDEN_KEYS),
+   for the continent the garden is on. Or it is a sedge or grass of the garden's own wet
+   meadows: open ground and moist soil, filed under Wet meadow on its tab. Those are the
+   basin's matrix, and the lists name too few sedges to say so: Lake, Awl-fruited and Prairie
+   Sedge were in no style at all. A floating plant needs standing water and never earns it. */
+function rainGardenPlant(k,P,region,relation){
+  if (P.type==='water' && !P.marginal) return false;
+  const listed=RAIN_GARDEN_KEYS[region];
+  if (listed && listed.has(k)) return true;
+  if (!relation.regional) return false;
+  if (P.type==='sedge') return sedgeSiteOf(P)==='wetmeadow';
+  if (P.type==='grass') return grassSiteOf(P)==='wetmeadow';
+  return false;
 }
 function roleLabel(role){ return ROLE_LABELS[role] || cap(role); }
 function roleSummary(k,max=6,v=null,criteria=null){
@@ -1127,12 +1175,14 @@ function activeDesignType(){
 function designTypeName(type){ return DESIGN_STYLE_LABELS[type] || cap(type||'design'); }
 /* A sum cannot say no. Prairie's bar is cleared by a native tree with a seedhead, Coastal's
    by being any grass at all, Cottage's by having a flower. So these say no first:
-   Prairie and Coastal are places, and need a plant recorded as growing there; a sedge is
-   chosen by site, so every style needs the role it is named for (no sedge is a butterfly
-   plant, so that style has none); and a cottage border has no water plants but its irises,
-   and no palms or spines. */
+   Prairie, Coastal and Rain garden are places, and need a plant recorded as growing there
+   (a moist woodland fern is wet enough for a rain garden's sum and is not a rain garden plant
+   until a list says so); a sedge is chosen by site, so every style needs the role it is named
+   for (no sedge is a butterfly plant, so that style has none); and a cottage border has no
+   water plants but its irises, and no palms or spines. */
+const PLACE_STYLES=new Set(['prairie','coastal','rain']);
 function styleCouldAsk(P,type,roles){
-  if (type==='prairie'||type==='coastal'||P.type==='sedge') return roles.includes(type);
+  if (PLACE_STYLES.has(type)||P.type==='sedge') return roles.includes(type);
   if (type==='cottage') return !frondOrSpine(P) && (P.type!=='water'||roles.includes('cottage'));
   return true;
 }

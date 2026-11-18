@@ -1,0 +1,2500 @@
+{
+  "reviewed": "2026-11-17",
+  "note": "Rain garden lists read for 0.9.132 (the Rain garden style). wet: entries a list places in the basin or wet bottom; slope: entries for the moist middle, or from a list that gives no zones. Dry-rim, berm and upland entries and genus-only entries are not recorded. Catalog matches are by binomial; plants maps each catalog key to the lists that name it, by continent.",
+  "rule": "A plant is in RAIN_GARDEN_KEYS (js/ui.js) for a continent where two of that continent's lists name it, or one puts it in the wet bottom and its record says moist soil. A floating water plant never is. A sedge or grass of open, moist ground native to the garden (filed under Wet meadow) earns the rain role in code, without a list.",
+  "cautions": {
+    "lakesedge": "MPCA, Plants for Stormwater Design (2024): \"Lake sedge is aggressive, so it would probably not be ideal for landscape conditions or rain gardens.\" https://stormwater.pca.state.mn.us/sites/stormwater/files/Updated%20Plants%20for%20Stormwater%20Design%208.5%20by%2011%2010-25-24%20Low.pdf . The University of Minnesota names it for rain gardens. It is a wet meadow sedge and carries the role as one.",
+    "awlfruitedsedge": "MPCA, same guide: well adapted to partially sunny to shaded wet basins, and used in vegetated swales.",
+    "prairiesedge": "No rain garden list read names it; Minnesota Wildflowers and Go Botany place it in wet meadows and calcareous fens. It carries the role as a wet meadow sedge, not from a list."
+  },
+  "lists": [
+    {
+      "id": "madison",
+      "title": "City of Madison, Rain Garden Plant List",
+      "region": "north-america",
+      "url": "https://www.cityofmadison.com/engineering/stormwater/programs-initiatives/rain-gardens/rain-garden-plant-list",
+      "counted": "\"Plants for wet soils and rain garden basins\" and \"medium/mesic soils and rain garden slopes\"; not the berm list",
+      "wet": [
+        "Asclepias incarnata",
+        "Carex comosa",
+        "Chelone glabra",
+        "Elymus virginicus",
+        "Iris versicolor",
+        "Lobelia cardinalis",
+        "Lobelia siphilitica",
+        "Matteuccia struthiopteris",
+        "Mimulus ringens",
+        "Physostegia virginiana",
+        "Scirpus atrovirens",
+        "Senna hebecarpa",
+        "Spartina pectinata",
+        "Verbena hastata",
+        "Vernonia fasciculata"
+      ],
+      "slope": [
+        "Agastache scrophulariifolia",
+        "Allium cernuum",
+        "Anemone canadensis",
+        "Blephilia ciliata",
+        "Bouteloua curtipendula",
+        "Campanula americana",
+        "Campanula rotundifolia",
+        "Carex bebbii",
+        "Carex vulpinoidea",
+        "Coreopsis palmata",
+        "Elymus hystrix",
+        "Eutrochium purpureum",
+        "Fragaria virginiana",
+        "Geranium maculatum",
+        "Heliopsis helianthoides",
+        "Hypericum ascyron",
+        "Hydrophyllum virginianum",
+        "Liatris ligulistylis",
+        "Monarda fistulosa",
+        "Oligoneuron riddellii",
+        "Oligoneuron rigidum",
+        "Penstemon digitalis",
+        "Polemonium reptans",
+        "Pycnanthemum virginianum",
+        "Rudbeckia subtomentosa",
+        "Silene regia",
+        "Solidago flexicaulis",
+        "Solidago speciosa",
+        "Sporobolus heterolepis",
+        "Symphyotrichum oolentangiense",
+        "Eurybia macrophylla",
+        "Thalictrum dioicum",
+        "Tradescantia ohiensis",
+        "Verbena stricta",
+        "Veronicastrum virginicum",
+        "Zizia aurea"
+      ]
+    },
+    {
+      "id": "bbg",
+      "title": "Brooklyn Botanic Garden, Native Plants for New York City Rain Gardens",
+      "region": "north-america",
+      "url": "https://bbg.org/news/native_plants_for_new_york_city_rain_gardens",
+      "counted": "sunny wet zone, shady wet zone and wet-zone shrubs; not the uplands",
+      "note": "Lists Acorus calamus among natives of New York, so read as the native A. americanus",
+      "wet": [
+        "Acorus americanus",
+        "Anemone canadensis",
+        "Asclepias incarnata",
+        "Caltha palustris",
+        "Chelone glabra",
+        "Eupatorium perfoliatum",
+        "Eutrochium maculatum",
+        "Galium boreale",
+        "Gentiana andrewsii",
+        "Helenium autumnale",
+        "Helianthus giganteus",
+        "Heliopsis helianthoides",
+        "Iris versicolor",
+        "Liatris spicata",
+        "Lobelia siphilitica",
+        "Phlox pilosa",
+        "Pycnanthemum virginianum",
+        "Spiraea alba",
+        "Symphyotrichum novae-angliae",
+        "Thalictrum dasycarpum",
+        "Verbena hastata",
+        "Veronicastrum virginicum",
+        "Zizia aurea",
+        "Andropogon gerardii",
+        "Calamagrostis canadensis",
+        "Elymus canadensis",
+        "Leersia oryzoides",
+        "Sorghastrum nutans",
+        "Spartina pectinata",
+        "Aralia nudicaulis",
+        "Eutrochium purpureum",
+        "Hydrophyllum virginianum",
+        "Impatiens capensis",
+        "Lobelia cardinalis",
+        "Maianthemum canadense",
+        "Mertensia virginica",
+        "Phlox divaricata",
+        "Physostegia virginiana",
+        "Tiarella cordifolia",
+        "Matteuccia struthiopteris",
+        "Onoclea sensibilis",
+        "Osmundastrum cinnamomeum",
+        "Osmunda claytoniana",
+        "Osmunda regalis",
+        "Thelypteris palustris",
+        "Aronia melanocarpa",
+        "Cephalanthus occidentalis",
+        "Cornus amomum",
+        "Cornus racemosa",
+        "Cornus sericea",
+        "Corylus americana",
+        "Diervilla lonicera",
+        "Ilex verticillata",
+        "Rhus aromatica",
+        "Symphoricarpos albus",
+        "Symphyotrichum novi-belgii",
+        "Viburnum lentago",
+        "Viburnum trilobum"
+      ],
+      "slope": []
+    },
+    {
+      "id": "mobot",
+      "title": "Missouri Botanical Garden, RainScaping plant list: Native Plants for Moist to Average Soils",
+      "region": "north-america",
+      "url": "https://www.missouribotanicalgarden.org/Portals/0/Sustainability/PDFs/Rainscaping/Rainscaping_PlantList_moist.pdf",
+      "counted": "rows marked for the \"Rain garden basin (wet)\" column; rows marked for slopes only are not counted",
+      "wet": [
+        "Amsonia illustris",
+        "Asclepias incarnata",
+        "Carex annectens",
+        "Carex grayi",
+        "Carex muskingumensis",
+        "Carex pensylvanica",
+        "Chasmanthium latifolium",
+        "Chelone glabra",
+        "Chelone obliqua",
+        "Conoclinium coelestinum",
+        "Eutrochium purpureum",
+        "Filipendula rubra",
+        "Helenium autumnale",
+        "Hibiscus lasiocarpos",
+        "Hibiscus moscheutos",
+        "Iris fulva",
+        "Iris virginica",
+        "Juncus effusus",
+        "Lobelia cardinalis",
+        "Lobelia siphilitica",
+        "Ludwigia alternifolia",
+        "Matteuccia struthiopteris",
+        "Mimulus ringens",
+        "Monarda fistulosa",
+        "Onoclea sensibilis",
+        "Osmunda regalis",
+        "Packera aurea",
+        "Panicum virgatum",
+        "Penstemon digitalis",
+        "Phlox maculata",
+        "Phlox paniculata",
+        "Physostegia virginiana",
+        "Rudbeckia fulgida",
+        "Rudbeckia subtomentosa",
+        "Symphyotrichum novae-angliae",
+        "Alnus serrulata",
+        "Amorpha fruticosa",
+        "Aronia melanocarpa",
+        "Cephalanthus occidentalis",
+        "Cornus sericea",
+        "Ilex verticillata",
+        "Lindera benzoin",
+        "Sambucus canadensis",
+        "Viburnum dentatum",
+        "Acer rubrum",
+        "Aesculus pavia",
+        "Asimina triloba",
+        "Celtis occidentalis",
+        "Crataegus viridis",
+        "Gymnocladus dioicus",
+        "Hamamelis vernalis",
+        "Quercus bicolor",
+        "Quercus macrocarpa",
+        "Quercus phellos",
+        "Tilia americana",
+        "Taxodium distichum"
+      ],
+      "slope": []
+    },
+    {
+      "id": "ncsu",
+      "title": "NC State Extension, Extension Gardener Rain Garden Plant List",
+      "region": "north-america",
+      "url": "https://extensiongardener.ces.ncsu.edu/extgardener-rain-garden-plant-list/",
+      "counted": "every species-level entry (the list gives no zones)",
+      "wet": [],
+      "slope": [
+        "Acer rubrum",
+        "Betula nigra",
+        "Itea virginica",
+        "Cephalanthus occidentalis",
+        "Ilex glabra",
+        "Ilex verticillata",
+        "Clethra alnifolia",
+        "Ilex vomitoria",
+        "Leucothoe fontanesiana",
+        "Aronia arbutifolia",
+        "Iris versicolor",
+        "Iris virginica",
+        "Iris laevigata",
+        "Lobelia cardinalis",
+        "Pontederia cordata"
+      ]
+    },
+    {
+      "id": "vce",
+      "title": "Virginia Cooperative Extension 426-043, Rain Garden Plants",
+      "region": "north-america",
+      "url": "https://pubs.ext.vt.edu/426/426-043/426-043.html",
+      "counted": "every species-level entry (the list gives no zones)",
+      "wet": [],
+      "slope": [
+        "Betula nigra",
+        "Cercis canadensis",
+        "Chionanthus virginicus",
+        "Chionanthus retusus",
+        "Alnus serrulata",
+        "Amelanchier arborea",
+        "Amelanchier laevis",
+        "Amelanchier canadensis",
+        "Alnus glutinosa",
+        "Halesia tetraptera",
+        "Ostrya virginiana",
+        "Juniperus virginiana",
+        "Carpinus caroliniana",
+        "Magnolia virginiana",
+        "Thuja occidentalis",
+        "Callicarpa americana",
+        "Illicium parviflorum",
+        "Viburnum dentatum",
+        "Aesculus parviflora",
+        "Cephalanthus occidentalis",
+        "Calycanthus floridus",
+        "Viburnum opulus",
+        "Viburnum trilobum",
+        "Osmanthus americanus",
+        "Cornus sericea",
+        "Sambucus canadensis",
+        "Amorpha fruticosa",
+        "Leucothoe racemosa",
+        "Fothergilla gardenii",
+        "Baccharis halimifolia",
+        "Vaccinium corymbosum",
+        "Ilex glabra",
+        "Leucothoe axillaris",
+        "Leucothoe fontanesiana",
+        "Hydrangea quercifolia",
+        "Ilex decidua",
+        "Hibiscus syriacus",
+        "Lindera benzoin",
+        "Spiraea tomentosa",
+        "Clethra alnifolia",
+        "Rhododendron viscosum",
+        "Rosa palustris",
+        "Itea virginica",
+        "Myrica cerifera",
+        "Ilex verticillata",
+        "Ilex vomitoria",
+        "Sagittaria latifolia",
+        "Penstemon digitalis",
+        "Monarda didyma",
+        "Rudbeckia hirta",
+        "Lobelia siphilitica",
+        "Amsonia tabernaemontana",
+        "Lobelia cardinalis",
+        "Begonia grandis",
+        "Solidago flexicaulis",
+        "Hibiscus coccineus",
+        "Hibiscus moscheutos",
+        "Vernonia noveboracensis",
+        "Iris versicolor",
+        "Farfugium japonicum",
+        "Liatris spicata",
+        "Liriope muscari",
+        "Saururus cernuus",
+        "Caltha palustris",
+        "Mimulus ringens",
+        "Physostegia virginiana",
+        "Pontederia cordata",
+        "Aquilegia canadensis",
+        "Brunnera macrophylla",
+        "Asclepias incarnata",
+        "Helianthus angustifolius",
+        "Chelone lyonii",
+        "Chelone obliqua",
+        "Mertensia virginica",
+        "Asarum canadense",
+        "Dryopteris erythrosora",
+        "Polystichum acrostichoides",
+        "Osmundastrum cinnamomeum",
+        "Cyrtomium falcatum",
+        "Athyrium niponicum",
+        "Athyrium filix-femina",
+        "Osmunda regalis",
+        "Polystichum braunii",
+        "Schizachyrium scoparium",
+        "Panicum virgatum",
+        "Tiarella cordifolia",
+        "Chrysogonum virginianum",
+        "Liriope spicata",
+        "Mazus reptans",
+        "Ceratostigma plumbaginoides",
+        "Hypericum calycinum",
+        "Saxifraga stolonifera"
+      ]
+    },
+    {
+      "id": "umn",
+      "title": "University of Minnesota Extension, Rain gardens",
+      "region": "north-america",
+      "url": "https://extension.umn.edu/landscape-design/rain-gardens",
+      "counted": "entries marked s (saturated) or w (wet); not those marked only um or ud (upland)",
+      "note": "Prints Acorus calumus; read as the native A. americanus, as above",
+      "wet": [
+        "Carex comosa",
+        "Carex crinita",
+        "Carex lacustris",
+        "Carex stricta",
+        "Eleocharis palustris",
+        "Iris versicolor",
+        "Juncus effusus",
+        "Sagittaria latifolia",
+        "Schoenoplectus acutus",
+        "Schoenoplectus tabernaemontani",
+        "Anemone canadensis",
+        "Arisaema triphyllum",
+        "Asclepias incarnata",
+        "Symphyotrichum novae-angliae",
+        "Boltonia asteroides",
+        "Eutrochium maculatum",
+        "Gentiana andrewsii",
+        "Helianthus maximiliani",
+        "Liatris pycnostachya",
+        "Lobelia cardinalis",
+        "Lobelia siphilitica",
+        "Rudbeckia laciniata",
+        "Thalictrum dasycarpum",
+        "Verbena hastata",
+        "Zizia aurea",
+        "Acorus americanus",
+        "Calamagrostis canadensis",
+        "Carex bebbii",
+        "Carex scoparia",
+        "Carex vulpinoidea",
+        "Bromus kalmii",
+        "Elymus hystrix",
+        "Glyceria canadensis",
+        "Glyceria grandis",
+        "Hierochloe odorata",
+        "Juncus tenuis",
+        "Panicum virgatum",
+        "Scirpus atrovirens",
+        "Scirpus cyperinus",
+        "Sorghastrum nutans",
+        "Spartina pectinata",
+        "Aronia melanocarpa",
+        "Cornus sericea",
+        "Viburnum trilobum"
+      ],
+      "slope": []
+    },
+    {
+      "id": "ildnr",
+      "title": "Illinois DNR, Rain Garden Requirements and Plant Lists",
+      "region": "north-america",
+      "url": "https://dnr.illinois.gov/education/plantlists/plantlistraingarden.html",
+      "counted": "\"Moist Soil - Full Sun\" as the wet placement, \"Medium Soil - Full Sun\" as the slope",
+      "wet": [
+        "Andropogon gerardii",
+        "Rudbeckia hirta",
+        "Iris versicolor",
+        "Verbena hastata",
+        "Carex comosa",
+        "Rudbeckia triloba",
+        "Spartina pectinata",
+        "Veronicastrum virginicum",
+        "Silphium perfoliatum",
+        "Scirpus atrovirens",
+        "Carex vulpinoidea",
+        "Zizia aurea",
+        "Lobelia siphilitica",
+        "Sorghastrum nutans",
+        "Arnoglossum atriplicifolium",
+        "Vernonia fasciculata",
+        "Liatris spicata",
+        "Elymus canadensis",
+        "Solidago ohioensis",
+        "Heliopsis helianthoides",
+        "Eupatorium perfoliatum",
+        "Carex hystericina",
+        "Liatris pycnostachya",
+        "Silphium terebinthinaceum",
+        "Silphium integrifolium",
+        "Desmodium canadense",
+        "Carex stipata",
+        "Eutrochium maculatum",
+        "Oligoneuron rigidum",
+        "Asclepias incarnata",
+        "Panicum virgatum",
+        "Elymus virginicus",
+        "Monarda fistulosa",
+        "Iris virginica",
+        "Senna hebecarpa",
+        "Ratibida pinnata",
+        "Helenium autumnale"
+      ],
+      "slope": [
+        "Phlox pilosa",
+        "Carex muskingumensis",
+        "Symphyotrichum novae-angliae",
+        "Geum triflorum",
+        "Phlox glaberrima",
+        "Rudbeckia subtomentosa",
+        "Baptisia alba"
+      ]
+    },
+    {
+      "id": "psu",
+      "title": "Penn State Extension, Rain Garden Resources",
+      "region": "north-america",
+      "url": "https://extension.psu.edu/rain-garden-resources-from-penn-state-extension",
+      "counted": "Wet/Moist, Moist and Moist/Dry zones (\"the workhorses of most rain gardens\"); not the Dry zone. Common names only on the page; the species are read from them",
+      "wet": [
+        "Asclepias incarnata",
+        "Chelone lyonii",
+        "Chelone glabra",
+        "Caltha palustris",
+        "Iris versicolor",
+        "Packera aurea",
+        "Lobelia cardinalis",
+        "Symphyotrichum laeve",
+        "Zizia aurea",
+        "Eutrochium dubium",
+        "Eupatorium perfoliatum",
+        "Cephalanthus occidentalis",
+        "Veronicastrum virginicum",
+        "Acer rubrum",
+        "Betula nigra",
+        "Aronia melanocarpa",
+        "Cornus sericea",
+        "Magnolia virginiana",
+        "Liquidambar styraciflua",
+        "Nyssa sylvatica",
+        "Itea virginica"
+      ],
+      "slope": [
+        "Lobelia siphilitica",
+        "Monarda didyma",
+        "Symphyotrichum novae-angliae",
+        "Mertensia virginica",
+        "Sambucus canadensis",
+        "Lindera benzoin",
+        "Cercis canadensis",
+        "Aronia arbutifolia",
+        "Geranium maculatum",
+        "Amsonia hubrichtii",
+        "Liatris spicata",
+        "Amsonia tabernaemontana",
+        "Physostegia virginiana",
+        "Monarda fistulosa",
+        "Pycnanthemum muticum",
+        "Eryngium yuccifolium",
+        "Ilex verticillata",
+        "Ilex glabra"
+      ]
+    },
+    {
+      "id": "rhs-rain",
+      "title": "RHS, Rain gardens",
+      "region": "europe",
+      "url": "https://www.rhs.org.uk/garden-features/rain-gardens",
+      "counted": "\"for the base and inlet\" as the wet placement; \"tolerate temporarily wet soil as well as dry\" as the slope; Hemerocallis is genus-only and not counted",
+      "wet": [
+        "Iris pseudacorus",
+        "Juncus effusus",
+        "Carex pendula",
+        "Lobelia cardinalis",
+        "Zantedeschia aethiopica"
+      ],
+      "slope": [
+        "Sambucus nigra",
+        "Cornus sanguinea",
+        "Hydrangea arborescens",
+        "Rosa rugosa",
+        "Ajuga reptans",
+        "Campanula glomerata",
+        "Crocosmia Lucifer",
+        "Geranium Rozanne",
+        "Iris sibirica",
+        "Calamagrostis brachytricha",
+        "Deschampsia cespitosa",
+        "Miscanthus sinensis"
+      ]
+    },
+    {
+      "id": "rhs-wetdry",
+      "title": "RHS, Herbaceous perennials, grasses, ferns and bulbs for seasonally wet and dry soils",
+      "region": "europe",
+      "url": "https://www.rhs.org.uk/plants/for-places/wet-dry-soils/perennials-and-bulbs-for-wet-and-dry-soils",
+      "counted": "every species-level entry; Agapanthus is genus-only and not counted",
+      "wet": [],
+      "slope": [
+        "Iris sibirica",
+        "Bistorta amplexicaulis",
+        "Euphorbia palustris",
+        "Lythrum salicaria"
+      ]
+    },
+    {
+      "id": "ukrg",
+      "title": "Bray, Gedge, Grant and Leuthvilay, UK Rain Garden Guide (raingardens.info)",
+      "region": "europe",
+      "url": "https://www.nidagraveluk.co.uk/asps/resources/pdfs/uk-rain-garden-guide.pdf",
+      "counted": "the three it says prefer the wetter areas near the inlet as the wet placement; every other species-level entry as the slope; genus-only entries (Aster, Crocosmia, Helenium, Bergenia, Hosta, Allium, Aquilegia) not counted",
+      "wet": [
+        "Iris pseudacorus",
+        "Juncus effusus",
+        "Carex pendula"
+      ],
+      "slope": [
+        "Viburnum opulus",
+        "Cornus sanguinea",
+        "Veronicastrum virginicum",
+        "Rudbeckia hirta",
+        "Helleborus foetidus",
+        "Ajuga reptans",
+        "Inula hookeri",
+        "Eupatorium cannabinum",
+        "Campanula glomerata",
+        "Vinca minor",
+        "Iris sibirica",
+        "Miscanthus sinensis",
+        "Panicum virgatum",
+        "Osmunda regalis",
+        "Dryopteris filix-mas",
+        "Dryopteris dilatata"
+      ]
+    },
+    {
+      "id": "waukesha",
+      "title": "UW-Madison Extension Waukesha County, Rain Garden Species for Full to Part Sun; and for Full to Partial Shade",
+      "region": "north-america",
+      "url": "https://waukesha.extension.wisc.edu/files/2026/02/Rain-Garden-Species-for-Full-to-Part-Sun-GISHNOCK.pdf",
+      "url2": "https://waukesha.extension.wisc.edu/files/2026/02/Rain-Garden-Species-for-Full-to-Partial-Shade-GISHNOCK.pdf",
+      "counted": "the clayey-soil lists (plants of wet and emergent habitats) as the wet placement; the silty, sandy and well-drained lists as the slope",
+      "note": "Lists Acorus calamus with a native wetland habitat, so read as the native A. americanus",
+      "wet": [
+        "Acorus americanus",
+        "Alisma subcordatum",
+        "Iris virginica",
+        "Pontederia cordata",
+        "Sagittaria latifolia",
+        "Carex hystericina",
+        "Carex vulpinoidea",
+        "Schoenoplectus acutus",
+        "Schoenoplectus pungens",
+        "Scirpus atrovirens",
+        "Schoenoplectus fluviatilis",
+        "Schoenoplectus tabernaemontani",
+        "Sparganium eurycarpum"
+      ],
+      "slope": [
+        "Asclepias incarnata",
+        "Symphyotrichum novae-angliae",
+        "Symphyotrichum puniceum",
+        "Symphyotrichum lanceolatum",
+        "Boltonia asteroides",
+        "Caltha palustris",
+        "Chelone glabra",
+        "Chamerion angustifolium",
+        "Eutrochium maculatum",
+        "Eupatorium perfoliatum",
+        "Helenium autumnale",
+        "Liatris spicata",
+        "Lobelia cardinalis",
+        "Lobelia siphilitica",
+        "Lythrum alatum",
+        "Phlox glaberrima",
+        "Physostegia virginiana",
+        "Pycnanthemum virginianum",
+        "Rudbeckia subtomentosa",
+        "Silphium laciniatum",
+        "Silphium terebinthinaceum",
+        "Euthamia graminifolia",
+        "Solidago riddellii",
+        "Teucrium canadense",
+        "Verbena hastata",
+        "Veronicastrum virginicum",
+        "Zizia aurea",
+        "Panicum virgatum",
+        "Spartina pectinata",
+        "Carex comosa",
+        "Carex hystericina",
+        "Carex scoparia",
+        "Carex vulpinoidea",
+        "Eleocharis acicularis",
+        "Eleocharis obtusa",
+        "Juncus torreyi",
+        "Alnus incana",
+        "Aronia melanocarpa",
+        "Cephalanthus occidentalis",
+        "Cornus amomum",
+        "Cornus sericea",
+        "Hypericum kalmianum",
+        "Hypericum prolificum",
+        "Ilex verticillata",
+        "Salix discolor",
+        "Sambucus canadensis",
+        "Spiraea alba",
+        "Spiraea tomentosa",
+        "Viburnum trilobum",
+        "Arisaema triphyllum",
+        "Symphyotrichum lateriflorum",
+        "Eutrochium purpureum",
+        "Lysimachia ciliata",
+        "Mertensia virginica",
+        "Mimulus ringens",
+        "Napaea dioica",
+        "Phlox divaricata",
+        "Rudbeckia laciniata",
+        "Rudbeckia triloba",
+        "Scutellaria lateriflora",
+        "Solidago flexicaulis",
+        "Stachys tenuifolia",
+        "Elymus villosus",
+        "Elymus virginicus",
+        "Leersia virginica",
+        "Carex bebbii",
+        "Carex cristatella",
+        "Carex grayi",
+        "Carex sprengelii",
+        "Carex tenera",
+        "Carex trichocarpa",
+        "Onoclea sensibilis",
+        "Osmunda claytoniana",
+        "Hypericum spathulatum"
+      ]
+    },
+    {
+      "id": "unl",
+      "title": "Nebraska Extension, Proven Rain Garden Plants for Nebraska",
+      "region": "north-america",
+      "url": "https://water.unl.edu/article/lawns-gardens-landscapes/proven-rain-garden-plants-nebraska",
+      "counted": "every species-level entry, all offered for the wet bottom, which \"fills with water for 12 to 48 hours after rainfall\"; hardy geranium is named by the cultivar Rozanne",
+      "wet": [
+        "Carex vulpinoidea",
+        "Carex muskingumensis",
+        "Carex grayi",
+        "Iris sibirica",
+        "Chelone lyonii",
+        "Lobelia cardinalis",
+        "Geranium Rozanne",
+        "Monarda didyma",
+        "Pycnanthemum virginianum",
+        "Helenium autumnale",
+        "Asclepias incarnata",
+        "Eutrochium maculatum"
+      ],
+      "slope": []
+    }
+  ],
+  "plants": {
+    "americanelder": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "vce",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "americanhazel": {
+      "north-america": {
+        "lists": [
+          "bbg"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "americanhornbeam": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "americansweetflag": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "umn",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "amsonia": {
+      "north-america": {
+        "lists": [
+          "psu"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "arborvitae": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "arrowhead": {
+      "north-america": {
+        "lists": [
+          "vce",
+          "umn",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "arrowwood": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "vce"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "autumnfern": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "awlfruitedsedge": {
+      "north-america": {
+        "lists": [
+          "ildnr"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "babyjoe": {
+      "north-america": {
+        "lists": [
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "baldcypress": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "basswood": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "beautyberry": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "bigbluestem": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "ildnr"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "bigleafaster": {
+      "north-america": {
+        "lists": [
+          "madison"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "blackgum": {
+      "north-america": {
+        "lists": [
+          "psu"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "bluebells": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "vce",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "blueflagiris": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "ncsu",
+          "ildnr",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "bluemistflower": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "bluestem": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "bottlebrushgrass": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "umn"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "bristlysedge": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "umn",
+          "ildnr",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "broomsedgecarex": {
+      "north-america": {
+        "lists": [
+          "umn",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "brunnera": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "bugle": {
+      "europe": {
+        "lists": [
+          "rhs-rain",
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "buroak": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "buttonbush": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "mobot",
+          "ncsu",
+          "vce",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "callalily": {
+      "europe": {
+        "lists": [
+          "rhs-rain"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "canadawildrye": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "ildnr"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "cardinallobelia": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "mobot",
+          "ncsu",
+          "vce",
+          "umn",
+          "psu",
+          "waukesha",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      },
+      "europe": {
+        "lists": [
+          "rhs-rain"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "chokeberry": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "mobot",
+          "umn",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "christmasfern": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "cinnamonfern": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "vce"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "coffeetree": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "columbine": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "cranberrybush": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "vce",
+          "umn",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      },
+      "europe": {
+        "lists": [
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "creepingjacobsladder": {
+      "north-america": {
+        "lists": [
+          "madison"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "crocosmia": {
+      "europe": {
+        "lists": [
+          "rhs-rain"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "culvers": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "ildnr",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      },
+      "europe": {
+        "lists": [
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "dropseed": {
+      "north-america": {
+        "lists": [
+          "madison"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "easternbluestar": {
+      "north-america": {
+        "lists": [
+          "vce",
+          "psu"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "europeanelder": {
+      "europe": {
+        "lists": [
+          "rhs-rain"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "falsesunflower": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "ildnr"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "filipendula": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "foamflower": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "vce"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "fothergilla": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "foxsedge": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "umn",
+          "ildnr",
+          "waukesha",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "fringedsedge": {
+      "north-america": {
+        "lists": [
+          "umn"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "fringetree": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "goldenalexander": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "umn",
+          "ildnr",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "goldenragwort": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "goldenrod": {
+      "north-america": {
+        "lists": [
+          "madison"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "grayheadedconeflower": {
+      "north-america": {
+        "lists": [
+          "ildnr"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "grayssedge": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "waukesha",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "greatbluelobelia": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "mobot",
+          "vce",
+          "umn",
+          "ildnr",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "greatstjohnswort": {
+      "north-america": {
+        "lists": [
+          "madison"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "greenandgold": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "hackberry": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "hardybegonia": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "helenium": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "mobot",
+          "ildnr",
+          "waukesha",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "highbushblueberry": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "hollyfern": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "indiangrass": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "umn",
+          "ildnr"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "inkberry": {
+      "north-america": {
+        "lists": [
+          "ncsu",
+          "vce",
+          "psu"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "interruptedfern": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "jackinthepulpit": {
+      "north-america": {
+        "lists": [
+          "umn",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "japanesepaintedfern": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "joepye": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "umn",
+          "ildnr",
+          "waukesha",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "koreanfeatherreed": {
+      "europe": {
+        "lists": [
+          "rhs-rain"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "ladyfern": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "lakesedge": {
+      "north-america": {
+        "lists": [
+          "umn"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "liatrispycnostachya": {
+      "north-america": {
+        "lists": [
+          "umn",
+          "ildnr"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "liatrisspicata": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "vce",
+          "ildnr",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "liriope": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "lizardtail": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "longbeakedsedge": {
+      "north-america": {
+        "lists": [
+          "waukesha"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "malefern": {
+      "europe": {
+        "lists": [
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "marshfern": {
+      "north-america": {
+        "lists": [
+          "bbg"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "marshmarigold": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "vce",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "marshspurge": {
+      "europe": {
+        "lists": [
+          "rhs-wetdry"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "maximiliansunflower": {
+      "north-america": {
+        "lists": [
+          "umn"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "miscanthus": {
+      "europe": {
+        "lists": [
+          "rhs-rain",
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "monarda": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "mobot",
+          "ildnr",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "monkeyflower": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "mobot",
+          "vce",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "mountainmint": {
+      "north-america": {
+        "lists": [
+          "psu"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "newengland": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "mobot",
+          "umn",
+          "ildnr",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "noddingonion": {
+      "north-america": {
+        "lists": [
+          "madison"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "northernblueflag": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "ncsu",
+          "vce",
+          "umn",
+          "ildnr",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "northernseaoats": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "oakleafhydrangea": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "obedientplant": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "mobot",
+          "vce",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "ostrichfern": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "mobot"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "ozarkamsonia": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "palmsedge": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "ildnr",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "pawpaw": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "pennsedge": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "penstemon": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "mobot",
+          "vce"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "periwinkle": {
+      "europe": {
+        "lists": [
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "persicaria": {
+      "europe": {
+        "lists": [
+          "rhs-wetdry"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "phlox": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "pickerelweed": {
+      "north-america": {
+        "lists": [
+          "ncsu",
+          "vce",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "porcupinesedge": {
+      "north-america": {
+        "lists": [
+          "ildnr",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "prairiecordgrass": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "umn",
+          "ildnr",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "prairiedock": {
+      "north-america": {
+        "lists": [
+          "ildnr",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "prairieironweed": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "ildnr"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "prairiesmoke": {
+      "north-america": {
+        "lists": [
+          "ildnr"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "rabbitiris": {
+      "north-america": {
+        "lists": [
+          "ncsu"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "rattlesnake": {
+      "north-america": {
+        "lists": [
+          "psu"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "redbud": {
+      "north-america": {
+        "lists": [
+          "vce",
+          "psu"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "redcedar": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "redmaple": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "ncsu",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "redtwig": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "mobot",
+          "vce",
+          "umn",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "riverbirch": {
+      "north-america": {
+        "lists": [
+          "ncsu",
+          "vce",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "riverbirchmulti": {
+      "north-america": {
+        "lists": [
+          "ncsu",
+          "vce",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "royalfern": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "mobot",
+          "vce"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      },
+      "europe": {
+        "lists": [
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "rozanne": {
+      "north-america": {
+        "lists": [
+          "unl"
+        ],
+        "wet": true,
+        "earns": false
+      },
+      "europe": {
+        "lists": [
+          "rhs-rain"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "rudbeckia": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "rudbeckiatriloba": {
+      "north-america": {
+        "lists": [
+          "ildnr",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "scarletbeebalm": {
+      "north-america": {
+        "lists": [
+          "vce",
+          "psu",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "scarletrosemallow": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "sensitivefern": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "mobot",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "serviceberry": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "siberianiris": {
+      "north-america": {
+        "lists": [
+          "unl"
+        ],
+        "wet": true,
+        "earns": false
+      },
+      "europe": {
+        "lists": [
+          "rhs-rain",
+          "rhs-wetdry",
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "sideoats": {
+      "north-america": {
+        "lists": [
+          "madison"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "smoothaster": {
+      "north-america": {
+        "lists": [
+          "psu"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "smoothhydrangea": {
+      "europe": {
+        "lists": [
+          "rhs-rain"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "smoothlace": {
+      "europe": {
+        "lists": [
+          "rhs-rain"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "softrush": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "umn"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      },
+      "europe": {
+        "lists": [
+          "rhs-rain",
+          "ukrg"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "softstembulrush": {
+      "north-america": {
+        "lists": [
+          "umn",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "spicebush": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "vce",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "spiderwort": {
+      "north-america": {
+        "lists": [
+          "madison"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "stinkinghellebore": {
+      "europe": {
+        "lists": [
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "strawberrybegonia": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "sumac": {
+      "north-america": {
+        "lists": [
+          "bbg"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "summersweet": {
+      "north-america": {
+        "lists": [
+          "ncsu",
+          "vce"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "swampazalea": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "swampmilkweed": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "mobot",
+          "vce",
+          "umn",
+          "ildnr",
+          "psu",
+          "waukesha",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "swamprosemallow": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "vce"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "swampsunflower": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "swampwhiteoak": {
+      "north-america": {
+        "lists": [
+          "mobot"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "sweetbaymagnolia": {
+      "north-america": {
+        "lists": [
+          "vce",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "sweetgum": {
+      "north-america": {
+        "lists": [
+          "psu"
+        ],
+        "wet": true,
+        "earns": false
+      }
+    },
+    "switchgrass": {
+      "north-america": {
+        "lists": [
+          "mobot",
+          "vce",
+          "umn",
+          "ildnr",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      },
+      "europe": {
+        "lists": [
+          "ukrg"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "taylorjuniper": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "tuftedhair": {
+      "europe": {
+        "lists": [
+          "rhs-rain"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "tussocksedge": {
+      "north-america": {
+        "lists": [
+          "umn"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
+    "virginiamountainmint": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "waukesha",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "virginiasweetspire": {
+      "north-america": {
+        "lists": [
+          "ncsu",
+          "vce",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "virginiawaterleaf": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "waterblueflag": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "ncsu",
+          "vce",
+          "umn",
+          "ildnr",
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "weepingsedge": {
+      "europe": {
+        "lists": [
+          "rhs-rain",
+          "ukrg"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "whiteturtlehead": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "mobot",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "wildgeranium": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "psu"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "wildginger": {
+      "north-america": {
+        "lists": [
+          "vce"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "wildstrawberry": {
+      "north-america": {
+        "lists": [
+          "madison"
+        ],
+        "wet": false,
+        "earns": false
+      }
+    },
+    "willowamsonia": {
+      "north-america": {
+        "lists": [
+          "vce",
+          "psu"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "winterberry": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "mobot",
+          "ncsu",
+          "vce",
+          "psu",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "woodlandphlox": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "yauponholly": {
+      "north-america": {
+        "lists": [
+          "ncsu",
+          "vce"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "yellowflag": {
+      "europe": {
+        "lists": [
+          "rhs-rain",
+          "ukrg"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
+    "zigzaggoldenrod": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "vce",
+          "waukesha"
+        ],
+        "wet": false,
+        "earns": true,
+        "by": "two lists"
+      }
+    }
+  }
+}

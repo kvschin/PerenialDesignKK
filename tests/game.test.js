@@ -2200,6 +2200,113 @@ test('Coastal asks for plants recorded on the coast, and Cottage has no pond or 
     if (PLANTS[k]) assert(plantStyleRecommended(k,s,na),k+': still on '+s);
 });
 
+/* Every list of styles names the same styles. A style added to the weights and nowhere
+   else has no card; one added to the cards and not the weights recommends everything. */
+test('every place that lists the garden styles lists the same ones', () => {
+  const styles=Object.keys(STYLE_ROLE_WEIGHTS).sort().join();
+  assertEqual(Object.keys(STYLE_RECOMMEND_MIN).sort().join(),styles,'every style has a bar');
+  assertEqual(GARDEN_TYPES.map(g=>g[0]).filter(id=>id!=='any').sort().join(),styles,'every style has a card on the New garden page');
+  assertEqual(Object.keys(DESIGN_STYLE_LABELS).filter(id=>id!=='any').sort().join(),styles,'and a name');
+  for (const [id,label,line] of GARDEN_TYPES){
+    assertEqual(DESIGN_STYLE_LABELS[id],label,id+': the card and the catalog call it the same thing');
+    assert(line && line.length<90,id+': one short line under the cards');
+  }
+  assert(GARDEN_TYPES.some(g=>g[0]==='rain'),'the rain garden is one of them');
+  assertEqual(edgeStyleFromType('rain'),'organic','a rain garden gets soft bed edges');
+  for (const id of Object.keys(STYLE_ROLE_WEIGHTS))
+    assert(styleMeadowKeys(id,6,normalizeFilters({zone:6,nativeRegion:'north-america'})),id+': the menu border can replant to it');
+});
+
+/* A rain garden fills after a storm and drains in a day or two, so its plants take
+   standing water and a dry spell. The lists are in docs/plant-data/rain-sources.json. */
+test('Rain garden asks for what the rain garden lists name, and the wet meadow sedges', () => {
+  const na={nativeRegion:'north-america',nativeMode:'any'}, eu={nativeRegion:'europe',nativeMode:'any'};
+  const fits=(k,f)=>plantRefFitsCriteria({s:k,v:null},f)&&plantStyleRecommended(k,'rain',f);
+  for (const k of ['lakesedge','awlfruitedsedge','bristlysedge','prairiesedge']){
+    for (const zone of PLANTS[k].zones) for (const mode of ['any','regional','straight'])
+      assert(fits(k,{zone,nativeRegion:'north-america',nativeMode:mode}),k+': recommended where it grows, zone '+zone+' '+mode);
+    assert(!plantStyleRecommended(k,'rain',eu),k+': a wet meadow sedge is one at home');
+  }
+  for (const f of [na,eu,{...na,nativeMode:'straight'}]){
+    const list=PLANT_KEYS.filter(k=>plantStyleRecommended(k,'rain',f));
+    assert(list.length>=5,'a rain garden list for '+f.nativeRegion);
+    for (const k of list){
+      const P=PLANTS[k];
+      assert(!(P.type==='water'&&!P.marginal),k+': a floating plant needs standing water');
+      const listed=RAIN_GARDEN_KEYS[f.nativeRegion].has(k);
+      const meadow=(P.type==='sedge'&&sedgeSiteOf(P)==='wetmeadow')||(P.type==='grass'&&grassSiteOf(P)==='wetmeadow');
+      assert(listed||meadow,k+': a list names it, or it is a wet meadow sedge or grass');
+      if (P.sun==='part' && P.type!=='sedge') assert(listed,k+': a plant of shade only where a list puts it in a rain garden');
+    }
+  }
+  const list=PLANT_KEYS.filter(k=>plantStyleRecommended(k,'rain',na));
+  for (const k of ['swampmilkweed','northernblueflag','cardinallobelia','buttonbush','tussocksedge','softrush','prairiecordgrass'])
+    assert(list.includes(k),k+': a rain garden plant');
+  for (const k of ['hosta','astilbe','japaneseprimrose','bigleafligularia','featherrodgersia','commoncattail','taro','thalia','fragrantwaterlily','easternhemlock','yellowflag','miscanthus','weepingsedge'])
+    if (PLANTS[k]) assert(!list.includes(k),k+': not on a North American rain garden list');
+  const moist=PLANT_KEYS.filter(k=>PLANTS[k].moist==='moist'&&!(PLANTS[k].type==='water'&&!PLANTS[k].marginal));
+  assert(moist.filter(k=>!list.includes(k)).length>moist.length/3,'not every plant of moist soil');
+  assertEqual(plantStyleScore('hosta','rain',null,na),0,'the score says no, or the catalog ranks it first anyway');
+  const europe=PLANT_KEYS.filter(k=>plantStyleRecommended(k,'rain',eu));
+  for (const k of ['yellowflag','siberianiris','softrush','cardinallobelia']) assert(europe.includes(k),k+': on the RHS and UK lists');
+  assert(!europe.includes('swampmilkweed'),'an American list speaks for American gardens');
+});
+
+test('the rain garden table is the rule applied to its sources', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/rain-sources.json'));
+  const ids=new Set(doc.lists.map(l=>l.id));
+  assertEqual(ids.size,doc.lists.length,'each list once');
+  for (const l of doc.lists) assert(/^https:\/\//.test(l.url)&&l.counted,l.id+': where it is and what was counted');
+  for (const region of ['north-america','europe']){
+    const table=RAIN_GARDEN_KEYS[region];
+    for (const k of table) assert(PLANTS[k],k+': a catalog plant');
+    for (const [k,regs] of Object.entries(doc.plants)){
+      const v=regs[region]; if (!v) { assert(!table.has(k),k+': no '+region+' list names it'); continue; }
+      assert(v.lists.every(id=>ids.has(id)),k+': names lists that were read');
+      const P=PLANTS[k], floating=P.type==='water'&&!P.marginal;
+      const earns=!floating&&(v.lists.length>=2||(v.wet&&P.moist==='moist'));
+      assertEqual(table.has(k),earns,k+': in the '+region+' table exactly when the rule says');
+    }
+    for (const k of table) assert(doc.plants[k]&&doc.plants[k][region],k+': and only from a list');
+  }
+});
+
+/* The prairie role came from being a native grass, forb or bulb of full sun, which a
+   dune grass is. A record that says it grows on the dunes is a coastal plant instead. */
+test('Prairie leaves the dune plants to Coastal, and a fescue is coastal only where a source says', () => {
+  const na={nativeRegion:'north-america',nativeMode:'any'};
+  for (const k of ['americanbeachgrass','seaoats','coastalpanicgrass','spanishdagger','seasidedaisy','beachsunflower']){
+    assert((PLANTS[k].roles||[]).includes('dune'),k+': its record puts it on the dunes');
+    assert(!plantRoles(k,na).includes('prairie'),k+': not a prairie plant');
+    assert(!plantStyleRecommended(k,'prairie',na),k+': not on the Prairie list');
+    assert(plantStyleRecommended(k,'coastal',na),k+': still on the Coastal one');
+  }
+  for (const k of ['bluestem','switchgrass','dropseed','sideoats','giantwildrye'])
+    assert(plantStyleRecommended(k,'prairie',na),k+': a prairie grass stays');
+  for (const k of PLANT_KEYS) if ((PLANTS[k].roles||[]).includes('dune')) assert(staticPlantRoles(k).includes('coastal'),k+': a dune plant is a coastal one');
+  for (const k of ['idahofescue','californiafescue','roemersfescue']){
+    for (const role of ['coastal','mediterranean','gravel']) assert(!staticPlantRoles(k).includes(role),k+': no '+role+' from the word fescue');
+    for (const style of ['coastal','mediterranean','gravel']) assert(!plantStyleRecommended(k,style,na),k+' is not on '+style);
+  }
+  for (const role of ['coastal','gravel','mediterranean']) assert(staticPlantRoles('bluefescue').includes(role),'blue fescue keeps '+role);
+  assert(plantStyleRecommended('bluefescue','coastal',na),'and stays on Coastal');
+});
+
+/* A garden saved with a style this build does not know (as an older build sees a Rain
+   garden) is an unstyled garden, and keeps the style for the build that knows it. */
+test('a style a build does not know reads as Any garden and survives a save', () => {
+  setup();
+  const saved=game.design;
+  try {
+    game.design=normalizeDesign({zone:6,type:'notastyle'});
+    assertEqual(game.design.type,'notastyle','the id is kept, not rewritten');
+    assertEqual(activeDesignType(),null,'nothing to recommend by');
+    assertEqual(gardenStyleId(),'any','the criteria dialog shows Any garden');
+    assert(plantStyleRecommended('hosta'),'so everything is recommended');
+    assertEqual(edgeStyleFromType('notastyle'),'organic','and beds get soft edges');
+  } finally { game.design=saved; }
+});
+
 test('the catalog can be narrowed by light and moisture, across every plant type', () => {
   setup();
   const saved=[game.design,game.filters,game.discovery];
@@ -12401,7 +12508,7 @@ test('the starting-palette count answers the STYLE, and the headline never does'
   const eligible = paletteCount(sel);
   assert(eligible > 0, 'zone 6 has a palette at all');
   const counts = {};
-  for (const type of ['cottage','prairie','shade','japanese','mediterranean','gravel','formal','coastal'])
+  for (const type of ['cottage','prairie','shade','japanese','mediterranean','gravel','formal','coastal','rain'])
     counts[type] = paletteCount(sel, type);
   for (const [type, n] of Object.entries(counts)){
     assert(n > 0, `${type} recommends something`);
