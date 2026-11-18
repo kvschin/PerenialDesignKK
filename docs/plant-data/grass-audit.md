@@ -3,7 +3,8 @@
 Audited November 7, 2026, against the catalog at 0.9.87: 40 records in the Grasses category, with
 45 cultivars. The data fixes, bugs and snow shipped in 0.9.88, a crown for every grass in 0.9.89, and the
 rebuilt forms in 0.9.90, the twelve "Add first" species in 0.9.91, the ten European and design grasses in 0.9.92,
-and site headings in 0.9.93. "Worth adding next" and the cultivars are still open.
+site headings in 0.9.93, and the twelve "Worth adding next" with giant miscanthus in 0.9.130. The cultivars are
+still open.
 
 `dev/grass-review.html` is the page used for all of it. It shows every grass in four seasons, as a
 drift, and at true scale beside a 6 ft post. It takes `?base`, `?form=vertgrass`, `?only=`, `?check`
@@ -86,6 +87,10 @@ All twelve shipped in 0.9.91; see below.
 
 ### Worth adding next
 
+All twelve shipped in 0.9.130, with 'Black Mountain' and 'Canyon Prince'; see below. The notes are the audit's, and
+two of them changed on reading: no filter hides a plant any more, so Broomsedge's EU listing is said in its blurb, and
+Florida's protection of sea oats turned out as recalled.
+
 | Plant | Lists | Note |
 | --- | --- | --- |
 | Broomsedge, *Andropogon virginicus* | 5 | Rated 2 stars in Chicago, and on the EU list of Union concern, so hide it in Europe. It earns its place by its orange winter colour in poor ground |
@@ -117,15 +122,18 @@ by designers, so read them on their own terms rather than by count. All ten ship
 
 ### Decide before adding
 
-| Plant | Lists | The problem |
-| --- | --- | --- |
-| **Pampas Grass**, *Cortaderia selloana* | 6 | The most-named plant here after Bottlebrush Grass, and rated High by Cal-IPC. Gardeners will search for it, and the caution is a useful answer, so I lean toward adding it and letting the filter hide it in North America. The EU lists subsp. *jubata* |
-| **Buffalograss**, *Bouteloua dactyloides* | 5 | Grown as a lawn, 6-8 in. It could be a plant record or a surface in `LAWN_STYLES`. I lean toward the surface |
-| ***Miscanthus × giganteus*** | 2 | No viable seed in Chicago's trial, so it may be the Miscanthus to offer. It also stands 10-12 ft and spreads by rhizome |
+Decided November 17, 2026.
+
+| Plant | Lists | The problem | Answer |
+| --- | --- | --- | --- |
+| **Pampas Grass**, *Cortaderia selloana* | 6 | The most-named plant here after Bottlebrush Grass, and rated High by Cal-IPC. Gardeners will search for it, and the caution is a useful answer, so I lean toward adding it and letting the filter hide it in North America. The EU lists subsp. *jubata* | Left out, as *Arundo donax* is, because Cal-IPC rates it High. There is no filter to hide it since 0.9.117 |
+| **Buffalograss**, *Bouteloua dactyloides* | 5 | Grown as a lawn, 6-8 in. It could be a plant record or a surface in `LAWN_STYLES`. I lean toward the surface | Skipped, as neither a plant record nor a lawn surface |
+| ***Miscanthus × giganteus*** | 2 | No viable seed in Chicago's trial, so it may be the Miscanthus to offer. It also stands 10-12 ft and spreads by rhizome | Added in 0.9.130, its blurb saying all three |
 
 ### Left out on purpose
 
-*Arundo donax* (Cal-IPC High), *Imperata cylindrica* (3 lists; its US federal status still needs a read),
+*Arundo donax* (Cal-IPC High), *Cortaderia selloana* (Cal-IPC High, decided above), *Ammophila arenaria*
+(Cal-IPC High; *A. breviligulata* is the native one, added in 0.9.130), *Imperata cylindrica* (3 lists; its US federal status still needs a read),
 *Cenchrus setaceus* (Cal-IPC Moderate, EU Union concern), *Saccharum ravennae* (Cal-IPC Moderate),
 *Festuca arundinacea* (Cal-IPC Moderate), and annual or short-lived grasses such as *Briza maxima* and
 *Hordeum jubatum*, since the catalog holds perennials.
@@ -588,6 +596,125 @@ meadow. A search, which clears the category, is still one flat list.
 Checked in the real app in headless Chrome, at 1440x900 and on a 390x844 phone, and by the browser search test on both;
 a new test holds the six sites, every choice filed once, the split families, and a split card opening on its own choices.
 
+## Shipped in 0.9.130
+
+Step 4, third batch: the twelve of "Worth adding next", and giant miscanthus from "Decide before adding". Each was read
+against three to seven sources; the record, the sources and the reasoning where they disagree are in the `worth-adding`
+and `decided` batches of `docs/plant-data/grass-sources.json`. Eleven are straight North American natives, Blue Lyme Grass
+is the European one, and Giant Miscanthus is a sterile hybrid with no wild range. Two cultivars came with them:
+Splitbeard Bluestem 'Black Mountain' and Giant Wild Rye 'Canyon Prince'.
+
+| | 0.9.92 | 0.9.130 |
+| --- | --- | --- |
+| Records, cultivars | 62, 46 | 75, 48 |
+| Straight species native to North America / Europe / Asia / Australasia | 36 / 15 / 8 / 3 | 47 / 16 / 8 / 3 |
+| Moisture: dry / medium / moist | 31 / 25 / 6 | 40 / 28 / 7 |
+| Light: full / part | 49 / 13 | 59 / 16 |
+| Species per zone, 3 to 11 | 11, 33, 46, 51, 54, 62, 45, 15, 1 | 13, 40, 54, 60, 66, 75, 56, 19, 2 |
+
+The coast had little before: Sea Oats, American Beachgrass, Coastal Panicgrass, Giant Wild Rye, Blue Lyme Grass and
+Mendocino Reed Grass each carry a `coastal` role from a source naming dunes, shores or coastal bluffs. The West gained
+four (Coast Range Melic, Idaho Fescue, Giant Wild Rye, Mendocino Reed Grass), and dry shade a melic.
+
+### Where reading changed the plan
+
+- **No filter can hide a plant now** (0.9.117), so the audit's "hide it in Europe" became a sentence. Broomsedge is on
+  the EU list of invasive alien species of Union concern (Implementing Regulation 2019/1262, read on EUR-Lex), which
+  bans selling and growing it there, and its blurb says so. Blue Lyme Grass says it runs hard, that NC State suggests a
+  container, and that it has escaped onto the western shore of Lake Michigan (NVK). American Beachgrass says it has become
+  invasive where it was planted on the Pacific coast, and that it declines on settled soil, so it belongs on a dune.
+- **Sea oats**: Florida Statutes 161.242 makes it unlawful to cut, harvest, remove or eradicate sea oats on public land,
+  or on private land without the owner's consent, and lets licensed nurseries sell plants they grew. The blurb says that,
+  and that North Carolina protects it too (NC State).
+- **No duplicates.** Roemer's Fescue is *Festuca roemeri*, once *F. idahoensis* subsp. *roemeri*: a separate species,
+  so Idaho Fescue is a new record beside it. Nothing else of the thirteen was in the catalog under another name. POWO
+  now files both bluestems under *Anatherum*, which each carries as a synonym.
+- **Zones at the edge.** Splitbeard Bluestem keeps Hoffman's 6-9: Chicago lost all its plants in zone 5. MBG and NC
+  State give Coastal Panicgrass 2-9; it grows wild only on the coast from Connecticut south, so it is 5-9, what Chicago
+  has shown. American Beachgrass is 3-8 against Hoffman's 3-9, its range ending at North Carolina.
+- **Giant miscanthus**: Chicago x-rayed its seed in 2010 and found none viable, and calls it a sterile triploid. It
+  stands 10-12 ft (Hoffman), spreads slowly by rhizome and is hard to dig once old. The blurb says all of it.
+- **Two take part shade.** Coast Range Melic files under Dry shade and Mendocino Reed Grass under Woodland: both grow in
+  sun on the coast and in shade inland, and the sources say so.
+
+### How each is drawn
+
+No new drawing option: each is an existing form with its own `look`.
+
+- **Broomsedge and Splitbeard Bluestem** are `bunchgrass` with Little Bluestem's fluffy racemes: broomsedge's up a narrow
+  clump that turns orange and stays orange through winter, splitbeard's as paired silver tufts over purple and red.
+- **Coastal Panicgrass** is `cloudgrass`: broad powder-blue leaves arching out under a tall, narrow cloud.
+- **Giant Wild Rye, 'Canyon Prince', Blue Lyme Grass and American Beachgrass** are `vertgrass` with Karl Foerster's spike;
+  the Leymus with broad blue blades.
+- **Giant Miscanthus** is Miscanthus's fountain of ribbons under silk plumes, at 11 ft.
+- **Coast Range Melic and Purpletop** are an `oatgrass` fan under hanging panicles, purpletop's purple.
+- **Sea Oats and Mendocino Reed Grass** stand the oatgrass fountain: heavy drooping panicles of flat oats, and narrow
+  nodding plumes.
+- **Idaho Fescue** is Large Blue Fescue's dome under narrow panicles; **Slender Wood Oats** is Northern Sea Oats' leafy
+  culms with a narrow spike of small flat oats held close.
+
+Three family cards: **Wood Oats** (Northern Sea Oats and Slender Wood Oats, one card under Moist shade), **Wild Rye**
+(Canada Wild Rye under Meadow; Giant Wild Rye and Blue Lyme Grass under Dry meadow) and **Miscanthus** (Chinese
+silvergrass with its six cultivars, and Giant Miscanthus, under Meadow). The old records keep their names. By site,
+Dry meadow gained eight, Meadow two, and Woodland, Dry shade and Moist shade one each.
+
+Measured in headless Chrome. Height is read off the recorded geometry in the seasons a head stands. Width is the ink
+in Fall over the stated spread, on the earlier tables' scale (ink width times 0.36 over the spread, which matches their
+figures to within 0.04 for seven of ten grasses checked, Large Blue Fescue the worst at 0.34 out). Drift is how much of the middle 3x3 tiles of a 5x5 drift is covered in
+Summer, which reads lower than the earlier tables for a low grass, so three older grasses are measured alongside.
+
+| Grass | Height, ft | Width | Drift % |
+| --- | --- | --- | --- |
+| Broomsedge | 3.6, of 3.5 | 0.86 | 75 |
+| Splitbeard Bluestem | 3.2, of 3.0 | 0.70 | 59 |
+| 'Black Mountain' | 2.7, of 2.5 | 0.60 | 44 |
+| Coast Range Melic | 2.5, of 2.5 | 1.20 | 69 |
+| Idaho Fescue | 2.1, of 2.0 | 0.88 | 38 |
+| Coastal Panicgrass | 5.3, of 5.0 | 0.65 | 100 |
+| Giant Wild Rye | 6.2, of 6.0 | 0.67 | 92 |
+| 'Canyon Prince' | 3.6, of 3.5 | 0.66 | 97 |
+| Blue Lyme Grass | 3.2, of 3.0 | 0.78 | 94 |
+| Purpletop | 4.0, of 4.0 | 1.01 | 79 |
+| Sea Oats | 5.1, of 5.0 | 1.45 | 99 |
+| Mendocino Reed Grass | 1.5, of 1.5 | 0.91 | 49 |
+| Slender Wood Oats | 3.2, of 3.0 | 1.07 | 77 |
+| American Beachgrass | 3.1, of 3.0 | 1.09 | 91 |
+| Giant Miscanthus | 11.1, of 11.0 | 1.14 | 100 |
+| *Canada Wild Rye* | *4.3, of 4.0* | *0.97* | *89* |
+| *Switchgrass* | *5.3, of 5.0* | *0.84* | *100* |
+| *Nest Moor Grass* | *2.0, of 1.8* | *1.00* | *39* |
+
+Sea Oats draws widest, its heavy panicles hanging out past the clump. The low bunchgrasses (Idaho Fescue, 'Black
+Mountain', Mendocino Reed Grass) leave ground between clumps, as Nest Moor Grass does.
+
+### How it was checked
+
+- Every plant already in the catalog, all four seasons, both renderers, two seeds and two growths: 47,584 draws call for
+  call identical to 0.9.129. No drawing code changed, and the three records joining a card gained only `group` fields.
+- Real pixels: 360 sprites of the 15 new choices with no ink on their border, and 180 library cards and catalog pictures
+  (list row and tile) with nothing cut off, in both renderers. Blue Lyme Grass and Mendocino Reed Grass carry a
+  `sideScale` measured off their reach.
+- New tests hold the thirteen and the two cultivars to their sources, the cautions in their blurbs, the three cards, the
+  sites they are filed under, and their drawn height within 12% of the height in flower. Three deliberate breaks each
+  fail one.
+- `dev/grass-review.html?check` threw: it rebuilt the old tray picture from `TRAY_ART_W`, gone since the catalog's
+  pictures were redrawn in 0.9.115. It now checks the catalog's own list-row and tile pictures. Over every grass that
+  finds twelve older choices whose list-row picture is cut off at the sides (Prairie Dropseed 'Tara', Blue Grama, the
+  autumn, blue, silver and Greenlee moor grasses, Blue Fescue and two of its cultivars, Large Blue Fescue, Bowles' Golden
+  Grass, 'Little Bunny'), three of them in the tile too. That predates this batch and is not fixed here.
+
+### Style lists
+
+In a North American garden Prairie recommends eight of the thirteen, the dune grasses among them: Prairie is a test of
+sun, not place, as `style-recommendations.md` records. Coastal recommends seven, Idaho Fescue only by the catalog's name
+match on "fescue", which no source read supports. Shade takes the melic, the reed grass and Slender Wood Oats. Giant
+Miscanthus is recommended for Modern alone.
+
+### What it costs
+
+One procedural draw measures 0.05-0.44ms, Sea Oats in Summer the most, against 0.46 for Switchgrass and 0.50 for Giant
+Sacaton already here. No existing plant draws differently, so a garden without the new grasses costs what it did.
+
 ## How they look
 
 Measured on 0.9.87, before any of the above, in the real renderer at full growth, in Fall, on a neutral grey backdrop with the cast shadow gated
@@ -686,5 +813,6 @@ has the detail. The timed-out 3-year runs fit, since a slowed run needs far more
 4. **The missing species,** after step 3, so new records use the new drawing. The "Add first" twelve shipped in
    0.9.91, Bottlebrush Grass with a bristle head of its own. The sedges' `brush` did not serve: it is a glyph a few
    pixels long with short awns, where these heads are a fifth of the culm with awns longer than their spikelets.
-   The European and design grasses followed in 0.9.92. Next are "Worth adding next" and the cultivars.
+   The European and design grasses followed in 0.9.92, and "Worth adding next" with giant miscanthus in 0.9.130.
+   Next are the cultivars.
 5. **Site headings on the tab,** as sedges have, once it passes 50 or so records. Shipped in 0.9.93, at 62.

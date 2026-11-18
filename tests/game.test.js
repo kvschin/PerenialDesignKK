@@ -974,6 +974,29 @@ test('the sprite box holds every blade of a crowned grass, at every age', () => 
     }
   }
 });
+test('the 0.9.130 grasses draw at their sourced height in flower', () => {
+  // Read off the recorded geometry, as the forb test does, in the seasons a head stands.
+  const topOf=(k,v,season)=>{
+    let top=0;
+    const ctx=new Proxy({fillStyle:'',strokeStyle:''},{get(o,p){ if(p in o) return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return ()=>({addColorStop(){}});
+      if(p==='measureText') return ()=>({width:0});
+      return (...a)=>{ if(p==='ellipse') top=Math.min(top,a[1]-a[3]); else if(p==='arc') top=Math.min(top,a[1]-a[2]);
+        else if(p==='moveTo'||p==='lineTo') top=Math.min(top,a[1]); else if(p==='quadraticCurveTo') top=Math.min(top,a[3]); }; },
+      set(o,p,val){ o[p]=val; return true; }});
+    drawPlant(ctx,0,0,k,1,season,9137,0,v,1);
+    return -top/HERB_SCALE;
+  };
+  const refs=['broomsedge','splitbeardbluestem','splitbeardbluestem:blackmountain','coastrangemelic','idahofescue','coastalpanicgrass',
+    'giantwildrye','giantwildrye:canyonprince','bluelymegrass','purpletop','seaoats','mendocinoreedgrass','slenderwoodoats',
+    'americanbeachgrass','giantmiscanthus'];
+  for (const ref of refs){
+    const [k,v]=ref.split(':'), D=plantDef(k,v||null);
+    const heads=SEASONS.filter(s=>D.sea[s]&&(D.sea[s].bloom||D.sea[s].seed));
+    const top=Math.max(...heads.map(s=>topOf(k,v||null,s)));
+    assert(Math.abs(top-D.heightIn)<=Math.max(3,D.heightIn*0.12),`${ref}: drawn ${top.toFixed(1)} in for a ${D.heightIn} in plant`);
+  }
+});
 test('Japanese Forest Grass shows flower stalks only while it flowers', () => {
   const count=(bloom)=>{ let n=0; const ctx=new Proxy({},{
       get(o,p){ if(p in o)return o[p];
@@ -2025,6 +2048,13 @@ test('the Grasses tab is laid out by site, and a family that grows in two places
     assertEqual(siteOf('bluemoorgrass')+','+siteOf('greenleemoorgrass'),'Woodland,Woodland','Blue and Greenlee for woodland');
     assertEqual(siteOf('karl')+','+siteOf('koreanfeatherreed'),'Meadow,Woodland','a feather reed for sun and one for shade');
     assertEqual(siteOf('tuftedhair','goldtau'),'Moist shade','a cultivar follows its own record');
+    // 0.9.130: the wood oats share a card in moist shade, and the wild ryes grow in two places
+    assertEqual(siteOf('slenderwoodoats'),'Moist shade'); assertEqual(siteOf('coastrangemelic'),'Dry shade');
+    assertEqual(siteOf('seaoats')+','+siteOf('purpletop')+','+siteOf('mendocinoreedgrass'),'Dry meadow,Meadow,Woodland');
+    assertEqual(siteOf('canadawildrye')+','+siteOf('giantwildrye')+','+siteOf('bluelymegrass'),'Meadow,Dry meadow,Dry meadow',
+      'Canada wild rye for average soil, the Leymus for dry');
+    const oats=sites.find(s=>s.label==='Moist shade').groups.find(g=>g.id.startsWith('group:woodoats'));
+    assert(oats&&oats.refs.length===2,'northern sea oats and slender wood oats share one card');
     // a family that grows in one place is still one card, the catalog's own
     const switchCard=cards.find(g=>g.refs.some(r=>r.s==='switchgrass'));
     assert(groups.includes(switchCard),'an unsplit family keeps the card the catalog made');

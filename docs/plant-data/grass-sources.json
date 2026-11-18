@@ -1,6 +1,6 @@
 {
-  "reviewed": "2026-11-08",
-  "note": "The grass audit's missing species (docs/plant-data/grass-audit.md), in two batches: 'add-first', the twelve of the 'Add first' table, added in 0.9.91, and 'europe', the ten of 'Europe and design grasses', added in 0.9.92. Each row is the record as written, its sources, and where the sources disagree, what was chosen and why. Hoffman's figures come from its catalog listing at https://hoffmannursery.com/plants, read through a browser because the site refuses a plain fetch. RHS hardiness ratings are the RHS's own scale (H4 is -10 to -5 C, H5 -15 to -10, H6 -20 to -15, H7 below -20) and are not USDA zones; a European nursery gives no USDA zone at all, so the zones in the European batch lean on US nurseries. Colours are authored throughout.",
+  "reviewed": "2026-11-17",
+  "note": "The grass audit's missing species (docs/plant-data/grass-audit.md), in four batches: 'add-first', the twelve of the 'Add first' table, added in 0.9.91, 'europe', the ten of 'Europe and design grasses', added in 0.9.92, 'worth-adding', the twelve of 'Worth adding next', added in 0.9.130, and 'decided', giant miscanthus from 'Decide before adding', added with them. Each row is the record as written, its sources, and where the sources disagree, what was chosen and why. Hoffman's figures come from its catalog listing at https://hoffmannursery.com/plants, read through a browser because the site refuses a plain fetch. RHS hardiness ratings are the RHS's own scale (H4 is -10 to -5 C, H5 -15 to -10, H6 -20 to -15, H7 below -20) and are not USDA zones; a European nursery gives no USDA zone at all, so the zones in the European batch lean on US nurseries. Colours are authored throughout.",
   "plants": [
     {
       "suggestedKey": "bottlebrushgrass",
@@ -931,6 +931,586 @@
         "bloomMonths": "Knoll summer, the RHS midsummer. June to August.",
         "nativeTo": "The RHS: east and south-east Australia."
       }
+    },
+    {
+      "suggestedKey": "broomsedge",
+      "lists": 5,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Broomsedge",
+        "latin": "Andropogon virginicus",
+        "type": "grass",
+        "form": "bunchgrass",
+        "heightIn": 42,
+        "spread": 18,
+        "space": 15,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america",
+          "south-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [
+          9,
+          10,
+          11
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/andropogon-virginicus",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://plants.ces.ncsu.edu/plants/andropogon-virginicus/",
+        "https://www.wildflower.org/plants/result.php?id_plant=ANVI2",
+        "https://www.illinoiswildflowers.info/grasses/plants/broom_sedge.html",
+        "https://fnps.org/plant/andropogon-virginicus",
+        "https://eur-lex.europa.eu/eli/reg_impl/2019/1262/oj/eng"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman gives 2 ft of leaf and 4 ft in flower, Chicago measured 46 in, NC State 2-4 ft, Illinois Wildflowers 1.5-3 ft, the Wildflower Center up to 6 ft across its whole range. 42 in.",
+        "spread": "NC State 1-2 ft, Chicago 24 in with the flowering stems spread. 18 in.",
+        "zones": "Hoffman 3-8, NC State 3-9. Its range stops at Massachusetts, Ohio, southern Ontario and Iowa, and Chicago lost every plant in zone 5, to wet winter soil, it says. 4-9.",
+        "bloomMonths": "The Wildflower Center September to November, Chicago mid-September to November, Hoffman early fall. September to November.",
+        "nativeTo": "The Wildflower Center: Florida to Texas, north to Massachusetts and Ontario, and through the Caribbean, Mexico and Central America to western South America.",
+        "caution": "On the EU list of invasive alien species of Union concern since Implementing Regulation 2019/1262, so it may not be sold or grown there. The Wildflower Center and FNPS say it can be aggressive on disturbed ground. Said in the blurb."
+      }
+    },
+    {
+      "suggestedKey": "splitbeardbluestem",
+      "lists": 3,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Splitbeard Bluestem",
+        "latin": "Andropogon ternarius",
+        "type": "grass",
+        "form": "bunchgrass",
+        "heightIn": 36,
+        "spread": 18,
+        "space": 15,
+        "zones": [
+          6,
+          9
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [
+          9,
+          10
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/andropogon-ternarius",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.wildflower.org/plants/result.php?id_plant=ANTE2",
+        "https://en.wikipedia.org/wiki/Anatherum_ternarium",
+        "https://www.diggingdog.com/genus/andropogon"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman gives 2 ft of leaf and 2-4 ft in flower, the Wildflower Center 1.5-4 ft, Wikipedia (after FEIS) 120-150 cm at most. Chicago's plants never flowered and measured 24 in. 36 in.",
+        "spread": "Digging Dog 15-18 in for 'Black Mountain', Chicago 24 in. 18 in.",
+        "zones": "Hoffman 6-9; Chicago lost every plant in zone 5 within three winters. 6-9.",
+        "bloomMonths": "The Wildflower Center August to November; Wikipedia September and October in the Carolinas; Digging Dog mid-August to October for 'Black Mountain'. September and October.",
+        "nativeTo": "Wikipedia: New Jersey to Florida, west to Kansas and Texas, and into north-east Mexico. Now Anatherum ternarium in POWO."
+      }
+    },
+    {
+      "suggestedKey": "coastrangemelic",
+      "lists": 4,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Coast Range Melic",
+        "latin": "Melica imperfecta",
+        "type": "grass",
+        "form": "oatgrass",
+        "heightIn": 30,
+        "spread": 18,
+        "space": 15,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [
+          4,
+          5,
+          6
+        ]
+      },
+      "sources": [
+        "https://www.wildflower.org/plants/result.php?id_plant=MEIM",
+        "https://calscape.org/Melica-imperfecta-(Small-Flowered-Melica)",
+        "https://www.laspilitas.com/nature-of-california/plants/melica-imperfecta",
+        "https://www.nativeson.com/product/melica-imperfecta",
+        "https://www.calfloranursery.com/plants/melica-imperfecta/"
+      ],
+      "estimates": {
+        "heightIn": "Native Sons 2-3 ft in flower, Calscape 3-4 ft, the Wildflower Center up to 4 ft, Las Pilitas 0.3-0.5 m, Cal Flora 1-3 ft. The audit's CNPS figure: to 44 in, generally 24-30 in. 30 in.",
+        "spread": "Cal Flora 1-1.5 ft, Las Pilitas 0.1-0.3 m, Native Sons 2-3 ft. 18 in.",
+        "zones": "Las Pilitas 7-10; Calscape gives cold to 0 F. 7-10.",
+        "bloomMonths": "The Wildflower Center March to June, Native Sons spring, Calscape spring and summer. April to June.",
+        "sun": "The Wildflower Center part shade; Las Pilitas inland on north and east slopes, under oaks; Calscape and Native Sons sun or part shade. Part.",
+        "nativeTo": "Wikipedia: Arizona, California and Nevada, and Baja California, so Mexico too."
+      }
+    },
+    {
+      "suggestedKey": "idahofescue",
+      "lists": 3,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Idaho Fescue",
+        "latin": "Festuca idahoensis",
+        "type": "grass",
+        "form": "oatgrass",
+        "heightIn": 24,
+        "spread": 15,
+        "space": 12,
+        "zones": [
+          3,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [
+          5,
+          6,
+          7
+        ]
+      },
+      "sources": [
+        "https://www.wildflower.org/plants/result.php?id_plant=FEID",
+        "https://calscape.org/Festuca-idahoensis-(Idaho-Fescue)",
+        "https://www.laspilitas.com/nature-of-california/plants/festuca-idahoensis",
+        "https://conservationseedlings.mtdnrc.gov/products/idaho-fescue",
+        "https://en.wikipedia.org/wiki/Festuca_idahoensis"
+      ],
+      "estimates": {
+        "heightIn": "Montana's state nursery 12-31 in (18-31 at 20 years), Wikipedia 30-80 cm, Calscape 1-3 ft, the Wildflower Center up to 3 ft. Las Pilitas gives the leaves alone, 0.2-0.3 m. 24 in.",
+        "spread": "Las Pilitas 0.3-0.5 m, Cal Flora 0.5-2 ft. 15 in.",
+        "zones": "Montana's state nursery 2-7, Las Pilitas 6-10 for California plants, Calscape cold to -10 F. Its range runs from British Columbia and Alberta to California and Colorado. 3-8.",
+        "bloomMonths": "The Wildflower Center April to July, Montana late spring to early summer. May to July.",
+        "roles": "Evergreen, from Las Pilitas. Its coastal, Mediterranean and gravel recommendations come from the catalog's name match on fescue, not from these sources.",
+        "note": "Roemer's fescue, already in the catalog, carried Festuca idahoensis subsp. roemeri as a synonym, which hid this one from a name match. They are separate records."
+      }
+    },
+    {
+      "suggestedKey": "coastalpanicgrass",
+      "lists": 3,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Coastal Panicgrass",
+        "latin": "Panicum amarum",
+        "type": "grass",
+        "form": "cloudgrass",
+        "heightIn": 60,
+        "spread": 36,
+        "space": 30,
+        "zones": [
+          5,
+          9
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [
+          8,
+          9,
+          10
+        ]
+      },
+      "sources": [
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.wildflower.org/plants/result.php?id_plant=PAAM2",
+        "https://plants.ces.ncsu.edu/plants/panicum-amarum/",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=258912",
+        "https://en.wikipedia.org/wiki/Panicum_amarum"
+      ],
+      "estimates": {
+        "heightIn": "NC State 3-4 ft, MBG 3-4 ft for 'Dewey Blue', Chicago 78 in for 'Dewey Blue' in flower; the Wildflower Center up to 8 ft and Wikipedia stems to 2.5 m in the wild. 60 in.",
+        "spread": "NC State and MBG 2-3 ft; Chicago's 80 in is the flower spray. 36 in, since it spreads slowly by rhizome.",
+        "zones": "MBG and NC State give 2-9. It grows wild only on the coast from Connecticut south, and Chicago grew 'Dewey Blue' in zone 5 for six years. 5-9 is what has been shown.",
+        "bloomMonths": "The Wildflower Center August to October, Chicago late August to November, NC State July to November. August to October.",
+        "moist": "MBG dry to medium, NC State dry to medium and well drained; the Wildflower Center moist. Dry, the dune grass.",
+        "name": "USDA's common name for var. amarulum, which the audit used; MBG calls the species bitter switchgrass."
+      }
+    },
+    {
+      "suggestedKey": "giantwildrye",
+      "lists": 3,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Giant Wild Rye",
+        "latin": "Leymus condensatus",
+        "type": "grass",
+        "form": "vertgrass",
+        "heightIn": 72,
+        "spread": 48,
+        "space": 36,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [
+          6,
+          7,
+          8
+        ]
+      },
+      "sources": [
+        "https://calscape.org/Leymus-condensatus-(Giant-Wild-Rye)",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=445915",
+        "https://en.wikipedia.org/wiki/Leymus_condensatus",
+        "https://diggingdog.com/plant/g-0514"
+      ],
+      "estimates": {
+        "heightIn": "Calscape 3-6 ft, MBG up to 6 ft for the species. 72 in.",
+        "spread": "MBG up to 8 ft as a colony, spreading by rhizome; Calscape says the rhizomes spread slowly. 48 in, a planted clump.",
+        "zones": "MBG 7-10, Calscape cold to 15 F, Digging Dog zone 7 for 'Canyon Prince'. 7-10.",
+        "bloomMonths": "Calscape spring and summer, MBG June to August and Digging Dog July and August for 'Canyon Prince'. June to August.",
+        "roles": "Coastal: MBG lists sand dunes and coastal sage scrub among its habitats. Evergreen: Calscape, 'does not die back in any season'.",
+        "nativeTo": "MBG and Calscape: California south into northern Mexico."
+      }
+    },
+    {
+      "suggestedKey": "bluelymegrass",
+      "lists": 2,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Blue Lyme Grass",
+        "latin": "Leymus arenarius",
+        "type": "grass",
+        "form": "vertgrass",
+        "heightIn": 36,
+        "spread": 30,
+        "space": 24,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "europe"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [
+          6,
+          7
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/leymus-arenarius-blue-dune",
+        "https://plants.ces.ncsu.edu/plants/leymus-arenarius/",
+        "https://www.nvknurseries.com/plant/Elymus-arenarius",
+        "https://en.wikipedia.org/wiki/Leymus_arenarius"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 2 ft of leaf and 3 ft in flower for 'Blue Dune', NC State 2-4 ft, NVK 100 cm of leaf and 125 cm in flower. 36 in.",
+        "spread": "NC State 2-3 ft; it runs. 30 in.",
+        "zones": "Hoffman 4-9, NC State 3-10. Hoffman's, the nursery's.",
+        "bloomMonths": "Hoffman late spring, NC State early summer. June and July.",
+        "caution": "Hoffman: spreads by rhizomes; NC State: weedy and aggressive, best in a container; NVK: invasive along the west shore of Lake Michigan. Said in the blurb.",
+        "nativeTo": "Wikipedia: the coasts of Atlantic and northern Europe."
+      }
+    },
+    {
+      "suggestedKey": "purpletop",
+      "lists": 2,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Purpletop",
+        "latin": "Tridens flavus",
+        "type": "grass",
+        "form": "oatgrass",
+        "heightIn": 48,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "medium",
+        "phen": "warm",
+        "bloomMonths": [
+          8,
+          9,
+          10
+        ]
+      },
+      "sources": [
+        "https://www.wildflower.org/plants/result.php?id_plant=TRFL2",
+        "https://plants.ces.ncsu.edu/plants/tridens-flavus/",
+        "https://www.illinoiswildflowers.info/grasses/plants/purpletop.htm",
+        "https://fnps.org/plant/tridens-flavus"
+      ],
+      "estimates": {
+        "heightIn": "NC State 3-5 ft, Illinois Wildflowers 3-5 ft, FNPS 2-5 ft, the Wildflower Center up to 7 ft. 48 in.",
+        "spread": "NC State 1-3 ft. 24 in.",
+        "zones": "NC State 4a-9b.",
+        "bloomMonths": "The Wildflower Center August to November, NC State August to November, Illinois mid-summer to early fall. August to October.",
+        "sun": "Illinois Wildflowers partial to full sun; NC State dappled sun; the Wildflower Center part shade. Full, since it is an old-field grass; the blurb says it takes light shade.",
+        "nativeTo": "The Wildflower Center: New Hampshire to Illinois and Nebraska, south to Mexico."
+      }
+    },
+    {
+      "suggestedKey": "seaoats",
+      "lists": 2,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Sea Oats",
+        "latin": "Uniola paniculata",
+        "type": "grass",
+        "form": "oatgrass",
+        "heightIn": 60,
+        "spread": 24,
+        "space": 24,
+        "zones": [
+          7,
+          11
+        ],
+        "nativeTo": [
+          "north-america",
+          "central-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [
+          6,
+          7
+        ]
+      },
+      "sources": [
+        "https://www.wildflower.org/plants/result.php?id_plant=UNPA",
+        "https://plants.ces.ncsu.edu/plants/uniola-paniculata/",
+        "https://en.wikipedia.org/wiki/Uniola_paniculata",
+        "https://fnps.org/plant/uniola-paniculata",
+        "https://www.flsenate.gov/Laws/Statutes/2024/161.242"
+      ],
+      "estimates": {
+        "heightIn": "NC State 4-6 ft, the Wildflower Center up to 8 ft. 60 in.",
+        "spread": "NC State 1-2 ft; it spreads by rhizome through the dune. 24 in.",
+        "zones": "NC State 7a-11b.",
+        "bloomMonths": "The Wildflower Center June and July, NC State early summer.",
+        "law": "Florida Statutes 161.242: unlawful to cut, harvest, remove or eradicate sea oats from public land or from private land without the owner's consent; licensed nurseries may sell plants they grew from seed or by division. FNPS: illegal to dig it up in Florida. NC State: protected in several states, North Carolina among them. Said in the blurb.",
+        "nativeTo": "Wikipedia: the south-eastern United States, eastern Mexico and some Caribbean islands."
+      }
+    },
+    {
+      "suggestedKey": "mendocinoreedgrass",
+      "lists": 2,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Mendocino Reed Grass",
+        "latin": "Calamagrostis foliosa",
+        "type": "grass",
+        "form": "oatgrass",
+        "heightIn": 18,
+        "spread": 20,
+        "space": 15,
+        "zones": [
+          8,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "bloomMonths": [
+          5,
+          6,
+          7
+        ]
+      },
+      "sources": [
+        "https://calscape.org/Calamagrostis-foliosa-(Leafy-Reed-Grass)",
+        "https://www.diggingdog.com/plant/G-0044",
+        "https://devilmountainnursery.com/calamagrostis-foliosa",
+        "https://store.theodorepayne.org/products/theodore-payne-foundation-calamagrostis-foliosa",
+        "https://en.wikipedia.org/wiki/Calamagrostis_foliosa"
+      ],
+      "estimates": {
+        "heightIn": "Digging Dog 18 in, Devil Mountain 16-18 in, Calscape 1-2 ft, Wikipedia stems 30-60 cm. 18 in.",
+        "spread": "Digging Dog 2 ft, Devil Mountain 1-2 ft, Calscape 1-2 ft. 20 in.",
+        "zones": "Digging Dog 8, Devil Mountain 8-9, Theodore Payne cold hardy to 15 F. 8-10.",
+        "bloomMonths": "Digging Dog May to November, Devil Mountain mid-spring to early summer, Calscape summer. May to July.",
+        "sun": "Theodore Payne: sun on the coast, part sun inland. Part.",
+        "roles": "Coastal: Calscape, bluffs, cliffs and coastal scrub, typically close to the coast."
+      }
+    },
+    {
+      "suggestedKey": "slenderwoodoats",
+      "lists": 1,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "Slender Wood Oats",
+        "latin": "Chasmanthium laxum",
+        "type": "grass",
+        "form": "oatgrass",
+        "heightIn": 36,
+        "spread": 18,
+        "space": 15,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "moist",
+        "phen": "warm",
+        "bloomMonths": [
+          6,
+          7,
+          8
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/chasmanthium-laxum",
+        "https://www.wildflower.org/plants/result.php?id_plant=CHLA6",
+        "https://www.chicagobotanic.org/plant-information/plant-finder/chasmanthium-laxum-slender-woodoats",
+        "https://www.npsot.org/posts/native-plant/chasmanthium-laxum"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 2-3 ft of leaf and 2.5-3.5 ft in flower, the Wildflower Center up to 5 ft. 36 in.",
+        "spread": "No source read gives one; it is a narrow, upright clump. 18 in, an estimate.",
+        "zones": "Hoffman 4-9, Chicago Botanic Garden's plant finder 4-9.",
+        "bloomMonths": "The Wildflower Center June to August, Hoffman early summer, NPSOT June to August.",
+        "moist": "Hoffman dry to moist and lists it for rain gardens, NPSOT low to medium water, in woods, coastal plains, meadows and swamps. Moist, which files it with northern sea oats; the blurb says it takes drier ground once settled."
+      }
+    },
+    {
+      "suggestedKey": "americanbeachgrass",
+      "lists": 1,
+      "batch": "worth-adding",
+      "proposed": {
+        "name": "American Beachgrass",
+        "latin": "Ammophila breviligulata",
+        "type": "grass",
+        "form": "vertgrass",
+        "heightIn": 36,
+        "spread": 18,
+        "space": 18,
+        "zones": [
+          3,
+          8
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [
+          7,
+          8
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/ammophila-breviligulata",
+        "https://www.wildflower.org/plants/result.php?id_plant=AMBR",
+        "https://en.wikipedia.org/wiki/Ammophila_breviligulata"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 2 ft of leaf and 3 ft in flower, the Wildflower Center up to 4 ft, Wikipedia leaves 1-3 ft. 36 in.",
+        "spread": "It runs 6-10 ft a year through loose sand (Wikipedia). 18 in, a planted clump.",
+        "zones": "Hoffman 3-9. It grows wild only from Newfoundland to North Carolina and on the Great Lakes. 3-8.",
+        "bloomMonths": "The Wildflower Center July to September, Hoffman midsummer, Wikipedia late July or August. July and August.",
+        "caution": "Wikipedia: it declines on stabilised sand, where soil pathogens build up, and it is invasive where it was planted on the Pacific coast of Oregon, Washington and British Columbia. Said in the blurb. The audit left out Ammophila arenaria, which Cal-IPC rates High."
+      }
+    },
+    {
+      "suggestedKey": "giantmiscanthus",
+      "lists": 2,
+      "batch": "decided",
+      "proposed": {
+        "name": "Giant Miscanthus",
+        "latin": "Miscanthus × giganteus",
+        "type": "grass",
+        "form": "vertgrass",
+        "heightIn": 132,
+        "spread": 60,
+        "space": 48,
+        "zones": [
+          4,
+          9
+        ],
+        "nativeTo": [],
+        "provenance": "hybrid",
+        "sun": "full",
+        "moist": "medium",
+        "phen": "warm",
+        "bloomMonths": [
+          9,
+          10
+        ]
+      },
+      "sources": [
+        "https://hoffmannursery.com/plants/details/miscanthus-x-giganteus",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.rhs.org.uk/plants/169012/miscanthus-x-giganteus/details",
+        "https://conservationgardenpark.jvwcd.gov/plants/938/giant-chinese-silver-grass",
+        "https://plantlust.com/plants/35572/miscanthus-x-giganteus",
+        "https://en.wikipedia.org/wiki/Miscanthus_%C3%97_giganteus"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 10 ft of leaf and 12 ft in flower, Utah's Conservation Garden Park 10-13 ft, Plant Lust 8-12 ft, the RHS to 3.5 m. 11 ft.",
+        "spread": "Utah 5 ft, Plant Lust 4-6 ft. 60 in.",
+        "zones": "Hoffman and Utah 4-9, Plant Lust 5-9. 4-9.",
+        "bloomMonths": "Hoffman September, Chicago 8 October. NVK warns it may not flower where summers are short. September and October.",
+        "seed": "Chicago x-rayed the seed of 34 Miscanthus taxa in 2010: Miscanthus x giganteus set no viable seed, and Chicago calls it a sterile triploid. Hoffman: sterile seed. It spreads slowly by rhizome and is hard to dig once mature (Hoffman). Both said in the blurb.",
+        "nativeTo": "A hybrid of M. sinensis and M. sacchariflorus, sold as a clone; it claims no wild range, as the other hybrids here do."
+      }
     }
   ],
   "cultivars": [
@@ -942,6 +1522,32 @@
       "estimates": {
         "heightIn": "Plant Select gives 16-20 in, and up to 30 in in flower. 24 in.",
         "spread": "Plant Select 18-24 in. It draws wider than the species because it is as wide as it is tall."
+      }
+    },
+    {
+      "ref": "splitbeardbluestem|blackmountain",
+      "sources": [
+        "https://hoffmannursery.com/plants/details/andropogon-ternarius-black-mountain",
+        "https://www.diggingdog.com/genus/andropogon"
+      ],
+      "estimates": {
+        "heightIn": "Hoffman 1.5-2 ft of leaf and 2.5-3 ft in flower, Digging Dog 2.5-3 ft. 30 in.",
+        "spread": "Digging Dog 15-18 in. 15 in.",
+        "zones": "Hoffman 6-9, Digging Dog 6. The species' range."
+      }
+    },
+    {
+      "ref": "giantwildrye|canyonprince",
+      "sources": [
+        "https://diggingdog.com/plant/g-0514",
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=445915",
+        "https://www.calfloranursery.com/plants/elymus-leymus-condensatus-canyon-prince/",
+        "https://devilmountainnursery.com/leymus-condensatus-canyon-prince"
+      ],
+      "estimates": {
+        "heightIn": "Digging Dog 3-4 ft, MBG 2-3 ft, Cal Flora 2.5-5 ft; Devil Mountain puts the flower spikes 1-2 ft above the leaves. 42 in in flower.",
+        "spread": "Digging Dog 2-3 ft, MBG 3-4 ft, Cal Flora 4-6 ft, and it keeps spreading. 36 in.",
+        "origin": "Digging Dog: selected by Santa Barbara Botanic Garden from Prince Island in the Santa Barbara Channel."
       }
     }
   ]

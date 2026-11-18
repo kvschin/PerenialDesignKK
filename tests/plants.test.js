@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,838,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,851,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),649,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),651,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -246,7 +246,9 @@ test("the grass audit's missing species are in, as reviewed, with their sources"
   const batch=b=>rows.filter(r=>r.batch===b);
   assertEqual(batch('add-first').length,12,"the audit's 'Add first' table is twelve grasses");
   assertEqual(batch('europe').length,10,"and its 'Europe and design grasses' table ten");
-  assertEqual(rows.length,22,'every row belongs to one batch or the other');
+  assertEqual(batch('worth-adding').length,12,"its 'Worth adding next' table twelve");
+  assertEqual(batch('decided').length,1,"and one of 'Decide before adding', giant miscanthus");
+  assertEqual(rows.length,35,'every row belongs to one batch');
   for(const row of rows){
     const P=PLANTS[row.suggestedKey], R=row.proposed;
     assert(P,row.suggestedKey+': missing species');
@@ -279,6 +281,47 @@ test("the grass audit's missing species are in, as reviewed, with their sources"
   assert(['bottlebrushgrass','beakgrass','wavyhairgrass','californiafescue'].every(k=>PLANTS[k].sun==='part'),'four take shade');
   assert(['bushybluestem','sandcordgrass','prairiecordgrass','easterngamagrass'].every(k=>PLANTS[k].moist==='moist'),'four take wet ground');
   assertEqual(PLANTS.sandcordgrass.zones[1],11,'sand cordgrass reaches south Florida');
+});
+
+// The grass audit's "Worth adding next" (0.9.130), with giant miscanthus from "Decide before
+// adding". The reviewed figures are held by the test above; this holds what a reader is told.
+test("the grass passes of 0.9.130 added 13 base records and 2 cultivars, and say what they do", () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/grass-sources.json'));
+  const added=doc.plants.filter(r=>r.batch==='worth-adding'||r.batch==='decided').map(r=>r.suggestedKey);
+  assertEqual(added.length,13,'twelve worth adding and giant miscanthus');
+  for(const k of added){
+    const P=PLANTS[k];
+    assertEqual(P.type,'grass',k+': a grass');
+    assert(P.blurb&&P.blurb.length>120,k+': says something');
+    assert(P.look&&P.look.crownIn>0,k+': stands on a crown');
+  }
+  for(const ref of ['splitbeardbluestem|blackmountain','giantwildrye|canyonprince']){
+    const [k,v]=ref.split('|'), C=PLANTS[k].cv[v];
+    assert(C&&C.heightIn>0&&C.spread>0,ref+': a sourced cultivar with its own size');
+    assert(doc.cultivars.some(c=>c.ref===ref&&c.sources.length>=2),ref+': and its sources');
+  }
+  // Nothing hides a plant any more (0.9.117), so a plant that escapes says so where it is read.
+  assert(/Union concern/.test(PLANTS.broomsedge.blurb),'broomsedge names the EU list it is on');
+  assert(/runs hard/.test(PLANTS.bluelymegrass.blurb)&&/Lake Michigan/.test(PLANTS.bluelymegrass.blurb),'blue lyme grass says it runs and where it has escaped');
+  assert(/Pacific coast/.test(PLANTS.americanbeachgrass.blurb),'American beachgrass says it is invasive in the west');
+  assert(/Florida law/.test(PLANTS.seaoats.blurb)&&/nurseries may sell/.test(PLANTS.seaoats.blurb),'sea oats says wild plants are protected and nursery plants are not');
+  assert(/no viable seed/.test(PLANTS.giantmiscanthus.blurb)&&/rhizome/.test(PLANTS.giantmiscanthus.blurb)&&/10 to 12 ft/.test(PLANTS.giantmiscanthus.blurb),
+    'giant miscanthus says it does not seed, and how tall and how it spreads');
+  assertEqual(PLANTS.giantmiscanthus.provenance,'hybrid','giant miscanthus is a hybrid');
+  assertEqual(PLANTS.giantmiscanthus.nativeTo.length,0,'and claims no wild range');
+  assertEqual(PLANTS.bluelymegrass.nativeTo.join(','),'europe','blue lyme grass is the European native here');
+  // the audit left these out on purpose, and they stay out
+  for(const latin of ['Ammophila arenaria','Cortaderia selloana','Bouteloua dactyloides','Arundo donax'])
+    assert(!keys.some(k=>PLANTS[k].latin===latin),latin+': left out');
+  // Roemer's fescue was once Idaho fescue's subspecies: two records, two names
+  assert(PLANTS.roemersfescue.latin!==PLANTS.idahofescue.latin,"Idaho and Roemer's fescue are separate records");
+  // new cards and the relatives they join
+  const members=g=>keys.filter(k=>PLANTS[k].group===g).sort().join(',');
+  assertEqual(members('woodoats'),'northernseaoats,slenderwoodoats','wood oats: northern sea oats and slender wood oats');
+  assertEqual(members('wildrye'),'bluelymegrass,canadawildrye,giantwildrye','wild rye: Canada, giant and blue lyme');
+  assertEqual(members('miscanthus'),'giantmiscanthus,miscanthus','miscanthus: Chinese silvergrass and the giant hybrid');
+  assertEqual(PLANTS.northernseaoats.name,'Northern Sea Oats','the old records keep their names');
+  assertEqual(PLANTS.miscanthus.name,'Miscanthus','and Chinese silvergrass keeps its card name');
 });
 
 test("the shade audit's first batch is in, as reviewed, with its sources", () => {
@@ -1069,7 +1112,10 @@ test('grass cultivars use comparable mature height and spread data', () => {
   for (const k of keys){
     const P = PLANTS[k];
     if (P.type !== 'grass') continue;
-    assert(P.h >= 9 && P.h <= 108, `${k}: grass height ${P.h} outside audited range`);
+    // Giant miscanthus (0.9.130) stands 10-12 ft and is drawn at its height; the
+    // next tallest grass is Miscanthus 'Strictus' at 102. Nothing else may pass 108.
+    const top = k === 'giantmiscanthus' ? 132 : 108;
+    assert(P.h >= 9 && P.h <= top, `${k}: grass height ${P.h} outside audited range`);
     assert(P.spread >= 9 && P.spread <= 72, `${k}: grass spread ${P.spread} outside audited range`);
     for (const v of Object.keys(P.cv || {})){
       const C = P.cv[v];

@@ -7563,8 +7563,13 @@ Garden's trial of 109 grasses and Hoffman's catalog say, which species are missi
 drawings get wrong. `dev/grass-review.html` shows every grass as a drift and at true scale, and `?check`
 sweeps the sprites and the library and tray pictures. Steps 1-3 have shipped, and two batches of
 step 4: the twelve "Add first" species (0.9.91) and the ten European and design grasses (0.9.92), both
-sourced in `docs/plant-data/grass-sources.json` by `batch`, and step 5, site headings (0.9.93). "Worth
-adding next" and the missing cultivars are still open. **The Grasses tab lists by site as the Sedges
+sourced in `docs/plant-data/grass-sources.json` by `batch`, and step 5, site headings (0.9.93). The
+third batch (0.9.130) is "Worth adding next" with 'Black Mountain' and 'Canyon Prince', plus Giant
+Miscanthus from "Decide before adding" (Pampas Grass left out, Cal-IPC High; Buffalograss skipped), all on
+existing forms: 75 grass records. It added three cards, Wood Oats, Wild Rye and Miscanthus (`group` on
+Northern Sea Oats, Canada Wild Rye and Miscanthus too). Where a grass escapes, runs or is protected, its blurb
+says so (the EU list for Broomsedge, Florida's statute for Sea Oats). Giant Miscanthus is the one grass
+allowed an `h` over 108. The missing cultivars are still open. **The Grasses tab lists by site as the Sedges
 tab does** (`GRASS_SITES`, `grassSiteOf`, `SITE_LAYOUTS`, ui.js; a category names its layout with
 `sites` in `TRAY_CATS`): Dry meadow, Meadow, Wet meadow, Dry shade, Woodland, Moist shade, from light and
 moisture alone. **A family whose choices grow in different places is split** (`splitGroupBySite`): the

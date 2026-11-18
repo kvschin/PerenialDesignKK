@@ -349,3 +349,29 @@ later runs do not redo or touch the same records.
 - `h`/`cw` solved with `dev/cultivar-size.cjs`. Both use the 0.9.127 look keys; Green Panda's
   `caneYoung` is its rusty red culm sheaths. Record: `docs/plant-data/bamboo-sources.json`.
 - Review: `dev/bamboo-review.html?check`, 72 sprites clean.
+
+## 2026-11-17 — grass audit, step 4, "Worth adding next" and giant miscanthus (0.9.130)
+
+- Direct to master. The twelve of the audit's "Worth adding next" table, with Splitbeard Bluestem 'Black Mountain' and
+  Giant Wild Rye 'Canyon Prince', and Giant Miscanthus from "Decide before adding" (Pampas Grass left out, Cal-IPC
+  High; Buffalograss skipped). Keys: broomsedge, splitbeardbluestem, coastrangemelic, idahofescue, coastalpanicgrass,
+  giantwildrye, bluelymegrass, purpletop, seaoats, mendocinoreedgrass, slenderwoodoats, americanbeachgrass,
+  giantmiscanthus. Sizes, zones, ranges and bloom months are sourced, with the reasoning per plant in the
+  `worth-adding` and `decided` batches of `docs/plant-data/grass-sources.json`; colours and drawing values are judgement.
+- Sources that answered: Hoffman (detail pages `hoffmannursery.com/plants/details/<slug>`, fetched from the browser
+  pane; it has seven of the thirteen), Chicago's Plant Evaluation Notes 43 (Broomsedge, Splitbeard, 'Dewey Blue', and
+  the Miscanthus seed x-rays), the Wildflower Center (CHLA6 is *Chasmanthium laxum*, CHLA5 is *latifolium*), NC State
+  (five of nine pages; Broomsedge is filed as *Anatherum virginicum*), Calscape (`calscape.org/<Latin>-(<Common>)`),
+  Las Pilitas, Digging Dog, Devil Mountain, Theodore Payne, Cal Flora, Montana's state nursery for Idaho Fescue, MBG
+  for 'Dewey Blue' and 'Canyon Prince' only, EUR-Lex for the EU list, and the Florida Statutes. New Moon refused a
+  Node fetch this time; UC Davis's arboretum pages answered 403.
+- Decisions: Coastal Panicgrass 5-9 against MBG's and NC State's 2-9; American Beachgrass 3-8 against Hoffman's 3-9;
+  Broomsedge 4-9 against 3; Slender Wood Oats moist, so it shares a card with Northern Sea Oats. Giant Miscanthus has
+  no wild range, as a hybrid sold as a clone.
+- Groups: `woodoats` (northernseaoats, slenderwoodoats), `wildrye` (canadawildrye, giantwildrye, bluelymegrass),
+  `miscanthus` (miscanthus, giantmiscanthus); the old records keep their names.
+- Drawing: no new code; 47,584 draws of every older plant identical to 0.9.129. `sideScale`: bluelymegrass .72,
+  mendocinoreedgrass .88. Giant Wild Rye lost an authored `structure` role, which put it on the Formal list.
+- `dev/grass-review.html?check` threw on the retired `TRAY_ART_W`; it now checks `trayPlantArt` rows and tiles, and
+  finds twelve older low grasses whose list-row picture is cut off (since 0.9.115). Not fixed.
+- Next: the missing cultivars; the clipped list-row pictures.
