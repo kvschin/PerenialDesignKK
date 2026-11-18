@@ -19556,6 +19556,126 @@ test('index writes take a lock that every tab shares, and never depend on it (F0
   }
 });
 
+/* ---------- the lists read what they show (audit P01/P02) ---------- */
+async function listTestSeed(n, opts){
+  await worldsIndexChain; await pendingSaves();
+  setup(21, 21); await clearStoredWorlds();
+  const c = todaysChallenge(), rows = [];
+  for (let i = 0; i < n; i++){
+    const blob = { wv: 1, name: 'List ' + i, gw: 21, gh: 21, plants: { '1,1': { s: 'bluestem', d: 0, t: 1 } }, bulbs: {} };
+    if (opts.dailyEvery && i % opts.dailyEvery === 0){
+      const d = new Date(2026, 5, 1 + i);
+      blob.challenge = { ...dailyChallengeFor(d), completedAt: i % 2 ? 5 : null };
+    }
+    await sSet('hortus:world:list' + i, blob);
+    const row = { id: 'list' + i, name: blob.name, ts: 1000 - i, gw: 21, gh: 21, mode: 'design' };
+    if (opts.summarised) row.sum = worldRowSummary(blob);
+    rows.push(row);
+  }
+  if (opts.today){
+    const blob = { wv: 1, name: 'Today', gw: 21, gh: 21, plants: {}, bulbs: {}, challenge: { ...todaysChallenge() } };
+    await sSet('hortus:world:listtoday', blob);
+    const row = { id: 'listtoday', name: 'Today', ts: 2000, gw: 21, gh: 21, mode: 'design' };
+    if (opts.summarised) row.sum = worldRowSummary(blob);
+    rows.push(row);
+  }
+  await sSet('hortus:worlds', rows);
+  return c;
+}
+async function listTestReads(fn){
+  const reads = [], real = sGet;
+  sGet = async k => { if (/^hortus:world:/.test(k)) reads.push(k.slice(13)); return real(k); };
+  try { await fn(); } finally { sGet = real; }
+  return reads;
+}
+
+test('a garden\'s row carries what the lists show, from every path that makes one', async () => {
+  await worldsIndexChain; await pendingSaves();
+  setup(21, 21); await clearStoredWorlds();
+  game.worldId = null; game.worldName = 'Summed';
+  setTile('plants', '2,2', { s: 'bluestem', d: 0, t: 1 });
+  setTile('plants', '3,3', { s: 'karl', d: 0, t: 1 });
+  game.challenge = normalizeDailyChallenge({ ...todaysChallenge(), completedAt: 7 });
+  await saveSolo(true);
+  let row = (await worldsIndex())[0];
+  assertEqual(row.sum.v, WORLD_SUMMARY_VERSION);
+  assertEqual(row.sum.plants, 2, 'plant count');
+  assertEqual(row.sum.season, worldSaveMeta(await sGet('hortus:world:' + row.id)).season, 'season, as the card worked it out');
+  assertEqual(row.sum.daily.date, todaysChallenge().date, 'the daily date, exactly as saved');
+  assertEqual(row.sum.daily.done, true, 'and that it is finished');
+  game.challenge = null; cancelGardenAutosave();
+  // duplicate, import and adoption write it too
+  await duplicateWorld(row.id).catch(() => {});
+  const env = { pocketPrairie: 1, v: 1, world: await sGet('hortus:world:' + row.id) };
+  await installWorldBlob(env, 'Imported');
+  await sSet('hortus:world:stray', { wv: 1, name: 'Stray', gw: 21, gh: 21, plants: { '1,1': { s: 'bluestem', d: 0, t: 1 } }, bulbs: {} });
+  const realToast = toast; toast = () => {};
+  try { await adoptOrphanedWorlds(); } finally { toast = realToast; }
+  for (const r of await worldsIndex()) assert(worldSummaryCurrent(r.sum), `${r.name}: summarised`);
+  assertEqual((await worldsIndex()).length, 4, 'saved, duplicated, imported and adopted');
+});
+
+test('Your gardens reads a garden only when its card nears the screen', async () => {
+  await listTestSeed(8, { summarised: true, dailyEvery: 3 });
+  const observed = [];
+  let fire = null;
+  globalThis.IntersectionObserver = class {
+    constructor(cb){ fire = cb; }
+    observe(el){ observed.push(el); } unobserve(){} disconnect(){}
+  };
+  let reads;
+  try {
+    reads = await listTestReads(async () => {
+      await openWorlds();
+      await pendingSaves();
+    });
+    assertEqual(reads.length, 0, 'opening the list reads no garden');
+    assertEqual(observed.length, 8, 'every card waits to be seen');
+    const cards = document.getElementById('worldList').children;
+    const info = cards[0].children.find(k => k.className === 'world-info');
+    assertEqual(info.children[1].textContent, '1 plant · ' + worldSaveMeta({}).season, 'its details come from the row');
+    assert(cards[0].children.find(k => k.className === 'world-badge'), 'a daily attempt is marked from the row too');
+    // two cards come into view
+    const seen = await listTestReads(async () => {
+      fire([{ isIntersecting: true, target: observed[0] }, { isIntersecting: true, target: observed[1] }]);
+      await sGet('hortus:worlds'); await sGet('hortus:worlds'); await sGet('hortus:worlds');
+    });
+    assertEqual(seen.sort().join(), 'list0,list1', 'only the cards in view are read');
+  } finally { delete globalThis.IntersectionObserver; resetWorldPictures(null); }
+});
+
+test('a card with a current portrait never draws the map behind it', () => {
+  const realDraw = drawWorldThumb;
+  let drawn = 0;
+  drawWorldThumb = () => { drawn++; };
+  try {
+    const blob = { gw: 21, gh: 21, plants: {}, elapsedMs: 0, dayOffset: 3 };
+    paintWorldPicture(document.createElement('canvas'), { ...blob, portrait: { v: 1, day: 3, image: 'data:image/jpeg;base64,AAAA' } });
+    assertEqual(drawn, 0, 'the portrait is the picture; no map is drawn first');
+    paintWorldPicture(document.createElement('canvas'), { ...blob, portrait: { v: 1, day: 2, image: 'data:image/jpeg;base64,AAAA' } });
+    assertEqual(drawn, 1, 'a portrait of another day is out of date, so the map is drawn');
+    paintWorldPicture(document.createElement('canvas'), blob);
+    assertEqual(drawn, 2, 'and with no portrait at all');
+  } finally { drawWorldThumb = realDraw; }
+  assert(/img\.onerror=\(\)=>drawWorldThumb\(thumb,s\)/.test(paintWorldPicture.toString()), 'a damaged portrait still leaves the map');
+});
+
+test('the daily screen reads only the designs it shows, and summarises old rows once', async () => {
+  // 30 gardens, 15 of them daily attempts, saved before rows had summaries
+  await listTestSeed(30, { dailyEvery: 2, today: true });
+  const first = await listTestReads(async () => { await openDaily(); });
+  const rows = await worldsIndex();
+  assert(rows.every(r => worldSummaryCurrent(r.sum)), 'the first opening summarises every old row');
+  assertEqual(dailyResumeId, 'listtoday', 'today\'s attempt is found from its summary');
+  const history = document.getElementById('dailyHistory').children.length;
+  assertEqual(history, 6, 'six recent designs below it');
+  assert(first.length >= 31, 'the first opening reads every garden, once');
+  const again = await listTestReads(async () => { await openDaily(); });
+  assertEqual(again.length, 7, 'after that it reads today\'s attempt and the six it shows, and no other');
+  assertEqual(dailyResumeId, 'listtoday');
+  assertEqual(document.getElementById('dailyHistory').children.length, 6, 'the same six');
+});
+
 test('the debug HUD keeps the size of a stall it classifies as a suspend', ()=>{
   /* Gaps over GAP_SUSPEND are kept out of gapMax so a tab resume cannot bury
      every real stall beneath it. Discarding the SIZE too was a blind spot: a

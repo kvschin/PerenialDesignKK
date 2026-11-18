@@ -20,6 +20,8 @@ and three self-review goals. View from the Patio and Welcoming Entrance add
 viewpoint, layering, arrival and reveal exercises to the planting-style themes. The user's
 local calendar date determines the prompt and the start screen freezes it
 across midnight. `openDaily` checks saved attempts before enabling Start,
+finding them from the gardens' list rows (`sum.daily`) and reading in full only
+today's attempt and the six it shows (0.9.129, audit P02; it read every garden),
 offers Continue for today's attempt and six recent designs, each a card with
 its own picture, exercise, theme, status and date (`dailyHistoryCard`). Every
 attempt with saved progress opens a compact resume view: saved status and a current
@@ -5023,7 +5025,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `tidyGradeWallsAround` drops it once the hollow it faced is gone (F14, F15).
 13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
     fallback when IndexedDB is unavailable. Worlds
-    are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
+    are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh,stamp,sum}]`
+    (`stamp`: the two-tab check, under Known constraints; `sum`: what the lists
+    show, `worldRowSummary` — plant count, season, schemes, and a daily attempt's
+    date, done and title — written by EVERY writer of a row from the garden in
+    hand, so Your gardens and the daily screen need not read every garden.
+    `backfillWorldSummaries` reads rows from before 0.9.129 once and writes theirs;
+    bump `WORLD_SUMMARY_VERSION` if the fields change and they are re-read once),
     each save lives at `hortus:world:<id>` (built by `buildSaveBlob()`; layer maps from `GAME_LAYERS` +
     the optional `schemes` block of §13a +
     gw/gh + rot + `siteNorthDeg` + houses + building polygons + name + `wv` walkway flag + current path/bed/water
@@ -6623,9 +6631,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     120,000 characters and accepts JPEG data URLs only. A revision/day/scheme
     key invalidates an old cover on subsequent autosaves; loads and new gardens
     reset the session cache. Failed writes retry without the optional portrait.
-    `openWorlds` waits for pending saves and paints `drawWorldThumb` from the
-    saved blob while the JPEG decodes. Older saves and damaged/missing covers
-    keep that map until their next Save & quit. Menu opening never loads saved
+    `openWorlds` waits for pending saves. **A card reads its garden only as it
+    nears the screen** (0.9.129, audit P01; `queueWorldPicture`,
+    `pumpWorldPictures`, `paintWorldPicture`): an IntersectionObserver on
+    `#worldList` (`WORLD_PIC_MARGIN` 240px) hands it to a queue that reads
+    `WORLD_PIC_PARALLEL` (3) at a time, and `worldPicGen` drops a read that lands
+    after the list was rebuilt. The portrait is tried first and `drawWorldThumb`
+    runs only where there is no current portrait or it fails to load; it used to
+    draw every map and then cover it. The card's two lines and its Daily badge
+    come from the ROW (`sum`, below), with no read at all. Measured in Chrome
+    with 100 gardens (a third with a 0.9MB site photo): 100 full reads and 400ms
+    to settle, now 16 reads and 185ms; 10 reads on a phone-sized list. Older saves
+    and damaged/missing covers keep the map until their next Save & quit. Menu opening never loads saved
     gardens into the live renderer. Covers travel with duplicate/export/import
     and are deleted with their garden.
     The panel is **locked to the viewport and only `#worldList` scrolls**, so

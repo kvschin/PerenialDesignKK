@@ -569,10 +569,18 @@ async function openDaily(){
   show('dailyScreen');
   try{
     await pendingSaves(); await worldsIndexChain;
-    const [idx,storedCriteria]=await Promise.all([
+    const [idx0,storedCriteria]=await Promise.all([
       hasStorage?migrateLegacyWorld():[],hasStorage?sGet('hortus:filters'):null
     ]);
-    const saved=await Promise.all(idx.map(async row=>{
+    /* Which gardens are daily attempts is on their rows (io.js, worldRowSummary),
+       so only the designs this screen shows are read in full: today's attempt
+       and the six most recent others (audit P02). It read every garden. Rows
+       from before summaries are read once and summarised here. */
+    const idx=await backfillWorldSummaries(idx0);
+    const attempts=idx.filter(row=>worldSummaryCurrent(row.sum)&&row.sum.daily).sort((a,b)=>b.ts-a.ts);
+    const todayRow=attempts.find(row=>row.sum.daily.date===c.date);
+    const shownRows=(todayRow?[todayRow]:[]).concat(attempts.filter(row=>row!==todayRow).slice(0,6));
+    const saved=await Promise.all(shownRows.map(async row=>{
       const blob=await sGet('hortus:world:'+row.id), challenge=normalizeDailyChallenge(blob&&blob.challenge);
       return challenge?{...row,challenge,criteria:normalizeFilters(blob.design),blob}:null;
     }));
@@ -1091,32 +1099,79 @@ function worldCard(w){
   more.setAttribute('aria-haspopup','menu'); more.setAttribute('aria-expanded','false');
   more.onclick=e=>{ e.stopPropagation(); showWorldMenu(more,w); };
   row.append(thumb,info,more);
-  // the save blob fills in the picture + living details (async, per card)
-  sGet('hortus:world:'+w.id).then(s=>{
-    if (!s) return;
-    drawWorldThumb(thumb,s);
-    const m=worldSaveMeta(s);
-    details.textContent=`${m.plants} plant${m.plants===1?'':'s'} · ${m.season}`;
-    if (m.schemes>1) details.textContent+=` · ${m.schemes} schemes`;
-    /* A daily challenge is an ordinary garden once it is saved, and can be
-       renamed like one, so the card says which ones they are. */
-    const challenge=normalizeDailyChallenge(s.challenge);
-    if (challenge){
-      const badge=document.createElement('span'); badge.className='world-badge';
-      // short: on a 320px phone the card is 131px wide and the overflow control has the other corner
-      badge.textContent=challenge.completedAt?'Daily · done':'Daily';
-      row.appendChild(badge);
-    }
-    const portrait=normalizeGardenPortrait(s.portrait);
-    const day=Math.floor((s.elapsedMs||0)/DAY_MS)+(s.dayOffset||0);
-    if (portrait && portrait.day===day){
-      const img=new Image(); img.className='world-thumb'; img.alt=''; img.decoding='async';
-      img.width=GARDEN_PORTRAIT_WIDTH; img.height=GARDEN_PORTRAIT_HEIGHT;
-      img.onload=()=>thumb.replaceWith(img);
-      img.src=portrait.image;
-    }
-  });
+  /* The details come from the row's summary at once (io.js, worldRowSummary). A
+     row from before summaries fills them in from the garden when its picture is
+     read, and is summarised for next time by backfillWorldSummaries. */
+  const sum=worldSummaryCurrent(w.sum) ? w.sum : null;
+  if (sum) fillWorldCardDetails(row,details,sum);
+  queueWorldPicture({row, thumb, id:w.id, gen:worldPicGen,
+    onBlob: sum ? null : s=>{ const m=worldRowSummary(s); if (m) fillWorldCardDetails(row,details,m); }});
   return row;
+}
+function fillWorldCardDetails(row,details,sum){
+  details.textContent=`${sum.plants} plant${sum.plants===1?'':'s'} · ${sum.season}`;
+  if (sum.schemes>1) details.textContent+=` · ${sum.schemes} schemes`;
+  /* A daily challenge is an ordinary garden once it is saved, and can be
+     renamed like one, so the card says which ones they are. */
+  if (sum.daily){   // called once a card: from the row's summary, or else from its garden
+    const badge=document.createElement('span'); badge.className='world-badge';
+    // short: on a 320px phone the card is 131px wide and the overflow control has the other corner
+    badge.textContent=sum.daily.done?'Daily · done':'Daily';
+    row.appendChild(badge);
+  }
+}
+/* ---------- card pictures, read as they near the screen (audit P01) ----------
+   A card's picture is its saved portrait, or the map drawn from the garden where
+   there is none, and either way it means reading the whole garden. So a card asks
+   for its garden only when it comes within WORLD_PIC_MARGIN of the list's view,
+   and at most WORLD_PIC_PARALLEL are read at a time. The portrait is tried first;
+   the map is drawn only where there is no current portrait, or it fails to load
+   (it used to be drawn for every card, then covered). `worldPicGen` moves when
+   the list is rebuilt, so a read that lands for a card no longer shown paints
+   nothing. Without IntersectionObserver every card is read, as before. */
+const WORLD_PIC_PARALLEL=3, WORLD_PIC_MARGIN='240px';
+let worldPicGen=0, worldPicObserver=null, worldPicQueue=[], worldPicBusy=0;
+const worldPicJobs=new WeakMap();
+function resetWorldPictures(root){
+  worldPicGen++; worldPicQueue=[];
+  if (worldPicObserver){ worldPicObserver.disconnect(); worldPicObserver=null; }
+  if (typeof IntersectionObserver==='function' && root){
+    worldPicObserver=new IntersectionObserver(entries=>{
+      for (const e of entries){
+        if (!e.isIntersecting) continue;
+        worldPicObserver.unobserve(e.target);
+        const job=worldPicJobs.get(e.target);
+        if (job) worldPicQueue.push(job);
+      }
+      pumpWorldPictures();
+    },{root, rootMargin:WORLD_PIC_MARGIN});
+  }
+}
+function queueWorldPicture(job){
+  if (worldPicObserver){ worldPicJobs.set(job.row,job); worldPicObserver.observe(job.row); }
+  else { worldPicQueue.push(job); pumpWorldPictures(); }
+}
+function pumpWorldPictures(){
+  while (worldPicBusy<WORLD_PIC_PARALLEL && worldPicQueue.length){
+    const job=worldPicQueue.shift();
+    if (job.gen!==worldPicGen) continue;
+    worldPicBusy++;
+    sGet('hortus:world:'+job.id).then(s=>{
+      if (!s || job.gen!==worldPicGen) return;
+      if (job.onBlob) job.onBlob(s);
+      paintWorldPicture(job.thumb,s);
+    }).catch(e=>noteError(e,'world-picture')).finally(()=>{ worldPicBusy--; pumpWorldPictures(); });
+  }
+}
+function paintWorldPicture(thumb,s){
+  const portrait=normalizeGardenPortrait(s.portrait);
+  const day=Math.floor((s.elapsedMs||0)/DAY_MS)+(s.dayOffset||0);
+  if (!portrait || portrait.day!==day){ drawWorldThumb(thumb,s); return; }
+  const img=new Image(); img.className='world-thumb'; img.alt=''; img.decoding='async';
+  img.width=GARDEN_PORTRAIT_WIDTH; img.height=GARDEN_PORTRAIT_HEIGHT;
+  img.onload=()=>thumb.replaceWith(img);
+  img.onerror=()=>drawWorldThumb(thumb,s);   // a damaged picture still leaves the map
+  img.src=portrait.image;
 }
 /* Nothing saved yet. The two standing actions are still in their usual place;
    this adds the third way in, which the first-run offer makes exactly once and
@@ -1157,6 +1212,7 @@ async function openWorlds(){
     : 'Saved on this device';
   $('btnNewWorld').replaceChildren(uiIcon('plus'),document.createTextNode('New garden'));
   const list=$('worldList'); list.innerHTML='';
+  resetWorldPictures(list);
   /* An empty list SHOWS this screen rather than skipping it. Bouncing straight
      into the questionnaire hid "Import garden" — the only import control in
      the app — behind a screen a fresh device never reached, so a garden a
@@ -1166,6 +1222,9 @@ async function openWorlds(){
   idx.sort((a,b)=>b.ts-a.ts).forEach(w=>list.appendChild(worldCard(w)));
   show('worldsScreen');
   list.scrollTop=0;
+  /* Rows saved before summaries: read once, in the background, so the next
+     opening has them. Cards still fill in from their own pictures meanwhile. */
+  if (hasStorage && idx.some(w=>!worldSummaryCurrent(w.sum))) backfillWorldSummaries(idx).catch(e=>noteError(e,'world-summaries'));
   // Say so, rather than silently growing the list by one.
   if (recovered.length) toast(recovered.length===1
     ? `Recovered "${recovered[0]}" — it had lost its place in this list.`
@@ -1236,7 +1295,7 @@ async function installWorldBlob(env, name, reportProblem){
     w.name=typeof name==='string' ? name.trim().slice(0,80) : (w.name||'Shared garden');
     if (!(await sSet('hortus:world:'+id, w))){ id=null; return null; }
     const out=fresh.filter(x=>x.id!==id);
-    out.push({ id, name:w.name, ts:Date.now(), gw:w.gw||w.grid||31, gh:w.gh||w.grid||31, mode:'design' });
+    out.push({ id, name:w.name, ts:Date.now(), gw:w.gw||w.grid||31, gh:w.gh||w.grid||31, mode:'design', sum:worldRowSummary(w) });
     return out;
   });
   if (!installed){
@@ -1408,7 +1467,7 @@ async function duplicateWorld(id){
     if (!(await sSet('hortus:world:'+newIdv,copy))){ name=null; return null; }
     const next=fresh.filter(w=>w.id!==newIdv);
     next.push({id:newIdv,name,ts:Date.now(),gw:copy.gw||copy.grid||31,gh:copy.gh||copy.grid||31,
-      mode:'design'});
+      mode:'design',sum:worldRowSummary(copy)});
     return next;
   });
   if (!name){ toast('That garden could not be duplicated.'); return; }

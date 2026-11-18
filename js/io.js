@@ -260,7 +260,7 @@ async function adoptOrphanedWorlds(){
       // shape would otherwise become an un-openable row in the list.
       if (!blob || typeof blob!=='object' || !blob.plants || typeof blob.plants!=='object') continue;
       out.push({id, name:blob.name||'Recovered garden', ts:blob.savedAt||Date.now(),
-        gw:blob.gw||blob.grid||31, gh:blob.gh||blob.grid||31, mode:'design'});
+        gw:blob.gw||blob.grid||31, gh:blob.gh||blob.grid||31, mode:'design', sum:worldRowSummary(blob)});
       adopted.push(blob.name||'Recovered garden');
     }
     return adopted.length?out:null;
@@ -393,6 +393,48 @@ async function checkGardenFresh(){
   if (reason) noteGardenStale(reason,session);
   return reason;
 }
+/* ---------- what the lists need, on the row (audit P01/P02) ----------
+   Your gardens and the daily challenge both read EVERY garden in full to draw
+   their lists: the whole planting, every scheme, a site photo of about 1MB. With
+   100 gardens that was 100 full reads on each opening of either screen (measured
+   in Chrome: Your gardens took 400ms to finish reading, the daily screen 280ms),
+   and the work grew with the collection rather than with what was on screen.
+
+   So the row carries `sum`, the few facts a list shows: plant count, season,
+   schemes, and for a daily attempt its date, whether it is finished and its
+   title. Every writer of a row writes it from the garden in hand, so it costs no
+   extra write. Your gardens then reads a garden only for its PICTURE, and only as
+   its card nears the screen; the daily screen reads only the designs it shows.
+   A row from before this has no `sum` and is read once, by
+   backfillWorldSummaries, which writes the summaries back. */
+const WORLD_SUMMARY_VERSION=1;
+function worldRowSummary(blob){
+  if (!blob || typeof blob!=='object') return null;
+  const m=worldSaveMeta(blob), c=normalizeDailyChallenge(blob.challenge);
+  const sum={v:WORLD_SUMMARY_VERSION, plants:m.plants, season:m.season, schemes:m.schemes};
+  if (c) sum.daily={date:c.date, done:!!c.completedAt, title:c.title};
+  return sum;
+}
+function worldSummaryCurrent(sum){ return !!sum && sum.v===WORLD_SUMMARY_VERSION; }
+/* Rows without a current summary: read their gardens (all at once, as the lists
+   used to on every opening) and write the summaries back in one index write. A
+   row a save has summarised in the meantime keeps the save's. Returns the index. */
+async function backfillWorldSummaries(rows){
+  const missing=(rows||[]).filter(r=>r && !worldSummaryCurrent(r.sum));
+  if (!missing.length) return rows;
+  const found=new Map();
+  await Promise.all(missing.map(async r=>{
+    const s=worldRowSummary(await sGet(WORLD_KEY_PREFIX+r.id));
+    if (s) found.set(r.id,s);
+  }));
+  if (!found.size) return rows;
+  const out=await updateWorldsIndex(fresh=>{
+    let n=0;
+    for (const r of fresh) if (!worldSummaryCurrent(r.sum) && found.has(r.id)){ r.sum=found.get(r.id); n++; }
+    return n?fresh:null;
+  });
+  return out || await worldsIndex();
+}
 /* "<name> copy", "<name> copy 2"... against the names already listed. */
 function copyGardenName(name,rows){
   const base=(name||'My garden').replace(/ copy(?: \d+)?$/i,'');
@@ -410,7 +452,7 @@ async function migrateLegacyWorld(){
   await updateWorldsIndex(async fresh=>{
     if (fresh.length) return null;                 // someone migrated first
     entry={id:newWorldId(new Set(fresh.map(w=>w.id))), name:'My garden', ts:Date.now(),
-      gw:legacy.gw||legacy.grid||31, gh:legacy.gh||legacy.grid||31};
+      gw:legacy.gw||legacy.grid||31, gh:legacy.gh||legacy.grid||31, sum:worldRowSummary(legacy)};
     if (!(await sSet('hortus:world:'+entry.id, legacy))){ entry=null; return null; }
     return [entry];
   });
@@ -740,7 +782,7 @@ async function saveSoloNow(silent){
       // one, starts one of its own.
       const stamp=(edited || conflict || session.syncId!==slot) ? newId('s') : (session.stamp||null);
       const out=fresh.filter(w=>w.id!==slot);
-      const row={id:slot,name:blob.name||'My garden',ts:blob.savedAt,gw:blob.gw,gh:blob.gh,mode:'design'};
+      const row={id:slot,name:blob.name||'My garden',ts:blob.savedAt,gw:blob.gw,gh:blob.gh,mode:'design',sum:worldRowSummary(blob)};
       if (stamp) row.stamp=stamp;
       out.push(row);
       written={slot,stamp,moved:stamp!==(session.stamp||null)};
