@@ -3492,6 +3492,25 @@ function cfPuff(ctx,x,y,r,dir,col,tone,rnd,soft,newCol,snowy,flat){
   cfSpiky(ctx,x-r*0.12,y-r*0.1*fl,r*0.8*st,r*0.38*fl,dir,soft,rnd,soft?12:13); ctx.fill();
   if (snowy){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x-r*0.1,y-r*0.32,r*0.6,r*0.2,0,0,7); ctx.fill(); }
 }
+/* A whorl of needles (`tuftStyle:'whorl'`, 0.9.137): an umbrella pine's
+   shoot ends in twenty to thirty long, flat, glossy needles radiating like the
+   ribs of an umbrella. Seen from a little above, the whorl is a flattened star
+   whose spokes bow down toward their tips. A dark star under a lit one, the
+   near spokes catching the light: two fills, as a pine brush. */
+function cfWhorl(ctx,x,y,rx,ry,droop,n,rnd,rot,inner){
+  for (let i=0;i<n;i++){
+    const a=(i+(rnd()-0.5)*0.3)/n*Math.PI*2+rot, b=a+Math.PI/n, l=0.86+0.24*rnd();
+    _cfX[2*i]=x+Math.cos(a)*rx*l; _cfY[2*i]=y+Math.sin(a)*ry*l+droop*l;
+    _cfX[2*i+1]=x+Math.cos(b)*rx*inner; _cfY[2*i+1]=y+Math.sin(b)*ry*inner+droop*inner;
+  }
+  ctx.beginPath(); cfTrace(ctx,_cfX,_cfY,2*n);
+}
+function cfWhorlPuff(ctx,x,y,r,col,tone,rnd,newCol,snowy,flat){
+  const fl=flat||1, ry=r*0.44*fl, dr=r*0.22;
+  ctx.fillStyle=shade(col,tone-24); cfWhorl(ctx,x,y+r*0.06,r*1.1,ry,dr,20,rnd,0.1,0.5); ctx.fill();
+  ctx.fillStyle=shade(newCol||col,tone+10); cfWhorl(ctx,x-r*0.05,y-r*0.07,r*0.86,ry*0.82,dr*0.7,14,rnd,0.35,0.22); ctx.fill();
+  if (snowy){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x-r*0.05,y-r*0.12,r*0.5,r*0.16,0,0,7); ctx.fill(); }
+}
 /* One upright spray of scale foliage: a rounded base, the top broken into a
    few feathery points. Drawn soft, through the midpoints. */
 function cfFlame(ctx,x,y,rx,ry,rot,tips,rnd){
@@ -3904,7 +3923,9 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
         if (snowy && _cfIt[o+4]>0 && (!L.strandLen || ((i*0.618034)%1)<0.4)){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x,y+w*0.1,w*0.55,Math.max(1.2,w*0.22),0,0,7); ctx.fill(); }
       }
     } else if (k===1){
-      cfPuff(ctx,_cfIt[o+1],_cfIt[o+2],_cfIt[o+5],_cfIt[o+3],body,tone,rnd,!!L.softNeedles,newCol,
+      if (L.tuftStyle==='whorl') cfWhorlPuff(ctx,_cfIt[o+1],_cfIt[o+2],_cfIt[o+5],body,tone,rnd,newCol,
+        snowy && _cfIt[o+4]>-0.2 && ((i*0.618034)%1)<0.6,_cfIt[o+6]);
+      else cfPuff(ctx,_cfIt[o+1],_cfIt[o+2],_cfIt[o+5],_cfIt[o+3],body,tone,rnd,!!L.softNeedles,newCol,
         snowy && _cfIt[o+4]>-0.2 && ((i*0.618034)%1)<0.6,_cfIt[o+6]);
     } else {
       const x=_cfIt[o+1], y=_cfIt[o+2], rx=_cfIt[o+5], ry=_cfIt[o+6], rot=_cfIt[o+7];
@@ -4012,7 +4033,8 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
       ctx.strokeStyle=shade(body,-6); ctx.lineWidth=Math.max(0.9,1.3*vs); ctx.lineCap='round'; ctx.beginPath();
       ctx.moveTo(lx,topY+gN*1.2); ctx.quadraticCurveTo(lx+gN*0.1,topY+gN*0.4,lx+gN*0.18,topY-gN*0.2); ctx.stroke();
     } else if (kind==='puff'){
-      cfPuff(ctx,lx,topY+gap*0.2,Math.max(2.6,(L.needleLen||7)*vs*fullness*0.6),0,body,10,rnd,!!L.softNeedles,newCol,snowy);
+      if (L.tuftStyle==='whorl') cfWhorlPuff(ctx,lx,topY+gap*0.2,Math.max(2.6,(L.needleLen||7)*vs*fullness*0.6),body,10,rnd,newCol,snowy);
+      else cfPuff(ctx,lx,topY+gap*0.2,Math.max(2.6,(L.needleLen||7)*vs*fullness*0.6),0,body,10,rnd,!!L.softNeedles,newCol,snowy);
     } else {
       const sw=Math.max(1.4,gap*(kind==='fan'?0.5:0.32));
       ctx.fillStyle=shade(newCol||body,10); ctx.beginPath();

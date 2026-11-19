@@ -7628,6 +7628,13 @@ const PLANTS = {
         limbRise:0.06, tufts:5, cover:1.4, flat:0.6, fullness:1.25, gaps:0.03, whorlJitter:0.3, mass:0.85, massA:0.75, trunkW:5.4}},
     blurb:'The umbrella pine of the Roman campagna and the Mediterranean coast: a rounded bush when young, then a tall clear trunk forking into a broad, flat-topped parasol of long bright-green needles, with big heavy cones that hold the edible pine nuts. It wants sun, sharp drainage and a dry summer, and is hardy only to zone 8. It does best where summers are mild, as on the California coast, and is seldom planted in the humid South.',
     sea:{Spring:{fol:'#7c9a5d'}, Summer:{fol:'#5c7f4a',seed:'#8a6040'}, Fall:{fol:'#5a7b48',seed:'#83593b'}, Winter:{fol:'#557445',seed:'#7c5538'}}},
+  umbrellapine:{ name:'Japanese Umbrella Pine', latin:'Sciadopitys verticillata', form:'conifer', type:'tree', h:76, cw:68, heightIn:300,
+    space:144, spread:180, zones:[5,8], nativeTo:['asia'], provenance:'species', sun:'full', moist:'medium', phen:'mid', grow:20,
+    roles:['specimen','japanese'],
+    look:{art2:true, coniferHabit:'pine', tuftStyle:'whorl', tiers:10, taper:0.78, columnar:0.16, tufts:6, cover:1.3, fullness:1.18, needleLen:6, limb:0,
+      from:0.15, branchLift:0.02, droop:0.01, crownBase:0.04, mass:0.78, massA:0.95, bark:'#7a4a36', seedN:6, coneStyle:'upright', coneLen:0.8, limbCurve:true},
+    blurb:'Not a pine at all but the only member of its own ancient family: a dense, narrow, glossy pyramid whose shoots end in whorls of twenty to thirty long, flat, dark-green needles, held out like the ribs of an umbrella. Very slow (four or five feet in ten years) and long-lived; it wants rich, moist, acid soil that never dries out, and some afternoon shade where summers are hot.',
+    sea:{Spring:{fol:'#5d8a50'}, Summer:{fol:'#2f5b3b',seed:'#7f8a58'}, Fall:{fol:'#2e5839',seed:'#7a5c3c'}, Winter:{fol:'#35553a',seed:'#735638'}}},
 
   /* ---------- Southwest & Southern desert natives ---------- */
   arizonacottontop:{ name:'Arizona Cottontop', latin:'Digitaria californica', form:'cloudgrass', type:'grass', h:26, heightIn:30,
@@ -10547,6 +10554,7 @@ const WIKIPEDIA_ARTICLES = {
   topalholly:             "Ilex × attenuata",
   californiabay:          "Umbellularia",
   stonepine:              "Pinus pinea",
+  umbrellapine:           "Sciadopitys",
   woodssedge:             "Carex woodii",
   haydensedge:            "Carex haydenii",
   jamessedge:             "Carex jamesii",

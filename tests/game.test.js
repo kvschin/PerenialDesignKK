@@ -3400,8 +3400,8 @@ test('a conifer that changes shape with age follows its growth (look.aged)', () 
 test('the 0.9.137 conifer shapes are opt-in, and only the trees reshaped ask for them', () => {
   const owners={aged:['scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine'],
     branchlets:['douglasfir'], sprayStyle:['cryptomeria'], limbJ:['westernredcedar'], strandLen:['westernredcedar'],
-    buttress:['westernredcedar'], leaders:[], whorlJitter:['douglasfir'], limbRise:[], coneStyle:null,
-    limbCurve:['douglasfir','scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine']};
+    buttress:['westernredcedar'], leaders:[], whorlJitter:['douglasfir'], limbRise:[], coneStyle:null, tuftStyle:['umbrellapine'],
+    limbCurve:['douglasfir','scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine','umbrellapine']};
   const bad=[];
   for (const key of PLANT_KEYS) for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
     const D=plantDef(key,v), L=D.look||{};
@@ -3428,6 +3428,7 @@ test('the 0.9.137 conifer shapes are opt-in, and only the trees reshaped ask for
     return off; };
   assert(drop('douglasfir','branchlets')!==plantDrawCalls('douglasfir',null,'Summer',4242,1),'Douglas fir hangs its branchlets');
   assert(drop('cryptomeria','sprayStyle')!==plantDrawCalls('cryptomeria',null,'Summer',4242,1),'cryptomeria draws its sprays as ropes');
+  assert(drop('umbrellapine','tuftStyle')!==plantDrawCalls('umbrellapine',null,'Summer',4242,1),'an umbrella pine ends its shoots in whorls of needles');
 });
 
 test('an evergreen changes colour with the season, never shape, and keeps the cost of a tree', () => {
