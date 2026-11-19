@@ -131,3 +131,93 @@ every pair of choices must differ in flower colour (OKLab 0.05), eye or corona
   source.
 - The yellow trout lily still draws one upturned star; the real flower nods with
   its tepals swept back.
+
+## 0.9.134 (2026-11-18): the open items
+
+What the section above left undone. Sources and the reasoning for every figure are
+in `bulb-sources.json`.
+
+### Added
+
+Seven bulbs, each the wild species, with cultivars only where they add a colour the
+record lacks:
+
+| Bulb | Height, zones | Drawn as |
+| --- | --- | --- |
+| Poppy anemone (*Anemone coronaria*), 'Mr. Fokker', 'The Bride' | 10 in (MBG), cultivars 8 in (DutchGrown); 7-10 | `flowerStyle:'coronaria'` on the cone form: a saucer of broad tepals tipped toward you, round a boss of dark stamens and a dark knob, with a pale ring at the base (`ring`); feathery parsley leaves (`leafStyle:'feather'`) |
+| Persian lily (*Fritillaria persica*), 'Ivory Bells' | 30 in, 33 in (John Scheepers); 5-8 | a long cone of small nodding plum bells on the bulb raceme (`floretShape:'noddingBell'`, the non-arching branch no bulb had used, with thin pedicels, `pedicelW`), over glaucous leaves up the lower stem |
+| Foxtail lily (*Eremurus stenophyllus*), 'Cleopatra' | 48 in (RHS 1-1.5 m in flower; DutchGrown's 2 ft is an outlier); 5-8 | `spikeStyle:'foxtail'`: a narrow cylinder of small starry flowers opening from the bottom, buds at the top (`budCol`), the lowest fading (`fadeCol`), long stamens out of the open band; strap leaves that yellow as it flowers, a dry spike in fall |
+| Byzantine gladiolus (*Gladiolus communis* subsp. *byzantinus*) | 20 in (MBG 1-2 ft, Scheepers 16-24 in); 6-10 | `spikeStyle:'gladiolus'`: a one-sided zigzag spike of hooded magenta funnels, a white streak on the lower tepals (`eye`), buds at the top, over a fan of sword leaves |
+| Round-leaved cyclamen (*Cyclamen coum*), 'Album' | 4 in (RHS to 10 cm); 5-8 | the ivy-leaved cyclamen's reflexed flower with broader petals (`petalShape`), round notched leaves on stalks (`leafStyle:'parasol'`); leaves from autumn (`bulbSeason:'fall'`, `springFoliage`, `winterFoliage`), flowers in February and March on its month window, gone by summer |
+| Canada lily (*Lilium canadense*) | 48 in (Native Plant Trust, Mt. Cuba 3-5 ft); 3-8 | `lilyStyle:'nodding'`: yellow-orange bells hanging from stalks that arch out round the top of the stem, flared at the mouth over reddish stamens, spotted inside; leaves in whorls (`leafWhorls`) |
+| Wood lily (*Lilium philadelphicum*) | 24 in (Prairie Moon 2 ft, Minnesota Wildflowers 1-3 ft); 3-7 | the `bowl` style, one to three upturned orange-red cups whose tepals narrow to a claw at the base (`tepalShape:'obovate'`), spotted maroon; alternate leaves with one whorl under the flowers |
+
+The two cyclamens are now one Cyclamen card, and the Persian lily joins the
+fritillaries and the two lilies the Lily card. The poppy anemone, Persian lily,
+foxtail lily and round-leaved cyclamen resist deer and rabbits where a source says so
+(MBG, DutchGrown, and for the cyclamen the nurseries Burncoose and Plant Lust); the Persian lily resists squirrels too (John Scheepers: "Deer- and
+rodent-resistant Fritillaria").
+
+### Left out
+
+**Spanish bluebell** (*Hyacinthoides hispanica*), by decision: it is invasive in
+parts of North America (MBG's Plant Finder flags it so) and it hybridises with the
+English bluebell (MBG notes that too). The sources file records this under `leftOut`.
+
+Also not added, because the look is not new or the plant is a different one: the
+double St. Brigid anemones, *Eremurus robustus* and *E. himalaicus*, and the red
+*Lilium canadense* var. *coccineum*.
+
+### Heights now sourced
+
+| Choice | Was (estimate) | Now | Source |
+| --- | --- | --- | --- |
+| Wild daffodil | 12 in | 12 in | RHS subsp. *pseudonarcissus* to 30 cm, the species to 35 cm |
+| Daffodil 'Actaea' | 17 | 15 | John Scheepers 14-16 in |
+| Garden tulip (the group) | 20 | 17 | MBG Tulipa (group) 0.75-2 ft |
+| 'Spring Green' | 20 | 17 | RHS 40 cm, DutchGrown 18 in |
+| 'Ballerina' | 22 | 23 | RHS 60 cm, DutchGrown 22 in |
+| Oriental lily (the group) | 36 | 42 | the median of the 13 Oriental cultivars in MBG's Plant Finder |
+| Asiatic lily (the group) | 36 | 30 | the median of the 28 Asiatic cultivars in MBG's Plant Finder |
+| Dahlia (the group) | 40 | 42 | MBG Dahlia (group) 1-6 ft |
+| 'Bishop of Llandaff' | 40 | 39 | RHS to 1 m |
+| 'Thomas Edison' | 40 | 40 | Dutch Bulbs 40 in, Nature Hills 36-48 in, RHS about 1 m |
+| 'Kelvin Floodlight' | 48 | 42 | Spring Hill and DeGroot 36-48 in, RHS 0.5-1 m |
+
+Each `h` was solved again so the drawing lands on the new height.
+
+### Drawings
+
+**The trout lily nods** (`nod`). It drew one upturned star; now the scape crooks over
+at the top, a yellow bell hangs under the crook with its stamens below it, and its
+tepal tips sweep back up past it, which is the flower an *Erythronium* has.
+
+Every drawing option above is opt-in. The catalog as it stood, drawn through the old
+and the new `draw.js` (four seasons, two seeds, two growths, two bloom levels, both
+renderers), is the same call for call over 97,280 drawings. With the new data, the
+only drawings that differ are the new choices, the trout lily, and the re-heighted
+records above, each in the seasons it draws.
+
+`snowOnLeaves` is new as well: *Cyclamen coum* flowers in snow, and the 2.2-unit caps
+put on flower heads were bigger than its flowers, so its snow goes on its leaves.
+
+### Checked
+
+- Every bulb draws at its sourced height (`every bulb draws at its sourced height`,
+  now 126 choices).
+- Sprite and preview edges, real pixels in Chrome: 6,048 bakes and 2,016 library and
+  tray previews, both renderers, none touching its edge.
+- Bake cost in each choice's bloom season (headless Chrome, best of three): the new
+  choices take 0.03-0.38 ms, inside the existing bulbs' 0.01-0.70 ms. The dearest new
+  one is the Byzantine gladiolus at 0.38 ms; the nodding trout lily is 0.03 ms.
+- Wikipedia articles for the seven new species resolve (`node
+  dev/wikipedia-links.js --verify`, all 859).
+
+### Still not done
+
+- The wood lily's yellow throat is hidden by its front tepals at garden scale.
+- *Cyclamen coum*'s leaves are plain dark green; the silver-marked and pewter forms
+  are not drawn.
+- MBG lists no *Cyclamen coum*, *Lilium canadense* or *L. philadelphicum*; their
+  heights come from RHS, NC State, the Native Plant Trust, Mt. Cuba, Prairie Moon,
+  Minnesota Wildflowers and the Wildflower Center instead.
