@@ -177,7 +177,7 @@
            leaves above it in the season's `bract` colour, a mountain mint's
            silvered top. A plant wider than 0.62H
            must declare the sideScale its ink measures. Cone, globe, spike and umbel
-           forms may set leafStyle:'parasol' for big leaves on stalks (parasolR,
+           forms, and the pincushion (masterwort), may set leafStyle:'parasol' for big leaves on stalks (parasolR,
            parasolFlat, lobes, lobeDepth, lobeCut, petioles, leafSpread, stalkW) or
            'pitcher' (pitcherLen, pitcherRise, pitcherW); bloomStemsOnly:'seed' keeps
            the stalks through the seed season; lowRosette says a flower stem alone
@@ -4303,9 +4303,9 @@ const PLANTS = {
   astrantia:{ name:'Great Masterwort', latin:'Astrantia major', form:'pincushion', type:'forb', h:30, heightIn:33,
     group:'astrantia', groupLabel:'Masterwort', chip:'Great',
     space:18, spread:18, zones:[4,7], _legacyNative:false, sun:'part', moist:'moist', phen:'cool',
-    look:{pincushionStyle:'astrantia', leaves:8, leafW:1.05, leafLen:0.32, stems:7, headR:3.4,
-      bracts:18, bractLen:4, bractW:1.1,
-      art2:true, leafShape:'ovate', leafHW:1.50, leafTeeth:0.14, leafTeethN:5},
+    look:{pincushionStyle:'astrantia', sideScale:0.6, stems:7, headR:3.4, bracts:18, bractLen:4, bractW:1.1, art2:true,
+      leafStyle:'parasol', leaves:12, parasolR:0.16, parasolFlat:0.62, petioles:0.5, leafSpread:0.48,
+      lobes:5, lobeDepth:0.8, lobeCut:0.8},
     blurb:'Papery pink starbursts around a pin-cushion center, floating over palmate leaves in cool, reliably moist shade.',
     sea:{Spring:{fol:'#6f8d68'}, Summer:{fol:'#5d7d5e',bloom:'#c890a4',bract:'#e1bdc5',eye:'#8d5c69'}, Fall:{fol:'#7d7661',seed:'#98727d',bract:'#c5abb0'}, Winter:{fol:'#6b6256',seed:'#806b67'}},
     cv:{
@@ -4314,9 +4314,9 @@ const PLANTS = {
     }},
   astrantiaroma:{ name:"Masterwort 'Roma'", latin:"Astrantia 'Roma'", form:'pincushion', type:'forb', h:17, heightIn:21,
     group:'astrantia', groupLabel:'Masterwort', chip:'Roma', space:18, spread:18, zones:[4,7], _legacyNative:false, sun:'part', moist:'moist', phen:'cool',
-    look:{art2:true, pincushionStyle:'astrantia', leaves:9, leafW:1.1, leafLen:0.33, stems:8,
-      headR:3.7, bracts:20, bractLen:4.4, bractW:1.2, leafShape:'ovate', leafHW:1.5,
-      leafTeeth:0.14, leafTeethN:5},
+    look:{art2:true, pincushionStyle:'astrantia', stems:8, headR:3.7, bracts:20, bractLen:4.4, bractW:1.2,
+      leafStyle:'parasol', leaves:12, parasolR:0.16, parasolFlat:0.62, petioles:0.5, leafSpread:0.48,
+      lobes:5, lobeDepth:0.8, lobeCut:0.8},
     blurb:'A compact hybrid masterwort with dusty rose bracts and dark pink pin-cushion centers. It flowers for weeks in cool, reliably moist part shade.',
     sea:{Spring:{fol:'#718c69'}, Summer:{fol:'#607d60',bloom:'#b86f91',bract:'#d69eb1',eye:'#77445d'}, Fall:{fol:'#7b735e',seed:'#8c6370',bract:'#b98e99'}, Winter:{fol:'#696054',seed:'#745d61'}}},
   astilbe:{ name:'Astilbe', latin:'Astilbe chinensis', form:'spike', type:'forb', h:25, heightIn:24,

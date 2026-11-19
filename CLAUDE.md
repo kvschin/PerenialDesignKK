@@ -7970,7 +7970,14 @@ Snowy woodrush uses the Sedge browsing category and shared mound renderer.
 Mound `bunchgrass` and `vertgrass` support `look.stripe` (color) and `stripeW`
 (pixel band width) for tapered central variegation. `pincushionStyle:'thistle'`
 adds a spiny involucre; `headAspect` controls the flower's height/width ratio.
-Both controls are opt-in in classic and ART2 rendering. Source and authoring
+Both controls are opt-in in classic and ART2 rendering. **A masterwort's leaves
+are the stemmed forms' parasol leaf** (0.9.134, audit V04): the pincushion form
+takes `leafStyle:'parasol'`, and both Astrantia records draw a mound of stalked
+leaves, each cut nearly to the stalk into five narrow lobes (`lobes:5`,
+`lobeDepth:0.8`, `lobeCut:0.8`; a cut under 1 narrows the lobes, over 1 rounds
+them). They were five ovate blades in a star standing on end, which read as a
+spiky rosette; that branch is gone. Great Masterwort declares `sideScale:0.6`,
+since the clump measures 0.57H across. A bake costs 0.03-0.13ms more. Source and authoring
 notes are in `docs/plant-data/european-implementation.md`; the dev-only
 `dev/european-review.html` covers all 14 choices and all four seasons.
 **European gaps, phase 2 (0.9.1):** 24 records — 578 base / 390 nested — closing

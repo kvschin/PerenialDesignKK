@@ -8880,24 +8880,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     if (S.fol){
       const n=stemFor(L.leaves||7);
       ctx.strokeStyle=S.fol; ctx.lineWidth=L.leafW||1.1;
-      if (L.pincushionStyle==='astrantia'){
-        // Astrantia's leaf is palmate — five lobes radiating from one point.
-        // ART2 keeps that exact radial layout and fills each lobe.
-        for(let i=0;i<n;i++){
-          const ox=(rnd()-0.5)*16, oy=(rnd()-0.5)*4-H*0.08, l=H*(L.leafLen||0.32)*(0.75+rnd()*0.3);
-          for(let p=0;p<5;p++){
-            const a=-Math.PI/2+p/5*Math.PI*2+(rnd()-0.5)*0.12;
-            if (a2 && L.leafShape){
-              drawLeaf(ctx,ox,oy, ox+Math.cos(a)*l, oy+Math.sin(a)*l,
-                       (L.leafW||1.1)*(L.leafHW||1.5), shade(S.fol,(rnd()-0.5)*18),
-                       {shape:L.leafShape, teeth:L.leafTeeth, teethN:L.leafTeethN, bow:0.04});
-              continue;
-            }
-            ctx.beginPath(); ctx.moveTo(ox,oy);
-            ctx.quadraticCurveTo(ox+Math.cos(a)*l*0.38,oy+Math.sin(a)*l*0.38,
-              ox+Math.cos(a)*l,oy+Math.sin(a)*l); ctx.stroke();
-          }
-        }
+      if (L.leafStyle==='parasol'){
+        // A masterwort's mound of palmate leaves, each cut nearly to its stalk
+        // into five narrow lobes, held up on stalks: the stemmed forms' own
+        // parasol leaf (0.9.134). It was five ovate blades in a star standing
+        // on end, which read as a spiky rosette.
+        drawParasolFoliage(ctx,P,L,S,H,n,sway,rnd);
       } else if (a2 && L.leafShape){
         for(let i=0;i<n;i++){
           const a=(i/Math.max(1,n-1)-0.5)*(L.leafFan||1.7)+(rnd()-0.5)*0.2;
