@@ -3098,7 +3098,7 @@ test('the sprite box reserves everything a plant paints below its own tile', () 
 /* The axis-aligned extent of everything drawPlant paints, on all four sides.
    An ellipse is projected exactly: taking its larger radius as a circle made
    every flat ground shadow look 50px deep and reported 874 false misses. */
-function plantDrawExtent(key,v,season,seed,growth){
+function plantDrawExtent(key,v,season,seed,growth,leafStage){
   let m=[1,0,0,1,0,0], x0=1e9, x1=-1e9, y0=1e9, y1=-1e9;
   const stack=[];
   const grow=(X,Y,hx,hy)=>{ x0=Math.min(x0,X-hx); x1=Math.max(x1,X+hx); y0=Math.min(y0,Y-hy); y1=Math.max(y1,Y+hy); };
@@ -3137,7 +3137,7 @@ function plantDrawExtent(key,v,season,seed,growth){
     },
     set(o,p,val){ o[p]=val; return true; },
   });
-  drawPlant(ctx,0,0,key,growth,season,seed,0,v,1);
+  drawPlant(ctx,0,0,key,growth,season,seed,0,v,1,undefined,leafStage);
   return {x0,x1,y0,y1};
 }
 
@@ -3348,6 +3348,22 @@ test('a conifer tree is built in the round, and ?conifer=0 is the way back', () 
   } finally { CONIFER_HABIT.on=prev; }
 });
 
+test('an Italian cypress is a flame: upright sprays on a crown that comes to a point', () => {
+  /* The evergreen audit's stretch list: drawn as a blunt column of slanted
+     sprays, it read as a juniper. `sprayUp` turns the scale habit's sprays
+     upright and tight; a crown `profile` brings the top to a point. */
+  const L=PLANTS.italiancypress.look;
+  assert(L.sprayUp>0.5 && L.profile, 'it holds its sprays up and has a crown outline');
+  assert(treeCrownHW(L.profile,0.97)<0.25*treeCrownHW(L.profile,L.profile.p), 'the crown narrows to a point');
+  const on=plantDrawCalls('italiancypress',null,'Summer',4242,1), keep=L.sprayUp;
+  let off; try { delete L.sprayUp; off=plantDrawCalls('italiancypress',null,'Summer',4242,1); } finally { L.sprayUp=keep; }
+  assert(on!==off, 'sprayUp turns the sprays');
+  // opt-in: a zero is the same drawing as none
+  const H=PLANTS.hinokicypress.look, before=plantDrawCalls('hinokicypress',null,'Summer',4242,1);
+  try { H.sprayUp=0; assertEqual(plantDrawCalls('hinokicypress',null,'Summer',4242,1),before,'sprayUp 0 changes nothing'); }
+  finally { delete H.sprayUp; }
+});
+
 test('an evergreen changes colour with the season, never shape, and keeps the cost of a tree', () => {
   /* Spring is the summer needles with new growth on the tips, so a spruce in
      May and in July are the same tree: only colours may differ. Winter adds
@@ -3474,9 +3490,12 @@ test('deciduous trees leaf out through spring, in the order they really do', () 
     assert(lo(k), k+' leafs out (a bur oak\'s held winter leaves are not evergreen ones)');
   for (const k of ['lemon','olive','sweetorange','bluepaloverde','bluestem'])
     assert(!lo(k), k+' has no leaf-out');
-  // a conifer draws no leaf stages, blue and gold ones included
-  for (const k of ['bluespruce','blueatlascedar','arizonacypress','baldcypress'])
+  // an evergreen conifer draws no leaf stages, blue and gold ones included;
+  // a deciduous one (look.deciduous) does
+  for (const k of ['bluespruce','blueatlascedar','arizonacypress','hinokicypress'])
     assert(!lo(k), k+' has no leaf-out, so its sprite key does not churn');
+  for (const k of ['baldcypress','tamarack','europeanlarch','dawnredwood'])
+    assert(lo(k) && lo(k).drop, k+' leafs out and drops its needles');
   assert(lo('sugarmaple').s<lo('whiteoak').s && lo('whiteoak').s<lo('blackwalnut').s, 'maple first, then oak, then walnut');
   for (const k of ['whiteoak','redbud','sugarmaple']){
     const L=lo(k);
@@ -3522,7 +3541,9 @@ test('a leaf stage draws only on a spring or fall tree, and full leaf is the aut
 test('a spring or fall tree caches by its leaf stage, and nothing else does', () => {
   const rec=(k,season)=>{ const r={}; bakePlantKeyParts(r,k,null,season,7,undefined); return r.leafOut; };
   assert(rec('whiteoak','Spring') && rec('whiteoak','Fall'), 'an oak in spring and in fall');
-  for (const [k,season] of [['whiteoak','Summer'],['whiteoak','Winter'],['buroak','Fall'],['lemon','Spring'],['bluestem','Spring']])
+  assert(rec('tamarack','Spring') && rec('tamarack','Fall'), 'a larch, a deciduous conifer, in spring and in fall');
+  for (const [k,season] of [['whiteoak','Summer'],['whiteoak','Winter'],['buroak','Fall'],['lemon','Spring'],['bluestem','Spring'],
+    ['bluespruce','Spring'],['koreanfir','Fall'],['tamarack','Winter']])
     assert(!rec(k,season), k+' in '+season+' keeps its key');
 });
 
@@ -3555,6 +3576,67 @@ test('deciduous trees drop their leaves through late fall, and the litter lies u
   assert(crown(half).every(e=>crown(full).includes(e)), 'the masses still up are where they were, in the same colour');
   assert(ground(half).length>ground(full).length && ground(half).every(e=>+e.slice(8).split(',')[1]>-60),
     'and the fallen ones lie on the ground under it');
+});
+
+test('a deciduous conifer comes into needle over bare twigs and drops them a spray at a time', () => {
+  /* look.deciduous (Nov 2026): the larches, dawn redwood and bald cypress. An
+     evergreen conifer still draws no stage, and full needle is the authored tree. */
+  for (const season of ['Spring','Fall'])
+    assertEqual(plantDrawCalls('bluespruce',null,season,4242,1,0,2), plantDrawCalls('bluespruce',null,season,4242,1),
+      'an evergreen conifer ignores a leaf stage in '+season);
+  for (const k of ['tamarack','dawnredwood','baldcypress']){
+    assertEqual(plantDrawCalls(k,null,'Spring',4242,1,0,LEAF_FULL), plantDrawCalls(k,null,'Spring',4242,1), k+' in full spring needle is the authored tree');
+    assertEqual(plantDrawCalls(k,null,'Fall',4242,1,0,LEAF_FULL), plantDrawCalls(k,null,'Fall',4242,1), k+' in full fall colour is the authored tree');
+    for (const season of ['Summer','Winter'])
+      assertEqual(plantDrawCalls(k,null,season,4242,1,0,2), plantDrawCalls(k,null,season,4242,1), k+': a stage changes nothing in '+season);
+  }
+  // path points, less the moveTo that starts each fallen needle's ellipse
+  const lines=t=>{ const a=t.split('\n'); return a.filter((l,i)=>/^(moveTo|lineTo|quadraticCurveTo)\(/.test(l) && !/^ellipse\(/.test(a[i+1]||'')); };
+  const fills=t=>t.split('\n').filter(l=>l==='fill()').length;
+  const call=(season,ls)=>plantDrawCalls('tamarack',null,season,4242,1,0,ls);
+  // spring: bare, then every tuft in its place but small (the scale is on the
+  // canvas, so the path is the full tree's), then the full tree
+  const bare=call('Spring',0), early=call('Spring',1), full=call('Spring',LEAF_FULL);
+  assert(fills(bare)<fills(early), `tufts appear on the bare tree (${fills(bare)} -> ${fills(early)} fills)`);
+  const fullSet=new Set(lines(full)), haze=new Set(lines(bare));
+  assert(lines(early).every(l=>fullSet.has(l)||haze.has(l)), 'each emerging tuft is the full tuft, smaller');
+  assert((early.match(/(^|\n)scale\(/g)||[]).length>10, 'and drawn smaller');
+  // fall: whole sprays go, the rest stay where they were, and lie under the tree
+  const f1=call('Fall',1), f3=call('Fall',3), f4=call('Fall',LEAF_FULL);
+  assert(fills(f1)<fills(f3) && fills(f3)<fills(f4), `the crown thins as it drops (${fills(f1)}, ${fills(f3)}, ${fills(f4)})`);
+  const f3set=new Set(lines(f3));
+  assert(lines(f1).every(l=>f3set.has(l)), 'a spray still up later was up earlier, in the same place');
+  const ground=t=>(t.match(/(^|\n)ellipse\([^)]*\)/g)||[]).length;
+  assert(ground(f1)>ground(f4), 'and what has fallen lies on the ground');
+  // stages stay inside the sprite box
+  for (const k of ['tamarack','europeanlarch','dawnredwood','baldcypress']){
+    const P=plantDef(k,null), box=plantDrawBox(P,k,1);
+    for (const [season,stages] of [['Spring',[0,1,2,3,4,5,6]],['Fall',[0,1,2,3]]]) for (const ls of stages){
+      const e=plantDrawExtent(k,null,season,4242,1,ls);
+      const over=Math.max(e.x1-box.halfW, -box.halfW-e.x0, -box.top-e.y0, e.y1-box.bot);
+      assert(over<=0, `${k} ${season} stage ${ls} inside its sprite box (over by ${over.toFixed(1)})`);
+    }
+  }
+});
+
+test('snow on a bare deciduous conifer lies on its limbs', () => {
+  /* With no needles there is nothing at the plates' tops for snow to sit on;
+     it used to be placed there anyway, hanging in the air between the limbs. */
+  for (const k of ['baldcypress','tamarack','dawnredwood']){
+    const P=plantDef(k,null), L=P.look, quads=[];
+    const ctx=new Proxy({}, { get:(o,p)=>p in o ? o[p] : (p==='createLinearGradient'||p==='createRadialGradient') ? ()=>({addColorStop(){}})
+        : p==='moveTo' ? (x,y)=>{ o._m=[x,y]; } : p==='quadraticCurveTo' ? (cx,cy,x,y)=>{ quads.push([...o._m,cx,cy,x,y]); o._m=[x,y]; } : ()=>{},
+      set:(o,p,v)=>{ o[p]=v; return true; } });
+    const vs=woodyVisualCw(P)/P.cw, cw=woodyVisualCw(P), H=plantVisualH(P);
+    const snow=drawConiferTree(ctx,P,L,P.sea.Winter,L.coniferHabit,H,cw,vs,1,4242,0,'Winter',true,true);
+    assert(snow.length>=3, `${k} has snow to lay`);
+    for (const [sx,sy] of snow){
+      let best=1e9;
+      for (const [x0,y0,cx,cy,x1,y1] of quads) for (let i=0;i<=40;i++){ const t=i/40, u=1-t;
+        const x=u*u*x0+2*t*u*cx+t*t*x1, y=u*u*y0+2*t*u*cy+t*t*y1; best=Math.min(best,Math.hypot(x-sx,y-sy)); }
+      assert(best<3, `${k}: snow at ${sx.toFixed(1)},${sy.toFixed(1)} sits on a limb (${best.toFixed(1)} away)`);
+    }
+  }
 });
 
 /* ---------- shrub habits (0.9.60) ----------

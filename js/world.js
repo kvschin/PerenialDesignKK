@@ -1061,12 +1061,14 @@ const LEAF_DROP={warm:{s:40,f:45}, cool:{s:41.5,f:46.5}, mid:{s:43,f:47.6}};
 const LEAF_STAGES=6, LEAF_FULL=4;
 const _leafOut=new WeakMap();
 function treeLeafOut(P){
-  /* A conifer draws no leaf stages, so it has none: the "green winter
-     foliage" test below called every blue or gold conifer deciduous (a blue
-     spruce's winter needles are bluer than they are green), which only gave
-     their sprites a leaf-stage key that churned through spring and fall for
-     nothing. */
-  if (!isTreeDef(P) || !P.sea || P.form==='conifer') return null;
+  /* An evergreen conifer draws no leaf stages, so it has none: the "green
+     winter foliage" test below called every blue or gold conifer deciduous (a
+     blue spruce's winter needles are bluer than they are green), which only
+     gave their sprites a leaf-stage key that churned through spring and fall
+     for nothing. A DECIDUOUS conifer -- the larches, bald cypress, dawn
+     redwood -- says so (`look.deciduous`) and takes the broadleaf cycle:
+     needles out through spring, down through late fall. */
+  if (!isTreeDef(P) || !P.sea || (P.form==='conifer' && !(P.look && P.look.deciduous))) return null;
   let lo=_leafOut.get(P);
   if (lo!==undefined) return lo;
   lo=null;
