@@ -7635,6 +7635,14 @@ const PLANTS = {
       from:0.15, branchLift:0.02, droop:0.01, crownBase:0.04, mass:0.78, massA:0.95, bark:'#7a4a36', seedN:6, coneStyle:'upright', coneLen:0.8, limbCurve:true},
     blurb:'Not a pine at all but the only member of its own ancient family: a dense, narrow, glossy pyramid whose shoots end in whorls of twenty to thirty long, flat, dark-green needles, held out like the ribs of an umbrella. Very slow (four or five feet in ten years) and long-lived; it wants rich, moist, acid soil that never dries out, and some afternoon shade where summers are hot.',
     sea:{Spring:{fol:'#5d8a50'}, Summer:{fol:'#2f5b3b',seed:'#7f8a58'}, Fall:{fol:'#2e5839',seed:'#7a5c3c'}, Winter:{fol:'#35553a',seed:'#735638'}}},
+  monkeypuzzle:{ name:'Monkey Puzzle', latin:'Araucaria araucana', form:'conifer', type:'tree', h:96, cw:86, heightIn:480,
+    space:180, spread:240, zones:[7,10], nativeTo:['south-america'], provenance:'species', sun:'full', moist:'medium', phen:'mid', grow:20,
+    roles:['specimen','architectural'],
+    look:{art2:true, coniferHabit:'araucaria', tiers:9, taper:0.62, columnar:0.08, ropeW:4.4, droop:0.012, upturn:0.05, crownBase:0.05,
+      whorlJitter:0.25, bark:'#6d655c', barkStyle:'plated', seedN:3, coneLen:0.75,
+      aged:{start:0.4, crownBase:0.52, profile:{p:0.42, eLo:1.4, eHi:1.7, lo:0.6}, tiers:7, limbRise:0.05, trunkW:4.6}},
+    blurb:'The national tree of Chile and the hardiest tree of the southern hemisphere: whorls of long, rope-like limbs clad in overlapping, leathery, razor-pointed triangular leaves, arching up at the tips. Open and pyramidal when young, it sheds its lower limbs with age into a high, domed crown on a bare grey trunk. Female trees carry big round cones of edible nuts. It wants a mild climate without hot summers, and is endangered in the wild.',
+    sea:{Spring:{fol:'#4f7246'}, Summer:{fol:'#3a5d3c',seed:'#8a7a4a'}, Fall:{fol:'#395b3b',seed:'#7d6640'}, Winter:{fol:'#37573a',seed:'#76603e'}}},
 
   /* ---------- Southwest & Southern desert natives ---------- */
   arizonacottontop:{ name:'Arizona Cottontop', latin:'Digitaria californica', form:'cloudgrass', type:'grass', h:26, heightIn:30,
@@ -10555,6 +10563,7 @@ const WIKIPEDIA_ARTICLES = {
   californiabay:          "Umbellularia",
   stonepine:              "Pinus pinea",
   umbrellapine:           "Sciadopitys",
+  monkeypuzzle:           "Araucaria araucana",
   woodssedge:             "Carex woodii",
   haydensedge:            "Carex haydenii",
   jamessedge:             "Carex jamesii",

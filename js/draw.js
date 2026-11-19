@@ -3406,6 +3406,11 @@ const CONIFER_FORMS = {
      curtains -- western red cedar, the Alaska cedars. A drape on an upright
      limb: `limbJ` bends the limb, `strandLen` (in gaps between whorls) sets
      how far the sprays hang, and the dense interior hides the trunk. */
+  /* araucaria (0.9.137): a monkey puzzle. No foliage hung on its limbs: each
+     limb IS the foliage, a thick rope of overlapping scale leaves that runs out
+     level from a whorl and arches up at the tip, with a few rope branchlets off
+     its outer part. `ropeW` is a limb's thickness at the trunk (px-art). */
+  araucaria:{kind:'rope', tierMul:1.0, whorl:6, from:0.04, gaps:0.03, jitter:0.12, mass:0, massA:0, back:-0.65, limb:0, cone:'barrel'},
   sweep:   {kind:'drape', tierMul:1.25, whorl:6, from:0.18, gaps:0.03, jitter:0.12, mass:0.82, massA:1, back:-0.4, limb:0.9, cone:'tiny', hideTrunk:1},
 };
 function coniferTreeOn(L){
@@ -3659,6 +3664,9 @@ function coniferTreeBelow(P,growth,H){
       const tufts=Math.max(1,(L.tufts||o('tufts')));
       const r=1.15*Math.max(2.4,(L.needleLen||7)*vs*d.fullness*0.62,d.gap*0.42,R*(1-from)/tufts*o('cover')*d.fullness);
       extra=r*(1.15*(o('flat')||1)+0.55)+Math.max(2.2,(L.coneLen||1)*2.6*vs)*1.25;
+    } else if (d.kind==='rope'){
+      // a rope limb's thickness, and its branchlets drooping off its outer half
+      extra=(L.ropeW||4)*vs*1.2+R*0.26*CONIFER_TILT+R*0.26*0.18+3;
     } else {
       const sl=(L.sprayLen||0.13)/0.13, r0=Math.max(2.2,Math.max(cw*0.1,d.crownH*0.058)*sl*d.fullness*0.8)*1.35;
       extra=r0*1.3*d.thick*0.45+r0*0.6+Math.max(2.2,d.gap*1.5);
@@ -3791,6 +3799,11 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
           _cfIt[o+9]=dz+f*0.02*s; _cfIt[o+10]=tone-k*2; n++;
           if (k===nC-1 && s>-0.1 && u>0.25) conesAt.push(px,py,s);
         }
+      } else if (kind==='rope'){
+        const o=n*CF_STRIDE; _cfIt[o]=4; _cfIt[o+1]=bx; _cfIt[o+2]=y; _cfIt[o+3]=c; _cfIt[o+4]=s;
+        _cfIt[o+5]=R; _cfIt[o+6]=lift; _cfIt[o+7]=Math.max(1.2,(L.ropeW||4)*vs*(0.55+0.45*(1-u))*(0.5+0.5*growth));
+        _cfIt[o+8]=D; _cfIt[o+11]=U; _cfIt[o+9]=dz; _cfIt[o+10]=tone; n++;
+        if (s>-0.1 && u>0.3) conesAt.push(tipX-c*R*0.25,tipY-_cfIt[o+7]*0.9,s);
       } else if (L.fanRows){
         // fans in rows on their limbs: the shell-like layers of a hinoki
         const sl=(L.sprayLen||0.13)/0.13, upright=L.fanFlat ? 1 : 0.8;
@@ -3922,6 +3935,39 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
         }
         if (snowy && _cfIt[o+4]>0 && (!L.strandLen || ((i*0.618034)%1)<0.4)){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x,y+w*0.1,w*0.55,Math.max(1.2,w*0.22),0,0,7); ctx.fill(); }
       }
+    } else if (k===4){
+      // a rope limb: its body and its rope branchlets as one path, then the lit top
+      const bx=_cfIt[o+1], by=_cfIt[o+2], c=_cfIt[o+3], s=_cfIt[o+4], R=_cfIt[o+5], lf=_cfIt[o+6], w=_cfIt[o+7], D=_cfIt[o+8], U=_cfIt[o+11];
+      const at=f=>[bx+R*f*c, by+R*f*s*CONIFER_TILT+D*f*f-U*f*f*f-lf*R*f];
+      const rope=(f0,f1,w0,w1,up,side)=>{
+        const K=7; let m=0;
+        for (let q=0;q<=K;q++){ const f=f0+(f1-f0)*q/K;
+          const [px,py]=side ? side(f) : at(f), [qx,qy]=side ? side(Math.min(1,f+0.02)) : at(Math.min(1,f+0.02));
+          let tx=qx-px, ty=qy-py; const tl=Math.hypot(tx,ty)||1; tx/=tl; ty/=tl;
+          const hw=(w0+(w1-w0)*q/K)*0.5*((q&1)?1.12:0.88);
+          _cfX[m]=px+ty*hw+0; _cfY[m]=py-tx*hw-up*hw; m++; }
+        for (let q=K;q>=0;q--){ const f=f0+(f1-f0)*q/K;
+          const [px,py]=side ? side(f) : at(f), [qx,qy]=side ? side(Math.min(1,f+0.02)) : at(Math.min(1,f+0.02));
+          let tx=qx-px, ty=qy-py; const tl=Math.hypot(tx,ty)||1; tx/=tl; ty/=tl;
+          const hw=(w0+(w1-w0)*q/K)*0.5*((q&1)?0.88:1.12);
+          _cfX[m]=px-ty*hw; _cfY[m]=py+tx*hw-up*hw; m++; }
+        cfTrace(ctx,_cfX,_cfY,m);
+      };
+      // branchlets: in pairs off the outer half, out sideways in the ground plane, drooping a little
+      const twigs=R>w*5 ? 2 : 0, twig=[];
+      for (let q=0;q<twigs;q++){ const f=0.5+0.22*q, [px,py]=at(f), L2=R*0.26*(1-0.35*q);
+        for (const sd of [-1,1]){ const dx=-s*sd, dy=c*sd*CONIFER_TILT;
+          twig.push(t=>[px+dx*L2*t, py+dy*L2*t+L2*0.18*t*t]); } }
+      ctx.fillStyle=shade(body,tone-18); ctx.beginPath();
+      rope(0.02,1,w,w*0.42,0,null);
+      for (const tw of twig) rope(0,1,w*0.62,w*0.3,0,tw);
+      ctx.fill();
+      ctx.fillStyle=shade(newCol||body,tone+(newCol?10:8)); ctx.beginPath();
+      rope(0.06,0.98,w*0.5,w*0.2,0.45,null);
+      for (const tw of twig) rope(0.1,0.95,w*0.3,w*0.14,0.45,tw);
+      ctx.fill();
+      if (snowy && s>-0.1 && ((i*0.618034)%1)<0.7){ const [mx,my]=at(0.55); ctx.fillStyle=CF_SNOW; ctx.beginPath();
+        ctx.ellipse(mx,my-w*0.45,Math.max(1.6,R*0.2*Math.hypot(c,s*CONIFER_TILT)),Math.max(1,w*0.3),Math.atan2(s*CONIFER_TILT,c),0,7); ctx.fill(); }
     } else if (k===1){
       if (L.tuftStyle==='whorl') cfWhorlPuff(ctx,_cfIt[o+1],_cfIt[o+2],_cfIt[o+5],body,tone,rnd,newCol,
         snowy && _cfIt[o+4]>-0.2 && ((i*0.618034)%1)<0.6,_cfIt[o+6]);
@@ -4036,7 +4082,7 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
       if (L.tuftStyle==='whorl') cfWhorlPuff(ctx,lx,topY+gap*0.2,Math.max(2.6,(L.needleLen||7)*vs*fullness*0.6),body,10,rnd,newCol,snowy);
       else cfPuff(ctx,lx,topY+gap*0.2,Math.max(2.6,(L.needleLen||7)*vs*fullness*0.6),0,body,10,rnd,!!L.softNeedles,newCol,snowy);
     } else {
-      const sw=Math.max(1.4,gap*(kind==='fan'?0.5:0.32));
+      const sw=Math.max(1.4,gap*(kind==='fan'?0.5:kind==='rope'?0.14:0.32));
       ctx.fillStyle=shade(newCol||body,10); ctx.beginPath();
       ctx.moveTo(lx,topY-gap*0.35); ctx.quadraticCurveTo(lx+sw,topY+gap*0.6,lx+sw*0.4,topY+gap*1.6);
       ctx.lineTo(lx-sw*0.4,topY+gap*1.6); ctx.quadraticCurveTo(lx-sw,topY+gap*0.6,lx,topY-gap*0.35); ctx.fill();
@@ -4087,6 +4133,7 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
     if (k===0) snow.push([_cfIt[o+1]+R*0.6*c,_cfIt[o+2]+R*0.6*s*CONIFER_TILT-gap*0.1,Math.max(2.4,R*0.12)]);
     else if (k===1) snow.push([_cfIt[o+1],_cfIt[o+2]-R*0.3,Math.max(2.2,R*0.45)]);
     else if (k===3) snow.push([_cfIt[o+1],_cfIt[o+2],Math.max(2.2,_cfIt[o+6]*0.5)]);
+    else if (k===4) snow.push([_cfIt[o+1]+R*0.5*c,_cfIt[o+2]+R*0.5*s*CONIFER_TILT-_cfIt[o+7]*0.5,Math.max(2.2,_cfIt[o+7]*1.1)]);
     else snow.push([_cfIt[o+1],_cfIt[o+2]-_cfIt[o+6]*0.6,Math.max(2.2,R*0.45)]);
   }
   return snow;

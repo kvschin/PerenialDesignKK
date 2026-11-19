@@ -3369,7 +3369,7 @@ test('a conifer that changes shape with age follows its growth (look.aged)', () 
      Lebanon are cones when young and open into flat-topped trees with age. The
      record's own look is the young tree; `aged` holds the old one, and the look
      blends from one to the other as growth runs from aged.start to full. */
-  const aged=['scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine'];
+  const aged=['scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine','monkeypuzzle'];
   for (const k of aged){
     const L=PLANTS[k].look, A=L.aged;
     assert(A && A.profile, `${k}: an aged look with a crown outline`);
@@ -3382,7 +3382,7 @@ test('a conifer that changes shape with age follows its growth (look.aged)', () 
     assert(mid.crownBase>Math.min(L.crownBase,A.crownBase) && mid.crownBase<Math.max(L.crownBase,A.crownBase),`${k}: and part way between them`);
     assert(plantDrawCalls(k,null,'Summer',4242,1)!==plantDrawCalls(k,null,'Summer',4242,0.2),`${k}: an old tree is not a young one drawn bigger`);
   }
-  for (const k of ['scotspine','ponderosapine','stonepine'])
+  for (const k of ['scotspine','ponderosapine','stonepine','monkeypuzzle'])
     assert(PLANTS[k].look.aged.crownBase>=0.5,`${k}: an old tree stands on a long clear trunk`);
   assert(PLANTS.cedaroflebanon.look.aged.crownBase<=0.12,'an old cedar of Lebanon keeps its lower limbs (MBG)');
   const C=PLANTS.cedaroflebanon.look;
@@ -3398,9 +3398,9 @@ test('a conifer that changes shape with age follows its growth (look.aged)', () 
 });
 
 test('the 0.9.137 conifer shapes are opt-in, and only the trees reshaped ask for them', () => {
-  const owners={aged:['scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine'],
+  const owners={aged:['scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine','monkeypuzzle'],
     branchlets:['douglasfir'], sprayStyle:['cryptomeria'], limbJ:['westernredcedar'], strandLen:['westernredcedar'],
-    buttress:['westernredcedar'], leaders:[], whorlJitter:['douglasfir'], limbRise:[], coneStyle:null, tuftStyle:['umbrellapine'],
+    buttress:['westernredcedar'], leaders:[], whorlJitter:['douglasfir','monkeypuzzle'], limbRise:[], coneStyle:null, tuftStyle:['umbrellapine'], ropeW:['monkeypuzzle'],
     limbCurve:['douglasfir','scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine','umbrellapine']};
   const bad=[];
   for (const key of PLANT_KEYS) for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
@@ -3429,6 +3429,12 @@ test('the 0.9.137 conifer shapes are opt-in, and only the trees reshaped ask for
   assert(drop('douglasfir','branchlets')!==plantDrawCalls('douglasfir',null,'Summer',4242,1),'Douglas fir hangs its branchlets');
   assert(drop('cryptomeria','sprayStyle')!==plantDrawCalls('cryptomeria',null,'Summer',4242,1),'cryptomeria draws its sprays as ropes');
   assert(drop('umbrellapine','tuftStyle')!==plantDrawCalls('umbrellapine',null,'Summer',4242,1),'an umbrella pine ends its shoots in whorls of needles');
+  // a monkey puzzle's limbs are the foliage: rope limbs, nothing hung on them, and only that habit has them
+  assertEqual(CONIFER_FORMS.araucaria.kind,'rope','the araucaria habit draws rope limbs');
+  assertEqual(PLANTS.monkeypuzzle.look.coniferHabit,'araucaria','the monkey puzzle takes it');
+  assert(Object.entries(CONIFER_FORMS).every(([h,F])=>F.kind!=='rope' || h==='araucaria'),'no other habit draws rope limbs');
+  const mp=plantDrawCalls('monkeypuzzle',null,'Winter',4242,1);
+  assert(mp.split('\n').filter(l=>l==='fill()').length<=120,'a monkey puzzle is cheap: two fills a limb');
 });
 
 test('an evergreen changes colour with the season, never shape, and keeps the cost of a tree', () => {

@@ -117,6 +117,7 @@ test('the evergreen audit\'s Tier 3: the trees that waited for the renderer', ()
   const T3={
     stonepine:{latin:'Pinus pinea', form:'conifer', type:'tree', habit:'pine', group:'pine', zones:[8,10], native:['europe','asia'], size:[600,420]},
     umbrellapine:{latin:'Sciadopitys verticillata', form:'conifer', type:'tree', habit:'pine', group:undefined, zones:[5,8], native:['asia'], size:[300,180]},
+    monkeypuzzle:{latin:'Araucaria araucana', form:'conifer', type:'tree', habit:'araucaria', group:undefined, zones:[7,10], native:['south-america'], size:[480,240]},
   };
   for (const [k,e] of Object.entries(T3)){
     const P=PLANTS[k];
@@ -137,7 +138,7 @@ test('the evergreen audit\'s Tier 3: the trees that waited for the renderer', ()
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,886,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,887,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),696,
     'canonical nested-choice count');
