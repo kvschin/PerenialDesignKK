@@ -7235,7 +7235,8 @@ const PLANTS = {
   cryptomeria:{ name:'Japanese Cryptomeria', latin:'Cryptomeria japonica', form:'conifer', type:'tree', h:111, cw:82, heightIn:660,
     space:180, spread:300, zones:[5,9], nativeTo:['asia'], provenance:'species', sun:'full', moist:'medium', phen:'mid', grow:8,
     roles:['screen','specimen','japanese'],
-    look:{art2:true, coniferHabit:'scale', tiers:12, taper:0.84, columnar:0.04, density:1.06, sprayLen:0.15, sprayJitter:0.3, padThick:3.2, roundSeed:true, seedN:8, bark:'#8a5236'},
+    look:{art2:true, coniferHabit:'scale', tiers:12, taper:0.84, columnar:0.04, density:1.06, sprayLen:0.15, sprayJitter:0.3, padThick:3.2, roundSeed:true, seedN:8, bark:'#8a5236',
+      sprayStyle:'rope'},
     blurb:'Japanese cedar, the sugi planted around Japanese shrines: a tall, straight pyramid of rope-like sprays of short awl-shaped needles over soft, shredding red-brown bark. In the Southeast it is the usual replacement for disease-prone Leyland cypress as a screen. The foliage can bronze in cold, windy winters.',
     sea:{Spring:{fol:'#6f9357'}, Summer:{fol:'#4b744a',seed:'#8a6a48'}, Fall:{fol:'#4e6f47',seed:'#7f6243'}, Winter:{fol:'#5b6a45',seed:'#775c40'}},
     cv:{
