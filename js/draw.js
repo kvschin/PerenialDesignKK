@@ -3401,6 +3401,12 @@ const CONIFER_FORMS = {
   pine:    {kind:'puff', tierMul:1.0,  whorl:5, from:0.35, tufts:3, cover:0,   flat:1,    gaps:0.10, jitter:0.2, mass:0.3, massA:0, back:-0.55, limb:0.8, cone:'pendent'},
   scale:   {kind:'fan',  tierMul:2.2,  whorl:9, from:0.50, gaps:0, jitter:0.10, mass:0.86, massA:1, back:-0.35, limb:0, cone:'tiny'},
   weeping: {kind:'drape', tierMul:1.0, whorl:6, from:0.3, gaps:0.06, jitter:0.14, mass:0.44, massA:0.9, back:-0.45, limb:1.0, cone:'pendent'},
+  /* sweep (0.9.137): an upright tree whose limbs dip from the trunk and sweep up
+     at the tips in a J, with its flat sprays hanging from them in short
+     curtains -- western red cedar, the Alaska cedars. A drape on an upright
+     limb: `limbJ` bends the limb, `strandLen` (in gaps between whorls) sets
+     how far the sprays hang, and the dense interior hides the trunk. */
+  sweep:   {kind:'drape', tierMul:1.25, whorl:6, from:0.18, gaps:0.03, jitter:0.12, mass:0.82, massA:1, back:-0.4, limb:0.9, cone:'tiny', hideTrunk:1},
 };
 function coniferTreeOn(L){
   if (!CONIFER_HABIT.on || !art2On(L)) return false;
@@ -3501,6 +3507,24 @@ function cfFlame(ctx,x,y,rx,ry,rot,tips,rnd){
   ctx.beginPath(); cfTraceSmooth(ctx,_cfX,_cfY,n);
 }
 const CF_SNOW='rgba(240,244,250,0.93)';
+/* A rope of foliage (`sprayStyle:'rope'`, 0.9.137): a cryptomeria's branchlet,
+   a cord of short awl leaves that leaves the crown, arches out and droops at
+   the tip. A tapering tube bent along a curve, its edges in soft bumps where
+   the needles stand out of it. `c` is the azimuth's cosine: a spray facing
+   the viewer reaches less across the screen and droops toward them. One fill. */
+function cfRope(ctx,x,y,len,w,c,droop,rnd){
+  const dir=c<0?-1:1, dx=dir*len*(0.6+0.4*Math.abs(c));
+  const x0=x-dx*0.45, y0=y+w*0.25, qx=x+dx*0.2, qy=y-w*0.8-len*0.14, x2=x+dx*0.6, y2=y+len*droop*(1.25-0.5*Math.abs(c));
+  const K=7; let n=0;
+  for (let side=1; side>=-1; side-=2) for (let k=0;k<=K;k++){
+    const t=side>0 ? k/K : (K-k)/K, q=1-t;
+    const px=q*q*x0+2*q*t*qx+t*t*x2, py=q*q*y0+2*q*t*qy+t*t*y2;
+    let tx=2*q*(qx-x0)+2*t*(x2-qx), ty=2*q*(qy-y0)+2*t*(y2-qy); const tl=Math.hypot(tx,ty)||1; tx/=tl; ty/=tl;
+    const hw=w*0.5*(1-0.68*t)*((k&1)?1.2:0.84)*(0.88+0.24*rnd());
+    _cfX[n]=px-ty*hw*side; _cfY[n]=py+tx*hw*side; n++;
+  }
+  ctx.beginPath(); cfTraceSmooth(ctx,_cfX,_cfY,n);
+}
 /* A hanging strand of foliage: it narrows as it falls and drifts a little
    sideways, and both edges are ragged with the shoots that stick out of it.
    One fill. */
@@ -3512,10 +3536,58 @@ function cfStrand(ctx,x,y,len,w,drift,col,tone,rnd){
     _cfX[n]=x+drift*f*f+hw; _cfY[n]=y+len*f; n++; }
   ctx.fillStyle=shade(col,tone); ctx.beginPath(); cfTrace(ctx,_cfX,_cfY,n); ctx.fill();
 }
+/* `sub` narrow strands across a width `w`, of uneven length, as one path and
+   one fill (`thin` scales each one's width): a sweep habit's curtain of flat
+   sprays, which as one wide strand read as a hanging paper panel. */
+function cfStrandSet(ctx,x,y,len,w,drift,col,tone,rnd,sub,thin){
+  ctx.fillStyle=shade(col,tone); ctx.beginPath();
+  for (let q=0;q<sub;q++){
+    const sx=x+(q-(sub-1)/2)*w/sub*1.15, sl=len*(0.72+0.42*rnd()), sw=w/sub*1.5*thin, K=4; let n=0;
+    for (let k=0;k<=K;k++){ const f=k/K, hw=sw*0.5*(1-0.7*f)*(k&1?1.25:0.8);
+      _cfX[n]=sx+drift*f*f-hw; _cfY[n]=y+sl*f; n++; }
+    for (let k=K-1;k>=0;k--){ const f=(k+0.5)/K, hw=sw*0.5*(1-0.7*f)*(k&1?0.8:1.25);
+      _cfX[n]=sx+drift*f*f+hw; _cfY[n]=y+sl*f; n++; }
+    cfTrace(ctx,_cfX,_cfY,n);
+  }
+  ctx.fill();
+}
 /* The numbers the drawing and its sprite box both need, from one place. `lim`
    is the half-width the sprite box is guaranteed to hold (plantDrawBox gives a
    woody plant at least 0.62 of its canopy plus a margin), so nothing is laid
    out past it. */
+/* ---------- a conifer's shape follows its age (`look.aged`, 0.9.137) ----------
+   A pine or a cedar of Lebanon is a cone when young and a different tree when
+   old: the lower limbs go, the trunk stands clear, the top flattens. `aged`
+   holds the old tree's fields; as growth runs from `aged.start` (0.3) to full,
+   each numeric field blends from the young look (the record's own value, or
+   the renderer's default) to the aged one, and an aged `profile` fades in over
+   the young taper. `leaders` is a count and is taken whole, its spread
+   (`leaderSplay`) blending from nothing, so the fork opens as the tree ages
+   rather than appearing. A record without `aged` is handed back untouched. */
+const CONIFER_AGE_DEF={crownBase:0.08, crownTop:0.96, taper:0.72, columnar:0, droop:0.025, branchLift:0.02,
+  fullness:1.12, open:1, padThick:3.6, tiers:8, needleLen:7, whorlJitter:0.5, leaderSplay:0, forkAt:0.3,
+  limbRise:0, upturn:0, tufts:3};
+const _cfAged=new WeakMap();
+function coniferAgedLook(L,growth){
+  const A=L && L.aged; if (!A) return L;
+  const st=A.start===undefined?0.3:A.start, g=Math.max(0,Math.min(1,(growth-st)/Math.max(0.05,1-st)));
+  const t=g*g*(3-2*g), hit=_cfAged.get(L);
+  if (hit && hit.t===t) return hit.look;
+  const F=CONIFER_FORMS[L.coniferHabit||'spruce']||CONIFER_FORMS.spruce, out=Object.assign({},L);
+  for (const k in A){
+    if (k==='start' || k==='profile') continue;
+    const a=A[k];
+    if (k==='leaders') { out.leaders=t>0 ? a : (L.leaders||1); continue; }
+    // the dark interior's alpha steps in at half age: blended, it is a grey haze over the crown
+    if (typeof a==='number' && k!=='massA'){
+      let b=L[k]; if (b===undefined) b=CONIFER_AGE_DEF[k]; if (b===undefined) b=F[k];
+      out[k]=typeof b==='number' ? b+(a-b)*t : a;
+    } else out[k]=t>=0.5 ? a : L[k];
+  }
+  if (A.profile){ out.profile=A.profile; out.profileMix=t; out.youngProfile=L.profile||null; }
+  _cfAged.set(L,{t,look:out});
+  return out;
+}
 function coniferTreeDims(L,H,cw,growth){
   const F=CONIFER_FORMS[L.coniferHabit||'spruce']||CONIFER_FORMS.spruce;
   const opt=n=>L[n]!==undefined ? L[n] : F[n];
@@ -3523,10 +3595,13 @@ function coniferTreeDims(L,H,cw,growth){
   const fullness=Math.max(0.75,L.fullness===undefined?1.12:L.fullness);
   const open=L.open||1, thick=Math.max(0.6,Math.min(1.6,(L.padThick||3.6)/3.6));
   const tiersN=Math.max(4,Math.min(60,Math.round((L.tiers||8)*opt('tierMul')*(F.kind==='fan'?(L.density||1.1):1)/Math.sqrt(open)*(0.45+0.55*growth))));
-  const prof=L.profile;
+  const prof=L.profile, mix=L.profileMix;
+  // an aged profile part way in: the young outline (its own profile, or the taper) blended toward it
+  const young=u=>L.youngProfile ? cw*0.5*treeCrownHW(L.youngProfile,u) : coniferHalfWidth(L,cw,u);
   return {F, opt, kind:F.kind, crownH, fullness, open, thick, tiersN, gap:crownH/Math.max(1,tiersN-1),
     reach:Math.min(1.25,Math.sqrt(fullness)), lim:cw*0.62+12,
-    hwAt:u=>prof ? cw*0.5*treeCrownHW(prof,u) : coniferHalfWidth(L,cw,u)};
+    hwAt:prof && mix!==undefined && mix<1 ? u=>{ const y0=young(u); return y0+(cw*0.5*treeCrownHW(prof,u)-y0)*mix; }
+      : u=>prof ? cw*0.5*treeCrownHW(prof,u) : coniferHalfWidth(L,cw,u)};
 }
 /* How far a conifer built in the round paints below its placement point: the
    front of a low whorl comes toward the viewer, down the screen, and its
@@ -3534,11 +3609,16 @@ function coniferTreeDims(L,H,cw,growth){
    so the sprite box and the drawing cannot disagree. Bounded generously --
    every random factor at its maximum. */
 function coniferTreeBelow(P,growth,H){
-  const L=P.look||{};
-  if (P.form!=='conifer' || !coniferTreeOn(L)) return 0;
+  if (P.form!=='conifer' || !coniferTreeOn(P.look||{})) return 0;
+  const L=coniferAgedLook(P.look||{},growth);
   const vs=(woodyVisualCw(P)||60)/(P.cw||60), cw=(woodyVisualCw(P)||60)*(0.12+0.88*growth);
   const d=coniferTreeDims(L,H,cw,growth), o=d.opt, base=H*(L.crownBase||0.08);
   const droop=L.droop===undefined?0.025:L.droop, jit=o('jitter'), from=o('from');
+  if (d.kind==='drape' && L.strandLen){
+    // short curtains off J-swept limbs: the lowest limb's dip, plus its longest strand
+    const R=Math.min(d.lim,d.hwAt(0)*d.reach*(1+jit)), J=L.limbJ||0;
+    return Math.max(0,R*CONIFER_TILT+R*J*0.32+d.gap*L.strandLen*1.2*1.06*1.15-base)+8;
+  }
   if (d.kind==='drape'){
     // the longest strand from the highest limb, past the ground under it
     const R=Math.min(d.lim,d.hwAt(0)*d.reach*(1+jit)), wf=L.weepFall===undefined?0.86:L.weepFall;
@@ -3551,7 +3631,11 @@ function coniferTreeBelow(P,growth,H){
     const u=i/20, R=Math.min(d.lim,d.hwAt(u)*d.reach*(1+jit));
     const D=H*droop*(0.45+0.55*(1-u))*(d.kind==='fan'?0.3:1);
     let extra;
-    if (d.kind==='slab') extra=Math.max(1.6,d.gap*o('padT')*d.thick/d.open)*(1+(o('fringe')+(L.hang||0))*1.2);
+    if (d.kind==='slab'){
+      const T=Math.max(1.6,d.gap*o('padT')*d.thick/d.open);
+      extra=T*(1+(o('fringe')+(L.hang||0))*1.2);
+      if (L.branchlets) extra=Math.max(extra,T*0.4+d.gap*L.branchlets*1.15+2);
+    }
     else if (d.kind==='puff'){
       const tufts=Math.max(1,(L.tufts||o('tufts')));
       const r=1.15*Math.max(2.4,(L.needleLen||7)*vs*d.fullness*0.62,d.gap*0.42,R*(1-from)/tufts*o('cover')*d.fullness);
@@ -3569,6 +3653,7 @@ function coniferTreeBelow(P,growth,H){
 const CF_NULL={ beginPath(){}, moveTo(){}, lineTo(){}, quadraticCurveTo(){}, closePath(){}, ellipse(){}, fill(){}, stroke(){},
   set fillStyle(v){}, get fillStyle(){ return '#000'; } };
 function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,mature,leafAmt,dropping){
+  L=coniferAgedLook(L,growth);
   const dims=coniferTreeDims(L,H,cw,growth), F=dims.F, kind=dims.kind, opt=dims.opt, lim=dims.lim;
   const rnd=mulberry(seed^0xc0f1e), fol=S.fol||null;
   // spring: the old needles keep the summer colour and the new growth is the
@@ -3589,28 +3674,52 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
   const reach=dims.reach;
   const Wt=Math.max(1.4,(L.trunkW||3.4)*vs*growth*1.25);
   const lit=c=>c*LIT.x/0.55;                     // +1 facing the light, -1 away
+  /* `leaders` (0.9.137): the trunk divides at `forkAt` of the crown into
+     several leaders spreading `leaderSplay` of the crown's width apart -- an
+     old cedar of Lebanon's several trunks, a stone pine's fork. A limb above
+     the fork leaves the leader on its own side, shortened by how far that
+     leader already stands out, so the crown keeps its outline. One leader is
+     the trunk, exactly as before. */
+  const NL=Math.max(1,Math.min(5,Math.round(L.leaders||1)));
+  const splay=(L.leaderSplay||0)*cw*0.5, forkY=baseY-crownH*(L.forkAt===undefined?0.3:L.forkAt);
+  const leadOff=k=>NL>1 ? (k/(NL-1)-0.5)*2*splay : 0;
+  const leadAt=(k,y)=>{ if (NL<2 || y>=forkY) return xAt(y);
+    const q=Math.min(1,(forkY-y)/Math.max(1,forkY-topY)); return xAt(y)+leadOff(k)*Math.pow(q,0.55); };
+  const leadOf=c=>NL<2 ? 0 : Math.max(0,Math.min(NL-1,Math.round((c*0.5+0.5)*(NL-1))));
+  const wj=L.whorlJitter===undefined?0.5:L.whorlJitter, rise=L.limbRise||0;
   // 1. the limbs and what they carry, whorl by whorl
   let n=0;
   const limbB=[], limbF=[];                      // [x0,y0,cx,cy,x1,y1,w] per limb
   const snow=[], conesAt=[];
   for (let t=0;t<tiersN && n<CF_MAX-8;t++){
-    const u=Math.min(0.985,Math.max(0,(t+(t>0 && t<tiersN-1 ? (rnd()-0.5)*0.5 : 0))/(tiersN-1)));
-    const y=baseY-crownH*u, hw=hwAt(u)*reach, bx=xAt(y);
+    const u=Math.min(0.985,Math.max(0,(t+(t>0 && t<tiersN-1 ? (rnd()-0.5)*wj : 0))/(tiersN-1)));
+    const y=baseY-crownH*u, hw=hwAt(u)*reach, bx0=xAt(y);
     if (hw<1.2) continue;
     const nW=Math.max(3,Math.round(whorl0*(0.5+0.5*Math.min(1,hw/(cw*0.22)))));
     const rot=t*2.39996+rnd()*0.7;
     const D=H*(L.droop===undefined?0.025:L.droop)*(0.45+0.55*(1-u))*(kind==='fan'?0.3:1);
-    const U=H*(opt('upturn')||0)*(1-u*0.5);
+    const U=H*(opt('upturn')||0)*(1-u*0.5), lift=rise*(1-0.7*u);
     for (let j=0;j<nW;j++){
       const th=rot+j*Math.PI*2/nW+(rnd()-0.5)*0.55, c=Math.cos(th), s=Math.sin(th);
+      const bx=NL>1 ? leadAt(leadOf(c),y) : bx0;
       const missing=rnd()<gaps*(0.4+u);
       let R=hw*(1-jit+2*jit*rnd());
+      if (NL>1) R=Math.max(R*0.35,R-(bx-bx0)*c);
       if (kind==='slab') R=Math.min(R,(lim-Math.abs(bx))/Math.max(0.2,Math.abs(c)+Math.abs(s)*opt('padW')*1.4));
       if (missing || s<back) continue;
       const tone=Math.round(16*lit(c)+7*s+12*(u-0.45)+(rnd()-0.5)*9-(s<0 ? 8-10*s : 0));
       const dz=R*0.65*s*CONIFER_TILT_C-y*CONIFER_TILT;
-      const tipX=bx+R*c, tipY=y+R*s*CONIFER_TILT+D-U;
-      if (opt('limb')>0 && kind!=='drape') (s<0?limbB:limbF).push(bx,y,bx+(tipX-bx)*0.5,y-(L.branchLift||0.02)*H+(tipY-y)*0.25,tipX,tipY,Math.max(0.6,1.4*vs*opt('limb')*(1-u*0.6)));
+      // `limbRise`: the whole limb climbs, a share of its length, less toward the top (an old pine's upswept limbs)
+      const tipX=bx+R*c, tipY=y+R*s*CONIFER_TILT+D-U-lift*R;
+      if (opt('limb')>0 && kind!=='drape'){
+        let cx2=bx+(tipX-bx)*0.5, cy2=y-(L.branchLift||0.02)*H+(tipY-y)*0.25;
+        /* `limbCurve`: the limb is drawn through the same curve its foliage is
+           laid along (exact at its base, middle and tip), so an open pine's
+           brushes sit on the limb rather than beside it. */
+        if (L.limbCurve){ const mx=bx+R*0.5*c, my=y+R*0.5*s*CONIFER_TILT+D*0.25-U*0.125-lift*R*0.5;
+          cx2=2*mx-0.5*(bx+tipX); cy2=2*my-0.5*(y+tipY); }
+        (s<0?limbB:limbF).push(bx,y,cx2,cy2,tipX,tipY,Math.max(0.6,1.4*vs*opt('limb')*(1-u*0.6)));
+      }
       if (kind==='slab'){
         // a long limb carries its plate as overlapping sprays, so a big tree's
         // lower limbs are textured rather than one sheet; a true cedar's are
@@ -3630,7 +3739,7 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
         for (let k=0;k<tufts;k++){
           const f=tufts>1 ? from+(1-from)*(k/(tufts-1)) : 1, side=k&1?1:-1;
           const r=r0*(0.72+0.28*f)*(0.85+0.3*rnd());
-          let px=bx+R*f*c-s*side*r*0.5; const py=y+R*f*s*CONIFER_TILT+D*f*f-U*f*f*f+c*side*r*0.15;
+          let px=bx+R*f*c-s*side*r*0.5; const py=y+R*f*s*CONIFER_TILT+D*f*f-U*f*f*f+c*side*r*0.15-lift*R*f;
           const ext=r*2.35; if (Math.abs(px)+ext>lim) px=Math.sign(px)*Math.max(0,lim-ext);
           const o=n*CF_STRIDE; _cfIt[o]=1; _cfIt[o+1]=px; _cfIt[o+2]=py; _cfIt[o+3]=c; _cfIt[o+4]=s;
           _cfIt[o+5]=r; _cfIt[o+6]=opt('flat'); _cfIt[o+9]=dz+f*0.02*s; _cfIt[o+10]=tone; n++;
@@ -3645,15 +3754,19 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
         const weepFall=L.weepFall===undefined?0.86:L.weepFall, asym=L.asymmetry===undefined?0.16:L.asymmetry;
         R*=1-asym*(0.5+0.5*Math.cos(th-(seed&7)));
         const toGround=Math.max(gap*0.5,-y), armDrop=Math.min(R*armFall,toGround*0.45), arch=(L.branchLift||0.035)*H;
-        const cx=bx+R*c*0.55, cy=y-arch+R*s*CONIFER_TILT*0.55, tx=bx+R*c, ty=y+R*s*CONIFER_TILT+armDrop;
-        (s<0?limbB:limbF).push(bx,y,cx,cy,tx,ty,Math.max(0.6,1.25*vs*(1-u*0.4)));
+        let cx=bx+R*c*0.55, cy=y-arch+R*s*CONIFER_TILT*0.55, tx=bx+R*c, ty=y+R*s*CONIFER_TILT+armDrop;
+        // `limbJ`: the limb dips below its start, then its tip sweeps up (a J)
+        const J=L.limbJ||0;
+        if (J){ cy=y+R*J*0.32+R*s*CONIFER_TILT*0.55; ty=y+R*s*CONIFER_TILT-R*J*0.22; }
+        (s<0?limbB:limbF).push(bx,y,cx,cy,tx,ty,Math.max(0.6,1.25*vs*(1-u*0.4)*(J?0.5:1)));
         const nC=Math.max(2,Math.min(L.weepTufts?3:5,Math.round((L.curtains||4)*(0.5+0.5*Math.min(1,R/(cw*0.25))))));
         const nr=L.weepTufts ? Math.max(2.5,(L.needleLen||7)*vs*fullness*0.55) : 0;
         for (let k=0;k<nC;k++){
           const f=from+(1-from)*(k+0.5)/nC, q=1-f;
           const px=q*q*bx+2*q*f*cx+f*f*tx, py=q*q*y+2*q*f*cy+f*f*ty, gy=R*f*s*CONIFER_TILT;
-          const len=Math.max(gap*0.6,(gy-py)*weepFall*(0.62+0.56*rnd())*(0.84+0.22*f));
-          const w=Math.max(2.4,(R*(1-from)/nC)*(0.6+0.5*Math.abs(c))*Math.sqrt(fullness)*(0.6+0.6*rnd()));
+          const len=L.strandLen ? gap*L.strandLen*(0.62+0.56*rnd())*(0.84+0.22*f)
+            : Math.max(gap*0.6,(gy-py)*weepFall*(0.62+0.56*rnd())*(0.84+0.22*f));
+          const w=Math.max(2.4,(R*(1-from)/nC)*(0.6+0.5*Math.abs(c))*Math.sqrt(fullness)*(0.6+0.6*rnd())*(L.strandLen?2.3:1));
           const o=n*CF_STRIDE; _cfIt[o]=3; _cfIt[o+1]=px; _cfIt[o+2]=py; _cfIt[o+3]=c; _cfIt[o+4]=s;
           _cfIt[o+5]=len; _cfIt[o+6]=w; _cfIt[o+7]=(c<0?-1:1)*len*0.05; _cfIt[o+8]=nr;
           _cfIt[o+9]=dz+f*0.02*s; _cfIt[o+10]=tone-k*2; n++;
@@ -3681,7 +3794,7 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
     const sl=(L.sprayLen||0.13)/0.13, h0=Math.max(1,hwAt(0),hwAt(0.3));
     const r0=Math.max(2.2,Math.max(cw*0.1,crownH*0.058)*sl*fullness*0.8);
     let area=0; for (let i=0;i<12;i++) area+=2*hwAt((i+0.5)/12)*crownH/12;
-    const N=Math.max(24,Math.min(120,Math.round(area*reach/(r0*r0*1.1)*(L.density||1.1))));
+    const rope=L.sprayStyle==='rope', N=Math.max(24,Math.min(rope?160:120,Math.round(area*reach/(r0*r0*1.1)*(L.density||1.1)*(rope?1.5:1))));
     for (let i=0;i<N && n<CF_MAX-4;i++){
       let u=0, g=0; do { u=rnd(); } while (rnd()>hwAt(u)/h0+0.12 && ++g<8);
       const th=-Math.PI*0.14+rnd()*Math.PI*1.28, c=Math.cos(th), s=Math.sin(th);
@@ -3752,6 +3865,17 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
       const wl=R*W*Math.sqrt(Math.max(0.08,Math.sin(Math.PI*(0.18+0.78*tm))));
       const nf=cfSlabFace(bx,by,c,s,R,f0,f1,D,U,wl,rnd,_cfX,_cfY);
       const nu=cfSlabUnder(T,fringe,rnd,nf);
+      /* `branchlets` (0.9.137): a Douglas fir's or Norway spruce's side shoots
+         hang from the limb in a fringe of short pendulous strands, under the
+         plate and behind it, so the plate covers where they leave the limb. */
+      if (L.branchlets && s>-0.15){
+        const nb=Math.max(1,Math.min(3,Math.round(R*(f1-f0)/Math.max(4,gap*0.7))));
+        for (let q=0;q<nb;q++){
+          const f=f0+(f1-f0)*(q+0.5)/nb, lx=bx+R*f*c, ly=by+R*f*s*CONIFER_TILT+D*f*f-U*f*f*f;
+          const bl=gap*L.branchlets*(0.55+0.6*rnd()), bw=Math.max(1.6,T*0.9);
+          cfStrand(ctx,lx+(rnd()-0.5)*bw,ly+T*0.4,bl,bw,(c<0?-1:1)*bl*0.06,body,tone-24,rnd);
+        }
+      }
       ctx.fillStyle=shade(body,tone-34); ctx.beginPath(); cfTrace(ctx,_cuX,_cuY,nu); ctx.fill();
       ctx.fillStyle=shade(body,tone+2); ctx.beginPath(); cfTrace(ctx,_cfX,_cfY,nf); ctx.fill();
       // the lit, outer part of the face: new growth in spring, snow in winter
@@ -3769,18 +3893,31 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
       } else {
         // scale or needle foliage as a drape: dark body, a lit strip down its
         // light side, the tip in new growth in spring
+        if (L.strandLen){
+          // short curtains of flat sprays: each a few narrow hanging sprays side by side, one fill a tone
+          cfStrandSet(ctx,x,y,len,w,drift,body,tone-14,rnd,3,1);
+          cfStrandSet(ctx,x-w*0.12,y+len*0.03,len*0.8,w*0.7,drift*0.8,newCol||body,tone+(newCol?6:10),rnd,3,0.5);
+        } else {
         cfStrand(ctx,x,y,len,w,drift,body,tone-14,rnd);
         cfStrand(ctx,x-w*0.18,y+len*0.03,len*0.8,w*0.48,drift*0.8,newCol||body,tone+(newCol?6:10),rnd);
-        if (snowy && _cfIt[o+4]>0){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x,y+w*0.1,w*0.55,Math.max(1.2,w*0.22),0,0,7); ctx.fill(); }
+        }
+        if (snowy && _cfIt[o+4]>0 && (!L.strandLen || ((i*0.618034)%1)<0.4)){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x,y+w*0.1,w*0.55,Math.max(1.2,w*0.22),0,0,7); ctx.fill(); }
       }
     } else if (k===1){
       cfPuff(ctx,_cfIt[o+1],_cfIt[o+2],_cfIt[o+5],_cfIt[o+3],body,tone,rnd,!!L.softNeedles,newCol,
         snowy && _cfIt[o+4]>-0.2 && ((i*0.618034)%1)<0.6,_cfIt[o+6]);
     } else {
       const x=_cfIt[o+1], y=_cfIt[o+2], rx=_cfIt[o+5], ry=_cfIt[o+6], rot=_cfIt[o+7];
+      if (L.sprayStyle==='rope'){
+        const len=rx*1.5+ry*0.35, w=Math.max(1.6,ry*0.78), c=_cfIt[o+3], dr=L.ropeDroop===undefined?0.34:L.ropeDroop;
+        ctx.fillStyle=shade(body,tone-8); cfRope(ctx,x,y+ry*0.1,len,w,c,dr,rnd); ctx.fill();
+        ctx.fillStyle=shade(newCol||body,tone+(newCol?10:6));
+        cfRope(ctx,x-rx*0.08*(c<0?-1:1),y+ry*0.1-w*0.22,len*0.82,w*0.5,c,dr*0.8,rnd); ctx.fill();
+      } else {
       ctx.fillStyle=shade(body,tone-8); cfFlame(ctx,x+rx*0.06,y+ry*0.06,rx,ry,rot,3,rnd); ctx.fill();
       ctx.fillStyle=shade(newCol||body,tone+(newCol?10:6));
       cfFlame(ctx,x-rx*0.16,y-ry*0.2,rx*0.55,ry*0.55,rot,2,rnd); ctx.fill();
+      }
       // snow settles on the upward-facing sprays, not on every one
       if (snowy && _cfIt[o+4]>0.15 && ((i*0.618034)%1)<0.45){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x-rx*0.05,y-ry*0.6,rx*0.5,ry*0.16,rot,0,7); ctx.fill(); }
     }
@@ -3820,14 +3957,30 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
   limbs(limbB);
   if (fol) for (const i of backIdx) drawItem(i);
   // 3. the trunk: a tapered column with a flared foot, up to the leader
-  const tTop=(kind!=='drape' && opt('massA')>=0.9 && fol) ? Math.max(topY+gap*0.5,baseY-crownH*0.25) : topY+gap*0.5;
-  const trunk=[[0,0,Wt*1.45],[xAt(-H*0.02),-H*0.02,Wt*1.1],[xAt(-H*0.06),-H*0.06,Wt]];
+  const tTop=NL>1 ? forkY : ((kind!=='drape' || F.hideTrunk) && opt('massA')>=0.9 && fol) ? Math.max(topY+gap*0.5,baseY-crownH*0.25) : topY+gap*0.5;
+  // `buttress` (0.9.137): a foot that flares wide into the ground (western red cedar)
+  const bu=L.buttress||0;
+  const trunk=[[0,0,Wt*1.45*(1+bu)],[xAt(-H*0.02),-H*0.02,Wt*1.1*(1+bu*0.45)],[xAt(-H*0.06),-H*0.06,Wt]];
   const tk=kind==='drape' ? 5 : 2;
-  for (let q=1;q<=tk;q++){ const yy=-H*0.06+(tTop+H*0.06)*q/tk; trunk.push([xAt(yy),yy,Wt*(1-0.82*q/tk)]); }
+  for (let q=1;q<=tk;q++){ const yy=-H*0.06+(tTop+H*0.06)*q/tk; trunk.push([xAt(yy),yy,Wt*(1-(NL>1?0.42:0.82)*q/tk)]); }
   ctx.fillStyle=bark; ctx.beginPath();
   for (let i=0;i<trunk.length;i++){ const [x,y,w]=trunk[i]; ctx[i?'lineTo':'moveTo'](x-w/2,y); }
   for (let i=trunk.length-1;i>=0;i--){ const [x,y,w]=trunk[i]; ctx.lineTo(x+w/2,y); }
   ctx.closePath(); ctx.fill();
+  // the leaders, each a tapering stem from the fork to the top of the crown
+  const leaders=[];
+  if (NL>1){
+    const w0=Wt*0.72*Math.min(1,1.4/Math.sqrt(NL)), yT=topY+gap*0.5;
+    ctx.fillStyle=L.barkTop||bark;
+    for (let k=0;k<NL;k++){
+      const pts=[];
+      for (let q=0;q<=4;q++){ const yy=forkY+(yT-forkY)*q/4; pts.push([leadAt(k,yy),yy,w0*(1-0.72*q/4)]); }
+      ctx.beginPath();
+      for (let i=0;i<pts.length;i++){ const [x,y,w]=pts[i]; ctx[i?'lineTo':'moveTo'](x-w/2,y); }
+      for (let i=pts.length-1;i>=0;i--){ const [x,y,w]=pts[i]; ctx.lineTo(x+w/2,y); }
+      ctx.closePath(); ctx.fill(); leaders.push(pts);
+    }
+  }
   /* `barkTop`: a bark that changes colour up the tree -- a Scots pine's
      scaly orange upper trunk and limbs over grey-brown plates at the foot. */
   if (L.barkTop){
@@ -3838,7 +3991,7 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
     for (let i=trunk.length-1;i>=2;i--){ const [x,y,w]=trunk[i]; ctx.lineTo(x+w/2,y); }
     ctx.closePath(); ctx.fill();
   }
-  if (L.barkStyle) drawBark(ctx,L.barkStyle,[trunk.slice(1,trunk.length-1)],bark,L.barkStripe,mulberry(seed^0xba12));
+  if (L.barkStyle) drawBark(ctx,L.barkStyle,NL>1 ? [trunk.slice(1),...leaders] : [trunk.slice(1,trunk.length-1)],bark,L.barkStripe,mulberry(seed^0xba12));
   ctx.strokeStyle=shade(bark,18); ctx.lineWidth=Math.max(0.7,Wt*0.14); ctx.beginPath();
   ctx.moveTo(trunk[1][0]-trunk[1][2]*0.26,trunk[1][1]); ctx.lineTo(trunk[3][0]-trunk[3][2]*0.26,trunk[3][1]); ctx.stroke();
   limbs(limbF);
@@ -3847,15 +4000,17 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
   // a deciduous conifer in winter: the limbs and a fine haze of branchlets
   if (!fol) haze();
   // 4. the leader: a spire of new growth, or the nodding tip of a hemlock or deodar
-  if (fol){
-    const lx=xAt(topY);
+  if (fol) for (let k=0;k<NL;k++){
+    const lx=NL>1 ? leadAt(k,topY) : xAt(topY);
     if (L.leaderDroop || kind==='drape'){
       const side=(seed&1)?-1:1, hook=typeof L.leaderDroop==='number'?L.leaderDroop:kind==='drape'?0.04:0.065;
       ctx.strokeStyle=shade(body,-12); ctx.lineWidth=Math.max(0.9,1.5*vs); ctx.lineCap='round'; ctx.beginPath();
       ctx.moveTo(lx,topY+gap); ctx.quadraticCurveTo(lx+side*H*hook*0.3,topY-H*0.02,lx+side*H*hook,topY+H*hook); ctx.stroke();
     } else if (habit==='cedar'){
+      // several leaders: an old flat-topped cedar, whose tiers are far apart, nods only a little at each top
+      const gN=NL>1 ? Math.min(gap,crownH*0.08) : gap;
       ctx.strokeStyle=shade(body,-6); ctx.lineWidth=Math.max(0.9,1.3*vs); ctx.lineCap='round'; ctx.beginPath();
-      ctx.moveTo(lx,topY+gap*1.2); ctx.quadraticCurveTo(lx+gap*0.1,topY+gap*0.4,lx+gap*0.18,topY-gap*0.2); ctx.stroke();
+      ctx.moveTo(lx,topY+gN*1.2); ctx.quadraticCurveTo(lx+gN*0.1,topY+gN*0.4,lx+gN*0.18,topY-gN*0.2); ctx.stroke();
     } else if (kind==='puff'){
       cfPuff(ctx,lx,topY+gap*0.2,Math.max(2.6,(L.needleLen||7)*vs*fullness*0.6),0,body,10,rnd,!!L.softNeedles,newCol,snowy);
     } else {
@@ -3877,6 +4032,14 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
         for (let b=0;b<3;b++) { const bx=x+(b-1)*len*0.9, by=y+(b&1)*len*0.6; ctx.moveTo(bx+len*0.55,by); ctx.ellipse(bx,by,len*0.55,len*0.55,0,0,7); }
       } else if (style==='upright' || style==='barrel'){
         ctx.ellipse(x,y-len*0.75,len*(style==='barrel'?0.42:0.34),len*0.75,0,0,7);
+      } else if (style==='bract'){
+        // a Douglas fir's cone hangs, its three-pointed bracts sticking out between the scales
+        ctx.ellipse(x,y+len*0.6,len*0.3,len*0.62,0,0,7); ctx.fill();
+        ctx.strokeStyle=shade(S.seed,34); ctx.lineWidth=Math.max(0.5,len*0.07); ctx.lineCap='round'; ctx.beginPath();
+        for (let b=0;b<3;b++){ const by=y+len*(0.28+0.26*b), bx=x+(b-1)*len*0.08;
+          ctx.moveTo(bx,by); ctx.lineTo(bx-len*0.24,by+len*0.16); ctx.moveTo(bx,by); ctx.lineTo(bx,by+len*0.22);
+          ctx.moveTo(bx,by); ctx.lineTo(bx+len*0.24,by+len*0.16); }
+        ctx.stroke(); ctx.fillStyle=shade(S.seed,-14+(conesAt[i+2]>0.5?8:0)); ctx.beginPath();
       } else {
         ctx.ellipse(x,y+len*0.6,len*0.3,len*(style==='tiny'?0.42:0.62),0,0,7);
       }
