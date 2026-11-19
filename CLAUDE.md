@@ -9102,8 +9102,10 @@ heavy for three frames to engage.
 
 ## Direction & backlog
 
-Reconciled September 7, 2026. `docs/readiness.md` preserves the original
-numbered readiness list and distinguishes implementation from acceptance work.
+Reconciled November 18, 2026 (first September 7). `docs/readiness.md` preserves
+the original numbered readiness list and distinguishes implementation from
+acceptance work; `docs/improvement-audit-2026-10-07.md` marks each of its items
+done, dropped or open with the release that closed it.
 The waves below record built capabilities; they are not instructions to build
 them again. Regional-data gaps remain in `docs/us-regional-plant-roadmap.md`.
 
@@ -9190,10 +9192,9 @@ Live collaboration is not on the roadmap; if it ever returns it starts from
   make it flower in the game's summer. `planColor` already resolves a bloom
   colour from any season, so the calendar is correct without that.
   The upright tree-conifer pass is landed (spruce/fir/hemlock, pine, true
-  cedar, arborvitae/juniper/cypress, and weeping habits). Still open is a
-  separate low/dwarf-conifer pass: spreading juniper, bird's nest spruce, and
-  mugo pine need ground-hugging architecture rather than an upright tree
-  squeezed into the yew renderer. A focused bulb audit is landed (Aug 2026):
+  cedar, arborvitae/juniper/cypress, and weeping habits), and so is the
+  low/dwarf-conifer pass (0.9.47: the `bun` and `mat` habits for bird's nest
+  spruce, globe blue spruce, mugo pine and creeping juniper). A focused bulb audit is landed (Aug 2026):
   shared goblet/trumpet/bell/lily/raceme/allium/Dahlia grammars now separate the
   former six generic silhouettes; drumstick allium, golden crocus, straight
   martagon lily, American Turk's-cap lily, English bluebell, and ivy-leaved

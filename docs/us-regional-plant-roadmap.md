@@ -4,7 +4,7 @@ Prepared August 30, 2026. Updated through local implementation of phases **1A/1B
 
 **The next regional gap is the nationwide audit.** Alaska's starter batch shipped; Hawaii is out of scope. The implemented West Coast, Florida, Colorado, Texas, Arizona, and humid Southeast batches improve those regions without claiming automatic state-level suitability.
 
-The original roadmap contains **68 candidate taxa**; 62 are now implemented and 6 remain. Source reviews and implementation decisions are in [phase 1](plant-data/phase1-implementation.md), [phase 2](plant-data/phase2-implementation.md), [phase 3](plant-data/phase3-implementation.md), [phase 4](plant-data/phase4-implementation.md), and [phase 5](plant-data/phase5-implementation.md) notes. The last batch still requires production verification of dimensions, hardiness, local distribution, bloom timing, provenance, and nursery availability. A recommendation for a region is not a claim that the plant is native throughout it.
+The original roadmap contains **68 candidate taxa**: 65 are implemented (the 62 of phases 1–5 and Alaska's three), and Hawaii's three were dropped, so none remain. Source reviews and implementation decisions are in [phase 1](plant-data/phase1-implementation.md), [phase 2](plant-data/phase2-implementation.md), [phase 3](plant-data/phase3-implementation.md), [phase 4](plant-data/phase4-implementation.md), and [phase 5](plant-data/phase5-implementation.md) notes. The last batch still requires production verification of dimensions, hardiness, local distribution, bloom timing, provenance, and nursery availability. A recommendation for a region is not a claim that the plant is native throughout it.
 
 | Phase | Work | Candidate taxa |
 | --- | --- | ---: |
@@ -238,9 +238,9 @@ For each regional release, validate a sunny low-water design, a woodland/partial
 
 ## Existing-data reviews that should not be counted as new plants
 
-- `serviceberry.cv.standingovation` is already present but needs its taxon/selection attribution reconciled before proposing another Saskatoon-serviceberry record.
-- `heuchera.cv.palacepurple` already exists; resolve its species attribution rather than counting a related western alumroot as wholly missing. [NC State discussion](https://plants.ces.ncsu.edu/plants/heuchera-palace-purple/)
-- The yarrow, lady fern, and pasqueflower records currently carry Europe-only origin data. Review their exact taxonomic scope and North American lineages before relying on native-filter counts. Do not blanket-change all cultivars to locally native.
+- ~~`serviceberry.cv.standingovation` needs its taxon/selection attribution reconciled.~~ Done in 0.9.71: it is *Amelanchier alnifolia* 'Obelisk', carrying its own name and range.
+- ~~`heuchera.cv.palacepurple` needs its species attribution resolved.~~ Done in 0.9.71: it is `Heuchera 'Palace Purple'`, a hybrid with no wild range. [NC State discussion](https://plants.ces.ncsu.edu/plants/heuchera-palace-purple/)
+- The yarrow and pasqueflower records carry Europe-only origin data. Review their exact taxonomic scope and North American lineages before relying on native-filter counts (yarrow is audit item D07). Do not blanket-change all cultivars to locally native. Lady fern was resolved in 0.9.71: its North American selection 'Lady in Red' is now *Athyrium angustum*. Ostrich fern was made native to North America in 0.9.78.
 - Preserve the existing Southwest pack: it already includes Arizona cottontop, red yucca, sotol, ocotillo, Parry/Havard agaves, blackfoot/four-nerve/chocolate daisies, desert marigold, multiple penstemons, flame acanthus, damianita, Apache plume, desert willow, mistflower, sages, globemallows, zinnias, and primroses.
 
-This roadmap prioritizes native regional gaps because the existing catalog already contains many general garden ornamentals. It does not make the app native-only. A later ornamentals pass should follow the same regional suitability and invasive-risk review, and annual bedding plants should remain separate from persistent perennial structure.
+This roadmap prioritizes native regional gaps because the existing catalog already contains many general garden ornamentals. It does not make the app native-only. A later ornamentals pass should follow the same regional suitability review (the invasive-risk system was removed in 0.9.117, so say in a plant's description where it escapes), and annual bedding plants should remain separate from persistent perennial structure.

@@ -16,13 +16,14 @@ re-checking the week you actually do it.
 
 ## Where you actually stand
 
-Verified in the repo today, not assumed:
+Verified in the repo, not assumed. Refreshed 18 November 2026 against v0.9.133
+(first written against v0.8.97):
 
 | | |
 | --- | --- |
-| Tests | **631 passed, 0 failed** (`node tests/run.js`) |
-| Version | 0.8.97, consistent across `js/core.js`, `package.json`, `sw.js` |
-| Legal pages | `privacy.html`, `terms.html`, `credits.html` — all exist, all already name Apple, Google and Steam |
+| Tests | **1161 passed, 0 failed** (`node tests/run.js`) |
+| Version | 0.9.133, consistent across `js/core.js`, `package.json`, `sw.js`; the menu footer is now written from `APP_VERSION` at boot |
+| Legal pages | `privacy.html`, `terms.html`, `credits.html` all exist; privacy and terms already name Apple, Google and Steam. Both still carry a personal email address. |
 | Icons | 1024px master, 512, 192, apple-touch, favicon-32 |
 | Fonts | Fraunces + IBM Plex Sans, OFL licences shipped alongside |
 | Offline | Full precache, zero third-party requests, verified |
@@ -30,7 +31,7 @@ Verified in the repo today, not assumed:
 | Photos | **None shipped.** `photos/` holds only a README |
 | Premium | `PREMIUM_ENABLED = false`; purchase/restore are placeholder stubs |
 | Native | **No iOS, Android or desktop project exists** |
-| Business | **None** |
+| Business | **None recorded in the repo**; no box below is ticked |
 | Public URL | `kvschin.github.io/PerenialDesignKK` — note the misspelling |
 
 Three of those are better news than they look:
@@ -192,6 +193,12 @@ Targeting **the first week of February 2027** from today (17 Sep 2026):
 That is comfortable rather than tight, which is the right shape given none of the
 native work has started and none of it is your day job.
 
+**As of 18 November 2026** the repo shows none of the September–November steps
+done: no native project, and no box in this checklist ticked. If they have not
+happened outside the repo either, the February date needs re-planning from the
+lead times in the table above (the LLC → D-U-N-S chain and Steam's 30-day and
+2-week clocks).
+
 ---
 
 ## Phase 1 — Form the business
@@ -324,9 +331,9 @@ rewriting the renderer.
       update the store controls. This is the single most likely source of a
       "why is my phone showing an old version" bug, and this project has already
       shipped that bug twice on the web.
-- [ ] **Add the native version/build number as a fifth version copy.** CLAUDE.md
-      documents three (`core.js`, `package.json`, `sw.js`) plus the menu footer;
-      native adds `CFBundleShortVersionString` / `versionName`. Extend the
+- [ ] **Add the native version/build number as a fourth version copy.** CLAUDE.md
+      documents three (`core.js`, `package.json`, `sw.js`; the menu footer is
+      written from `APP_VERSION`); native adds `CFBundleShortVersionString` / `versionName`. Extend the
       existing version test to cover it, or this will drift immediately.
 - [ ] Verify the app **starts in airplane mode on first launch**, from the
       bundle, on a device that has never seen it.
@@ -453,8 +460,9 @@ rewriting the renderer.
 ## Phase 8 — Submit
 
 - [ ] Freeze the release candidate. Tag it in git.
-- [ ] Bump the version in all four (soon five) places and confirm the test that
-      pins them passes.
+- [ ] Bump the version in all three places (four once native adds its own) and
+      confirm the test that pins them passes. The menu footer follows
+      `APP_VERSION` on its own.
 - [ ] Submit to Apple and Google. Choose **manual release** on both so you
       control the date.
 - [ ] Set the Steam release date, satisfying both the 30-day and 2-week clocks.
@@ -504,8 +512,9 @@ tax. **Break-even is around 50 sales.** That is arithmetic, not a forecast.
 ## Things specific to this app that will bite you
 
 1. **The version footgun gets worse.** CLAUDE.md documents that the version lives
-   in three files plus the menu footer, and that shipping a mismatch has already
-   stranded two releases. Native adds a fifth copy, and a mismatch there means
+   in three files (the menu footer is now written from `APP_VERSION`), and that
+   shipping a mismatch has already stranded two releases. Native adds another
+   copy, and a mismatch there means
    the store shows one version and the app reports another in bug reports.
 2. **The service worker has no business in a native build.** See Phase 4.
 3. **`privacy.html`'s central claim needs qualifying**, and it is a document
