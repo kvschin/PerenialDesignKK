@@ -7614,6 +7614,21 @@ const PLANTS = {
     blurb:'The pepperwood of California and southwest Oregon: a dense, rounded, often several-trunked evergreen of leathery leaves so pungent that crushing them can bring on a headache, with clusters of small yellow flowers in early spring and olive-like fruit that ripens purple. It is the main host of the sudden oak death pathogen, which it can pass to nearby oaks where that disease is present.',
     sea:{Spring:{fol:'#55724a',bloom:'#e6dc8a'}, Summer:{fol:'#46663f'}, Fall:{fol:'#45643e',seed:'#5a4a5e'}, Winter:{fol:'#43613c'}}},
 
+  /* ---------- the evergreen audit, Tier 3 (0.9.137) ----------
+     The trees Tier 1 and 2 left for the renderer: docs/plant-data/evergreen-audit.md,
+     with every figure's source in docs/plant-data/evergreen-sources.json. h/cw
+     solved with dev/cultivar-size.cjs on the nearest existing conifer of the habit. */
+  stonepine:{ name:'Italian Stone Pine', latin:'Pinus pinea', form:'conifer', type:'tree', h:102, cw:120, heightIn:600,
+    group:'pine', groupLabel:'Pine', chip:'Italian Stone',
+    space:300, spread:420, zones:[8,10], nativeTo:['europe','asia'], provenance:'species', sun:'full', moist:'dry', phen:'cool', grow:12,
+    roles:['specimen','dry','mediterranean','architectural','coastal'],
+    look:{art2:true, coniferHabit:'pine', tiers:7, taper:0.3, tufts:4, cover:0.55, fullness:1.1, needleLen:10.5, branchLift:0.03, droop:0.01, crownBase:0.05, crownTop:0.92,
+      profile:{p:0.42, eLo:1.5, eHi:1.7, lo:0.55}, bark:'#7b4c34', barkStripe:'#3b2a21', barkStyle:'plated', seedN:6, coneStyle:'barrel', coneLen:1.3, limbCurve:true,
+      aged:{start:0.3, crownBase:0.6, crownTop:0.98, profile:{p:0.3, eLo:1.15, eHi:2.3, lo:0.5}, tiers:7, leaders:4, leaderSplay:0.5, forkAt:-0.5,
+        limbRise:0.06, tufts:5, cover:1.4, flat:0.6, fullness:1.25, gaps:0.03, whorlJitter:0.3, mass:0.85, massA:0.75, trunkW:5.4}},
+    blurb:'The umbrella pine of the Roman campagna and the Mediterranean coast: a rounded bush when young, then a tall clear trunk forking into a broad, flat-topped parasol of long bright-green needles, with big heavy cones that hold the edible pine nuts. It wants sun, sharp drainage and a dry summer, and is hardy only to zone 8. It does best where summers are mild, as on the California coast, and is seldom planted in the humid South.',
+    sea:{Spring:{fol:'#7c9a5d'}, Summer:{fol:'#5c7f4a',seed:'#8a6040'}, Fall:{fol:'#5a7b48',seed:'#83593b'}, Winter:{fol:'#557445',seed:'#7c5538'}}},
+
   /* ---------- Southwest & Southern desert natives ---------- */
   arizonacottontop:{ name:'Arizona Cottontop', latin:'Digitaria californica', form:'cloudgrass', type:'grass', h:26, heightIn:30,
     space:18, spread:24, zones:[7,10], _legacyNative:true, sun:'full', moist:'dry', phen:'warm',
@@ -10531,6 +10546,7 @@ const WIKIPEDIA_ARTICLES = {
   carolinacherrylaurel:   "Prunus caroliniana",
   topalholly:             "Ilex × attenuata",
   californiabay:          "Umbellularia",
+  stonepine:              "Pinus pinea",
   woodssedge:             "Carex woodii",
   haydensedge:            "Carex haydenii",
   jamessedge:             "Carex jamesii",

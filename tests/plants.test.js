@@ -111,8 +111,32 @@ test('a record that states its own native range keeps it through the migration',
     assert(PLANTS.goldenhops.nativeTo.includes(r),`Humulus lupulus is native in ${r}`));
 });
 
+test('the evergreen audit\'s Tier 3: the trees that waited for the renderer', () => {
+  /* 0.9.137, docs/plant-data/evergreen-audit.md, every figure sourced in
+     docs/plant-data/evergreen-sources.json. */
+  const T3={
+    stonepine:{latin:'Pinus pinea', form:'conifer', type:'tree', habit:'pine', group:'pine', zones:[8,10], native:['europe','asia'], size:[600,420]},
+  };
+  for (const [k,e] of Object.entries(T3)){
+    const P=PLANTS[k];
+    assert(P,`${k}: Tier 3 record is missing`);
+    assertEqual(P.latin,e.latin,`${k}: botanical name`);
+    assertEqual(P.form,e.form,`${k}: renderer form`);
+    assertEqual(P.type,e.type,`${k}: catalog type`);
+    if (e.habit) assertEqual(P.look.coniferHabit,e.habit,`${k}: conifer habit`);
+    assertEqual(P.group,e.group,`${k}: family card`);
+    assertEqual(P.zones.join('-'),e.zones.join('-'),`${k}: hardiness`);
+    assertEqual(P.nativeTo.join(','),e.native.join(','),`${k}: native range`);
+    assertEqual(P.provenance,'species',`${k}: a straight species`);
+    assertEqual(P.heightIn+'x'+P.spread,e.size.join('x'),`${k}: planning size`);
+    assert(P.heightIn>P.h && P.spread>=P.space,`${k}: real size stays separate from px-art`);
+    assert(WIKIPEDIA_ARTICLES[k],`${k}: a Wikipedia article`);
+    for (const s of SEASON_KEYS) assert(P.sea[s] && P.sea[s].fol,`${k}: evergreen foliage in ${s}`);
+  }
+});
+
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,884,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,885,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),696,
     'canonical nested-choice count');
