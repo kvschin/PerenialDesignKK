@@ -120,6 +120,51 @@ const CR_GROUPS={
   'Columns and screens':['arborvitae','arborvitae.smaragd','greengiantarborvitae','spartanjuniper','taylorjuniper','redcedar','wellspirespruce'],
   'Weeping':['blueweepingalaskacedar','weepingwhitepine','norwayspruce.pendula','easternhemlock.sargentii'],
   'Low and dwarf':['birdsnestspruce','globebluespruce','mugopine','creepingjuniper','goldenmop','hinokicypress.nanagracilis','arborvitae.rheingold'],
+  // the evergreen audit's Tier 2 and the deciduous conifers (0.9.134)
+  'Tier 2 firs, pines, spruces':['koreanfir','koreanfir.silberlocke','balsamfir','nordmannfir','loblollypine','redpine','pinyonpine',
+    'lacebarkpine','japanesewhitepine','orientalspruce','orientalspruce.skylands','whitespruce','atlascedar'],
+  'Tier 2 cypress and redwoods':['atlanticwhitecedar','lawsoncypress','montereycypress','montereycypress.goldcrest','alaskacedar',
+    'giantsequoia','coastredwood'],
+  'Tier 2 cultivars':['rockymountainjuniper.moonglow','rockymountainjuniper.bluearrow','redcedar.burkii','redcedar.brodie',
+    'redcedar.emeraldsentinel','arborvitae.holmstrup','arborvitae.degrootsspire','scotspine.fastigiata','cryptomeria.radicans',
+    'arizonacypress.carolinasapphire','westernredcedar.cancan','westernredcedar.zebrina'],
+  'Deciduous conifers':['tamarack','europeanlarch','dawnredwood','baldcypress','baldcypress.shawnee','baldcypress.peveminaret'],
+  'Tier 2 broadleaf':['coastliveoak','corkoak','carolinacherrylaurel','topalholly','topalholly.fosteri','topalholly.savannah',
+    'californiabay','southernmagnolia.ddblanchard','southernmagnolia.teddybear','southernmagnolia.kayparris',
+    'liveoak.cathedral','liveoak.highrise','englishholly.jcvantol'],
+};
+/* The real-pixel sprite-edge check, as dev/woody-cultivar-review.html runs it:
+   each choice baked the way the garden bakes it (makePlantSprite, an
+   ImageBitmap since 0.9.38, copied onto a scratch canvas to read), four
+   seasons, three seeds, and a deciduous conifer at every leaf stage too. A
+   sprite whose drawing touches its own border is clipped in the garden.
+   ?check=<group name|ref,ref|tier2> writes the result into #bench. */
+window.coniferCheck=function(refs){
+  const bad=[]; let count=0;
+  const scratch=document.createElement('canvas'), sctx=scratch.getContext('2d',{willReadFrequently:true});
+  const one=(k,v,season,seed,lB,gB)=>{
+    const s=makePlantSprite(k,gB||8,3,season,seed,v||null,undefined,lB);
+    if (!s){ bad.push(k+(v?'.'+v:'')+' '+season+' no sprite'); return; }
+    const img=s.cv, w=img.width, h=img.height;
+    scratch.width=w; scratch.height=h; sctx.clearRect(0,0,w,h); sctx.drawImage(img,0,0);
+    const d=sctx.getImageData(0,0,w,h).data; let edge=false;
+    for (let x=0;x<w;x++) if (d[x*4+3]>8||d[((h-1)*w+x)*4+3]>8) edge=true;
+    for (let y=0;y<h;y++) if (d[y*w*4+3]>8||d[(y*w+w-1)*4+3]>8) edge=true;
+    if (edge) bad.push(k+(v?'.'+v:'')+' '+season+' seed '+seed+(lB>=0?' L'+lB:'')+(gB&&gB!==8?' g'+gB:''));
+    count++;
+  };
+  for (const ref of refs){
+    const [k,v]=ref.split('.'), lo=treeLeafOut(plantDef(k,v||null));
+    for (const season of CR_SEASONS) for (const seed of [7,101,4410]) for (const gB of [8,3]) one(k,v,season,seed,-1,gB);
+    if (lo){
+      for (let ls=0;ls<=LEAF_STAGES;ls++) one(k,v,'Spring',101,ls);
+      for (let ls=0;ls<=LEAF_FULL;ls++) one(k,v,'Fall',101,ls);
+    }
+  }
+  const out={count,bad};
+  let pre=document.getElementById('bench'); pre.textContent='CHECK '+JSON.stringify(out);
+  document.title='check ready';
+  return out;
 };
 function nameOf(k,v){ return plantDef(k,v).name; }
 function shot(k,v,season,on,seed,growth){
@@ -265,6 +310,11 @@ window.coniferBench=function(which,rounds){
   const sheet=CR_Q.get('sheet');
   setTimeout(()=>{ try {
     if (CR_Q.get('bench')){ coniferBench(CR_Q.get('bench')); return; }
+    if (CR_Q.get('check')){
+      const c=CR_Q.get('check');
+      const refs=c==='tier2' ? Object.keys(CR_GROUPS).filter(g=>/Tier 2|Deciduous/.test(g)).flatMap(g=>CR_GROUPS[g]) : CR_GROUPS[c] || c.split(',');
+      coniferCheck(refs); return;
+    }
     if (sheet){
       const refs=CR_GROUPS[sheet] || (sheet==='all' ? CR_REFS.map(([k,v])=>v?k+'.'+v:k) : sheet.split(','));
       coniferSheet(refs,{seasons:(CR_Q.get('seasons')||'Summer,Winter').split(','), cell:+(CR_Q.get('cell')||180),

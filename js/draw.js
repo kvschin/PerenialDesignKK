@@ -3545,13 +3545,21 @@ function coniferTreeBelow(P,growth,H){
   }
   return Math.max(0,deep)+4;
 }
-function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,mature){
+/* A context that draws nothing: a spray that has fallen is still laid out (its
+   random draws taken), so the ones still up keep their shapes as the tree thins. */
+const CF_NULL={ beginPath(){}, moveTo(){}, lineTo(){}, quadraticCurveTo(){}, closePath(){}, ellipse(){}, fill(){}, stroke(){},
+  set fillStyle(v){}, get fillStyle(){ return '#000'; } };
+function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,mature,leafAmt,dropping){
   const dims=coniferTreeDims(L,H,cw,growth), F=dims.F, kind=dims.kind, opt=dims.opt, lim=dims.lim;
   const rnd=mulberry(seed^0xc0f1e), fol=S.fol||null;
   // spring: the old needles keep the summer colour and the new growth is the
-  // spring one, on the tips -- a spruce in May is dark with bright ends
+  // spring one, on the tips -- a spruce in May is dark with bright ends. A
+  // deciduous conifer has no old needles: its spring is all new growth.
+  const decid=!!L.deciduous;
   const sum=P.sea&&P.sea.Summer&&P.sea.Summer.fol;
-  const body=fol && season==='Spring' && sum ? sum : fol, newCol=fol && season==='Spring' && sum ? fol : null;
+  const body=fol && season==='Spring' && sum && !decid ? sum : fol, newCol=fol && season==='Spring' && sum && !decid ? fol : null;
+  // a deciduous conifer between bare and full: needles coming out or coming down
+  const thin=!!fol && leafAmt!==undefined && leafAmt<1, ctxMain=ctx;
   const topY=-H*(L.crownTop||0.96), baseY=-H*(L.crownBase||0.08), crownH=Math.max(8,baseY-topY);
   const ox=sway*(L.sway||1.2), xAt=kind==='drape'
     ? y=>coniferLeaderAtY(L,H,topY,y,seed,ox)
@@ -3675,7 +3683,7 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
   //    closed at the bottom by the front of the lowest whorl
   if (fol){
     const m=opt('mass'), a=opt('massA');
-    if (m>0 && a>0){
+    if (m>0 && a>0 && !thin){
       ctx.save(); ctx.globalAlpha=a; ctx.beginPath();
       const steps=10;
       for (let i=0;i<=steps;i++){ const u=1-i/steps, y=baseY-crownH*u; ctx[i?'lineTo':'moveTo'](xAt(y)+hwAt(u)*m*reach*(1-0.45*u*u),y); }
@@ -3708,7 +3716,8 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
     }
   };
   const W=opt('padW'), fringe=opt('fringe')+(L.hang||0);
-  const paint=i=>{
+  const paint=(i,ctx0)=>{
+    const ctx=ctx0||ctxMain;
     const o=i*CF_STRIDE, k=_cfIt[o], tone=_cfIt[o+10];
     if (k===0){
       const bx=_cfIt[o+1], by=_cfIt[o+2], c=_cfIt[o+3], s=_cfIt[o+4], R=_cfIt[o+5], f0=_cfIt[o+6], f1=_cfIt[o+7], D=_cfIt[o+8], U=_cfIt[o+11];
@@ -3754,8 +3763,36 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
   // the back items sort among themselves; the front ones after the trunk
   const backIdx=[], frontIdx=[];
   for (let q=0;q<n;q++) (_cfIt[ord[q]*CF_STRIDE+4]<0 ? backIdx : frontIdx).push(ord[q]);
+  /* A deciduous conifer part way into or out of its needles (`thin`). Coming
+     out, every tuft is in its place but small, and paler (the stage colour);
+     coming down, whole sprays go a patchy few at a time and the rest keep
+     their place and colour. Either way each spray is laid out exactly as at
+     full leaf -- the scale is on the canvas, a fallen one is painted into
+     CF_NULL -- so nothing jumps from one stage to the next. */
+  const drawItem=i=>{
+    if (!thin) return paint(i);
+    const o=i*CF_STRIDE;
+    if (dropping){
+      const ph=0.72*((i*0.6180339887)%1)+0.28*(0.5+0.5*Math.sin(_cfIt[o+1]*0.09+_cfIt[o+2]*0.05+(seed&255)*0.1));
+      return paint(i, ph<leafAmt ? ctx : CF_NULL);
+    }
+    let ax=_cfIt[o+1], ay=_cfIt[o+2];
+    if (_cfIt[o]===0){ const fm=(_cfIt[o+6]+_cfIt[o+7])/2, R=_cfIt[o+5]; ax+=R*fm*_cfIt[o+3]; ay+=R*fm*_cfIt[o+4]*CONIFER_TILT; }
+    const sc=0.3+0.7*leafAmt;
+    ctx.save(); ctx.translate(ax,ay); ctx.scale(sc,sc); ctx.translate(-ax,-ay); paint(i); ctx.restore();
+  };
+  // the limbs' fine haze of branchlets, on a bare or a thinning deciduous conifer
+  const haze=()=>{
+    ctx.strokeStyle=shade(bark,14); ctx.lineWidth=Math.max(0.5,0.6*vs); ctx.beginPath();
+    for (const list of [limbB,limbF]) for (let i=0;i<list.length;i+=7){
+      const x0=list[i], y0=list[i+1], x1=list[i+4], y1=list[i+5];
+      for (let q=1;q<=3;q++){ const f=q/4+0.1, px=x0+(x1-x0)*f, py=y0+(y1-y0)*f, dx=(x1-x0)*0.12;
+        ctx.moveTo(px,py); ctx.lineTo(px+dx,py-gap*0.35); ctx.moveTo(px,py); ctx.lineTo(px+dx*0.8,py+gap*0.12); }
+    }
+    ctx.stroke();
+  };
   limbs(limbB);
-  if (fol) for (const i of backIdx) paint(i);
+  if (fol) for (const i of backIdx) drawItem(i);
   // 3. the trunk: a tapered column with a flared foot, up to the leader
   const tTop=(kind!=='drape' && opt('massA')>=0.9 && fol) ? Math.max(topY+gap*0.5,baseY-crownH*0.25) : topY+gap*0.5;
   const trunk=[[0,0,Wt*1.45],[xAt(-H*0.02),-H*0.02,Wt*1.1],[xAt(-H*0.06),-H*0.06,Wt]];
@@ -3779,17 +3816,10 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
   ctx.strokeStyle=shade(bark,18); ctx.lineWidth=Math.max(0.7,Wt*0.14); ctx.beginPath();
   ctx.moveTo(trunk[1][0]-trunk[1][2]*0.26,trunk[1][1]); ctx.lineTo(trunk[3][0]-trunk[3][2]*0.26,trunk[3][1]); ctx.stroke();
   limbs(limbF);
-  if (fol) for (const i of frontIdx) paint(i);
-  if (!fol){
-    // a deciduous conifer in winter: the limbs and a fine haze of branchlets
-    ctx.strokeStyle=shade(bark,14); ctx.lineWidth=Math.max(0.5,0.6*vs); ctx.beginPath();
-    for (const list of [limbB,limbF]) for (let i=0;i<list.length;i+=7){
-      const x0=list[i], y0=list[i+1], x1=list[i+4], y1=list[i+5];
-      for (let q=1;q<=3;q++){ const f=q/4+0.1, px=x0+(x1-x0)*f, py=y0+(y1-y0)*f, dx=(x1-x0)*0.12;
-        ctx.moveTo(px,py); ctx.lineTo(px+dx,py-gap*0.35); ctx.moveTo(px,py); ctx.lineTo(px+dx*0.8,py+gap*0.12); }
-    }
-    ctx.stroke();
-  }
+  if (thin) haze();
+  if (fol) for (const i of frontIdx) drawItem(i);
+  // a deciduous conifer in winter: the limbs and a fine haze of branchlets
+  if (!fol) haze();
   // 4. the leader: a spire of new growth, or the nodding tip of a hemlock or deodar
   if (fol){
     const lx=xAt(topY);
@@ -3828,6 +3858,16 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
       ctx.fillStyle=shade(S.seed,14); ctx.beginPath();
       ctx.ellipse(x-len*0.12,style==='upright'||style==='barrel'?y-len*0.95:y+len*0.45,len*0.12,len*0.22,0,0,7); ctx.fill();
     }
+  }
+  /* A bare deciduous conifer has no plates for snow to lie on, so it lies along
+     the front limbs, part way out, where a branch is near level. */
+  if (snowy && decid && !fol){
+    for (let i=0;i<limbF.length && snow.length<9;i+=14){
+      const f=0.45+0.2*((i/7*0.618)%1), g=1-f;
+      const x=g*g*limbF[i]+2*f*g*limbF[i+2]+f*f*limbF[i+4], y=g*g*limbF[i+1]+2*f*g*limbF[i+3]+f*f*limbF[i+5];
+      snow.push([x,y-limbF[i+6]*0.5,Math.max(2.2,limbF[i+6]*2.2)]);
+    }
+    return snow;
   }
   // snow for the closing caps: the tops of the front plates of the upper crown
   if (snowy) for (let q=frontIdx.length-1;q>=0 && snow.length<9;q-=3){
@@ -3991,14 +4031,14 @@ const _habitFor=new WeakMap();
    for ridges, strips and lenticels -- which is why a cherry's lenticels come
    out pale and a paper birch's dark. */
 const BARK_STYLES = new Set(['smooth','furrowed','interlaced','plated','longplated','shaggy',
-  'lenticel','birch','peeling','fluted','warty']);
+  'lenticel','birch','peeling','fluted','warty','patchwork']);
 function drawBark(ctx, style, polys, bark, stripe, rnd){
   if (!style || style==='smooth' || !polys.length) return;
   const lum=c=>{ const n=parseInt(String(c).slice(1),16); return ((n>>16&255)*0.3+(n>>8&255)*0.59+(n&255)*0.11)/255; };
   const hex=c=>typeof c==='string' && /^#[0-9a-f]{6}$/i.test(c);
   const dark=hex(stripe) && lum(stripe)<lum(bark) ? stripe : shade(bark,-38);
   const light=hex(stripe) && lum(stripe)>=lum(bark) ? stripe : shade(bark,22);
-  const paths={dark:[], light:[], thin:[], chev:[]};
+  const paths={dark:[], light:[], thin:[], chev:[], patch:[]};
   for (const pts of polys){
     if (pts.length<2) continue;
     const cum=[0]; for (let i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
@@ -4080,6 +4120,12 @@ function drawBark(ctx, style, polys, bark, stripe, rnd){
           r.push(P(sf,th)); g.push(P(sf,th+0.22)); }
         line('light',r); line('dark',g);
       }
+    } else if (style==='patchwork'){
+      /* lacebark pine: plates flaking off in irregular patches, pale where they
+         have just come away, each a short broad stroke across the grain */
+      const n=Math.max(8,Math.min(30,Math.round(len/(wB*0.28))));
+      for (let i=0;i<n;i++){ const sf=0.04+0.9*rnd(), c=(rnd()-0.5)*2.2, h=0.2+rnd()*0.32;
+        line(i%3===0?'dark':'patch',[P(sf,c-h),P(sf+run*0.12,c+h*0.4)]); }
     } else if (style==='warty'){
       // corky warts and short ridges, pale over the bark
       const n=Math.max(8,Math.min(30,Math.round(len/(wB*0.25))));
@@ -4097,6 +4143,7 @@ function drawBark(ctx, style, polys, bark, stripe, rnd){
   stroke('dark',dark,Math.max(0.6,wBase*(style==='birch'?0.055:0.065)));
   stroke('light',light,Math.max(0.6,wBase*(style==='shaggy'?0.07:0.06)));
   if (paths.chev && paths.chev.length) stroke('chev',dark,Math.max(0.8,wBase*0.1));
+  if (paths.patch.length) stroke('patch',light,Math.max(0.9,wBase*0.2));
 }
 function fallColourPicker(fol, mix, seed, cx, cy, rx, ry){
   if (!fol || !mix || !mix.length) return null;
@@ -10786,8 +10833,25 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   else if (P.form === 'conifer' && coniferTreeOn(P.look)){ // built in the round
     const L=P.look, vs=(woodyVisualCw(P)||60)/(P.cw||60);
     const cw=(woodyVisualCw(P)||60)*(0.12+0.88*growth);
-    snowAnchors=drawConiferTree(ctx,P,L,S,L.coniferHabit||'spruce',H,cw,vs,growth,seed,sway,season,
-      !!(AMBIENCE[season].snow && mature),mature);
+    /* A deciduous conifer (look.deciduous) in the garden is handed its leaf
+       stage as a broadleaf tree is (treeLeafOut): its needles come out as small
+       tufts over bare twigs through spring, and come down a spray at a time
+       through late fall, onto the ground under it. Previews pass no stage and
+       draw the season as authored. */
+    let CS=S, leafAmt, dropping=false;
+    const lo=leafStage!==undefined && L.deciduous && (season==='Spring'||season==='Fall') ? treeLeafOut(P) : null;
+    if (lo && season==='Spring'){
+      const k=Math.max(0,Math.min(LEAF_STAGES,leafStage|0));
+      leafAmt=Math.min(1,k/LEAF_FULL);
+      CS=Object.assign({},S,{fol:k ? lo.cols[k] : undefined});
+    } else if (lo && lo.drop && S.fol){
+      const k=Math.max(0,Math.min(LEAF_FULL,leafStage|0));
+      leafAmt=k/LEAF_FULL; dropping=true;
+      if (!k) CS=Object.assign({},S,{fol:undefined});
+      if (leafAmt<1) drawFallenLeaves(ctx,S.fol,null,shR,vs,1-leafAmt,seed);
+    }
+    snowAnchors=drawConiferTree(ctx,P,L,CS,L.coniferHabit||'spruce',H,cw,vs,growth,seed,sway,season,
+      !!(AMBIENCE[season].snow && mature),mature,leafAmt,dropping);
   }
   else if (P.form === 'conifer'){ // evergreen habits share primitives, not silhouettes
     const L=P.look||{}, habit=S.fol?(L.coniferHabit||'spruce'):'bare';
