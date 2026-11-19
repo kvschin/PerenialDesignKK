@@ -8617,8 +8617,22 @@ daily card), real pixels, four seasons, both renderers, about 50,000 pictures.
 `?check`'s 70x105 is a stand-in no screen uses. A recording-canvas test was tried
 and dropped: it sees stroke centres and ignores alpha, so it read white pine, 5 px
 clear in pixels, as 0.5 px over, while Scots pine, which really clipped, read
-0.08 px clear. At 0.9.138, no tree or shrub touches an edge. 88 herbaceous plants
-still do (24 grasses, 51 forbs, 13 water plants), mostly in the list thumbnail.
+0.08 px clear. **0.9.139 fitted the rest.** A herbaceous plant is fitted to
+its pictures by HEIGHT alone unless it declares `sideScale`, so "wider than
+0.62H must declare one" was the wrong threshold: in the Library's 40x48 list
+thumbnail anything past about 0.54H clips. 88 grasses, forbs and water plants
+did, mats and water lilies worst. Each value was SEARCHED, not derived: the
+smallest `sideScale`, then `topScale`, at which every real picture of that
+choice clears its top and sides, in both renderers and four seasons, plus 0.03
+(0.02 for headroom). Widths read off a full drawing count the ground shadow,
+which the pictures' bottom rows are allowed to hold, and would have shrunk the
+mats for nothing. Species were solved before their cultivars, so most cultivars
+fit on what they inherit; seven carry a value of their own. Both values only
+bound and fit the drawing, never change it. The white water lily also takes
+0.89, which a young plant's garden sprite needed. `?previews` now includes a
+Library plant page's season tiles (`librarySeasonTile`, 80:104, 56, 80 and 176
+wide): 88,872 pictures, none touching an edge at 0.9.139. Run it after adding
+or reshaping a plant.
 **0.9.60: shrubs built as shrubs (`SHRUB_HABITS`, `shrubHabitOf`,
 `drawShrubHabit`, draw.js), with leaf-out and leaf drop (`woodyLeafOut`,
 world.js).** Every informal shrub -- 88 `bush` species and the 7 hydrangeas,

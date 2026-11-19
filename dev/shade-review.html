@@ -269,14 +269,16 @@ function bench(){
 }
 /* Every picture the app really draws a plant into, in real pixels: the catalog's
    row and tile (TRAY_ART_KINDS), the Library's list thumbnail (LIB_THUMB_*) and
-   the daily challenge's 72x80, four seasons, both renderers, whether its drawing
+   the daily challenge's 72x80, and a Library plant page's season tiles at their
+   narrowest, usual and widest (librarySeasonTile: 80:104, 56 to 176 wide), four
+   seasons, both renderers, whether its drawing
    reaches the top or a side (the bottom 18 backing rows hold the ground and are
    not counted, as in checkEdges). checkEdges' 70x105 is a stand-in no screen
    uses. ?previews runs it over the whole catalog, ?previews&only=... over a list;
    window.__previews groups what touches by plant. (0.9.138) */
 function previewScan(){
   const sizes={row:(k,v,s,D)=>trayPlantArt(k,v,s,D,'row'), tile:(k,v,s,D)=>trayPlantArt(k,v,s,D,'tile'),
-    list:(k,v,s)=>libCanvas(k,v,s,LIB_THUMB_W,LIB_THUMB_H,LIB_THUMB_SCALE), daily:(k,v,s)=>libCanvas(k,v,s,72,80)};
+    list:(k,v,s)=>libCanvas(k,v,s,LIB_THUMB_W,LIB_THUMB_H,LIB_THUMB_SCALE), daily:(k,v,s)=>libCanvas(k,v,s,72,80), season56:(k,v,s)=>libCanvas(k,v,s,56,73,1.15*56/80), season80:(k,v,s)=>libCanvas(k,v,s,80,104,1.15), season176:(k,v,s)=>libCanvas(k,v,s,176,229,1.15*176/80)};
   const refs=params.get('only')?currentRefs():PLANT_KEYS.flatMap(k=>[[k,null],...Object.keys(PLANTS[k].cv||{}).map(v=>[k,v])]);
   const byPlant={},original=ART2.on;let n=0;
   try{for(const mode of [true,false]){ART2.on=mode;TRAY_ART.clear();
