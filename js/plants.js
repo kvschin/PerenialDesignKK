@@ -7219,7 +7219,8 @@ const PLANTS = {
     group:'arborvitae', groupLabel:'Arborvitae', chip:'Western Red Cedar',
     space:120, spread:240, zones:[5,8], nativeTo:['north-america'], provenance:'species', sun:'part', moist:'moist', phen:'cool', grow:10,
     roles:['screen','hedge'],
-    look:{art2:true, coniferHabit:'scale', tiers:12, taper:0.7, columnar:0.1, density:1.24, fanFlat:true, sprayLen:0.15, sprayJitter:0.16, padThick:4.2, bark:'#7b4a35'},
+    look:{art2:true, coniferHabit:'sweep', tiers:12, taper:0.7, columnar:0.1, padThick:4.2, bark:'#7b4a35', barkStyle:'fluted', buttress:0.6,
+      limbJ:0.5, strandLen:2.2, curtains:3, asymmetry:0.04},
     blurb:'The giant arborvitae of the Pacific Northwest rainforest: a broad, buttressed pyramid of glossy, flat, sweet-smelling sprays drooping from upswept branches. It needs steady moisture and shelter from hot, dry wind, and deer browse it. In Britain and Europe it is a standard fast hedge, better behaved than Leyland cypress.',
     sea:{Spring:{fol:'#5f8653'}, Summer:{fol:'#3f6847',seed:'#8c6e4b'}, Fall:{fol:'#3e6546',seed:'#816646'}, Winter:{fol:'#3a5f43',seed:'#795f42'}},
     cv:{

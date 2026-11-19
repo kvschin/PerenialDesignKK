@@ -1607,7 +1607,7 @@ test('evergreen tree expansion keeps resolved taxa, scale data, and distinct arc
     ponderosapine:['Pinus ponderosa','pine'],
     italiancypress:['Cupressus sempervirens (Stricta Group)','scale'],
     incensecedar:['Calocedrus decurrens','scale'],
-    westernredcedar:['Thuja plicata','scale'],
+    westernredcedar:['Thuja plicata','sweep'],
     cryptomeria:['Cryptomeria japonica','scale'],
     rockymountainjuniper:['Juniperus scopulorum','scale'],
     cedaroflebanon:['Cedrus libani','cedar'],
