@@ -7270,8 +7270,10 @@ const PLANTS = {
     group:'truecedar', groupLabel:'True Cedar', chip:'Lebanon',
     space:420, spread:600, zones:[5,8], nativeTo:['asia'], provenance:'species', sun:'full', moist:'medium', phen:'mid', grow:15,
     roles:['specimen','architectural'],
-    look:{art2:true, coniferHabit:'cedar', tiers:7, pads:5, taper:0.4, droop:0.012, open:1.24, fullness:1.04, padThick:2.9,
-      profile:{p:0.3, eLo:1.6, eHi:3.2, lo:0.75}, bark:'#5d5047'},
+    look:{art2:true, coniferHabit:'cedar', tiers:8, pads:5, taper:0.62, droop:0.012, open:1.1, fullness:1.04, padThick:2.9, crownBase:0.08,
+      bark:'#5d5047', limbCurve:true,
+      aged:{start:0.35, crownBase:0.1, profile:{p:0.42, eLo:1.3, eHi:4.2, lo:0.72}, tiers:5, open:1.5, leaders:3, leaderSplay:0.46, forkAt:0.16,
+        whorlJitter:0.3, gaps:0.14, jitter:0.24, flat:0.42, limbRise:0.06, trunkW:5}},
     blurb:'The cedar of the Bible and the Lebanese flag: dark-green needle rosettes on great level shelves, a pyramid when young that broadens into a flat-topped tree as wide as it is tall. Slow, very long-lived, and a tree for parkland and big lawns. Trees raised from the Taurus Mountains of Turkey are the cold-hardiest.',
     sea:{Spring:{fol:'#6f8c6c'}, Summer:{fol:'#4e6c55',seed:'#8f7457'}, Fall:{fol:'#4a6751',seed:'#836b51'}, Winter:{fol:'#45614c',seed:'#7b644c'}}},
 
