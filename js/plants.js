@@ -7188,7 +7188,7 @@ const PLANTS = {
     blurb:'The cedar of the Bible and the Lebanese flag: dark-green needle rosettes on great level shelves, a pyramid when young that broadens into a flat-topped tree as wide as it is tall. Slow, very long-lived, and a tree for parkland and big lawns. Trees raised from the Taurus Mountains of Turkey are the cold-hardiest.',
     sea:{Spring:{fol:'#6f8c6c'}, Summer:{fol:'#4e6c55',seed:'#8f7457'}, Fall:{fol:'#4a6751',seed:'#836b51'}, Winter:{fol:'#45614c',seed:'#7b644c'}}},
 
-  /* ---------- the evergreen audit, Tier 2 (0.9.134) ----------
+  /* ---------- the evergreen audit, Tier 2 (Nov 2026) ----------
      docs/plant-data/evergreen-audit.md, with every figure's source in
      docs/plant-data/evergreen-sources.json. Sized and drawn the Tier 1 way:
      h/cw solved with dev/cultivar-size.cjs on the drawn-size curve of the
@@ -7339,7 +7339,7 @@ const PLANTS = {
     blurb:'The tallest tree in the world, native to the fog belt of the California and southern Oregon coast: a narrow, fast cone of flat needles in two ranks on drooping branches, over thick, fibrous red-brown bark flared at the foot. In a garden it wants deep, moist soil and cool, damp air; hardy into the Deep South, it does not grow well there. It resprouts from its base after cutting or fire.',
     sea:{Spring:{fol:'#6f9265'}, Summer:{fol:'#3f6448',seed:'#7a5e42'}, Fall:{fol:'#3d6046',seed:'#735840'}, Winter:{fol:'#3a5c44',seed:'#6c533e'}}},
 
-  /* ---------- deciduous conifers (0.9.134) ----------
+  /* ---------- deciduous conifers (Nov 2026) ----------
      Needles on in summer, off in winter. `look.deciduous` puts them through the
      broadleaf leaf cycle (treeLeafOut): out through spring, down through late
      fall, drawn by drawConiferTree as tufts over bare twigs. Bald cypress, above
@@ -7474,7 +7474,7 @@ const PLANTS = {
       compacta:{name:"'Compacta'", note:'a slow, bushy form that stays shrub-sized for many years, flowering and fruiting young',
         h:37, cw:42, heightIn:96, spread:96, space:72},
     }},
-  /* the evergreen audit, Tier 2 (0.9.134): sources in docs/plant-data/evergreen-sources.json */
+  /* the evergreen audit, Tier 2 (Nov 2026): sources in docs/plant-data/evergreen-sources.json */
   coastliveoak:{ name:'Coast Live Oak', latin:'Quercus agrifolia', form:'tree', type:'tree', h:85, cw:107, heightIn:480,
     group:'oak', groupLabel:'Oak', chip:'Coast Live',
     space:360, spread:480, zones:[8,10], nativeTo:['north-america','central-america'], provenance:'species', sun:'full', moist:'dry', phen:'mid', grow:15,
@@ -9616,7 +9616,7 @@ const BLOOM_MONTHS = {
   // broadleaf evergreen trees from the evergreen audit (the hollies, live oak
   // and holm oak flower too inconspicuously to claim a calendar slot)
   southernmagnolia:[5,6], baylaurel:[3,4], strawberrytree:[10,11,12],
-  // Tier 2 of the audit (0.9.134; the topal hollies and the oaks claim no slot)
+  // Tier 2 of the audit (Nov 2026; the topal hollies and the oaks claim no slot)
   carolinacherrylaurel:[3,4], californiabay:[3,4],
 
   // flowering climbers (Virginia creeper and hops flower too inconspicuously

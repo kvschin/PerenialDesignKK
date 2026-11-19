@@ -3563,7 +3563,7 @@ test('deciduous trees drop their leaves through late fall, and the litter lies u
 });
 
 test('a deciduous conifer comes into needle over bare twigs and drops them a spray at a time', () => {
-  /* look.deciduous (0.9.134): the larches, dawn redwood and bald cypress. An
+  /* look.deciduous (Nov 2026): the larches, dawn redwood and bald cypress. An
      evergreen conifer still draws no stage, and full needle is the authored tree. */
   for (const season of ['Spring','Fall'])
     assertEqual(plantDrawCalls('bluespruce',null,season,4242,1,0,2), plantDrawCalls('bluespruce',null,season,4242,1),

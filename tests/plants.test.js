@@ -1718,7 +1718,7 @@ test('broadleaf evergreen trees hold green leaves all winter, draw a crown and t
 });
 
 test('Tier 2 of the evergreen audit adds its conifers and broadleaf evergreens, with real ranges and families', () => {
-  /* docs/plant-data/evergreen-audit.md and evergreen-sources.json (0.9.134). */
+  /* docs/plant-data/evergreen-audit.md and evergreen-sources.json (Nov 2026). */
   const conifers={
     koreanfir:['Abies koreana','fir','fir','asia'], balsamfir:['Abies balsamea','fir','fir','north-america'],
     nordmannfir:['Abies nordmanniana','fir','fir','asia'],

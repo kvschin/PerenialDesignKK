@@ -8415,9 +8415,10 @@ changes colour upward: Scots pine), `hang` (Norway/Douglas fir branchlets),
 reserve below the tile, front skirts and weeping strands), and `lim` keeps
 every item inside the box plantDrawBox guarantees. `?conifer=0` restores the
 old drawing call for call (8,976 draws compared against 0.9.58, every
-non-conifer identical); `treeLeafOut` now returns null for any conifer, since
-blue and gold ones read as "not green in winter" and churned leaf-stage
-sprite keys for nothing. Cost: 1.4-3.0ms a bake against 1.0-2.2 old and
+non-conifer identical); `treeLeafOut` now returns null for any EVERGREEN
+conifer, since blue and gold ones read as "not green in winter" and churned
+leaf-stage sprite keys for nothing (a deciduous one opts back in: Nov 2026,
+below). Cost: 1.4-3.0ms a bake against 1.0-2.2 old and
 1.2-2.6 for the broadleaf habit trees; a test caps a conifer at 460 fills. On
 a 21-conifer garden `dev/ff-bench.cjs` reads 6.9 vs 7.4ms a frame on sprites
 and 74.9 vs 76.6 procedural (new vs `--query conifer=0`, a flag added for this).
@@ -8431,6 +8432,56 @@ cedar, western red cedar, cryptomeria, Rocky Mountain juniper, cedar of
 Lebanon; and the broadleaf evergreens Southern magnolia, live oak, holm oak,
 American, English and 'Nellie R. Stevens' holly, bay laurel, strawberry tree
 -- and 21 cultivars (635 base / 487 nested).
+**Nov 2026, the evergreen audit's Tier 2, and deciduous conifers (`look.deciduous`).**
+Tier 2 and its "More cultivars" row shipped whole: Korean, balsam and Nordmann
+fir; loblolly, red, pinyon, lacebark and Japanese white pine; oriental and
+white spruce; the green Atlas cedar; Atlantic white cedar, Lawson and Monterey
+cypress, the Alaska cedar species; giant sequoia and coast redwood; coast live
+oak, cork oak, Carolina cherry laurel, topal holly and California bay; and 23
+cultivars. Every figure's source is in `docs/plant-data/evergreen-sources.json`
+and the audit has a dated section. New family cards: **Redwood** (giant
+sequoia, coast redwood, dawn redwood) and **Larch**. Nordmann fir and oriental
+spruce are recorded as Asian: the Caucasus is Asia-Temperate in the botanical
+regions, so neither is a European native. Monterey cypress is in with its
+Cal-IPC Limited rating in its blurb; topal holly is a natural hybrid, so it
+carries its wild range and `provenance:'hybrid'`. **A deciduous conifer
+(tamarack, European larch, dawn redwood, and bald cypress, which now opts in)
+says `look.deciduous`**, and that is the whole switch: `treeLeafOut` gives it
+the broadleaf cycle (needles out through spring, down through late fall, by
+`phen`), the garden hands drawPlant its stage, and drawPlant hands
+`drawConiferTree` a `leafAmt` and `dropping`. Coming out, every spray is drawn
+in its place but small (`ctx.scale` about the spray, 0.3 to 1) in the stage's
+colour, over the bare-twig haze; coming down, whole sprays go by a golden-ratio
+walk with a little spatial wave and the rest keep place and colour, onto
+`drawFallenLeaves` under the tree. **A spray is laid out the same at every
+stage** -- the scale is on the canvas, and a fallen spray is painted into
+`CF_NULL`, a context that draws nothing, so the shared random stream is spent
+the same and nothing jumps between stages (a test holds a later stage's sprays
+to be a subset of an earlier one's, path for path). A deciduous conifer's spring
+is all new needles (no summer-coloured body under spring tips), and a bare one's
+winter snow lies along its front limbs instead of where the plates would be:
+the old code floated bald cypress's snow in the air. With no conifer opting in
+the renderer change drew all 31,054 hashed drawings (every species and cultivar,
+four seasons, two seeds, two growths, and every woody plant at every leaf stage)
+call for call as before; with the data, only bald cypress and its two cultivars
+changed, in spring, winter and at their stages. The larches use the `pine` kind
+with short soft needles (brushes along level limbs, bare limbs in winter); dawn
+redwood the `cedar` kind, dense. Lacebark pine brought one opt-in bark style,
+`patchwork` (broad pale strokes across the grain; strokes only, as the bark test
+requires). Costs, headless Chrome on the bake path: new conifers 1.3-3.4ms a
+bake against the existing tree conifers' 1.2-3.4 (dawn redwood the 3.4); the
+broadleaf additions 0.9-2.1 against 0.9-2.5; a staged deciduous conifer never
+more than its full drawing. `dev/conifer-review.html` gained Tier 2 groups and
+`?check=<group|refs|tier2>`, the real-pixel sprite-edge check (four seasons,
+three seeds, two growths, and every leaf stage of a deciduous conifer): 1,296
+sprites, none touching an edge. `leafSheet`/`dropSheet` in
+`dev/tree-habit-review.html` draw a deciduous conifer through spring and fall,
+since they ask `treeLeafOut`. Approximations left (the audit lists them): the
+scale habit's dark interior cone shows on the broader cypresses, as it already
+did on Arizona cypress; a lacebark pine is drawn on one trunk; a columnar pine
+('Fastigiata') is still wider than a true column, because pine brushes are sized
+by needle length; and bald cypress drops with the other `warm` trees, a week or
+two early for it.
 **0.9.60: shrubs built as shrubs (`SHRUB_HABITS`, `shrubHabitOf`,
 `drawShrubHabit`, draw.js), with leaf-out and leaf drop (`woodyLeafOut`,
 world.js).** Every informal shrub -- 88 `bush` species and the 7 hydrangeas,
