@@ -7093,6 +7093,9 @@ function drawSedgeTufts(ctx,P,L,S,H,growth,sway,rnd,stemFor,a2,head,drawSeed,sno
   }
   const nb=Math.max(3,Math.round(stemFor(L.leaves||13)/T));
   const realTop=H*((P.heightIn||P.h)/P.h), seedLo=L.seedLo===undefined?0.74:L.seedLo, seedFan=L.seedFan===undefined?0.5:L.seedFan;
+  // `seedTop` stands the heads at a share of the height in flower: where the leaves overtop them
+  // (Gray's, Bristly), and to take back what the back of the clump and the head itself add on screen
+  const headTop=realTop*(L.seedTop===undefined?1:L.seedTop);
   const heads=head?(L.seedStems||0):0, anchors=snow?[]:null;
   const headK=Math.max(0.55,Math.min(1,realTop/40));  // a head stays in proportion to a small plant
   for (let t=0;t<T;t++){
@@ -7130,7 +7133,7 @@ function drawSedgeTufts(ctx,P,L,S,H,growth,sway,rnd,stemFor,a2,head,drawSeed,sno
     if (anchors){ if (snL) anchors.push(snL); if (snR) anchors.push(snR); }
     const hc=Math.floor((t+1)*heads/T)-Math.floor(t*heads/T);
     for (let c=0;c<hc;c++){
-      const s=rnd()-0.5, cy=y0-realTop*(seedLo+rnd()*(1-seedLo));
+      const s=rnd()-0.5, cy=y0-headTop*(seedLo+rnd()*(1-seedLo));
       const cx=x0+Math.sin(s*fan)*H*(L.leafLen||0.86)*spread*seedFan;
       ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=0.75*Math.max(0.8,headK);
       ctx.beginPath(); ctx.moveTo(x0,y0); ctx.quadraticCurveTo(x0+(cx-x0)*0.35,y0+(cy-y0)*0.55,cx,cy); ctx.stroke();
@@ -12572,7 +12575,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // the rest of the year H is air, and big leaves on stalks light themselves.
   // A bulb is a few straps and stems, never a mass filling H (0.9.124): over a
   // crocus or a tulip these strokes floated in the air, wider than the plant.
+  // A sedge clump is a dome of lit blades whose top is a half to three quarters
+  // of H, so these stood above every sedge, about 6 in over Pennsylvania sedge.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && P.type!=='bulb' && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
+      && !(P.look && (P.look.tuftIn || P.look.sedgeHabit==='palm'))
       && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look)) && P.form!=='palm'
       && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)
       && !(P.form==='fern' && fernBladeOn(P.look)) && !(P.look && P.look.leafStyle==='hosta')

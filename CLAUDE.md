@@ -7597,8 +7597,22 @@ the Mediterranean one. Fifteen species lost false roles and no plant left a list
 belonged on. A term must be a word as it appears in the name, Latin or group, so a genus
 is written in full (`hakonechloa`, not `hakone`).
 Every sedge carries a sourced `heightIn` (2026-10-29: typical garden height
-in flower, `h` untouched), so the card and Library quote a real size; a cultivar
+in flower), so the card and Library quote a real size; a cultivar
 shorter than its species ('Oehme') states its own.
+**Its leaves and heads are drawn to it (0.9.140)**, held by `every sedge draws at its sourced
+height` at 10% or 2 in, as the grasses are. `h` had never been solved: heads stood over the height,
+some low sedges' leaves at 60-70% of it, and drawPlant's three closing highlight strokes floated
+above every clump (a sedge skips that pass now; its blades light themselves).
+`docs/plant-data/sedge-heights.json` gives each choice's targets and why: Mt. Cuba's foliage and
+flower heights scaled to `heightIn` where the trial grew it and they differ by over 15% (Gray's heads
+below its leaves, Rosy's leaves below its heads), otherwise leaves between 0.86 of `heightIn` (the
+trial's lower quartile) and all of it, except the five whose flowers stand well above the leaves.
+`look.seedTop` stands the heads at a share of `heightIn`. **Measure a sedge from the ground each
+tuft stands on** (put `tuftIn` at ~0 and the stream is spent the same), not its on-screen top: a
+clump `tuftIn` wide has its far tufts up the screen by that patch's depth, up to 10 in on a mat.
+**Re-solving `h` must hold the width**: every sideways reach is `H*leafLen*spread`, so `look.spread`
+and `sideScale` move against `h`. Most sedges already draw at or past their spread. Audit:
+the 0.9.140 section of `docs/plant-data/sedge-audit.md`.
 Forb `heightIn` backfill is in progress by batch (2026-11-02: 38 prairie forbs
 — milkweeds, blazing stars, sunflowers, ironweeds, coneflowers, prairie
 clovers — typical height in flower, `h` untouched; see the plant work log).

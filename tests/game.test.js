@@ -977,9 +977,14 @@ test('the sprite box holds every blade of a crowned grass, at every age', () => 
 /* How tall a grass draws in flower, in inches: the top of its tallest culm or head in the seasons a head
    stands, through every translate a crown makes and along every curve, the median of five clumps. A
    clump's culms vary by seed, and the median is the clump a planting is mostly made of. */
+const DRAWN_TOP_SEEDS=[9137,7,4410,123,2026];
 function grassDrawnTop(k,v){
   const D=plantDef(k,v), heads=SEASONS.filter(s=>D.sea[s]&&(D.sea[s].bloom||D.sea[s].seed));
-  const once=(season,seed)=>{
+  const tops=DRAWN_TOP_SEEDS.map(seed=>Math.max(...heads.map(s=>drawnTopIn(k,v,s,seed)))).sort((a,b)=>a-b);
+  return tops[2];
+}
+// The top of one drawing, in real inches above the placement point, through every transform.
+function drawnTopIn(k,v,season,seed){
     let m=[1,0,0,1,0,0], top=0, px=0, py=0; const stack=[];
     const mul=a=>{ const [A,B,C,E,F,G]=m; m=[A*a[0]+C*a[1],B*a[0]+E*a[1],A*a[2]+C*a[3],B*a[2]+E*a[3],A*a[4]+C*a[5]+F,B*a[4]+E*a[5]+G]; };
     const pt=(x,y)=>{ const Y=m[1]*x+m[3]*y+m[5]; if(Y<top) top=Y; };
@@ -1005,9 +1010,6 @@ function grassDrawnTop(k,v){
       set(o,p,val){ o[p]=val; return true; }});
     drawPlant(ctx,0,0,k,1,season,seed,0,v,1);
     return -top/HERB_SCALE;
-  };
-  const tops=[9137,7,4410,123,2026].map(seed=>Math.max(...heads.map(s=>once(s,seed)))).sort((a,b)=>a-b);
-  return tops[2];
 }
 test('every grass draws at its sourced height in flower', () => {
   // h is the drawn height in px-art and heightIn the height the card quotes; they had drifted apart by up
@@ -1028,6 +1030,50 @@ test('every grass draws at its sourced height in flower', () => {
     }
   } finally { ART2.on=was; }
   assert(n>=139,`checked ${n} choices`);
+});
+/* How tall a sedge's leaves and heads stand, in inches. A clump stands on a patch of ground `tuftIn`
+   wide, and on screen its far tufts sit higher by that patch's depth, up to 10 in on a mat, which is
+   ground and not height. So every tuft is put on the placement point (the random stream is spent the
+   same) and the reading is the height above the ground the leaves grow from. Leaves alone: no fertile
+   culms. Heads alone: the blades laid flat at the ground, which moves nothing but the blades. */
+function sedgeDrawnHeights(k,v){
+  const D=plantDef(k,v), L=D.look, med=a=>a.sort((x,y)=>x-y)[a.length>>1];
+  const heads=SEASONS.filter(s=>D.sea[s]&&(D.sea[s].bloom||D.sea[s].seed)), fol=SEASONS.filter(s=>D.sea[s]&&D.sea[s].fol);
+  const keep={tuftIn:L.tuftIn, seedStems:L.seedStems, leafLen:L.leafLen, hairs:L.hairs};
+  const read=seasons=>med(DRAWN_TOP_SEEDS.map(seed=>Math.max(...seasons.map(s=>drawnTopIn(k,v,s,seed)))));
+  try {
+    if (L.tuftIn) L.tuftIn=1e-6;
+    const top=read(heads.length?heads:SEASONS);
+    L.seedStems=0; const leaf=read(fol); L.seedStems=keep.seedStems;
+    let head=null;
+    if (keep.seedStems&&heads.length&&L.tuftIn){ L.leafLen=1e-4; L.hairs=0; head=read(heads); }
+    return {top,leaf,head};
+  } finally { for (const [p,x] of Object.entries(keep)){ if (x===undefined) delete L[p]; else L[p]=x; } }
+}
+test('every sedge draws at its sourced height, its leaves and its heads each where they stand', () => {
+  // h had never been solved for a sedge (0.9.140): seed heads stood up to 6 in over the height in flower,
+  // three faint highlight strokes floated above every clump, and Texas Sedge's leaves stood 6.9 in of a
+  // 10 in plant. docs/plant-data/sedge-heights.json says what each is drawn to and why: Mt. Cuba's trial
+  // where it grew the plant, otherwise leaves between 0.86 of the height and all of it, heads at the height.
+  const doc=JSON.parse(readRepoFile('docs/plant-data/sedge-heights.json')).choices;
+  const refs=SEDGE_KEYS().flatMap(k=>[[k,null],...Object.keys(PLANTS[k].cv||{}).map(v=>[k,v])]);
+  for (const ref of Object.keys(doc)) assert(refs.some(([k,v])=>k+(v?':'+v:'')===ref),`${ref}: in sedge-heights.json and not in the catalog`);
+  const was=ART2.on, tol=x=>Math.max(2,x*0.1); let n=0, heads=0;
+  try { ART2.on=true;
+    for (const [k,v] of refs){
+      const ref=k+(v?':'+v:''), D=plantDef(k,v), e=doc[ref], H=D.heightIn;
+      assert(e&&e.basis,`${ref}: a target and its reason in sedge-heights.json`);
+      const r=sedgeDrawnHeights(k,v);
+      assert(Math.abs(r.top-H)<=tol(H),`${ref}: drawn ${r.top.toFixed(1)} in for a ${H} in plant`);
+      assert(r.leaf<=H+tol(H),`${ref}: leaves ${r.leaf.toFixed(1)} in, over its ${H} in`);
+      if (e.foliageIn!=null) assert(Math.abs(r.leaf-e.foliageIn)<=tol(e.foliageIn),`${ref}: leaves ${r.leaf.toFixed(1)} in for ${e.foliageIn}`);
+      if (e.foliageMin!=null) assert(r.leaf>=e.foliageMin-tol(e.foliageMin),`${ref}: leaves ${r.leaf.toFixed(1)} in, under ${e.foliageMin}`);
+      if (e.flowerIn!=null&&r.head!=null){ heads++;
+        assert(Math.abs(r.head-e.flowerIn)<=tol(e.flowerIn),`${ref}: heads ${r.head.toFixed(1)} in for ${e.flowerIn}`); }
+      n++;
+    }
+  } finally { ART2.on=was; }
+  assert(n>=75&&heads>=55,`checked ${n} choices, ${heads} with heads`);
 });
 /* The catalog's row and tile pictures and the Library card fit a plant by its height and by the
    sideScale it declares, so a low grass wider than that was cut off at the sides: fourteen were, by

@@ -1,0 +1,365 @@
+{
+  "reviewed": "2026-11-19",
+  "note": "How tall each sedge's leaves and seed heads are drawn (0.9.140). heightIn is the height in flower, and the tallest of leaves and heads is drawn to it. Where Mt. Cuba's Carex trial measured the taxon (average foliage height and flower height, mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx), the shorter of the two is drawn at the trial's ratio of heightIn when they differ by more than 15%. Without a trial row the leaves stand between 0.86 of heightIn, the trial's lower quartile of foliage over flower height, and heightIn, except where the record says the flowers stand well above the leaves. A sedge with no heads drawn is its leaves. Heights are measured from the ground each tuft stands on, not the on-screen top, which a wide clump lifts by the depth of its back edge. Tolerance: 10% or 2 in, as for the grasses. Checked by \"every sedge draws at its sourced height\" in tests/game.test.js.",
+  "trial": "https://mtcubacenter.org/wp-content/uploads/2023/01/Carex-Website-Data-.xlsx",
+  "foliageFloor": 0.86,
+  "choices": {
+    "sedge": {
+      "basis": "trial C. brevior: foliage 18 and flowers 17 in, within 15%",
+      "foliageIn": 24,
+      "flowerIn": 24
+    },
+    "foxsedge": {
+      "basis": "trial C. vulpinoidea: flowers 21 in among foliage 28 in",
+      "foliageIn": 30,
+      "flowerIn": 22.5
+    },
+    "grayssedge": {
+      "basis": "trial C. grayi: flowers 22 in among foliage 29 in",
+      "foliageIn": 30,
+      "flowerIn": 22.8
+    },
+    "graysedge": {
+      "basis": "trial C. grisea: foliage 13 in under flowers 16 in",
+      "foliageIn": 14.6,
+      "flowerIn": 18
+    },
+    "mountainsedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 8,
+      "foliageMin": 6.9
+    },
+    "mountainsedge:raureif": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height (as its species)",
+      "foliageMin": 6.9,
+      "flowerIn": 8
+    },
+    "evergoldsedge": {
+      "basis": "no heads drawn: the leaves are its height",
+      "foliageIn": 12
+    },
+    "snowywoodrush": {
+      "basis": "flower sprays above the foliage",
+      "flowerIn": 24
+    },
+    "prairiesedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 30,
+      "foliageMin": 25.8
+    },
+    "broomsedgecarex": {
+      "basis": "trial C. scoparia: foliage 17 and flowers 18 in, within 15%",
+      "foliageIn": 24,
+      "flowerIn": 24
+    },
+    "palmsedge": {
+      "basis": "palm sedge: arching leafy stems to its height; held to the height alone"
+    },
+    "palmsedge:littlemidge": {
+      "basis": "palm sedge: arching leafy stems to its height; held to the height alone"
+    },
+    "palmsedge:oehme": {
+      "basis": "palm sedge: arching leafy stems to its height; held to the height alone"
+    },
+    "bromoides": {
+      "basis": "trial C. bromoides: foliage 16 and flowers 18 in, within 15%",
+      "foliageIn": 16,
+      "flowerIn": 16
+    },
+    "plantainsedge": {
+      "basis": "trial C. plantaginea: foliage 13 in under flowers 16 in",
+      "foliageIn": 9.8,
+      "flowerIn": 12
+    },
+    "appalachiansedge": {
+      "basis": "trial C. appalachica: foliage 8 in under flowers 10 in",
+      "foliageIn": 6.4,
+      "flowerIn": 8
+    },
+    "rosysedge": {
+      "basis": "trial C. rosea: foliage 11 in under flowers 16 in",
+      "foliageIn": 11,
+      "flowerIn": 16
+    },
+    "ivorysedge": {
+      "basis": "trial C. eburnea: foliage 9 and flowers 10 in, within 15%",
+      "foliageIn": 8,
+      "flowerIn": 8
+    },
+    "oaksedge": {
+      "basis": "trial C. albicans: foliage 12 in under flowers 14 in",
+      "foliageIn": 10.3,
+      "flowerIn": 12
+    },
+    "meadssedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 14,
+      "foliageMin": 12
+    },
+    "texassedge": {
+      "basis": "trial C. texensis: foliage 10 and flowers 10 in, within 15%",
+      "foliageIn": 10,
+      "flowerIn": 10
+    },
+    "cherokeesedge": {
+      "basis": "the trial's 35 in foliage is an outlier (sedge-audit.md); leaves between the trial lower quartile and its height",
+      "flowerIn": 18,
+      "foliageMin": 15.5
+    },
+    "cedarsedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 8,
+      "foliageMin": 6.9
+    },
+    "tussocksedge": {
+      "basis": "trial C. stricta: foliage 25 and flowers 25 in, within 15%",
+      "foliageIn": 30,
+      "flowerIn": 30
+    },
+    "lakesedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 42,
+      "foliageMin": 36.1
+    },
+    "awlfruitedsedge": {
+      "basis": "trial C. stipata var. maxima: foliage 13 in under flowers 21 in",
+      "foliageIn": 18.6,
+      "flowerIn": 30
+    },
+    "bristlysedge": {
+      "basis": "trial C. comosa: flowers 22 in among foliage 30 in",
+      "foliageIn": 36,
+      "flowerIn": 26.4
+    },
+    "bluewoodsedge": {
+      "basis": "trial C. flaccosperma: flowers 13 in among foliage 15 in",
+      "foliageIn": 10,
+      "flowerIn": 8.7
+    },
+    "whitebearsedge": {
+      "basis": "trial C. albursina: foliage 11 in under flowers 16 in",
+      "foliageIn": 9.6,
+      "flowerIn": 14
+    },
+    "longbeakedsedge": {
+      "basis": "trial C. sprengelii: foliage 20 in under flowers 29 in",
+      "foliageIn": 16.6,
+      "flowerIn": 24
+    },
+    "sunsedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 12,
+      "foliageMin": 10.3
+    },
+    "clusteredfieldsedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 24,
+      "foliageMin": 20.6
+    },
+    "pennsedge": {
+      "basis": "trial C. pensylvanica: foliage 15 and flowers 15 in, within 15%",
+      "foliageIn": 8,
+      "flowerIn": 8
+    },
+    "pennsedge:strawhat": {
+      "basis": "trial C. pensylvanica 'Straw Hat': foliage 14 and flowers 14 in, within 15% (as its species)",
+      "foliageIn": 8,
+      "flowerIn": 8
+    },
+    "bowlesgoldensedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 24,
+      "foliageMin": 20.6
+    },
+    "sloughsedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 48,
+      "foliageMin": 41.3
+    },
+    "woodssedge": {
+      "basis": "trial C. woodii: foliage 14 in under flowers 18 in",
+      "foliageIn": 9.3,
+      "flowerIn": 12
+    },
+    "haydensedge": {
+      "basis": "trial C. haydenii: foliage 31 in under flowers 36 in",
+      "foliageIn": 31,
+      "flowerIn": 36
+    },
+    "jamessedge": {
+      "basis": "trial C. jamesii: flowers 8 in among foliage 15 in",
+      "foliageIn": 12,
+      "flowerIn": 6.4
+    },
+    "fringedsedge": {
+      "basis": "trial C. crinita: flowers 35 in among foliage 41 in",
+      "foliageIn": 36,
+      "flowerIn": 30.7
+    },
+    "leavenworthsedge": {
+      "basis": "trial C. leavenworthii: foliage 18 and flowers 17 in, within 15%",
+      "foliageIn": 12,
+      "flowerIn": 12
+    },
+    "creeksedge": {
+      "basis": "trial C. amphibola: foliage 17 and flowers 16 in, within 15%",
+      "foliageIn": 15,
+      "flowerIn": 15
+    },
+    "starsedge": {
+      "basis": "trial C. radiata: foliage 11 and flowers 12 in, within 15%",
+      "foliageIn": 15,
+      "flowerIn": 15
+    },
+    "woodlandsedge": {
+      "basis": "trial C. blanda: flowers 9 in among foliage 12 in",
+      "foliageIn": 12,
+      "flowerIn": 9
+    },
+    "sallowsedge": {
+      "basis": "trial C. lurida: flowers 17 in among foliage 21 in",
+      "foliageIn": 24,
+      "flowerIn": 19.4
+    },
+    "spreadingsedge": {
+      "basis": "trial C. laxiculmis: foliage 10 in under flowers 13 in",
+      "foliageIn": 9.2,
+      "flowerIn": 12
+    },
+    "spreadingsedge:hobb": {
+      "basis": "trial C. laxiculmis 'Hobb': foliage 10 and flowers 9 in, within 15%",
+      "foliageIn": 10,
+      "flowerIn": 10
+    },
+    "emorysedge": {
+      "basis": "trial C. emoryi: flowers 27 in among foliage 40 in",
+      "foliageIn": 36,
+      "flowerIn": 24.3
+    },
+    "everestsedge": {
+      "basis": "no heads drawn: the leaves are its height",
+      "foliageIn": 16
+    },
+    "everillosedge": {
+      "basis": "no heads drawn: the leaves are its height",
+      "foliageIn": 14
+    },
+    "icedancesedge": {
+      "basis": "no heads drawn: the leaves are its height",
+      "foliageIn": 12
+    },
+    "orangesedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 20,
+      "foliageMin": 17.2
+    },
+    "bluesedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 10,
+      "foliageMin": 8.6
+    },
+    "hairsedge": {
+      "basis": "no heads drawn: the leaves are its height",
+      "foliageIn": 18
+    },
+    "hairsedge:frostedcurls": {
+      "basis": "no heads drawn: the leaves are its height (as its species)",
+      "foliageIn": 18
+    },
+    "leatherleafsedge": {
+      "basis": "no heads drawn: the leaves are its height",
+      "foliageIn": 24
+    },
+    "broadleafsedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 10,
+      "foliageMin": 8.6
+    },
+    "broadleafsedge:variegata": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height (as its species)",
+      "foliageMin": 8.6,
+      "flowerIn": 10
+    },
+    "remotesedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 20,
+      "foliageMin": 17.2
+    },
+    "woodsedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 24,
+      "foliageMin": 20.6
+    },
+    "greaterwoodrush": {
+      "basis": "flowers on stems to about 30 in (RHS)",
+      "flowerIn": 30
+    },
+    "californiameadowsedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 8,
+      "foliageMin": 6.9
+    },
+    "berkeleysedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 18,
+      "foliageMin": 15.5
+    },
+    "whitetopsedge": {
+      "basis": "a star of bracts over each stem",
+      "flowerIn": 18
+    },
+    "weepingsedge": {
+      "basis": "catkins hanging from arching stems",
+      "flowerIn": 48
+    },
+    "bicknellsedge": {
+      "basis": "trial C. bicknellii: foliage 17 and flowers 18 in, within 15%",
+      "foliageIn": 24,
+      "flowerIn": 24
+    },
+    "cattailsedge": {
+      "basis": "trial C. typhina: flowers 18 in among foliage 30 in",
+      "foliageIn": 24,
+      "flowerIn": 14.4
+    },
+    "porcupinesedge": {
+      "basis": "trial C. hystericina: foliage 16 and flowers 17 in, within 15%",
+      "foliageIn": 24,
+      "flowerIn": 24
+    },
+    "reflexedsedge": {
+      "basis": "trial C. retroflexa: foliage 17 and flowers 15 in, within 15%",
+      "foliageIn": 12,
+      "flowerIn": 12
+    },
+    "seabeachsedge": {
+      "basis": "trial C. silicea: foliage 17 and flowers 19 in, within 15%",
+      "foliageIn": 18,
+      "flowerIn": 18
+    },
+    "barrattsedge": {
+      "basis": "trial C. barrattii: flowers 23 in among foliage 29 in",
+      "foliageIn": 24,
+      "flowerIn": 19
+    },
+    "looseflowersedge": {
+      "basis": "trial C. laxiflora: foliage 10 and flowers 11 in, within 15%",
+      "foliageIn": 12,
+      "flowerIn": 12
+    },
+    "roughsedge": {
+      "basis": "trial C. scabrata: foliage 25 and flowers 22 in, within 15%",
+      "foliageIn": 22,
+      "flowerIn": 22
+    },
+    "tuftedsedge": {
+      "basis": "no trial row; leaves between the trial lower quartile and its height",
+      "flowerIn": 36,
+      "foliageMin": 31
+    },
+    "sawgrass": {
+      "basis": "leaves drawn to the 36 in UF/IFAS gives (sedge-sources.json)",
+      "flowerIn": 72
+    }
+  }
+}

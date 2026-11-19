@@ -231,6 +231,51 @@ smaller qualified. What else was checked, and why it is not here:
 | Swamp flatsedge, *Cyperus ligularis* | IRC lists it for seasides, but no zone was found. |
 | Gulf Coast spikerush, *Eleocharis cellulosa* | FNPS 8A-10B. |
 
+## Shipped in 0.9.140: heights
+
+`h` had never been solved for a sedge. Measured from the ground each tuft stands on (a clump
+`tuftIn` wide puts its far tufts up the screen by that patch's depth, up to 10 in on a mat, which
+is ground and not height), three things were wrong:
+
+1. **Seed heads stood over the height in flower**, by the head itself and the back of the clump:
+   Greater Woodrush's at 36 in for 30, Snowy Woodrush's 30 for 24, most low sedges' 1-2 in over.
+2. **Three faint highlight strokes floated above every clump.** `drawPlant`'s closing pass places them
+   up to 0.83 of the drawing's height, assuming foliage fills it; a sedge's leaves top out at a half
+   to three quarters of it. Pennsylvania Sedge carried them about 6 in above its leaves. Sedges skip
+   the pass now: their blades light themselves.
+3. **Some leaves stood far under the height**: Texas Sedge's at 6.9 in of 10 and Leavenworth's 7.6 of
+   12, though the trial measured both plants' foliage and flowers at about the same height, and
+   Broadleaf Sedge's at 5.7 of 10.
+
+What each choice is drawn to, and why, is in `sedge-heights.json`:
+
+- **Where the trial grew the taxon**, the taller of its foliage and flower heights is drawn at
+  `heightIn` and the shorter at the trial's ratio, when they differ by more than 15%. Heads sit
+  below the leaves for Fox, Gray's, Bristly, Blue Wood, James', Fringed, Woodland, Sallow,
+  Emory's, Cattail and Barratt's Sedge (Gray's 22.8 in under 30 in leaves); leaves under the heads
+  for Inflated Narrow-leaved, Plantain-leaf, Appalachian, Rosy, Oak, Awl-fruited, White Bear,
+  Long-beaked, Wood's, Hayden's and Spreading Sedge (Rosy's 11 in under 16 in heads). Otherwise
+  both stand at `heightIn`. Awl-fruited Sedge reads
+  the trial's var. *maxima* row for its proportion; Cherokee Sedge does not read its row, whose
+  35 in of foliage this audit already called an outlier.
+- **Without a trial row**, the leaves stand between 0.86 of `heightIn`, the trial's lower quartile
+  of foliage over flower height, and `heightIn`, and the heads at `heightIn`. Five keep their
+  leaves where they were, because their records say the flowers stand well above them: both
+  woodrushes, Weeping and White-topped Sedge, and Sawgrass (UF/IFAS's 3 ft of leaves).
+- **A sedge drawn with no heads** ('Evergold', 'Everest', 'Everillo', 'Ice Dance', Hair and
+  Leatherleaf Sedge) is its leaves, at `heightIn`.
+
+`look.seedTop` stands the heads at a share of the height in flower. Widths are held: every
+sideways reach is `H*leafLen*spread`, so `look.spread` and `sideScale` move against `h`. Most
+sedges already draw at or past their stated spread, so widening with the height would overshoot.
+Palm sedge draws its stems to its height already and is held to that alone.
+
+Measured after: every choice within 10% or 2 in of each target, as the grasses are held; sprite
+area up 5% across the tab (Bristly 18%, Pennsylvania unchanged); 4,200 real-size catalog,
+Library and daily pictures and 1,800 sprites with no ink on an edge. Only the 68 sedge records
+draw differently. The 15% threshold and the 0.86 floor are judgements from the trial's numbers,
+and the foliage heights of the sedges it did not grow are not sourced.
+
 ## Checked and left alone
 
 - **Palm sedge in winter.** The trial says semi-evergreen, but
