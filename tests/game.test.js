@@ -3437,6 +3437,38 @@ test('the 0.9.137 conifer shapes are opt-in, and only the trees reshaped ask for
   assert(mp.split('\n').filter(l=>l==='fill()').length<=120,'a monkey puzzle is cheap: two fills a limb');
 });
 
+test('a trunked palm is a crown of fan fronds on a trunk, built in the round (form:palm)', () => {
+  /* 0.9.137: windmill palm, cabbage palmetto, Mediterranean fan palm and
+     California fan palm. Saw palmetto's low clonal fans stay 'fanpalm'. */
+  const palms=PLANT_KEYS.filter(k=>PLANTS[k].form==='palm');
+  assertEqual(palms.sort().join(','),'cabbagepalmetto,californiafanpalm,mediterraneanfanpalm,windmillpalm','the four trunked palms');
+  const fills=log=>log.split('\n').filter(l=>l==='fill()').length;
+  for (const k of palms){
+    const P=PLANTS[k];
+    assert(isTreeDef(P),`${k}: a tree, so it stands on its trunk tile and casts shade`);
+    assertEqual(treeLeafOut(P),null,`${k}: a palm keeps its fronds`);
+    assert(frondOrSpine(P),`${k}: fronds, not a meadow or a cottage plant`);
+    assert(staticPlantRoles(k).includes('architectural'),`${k}: an architectural plant`);
+    for (const season of SEASONS){
+      const log=plantDrawCalls(k,null,season,4242,1);
+      assert(fills(log)>=12 && fills(log)<=200,`${k} ${season}: ${fills(log)} fills, a frond's two fills each`);
+    }
+    // the closing highlight strokes assume foliage fills the box; a palm's box is mostly sky
+    assert(!/globalAlpha=0.16/.test(plantDrawCalls(k,null,'Summer',4242,1)),`${k}: no stray highlight in the air`);
+  }
+  const H=100, cw=60;
+  assertEqual(palmGeom(PLANTS.mediterraneanfanpalm.look,H,cw,1).NT,5,'the Mediterranean fan palm suckers into a clump of trunks');
+  assertEqual(palmGeom(PLANTS.windmillpalm.look,H,cw,1).NT,1,'the windmill palm has one');
+  assert(PLANTS.californiafanpalm.look.skirt>0 && PLANTS.californiafanpalm.look.threads,'the California fan palm wears its petticoat and threads');
+  assertEqual(PLANTS.cabbagepalmetto.look.trunkStyle,'boots','the cabbage palmetto keeps its criss-cross boots');
+  assertEqual(PLANTS.windmillpalm.look.trunkStyle,'fiber','the windmill palm its hairy fibre');
+  assert(PLANTS.cabbagepalmetto.look.bladeDroop>PLANTS.windmillpalm.look.bladeDroop,'a costapalmate leaf arches harder than a flat fan');
+  // a frond's fan reads three-dimensionally: fronds facing the viewer and away draw differently
+  assert(plantDrawCalls('windmillpalm',null,'Summer',4242,1)!==plantDrawCalls('windmillpalm',null,'Summer',7122,1),'each palm is its own');
+  // a young palm is a small one, not the full crown scaled
+  assert(fills(plantDrawCalls('windmillpalm',null,'Summer',4242,0.2))<fills(plantDrawCalls('windmillpalm',null,'Summer',4242,1)),'a young palm carries fewer fronds');
+});
+
 test('an evergreen changes colour with the season, never shape, and keeps the cost of a tree', () => {
   /* Spring is the summer needles with new growth on the tips, so a spruce in
      May and in July are the same tree: only colours may differ. Winter adds

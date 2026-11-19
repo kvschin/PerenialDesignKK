@@ -118,6 +118,10 @@ test('the evergreen audit\'s Tier 3: the trees that waited for the renderer', ()
     stonepine:{latin:'Pinus pinea', form:'conifer', type:'tree', habit:'pine', group:'pine', zones:[8,10], native:['europe','asia'], size:[600,420]},
     umbrellapine:{latin:'Sciadopitys verticillata', form:'conifer', type:'tree', habit:'pine', group:undefined, zones:[5,8], native:['asia'], size:[300,180]},
     monkeypuzzle:{latin:'Araucaria araucana', form:'conifer', type:'tree', habit:'araucaria', group:undefined, zones:[7,10], native:['south-america'], size:[480,240]},
+    windmillpalm:{latin:'Trachycarpus fortunei', form:'palm', type:'tree', group:'palm', zones:[7,10], native:['asia'], size:[240,96]},
+    cabbagepalmetto:{latin:'Sabal palmetto', form:'palm', type:'tree', group:'palm', zones:[8,11], native:['north-america'], size:[360,144]},
+    mediterraneanfanpalm:{latin:'Chamaerops humilis', form:'palm', type:'tree', group:'palm', zones:[8,11], native:['europe','africa'], size:[120,120]},
+    californiafanpalm:{latin:'Washingtonia filifera', form:'palm', type:'tree', group:'palm', zones:[9,11], native:['north-america','central-america'], size:[480,144]},
   };
   for (const [k,e] of Object.entries(T3)){
     const P=PLANTS[k];
@@ -135,10 +139,16 @@ test('the evergreen audit\'s Tier 3: the trees that waited for the renderer', ()
     assert(WIKIPEDIA_ARTICLES[k],`${k}: a Wikipedia article`);
     for (const s of SEASON_KEYS) assert(P.sea[s] && P.sea[s].fol,`${k}: evergreen foliage in ${s}`);
   }
+  // the Mexican fan palm is left out: Cal-IPC rates it invasive (Moderate) and Florida lists it (FISC II)
+  assert(!PLANT_KEYS.some(k=>/Washingtonia robusta/.test(PLANTS[k].latin)),'no Mexican fan palm');
+  assert(/robusta/.test(PLANTS.californiafanpalm.blurb),'the California fan palm says which one not to buy');
+  assert(/Switzerland/.test(PLANTS.windmillpalm.blurb),'the windmill palm says where it has escaped');
+  assert(/[Ee]ndangered/.test(PLANTS.monkeypuzzle.blurb),'the monkey puzzle says it is endangered in the wild');
+  assertEqual(PLANTS.sawpalmetto.form,'fanpalm','saw palmetto keeps its low clonal fans');
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,887,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,891,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),696,
     'canonical nested-choice count');

@@ -3328,7 +3328,7 @@ function plantShadowR(P, growth){
 // shadow, or a weeping conifer's cascade, whichever hangs lower.
 function plantDrawBelow(P, growth, H){
   const shR = plantShadowR(P, growth);
-  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H,growth), coniferGroundBelow(P,growth), coniferTreeBelow(P,growth,H), spikyRosetteBelow(P,H), hostaLeafBelow(P,H));
+  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H,growth), coniferGroundBelow(P,growth), coniferTreeBelow(P,growth,H), spikyRosetteBelow(P,H), hostaLeafBelow(P,H), palmBelow(P,growth,H));
 }
 /* A hosta-leaf mound's front leaves come toward the viewer and so draw below the
    crown, by a share of the plant's height (0.28-0.35 measured): a fixed allowance
@@ -4135,6 +4135,200 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
     else if (k===3) snow.push([_cfIt[o+1],_cfIt[o+2],Math.max(2.2,_cfIt[o+6]*0.5)]);
     else if (k===4) snow.push([_cfIt[o+1]+R*0.5*c,_cfIt[o+2]+R*0.5*s*CONIFER_TILT-_cfIt[o+7]*0.5,Math.max(2.2,_cfIt[o+7]*1.1)]);
     else snow.push([_cfIt[o+1],_cfIt[o+2]-_cfIt[o+6]*0.6,Math.max(2.2,R*0.45)]);
+  }
+  return snow;
+}
+
+/* ---------- trunked palms (form:'palm', 0.9.137) ----------
+   A palm tree is a trunk with a crown of fronds at its top. Saw palmetto's
+   `fanpalm` draws low clonal fans fanned out flat on the screen; a crown in
+   the air has to be built in the round, so each frond here is placed in three
+   dimensions and projected with the conifers' look-down (CONIFER_TILT): a
+   petiole leaves the crown at its azimuth and elevation in a spiral (young
+   fronds upright, old ones drooping), and its fan blade spreads in the plane
+   of the petiole and the level line across it, so a frond pointing at the
+   viewer shows a broad fan and one pointing sideways is seen nearly edge on.
+   A fan is joined to `split` of its radius and divided into `segments` beyond
+   that, their tips sagging; `bladeDroop` bends the blade down off the petiole
+   (a cabbage palmetto's costapalmate leaf arches hard). Fronds draw back to
+   front around their trunk, two fills each: the frond (petiole, joined blade
+   and segments as one path) and its lit centre.
+   Trunks: `trunks` (a clumping Mediterranean fan palm), leaning out from a
+   clump `clumpW` of the width; `trunkStyle` fiber (a windmill palm's hairy
+   sheath), boots (the criss-cross leaf bases of a cabbage palmetto), ringed
+   (leaf scars) or smooth; `skirt` (a California fan palm's petticoat of dead
+   fronds hanging down the trunk) and `deadFrac` (old fronds hanging brown
+   under the crown); `threads` (the filaments on a Washingtonia's segments).
+   Everything is laid out inside the box plantDrawBox guarantees (`lim`). */
+function palmGeom(L,H,cw,growth){
+  const lim=cw*0.62+12, topAllow=Math.max(H,0.75*H+cw*0.7)+18;
+  const crownY=L.crownY||0.8, phiTop=L.phiTop===undefined?1.15:L.phiTop, phiLow=L.phiLow===undefined?-0.55:L.phiLow;
+  const NT=Math.max(1,Math.min(7,Math.round((L.trunks||1)*(0.45+0.55*growth))));
+  return {lim, topAllow, crownY, phiTop, phiLow, NT, reach:L.reach||0.95};
+}
+/* How far a palm paints below its placement point: a low crown's front fronds
+   coming toward the viewer, down the screen. plantDrawBelow reads it. */
+function palmBelow(P,growth,H){
+  if (P.form!=='palm') return 0;
+  const L=P.look||{}, cw=(woodyVisualCw(P)||60)*(0.12+0.88*growth), g=palmGeom(L,H,cw,growth);
+  const R=cw*0.5*g.reach*1.08;
+  return Math.max(0,R*(1.05*Math.sin(-g.phiLow)+0.45)+R*CONIFER_TILT-H*g.crownY*0.55)+6;
+}
+function palmTrunk(ctx,x0,y0,x1,y1,w,L,bark,rnd){
+  const dx=x1-x0, dy=y1-y0, len=Math.hypot(dx,dy)||1, nx=-dy/len, ny=dx/len;
+  const pts=[[0,1.4],[0.06,1.05],[0.5,0.94],[1,0.82]];
+  ctx.fillStyle=bark; ctx.beginPath();
+  for (let i=0;i<pts.length;i++){ const [f,k]=pts[i]; ctx[i?'lineTo':'moveTo'](x0+dx*f+nx*w*k*0.5,y0+dy*f+ny*w*k*0.5); }
+  for (let i=pts.length-1;i>=0;i--){ const [f,k]=pts[i]; ctx.lineTo(x0+dx*f-nx*w*k*0.5,y0+dy*f-ny*w*k*0.5); }
+  ctx.closePath(); ctx.fill();
+  const at=(f,s)=>[x0+dx*f+nx*w*0.5*s*(1.05-0.2*f), y0+dy*f+ny*w*0.5*s*(1.05-0.2*f)];
+  const style=L.trunkStyle||'smooth';
+  ctx.lineCap='round';
+  if (style==='fiber'){
+    // a hairy sheath of old leaf fibres, lying down the trunk at a slant
+    const n=Math.max(6,Math.min(46,Math.round(len/Math.max(1.6,w*0.45))));
+    for (const [col,lw,off] of [[shade(bark,-30),0.55,0],[shade(bark,24),0.45,0.5]]){
+      ctx.strokeStyle=col; ctx.lineWidth=Math.max(0.5,w*0.09*lw/0.5); ctx.beginPath();
+      for (let i=0;i<n;i++){ const f=(i+off+0.3*rnd())/n, s=(rnd()-0.5)*1.7, [px,py]=at(Math.min(1,f),s);
+        ctx.moveTo(px,py); ctx.lineTo(px+nx*w*0.18*(s>0?1:-1)+dx/len*w*0.1,py+ny*w*0.18*(s>0?1:-1)+w*0.55); }
+      ctx.stroke();
+    }
+  } else if (style==='boots'){
+    // the old leaf bases ("boots") criss-crossing the upper trunk; below them bare and grey
+    const from=L.bootsFrom===undefined?0.5:L.bootsFrom, rows=Math.max(3,Math.min(18,Math.round(len*(1-from)/Math.max(2,w*0.55))));
+    ctx.strokeStyle=shade(bark,-34); ctx.lineWidth=Math.max(0.5,w*0.09); ctx.beginPath();
+    for (let r=0;r<rows;r++){ const f=from+(1-from)*(r+0.5)/rows, f2=Math.min(1,f+(1-from)/rows*0.9);
+      const [ax,ay]=at(f,-0.95), [bx,by]=at(f2,0), [cx,cy]=at(f,0.95);
+      ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(cx,cy); }
+    ctx.stroke();
+    ctx.strokeStyle=shade(bark,-14); ctx.lineWidth=Math.max(0.4,w*0.05); ctx.beginPath();
+    for (let r=0;r<5;r++){ const f=from*(r+0.5)/5, [ax,ay]=at(f,-0.9), [cx,cy]=at(f,0.9); ctx.moveTo(ax,ay); ctx.lineTo(cx,cy); }
+    ctx.stroke();
+  } else if (style==='ringed'){
+    // close rings of old leaf scars
+    const n=Math.max(4,Math.min(30,Math.round(len/Math.max(1.6,w*0.32))));
+    ctx.strokeStyle=shade(bark,-22); ctx.lineWidth=Math.max(0.45,w*0.06); ctx.beginPath();
+    for (let i=0;i<n;i++){ const f=0.04+0.94*(i+0.5)/n, [ax,ay]=at(f,-0.92), [cx,cy]=at(f,0.92);
+      ctx.moveTo(ax,ay); ctx.quadraticCurveTo((ax+cx)/2,(ay+cy)/2+w*0.12,cx,cy); }
+    ctx.stroke();
+  }
+  // the lit side
+  ctx.strokeStyle=shade(bark,16); ctx.lineWidth=Math.max(0.6,w*0.14); ctx.beginPath();
+  const [lx0,ly0]=at(0.06,-0.55), [lx1,ly1]=at(0.95,-0.55); ctx.moveTo(lx0,ly0); ctx.lineTo(lx1,ly1); ctx.stroke();
+}
+// a petticoat of dead fronds hanging from under the crown, ragged at its foot
+function palmSkirt(ctx,x,y,len,wTop,wBot,col,rnd){
+  const K=9;
+  ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x-wTop,y);
+  ctx.quadraticCurveTo(x-wTop*1.08,y+len*0.5,x-wBot,y+len*0.92);
+  for (let k=0;k<=K;k++){ const f=k/K; ctx.lineTo(x-wBot+2*wBot*f,y+len*(k&1 ? 0.84+0.1*rnd() : 0.98+0.06*rnd())); }
+  ctx.quadraticCurveTo(x+wTop*1.08,y+len*0.5,x+wTop,y); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=shade(col,-26); ctx.lineWidth=Math.max(0.5,wTop*0.06); ctx.beginPath();
+  for (let i=0;i<9;i++){ const f=(i+0.5)/9-0.5, x0=x+f*wTop*1.8; ctx.moveTo(x0,y+len*0.06); ctx.lineTo(x+f*wBot*1.9,y+len*(0.82+0.12*rnd())); }
+  ctx.stroke();
+}
+function drawPalm(ctx,P,L,S,H,cw,vs,growth,seed,sway,season,snowy,mature,blooming){
+  const g=palmGeom(L,H,cw,growth), lim=g.lim, rnd=mulberry(seed^0x9a1a);
+  const fol=S.fol||'#5a7a4a', bark=L.bark||'#6a5a48', snow=[];
+  const lit=c=>c*LIT.x/0.55;
+  const tw=Math.max(1.4,(L.trunkW||5)*vs*(0.35+0.65*growth));
+  const span=L.fanSpan||1.2, split=L.split===undefined?0.5:L.split, nS=Math.max(6,Math.min(20,Math.round(L.segments||14)));
+  const sag=L.segSag===undefined?0.25:L.segSag, bDroop=L.bladeDroop===undefined?0.3:L.bladeDroop, pet=L.petiole||0.42;
+  // trunks round a clump, far ones first; the first is the tallest
+  const trunks=[];
+  for (let t=0;t<g.NT;t++){
+    const a=t*2.39996+(seed&15)*0.4, r=g.NT>1 ? cw*(L.clumpW||0.16)*(t===0?0.25:0.6+0.4*rnd()) : 0;
+    const hf=t===0 ? 1 : 0.55+0.38*rnd(), lean=(L.lean||0)*(g.NT>1 ? 1 : 0.4);
+    trunks.push({x:Math.cos(a)*r, z:Math.sin(a)*r, hf, lx:Math.cos(a)*H*lean*hf*(g.NT>1?1:((seed&1)?1:-1)), a});
+  }
+  trunks.sort((p,q)=>p.z-q.z);
+  for (const T of trunks){
+    const bx=T.x, by=T.z*CONIFER_TILT, cy=by-H*g.crownY*T.hf, cx=bx+T.lx+sway*(L.sway||1.2)*T.hf;
+    // the crown: its radius kept inside the box at the side and the top
+    let R=cw*0.5*g.reach*(g.NT>1 ? 0.62+0.38*T.hf : 1);
+    R=Math.min(R,(lim-Math.abs(cx))/1.04,(g.topAllow+cy)/Math.max(0.3,Math.sin(g.phiTop)+0.35));
+    const nF=Math.max(4,Math.round((L.fronds||18)*(0.45+0.55*growth)*(g.NT>1 ? 0.55+0.45*T.hf : 1)));
+    const dead=Math.round(nF*(L.deadFrac||0)), fronds=[];
+    const ph=rnd()*6.283;
+    for (let f=0;f<nF;f++){
+      const isDead=f>=nF-dead, th=ph+f*2.39996+(rnd()-0.5)*0.3;
+      const phi=isDead ? -1.25+(rnd()-0.5)*0.2 : g.phiTop-(g.phiTop-g.phiLow)*((f+0.5)/Math.max(1,nF-dead))+(rnd()-0.5)*0.16;
+      const c=Math.cos(th), s=Math.sin(th), cp=Math.cos(phi), sp=Math.sin(phi);
+      const len=R*(0.84+0.22*rnd())*(isDead?0.8:1), p=len*pet, rb=len*(1-pet);
+      const d=[cp*c,sp,cp*s], h=[-s,0,c];
+      // the blade bends down off the petiole, more when the frond is level
+      const pb=phi-bDroop*(0.4+0.6*cp)-(isDead?0.4:0), cb=Math.cos(pb), sb=Math.sin(pb), db=[cb*c,sb,cb*s];
+      const B=[d[0]*p,d[1]*p+p*0.08,d[2]*p];
+      fronds.push({isDead,c,s,d,h,db,B,rb,p,z:(B[2]+db[2]*rb*0.5),tone:Math.round(16*lit(c*cp)+8*s*cp+10*sp+(rnd()-0.5)*8),j:rnd()});
+    }
+    fronds.sort((p2,q2)=>p2.z-q2.z);
+    const proj=(v)=>[cx+v[0], cy-v[1]+v[2]*CONIFER_TILT];
+    const paintFrond=F=>{
+      const col=F.isDead ? (L.deadCol||'#9c8460') : fol, sp2=F.isDead ? span*0.45 : span;
+      const pts=[];                        // split points and tips, by segment
+      for (let q=0;q<=nS;q++){
+        const psi=-sp2+2*sp2*q/nS, cps=Math.cos(psi), sps=Math.sin(psi), out=Math.abs(psi)/sp2;
+        const v=[F.db[0]*cps+F.h[0]*sps, F.db[1]*cps, F.db[2]*cps+F.h[2]*sps];
+        const S1=[F.B[0]+v[0]*F.rb*split, F.B[1]+v[1]*F.rb*split, F.B[2]+v[2]*F.rb*split];
+        const S2=[F.B[0]+v[0]*F.rb, F.B[1]+v[1]*F.rb-F.rb*sag*(0.35+0.65*out*out), F.B[2]+v[2]*F.rb];
+        pts.push([proj(S1),proj(S2)]);
+      }
+      const b=proj(F.B), o=proj([0,0,0]), m=proj([F.d[0]*F.p*0.5,F.d[1]*F.p*0.5+F.p*0.12,F.d[2]*F.p*0.5]);
+      let px=b[0]-o[0], py=b[1]-o[1]; const pl=Math.hypot(px,py)||1; px/=pl; py/=pl;
+      const pw=Math.max(0.7,tw*0.16);
+      ctx.fillStyle=shade(col,F.tone-10); ctx.beginPath();
+      // petiole: a tapering bowed strip
+      ctx.moveTo(o[0]-py*pw,o[1]+px*pw); ctx.quadraticCurveTo(m[0]-py*pw*0.7,m[1]+px*pw*0.7,b[0]-py*pw*0.4,b[1]+px*pw*0.4);
+      ctx.lineTo(b[0]+py*pw*0.4,b[1]-px*pw*0.4); ctx.quadraticCurveTo(m[0]+py*pw*0.7,m[1]-px*pw*0.7,o[0]+py*pw,o[1]-px*pw); ctx.closePath();
+      // the joined blade
+      ctx.moveTo(b[0],b[1]); for (const [s1] of pts) ctx.lineTo(s1[0],s1[1]); ctx.closePath();
+      // and its segments, each a wedge from the split to its tip
+      for (let q=0;q<nS;q++){ const A=pts[q][0], C=pts[q+1][0], Tp=pts[q][1], Tq=pts[q+1][1];
+        const tx=(Tp[0]+Tq[0])/2, ty=(Tp[1]+Tq[1])/2;
+        ctx.moveTo(A[0],A[1]); ctx.lineTo(tx,ty); ctx.lineTo(C[0],C[1]); ctx.closePath(); }
+      ctx.fill();
+      if (!F.isDead){
+        ctx.fillStyle=shade(col,F.tone+12); ctx.beginPath();
+        const k=Math.max(1,Math.round(nS*0.18));
+        ctx.moveTo(b[0],b[1]);
+        for (let q=k;q<=nS-k;q++){ const s1=pts[q][0]; ctx.lineTo(b[0]+(s1[0]-b[0])*0.8,b[1]+(s1[1]-b[1])*0.8); }
+        ctx.closePath(); ctx.fill();
+        if (L.threads){
+          // a Washingtonia's white threads, curling down from the sinuses
+          ctx.strokeStyle='rgba(230,224,208,0.5)'; ctx.lineWidth=Math.max(0.35,0.4*vs); ctx.beginPath();
+          for (let q=2;q<nS;q+=3){ const A=pts[q][0]; ctx.moveTo(A[0],A[1]); ctx.quadraticCurveTo(A[0]+F.rb*0.05,A[1]+F.rb*0.12,A[0]-F.rb*0.02,A[1]+F.rb*0.22); }
+          ctx.stroke();
+        }
+        if (snowy && F.d[1]>0.15 && F.s>-0.3 && snow.length<9){ const sc=pts[nS>>1][0]; snow.push([(b[0]+sc[0])/2,(b[1]+sc[1])/2-1,Math.max(2.2,F.rb*0.22)]); }
+      }
+    };
+    const back=fronds.filter(F=>F.s<0), front=fronds.filter(F=>F.s>=0);
+    for (const F of back) paintFrond(F);
+    // the trunk, the petticoat, and the knot of leaf bases at the top
+    palmTrunk(ctx,bx,by,cx,cy+tw*0.4,tw,L,bark,rnd);
+    if (L.skirt){
+      const sl=Math.min(-cy*0.9,H*g.crownY*T.hf*L.skirt);
+      palmSkirt(ctx,cx,cy+tw*0.2,sl,Math.min(R*0.3,tw*1.9),Math.min(R*0.26,tw*1.6),L.skirtCol||'#a08660',rnd);
+    }
+    ctx.fillStyle=shade(L.trunkStyle==='fiber'?bark:fol,-26); ctx.beginPath(); ctx.ellipse(cx,cy+tw*0.1,tw*0.85,tw*0.6,0,0,7); ctx.fill();
+    // flowers or fruit, hanging out among the fronds on arching stalks
+    const fl=mature && blooming && S.bloom, fr=mature && S.seed && !fl;
+    if (fl || fr){
+      const nI=Math.max(1,Math.min(5,Math.round(L.inflor||3))), col=fl ? S.bloom : S.seed;
+      const iLen=R*(L.inflorLen||0.55);
+      ctx.strokeStyle=shade(fl?col:(L.inflorCol||'#8a7a52'),-30); ctx.lineWidth=Math.max(0.5,0.7*vs); ctx.beginPath();
+      const ends=[];
+      for (let k=0;k<nI;k++){ const a=ph+k*2.39996+1.1, c=Math.cos(a), s=Math.sin(a);
+        const ex=cx+c*iLen, ey=cy+iLen*(L.inflorHang===undefined?0.35:L.inflorHang)+s*iLen*CONIFER_TILT;
+        ctx.moveTo(cx,cy); ctx.quadraticCurveTo(cx+c*iLen*0.6,cy-iLen*0.15+s*iLen*CONIFER_TILT*0.6,ex,ey); ends.push([ex,ey,c,s]); }
+      ctx.stroke();
+      ctx.fillStyle=col; ctx.beginPath();
+      for (const [ex,ey,c] of ends) for (let q=0;q<9;q++){ const f=0.45+0.55*q/8, r=Math.max(0.8,(fl?0.9:1.1)*vs);
+        const x=cx+(ex-cx)*f+(rnd()-0.5)*iLen*0.12, y=cy+(ey-cy)*f*f+(rnd()-0.5)*iLen*0.1;
+        ctx.moveTo(x+r,y); ctx.ellipse(x,y,r,r,0,0,7); }
+      ctx.fill();
+    }
+    for (const F of front) paintFrond(F);
   }
   return snow;
 }
@@ -11229,6 +11423,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     snowAnchors=drawConiferTree(ctx,P,L,CS,L.coniferHabit||'spruce',H,cw,vs,growth,seed,sway,season,
       !!(AMBIENCE[season].snow && mature),mature,leafAmt,dropping);
   }
+  else if (P.form === 'palm'){ // a trunked palm: a crown of fan fronds on a trunk, built in the round
+    const L=P.look||{}, vs=(woodyVisualCw(P)||60)/(P.cw||60), cw=(woodyVisualCw(P)||60)*(0.12+0.88*growth);
+    snowAnchors=drawPalm(ctx,P,L,S,H,cw,vs,growth,seed,sway,season,!!(AMBIENCE[season].snow&&mature),mature,blooming);
+  }
   else if (P.form === 'conifer'){ // evergreen habits share primitives, not silhouettes
     const L=P.look||{}, habit=S.fol?(L.coniferHabit||'spruce'):'bare';
     const fol=S.fol||'#4f6f50', vs=(woodyVisualCw(P)||60)/(P.cw||60);
@@ -12375,7 +12573,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // A bulb is a few straps and stems, never a mass filling H (0.9.124): over a
   // crocus or a tulip these strokes floated in the air, wider than the plant.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && P.type!=='bulb' && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
-      && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look))
+      && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look)) && P.form!=='palm'
       && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)
       && !(P.form==='fern' && fernBladeOn(P.look)) && !(P.look && P.look.leafStyle==='hosta')
       && !(P.form==='shrub' && P.look && (P.look.habit==='mossphlox'||P.look.habit==='matflower'))){

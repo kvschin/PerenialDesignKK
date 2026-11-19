@@ -949,7 +949,7 @@ function windPollinated(P){
   return P.type==='grass' || P.type==='sedge' || P.form==='emergent' || !!(P.look&&P.look.bloomStyle==='catkin');
 }
 // a cycad, a palm, an agave, an ocotillo: not a meadow plant and not a cottage one
-const FRONDS_AND_SPINES=new Set(['agave','cycad','fanpalm','ocotillo']);
+const FRONDS_AND_SPINES=new Set(['agave','cycad','fanpalm','palm','ocotillo']);
 function frondOrSpine(P){ return FRONDS_AND_SPINES.has(P.form) || !!(P.look&&P.look.twigCanopy); }
 /* A sedge recorded on prairie or meadow belongs to open ground even where it also takes
    part shade. Fox Sedge is sun:'part' so that a canopy does not stunt it, not because
@@ -1075,7 +1075,7 @@ function staticPlantRoles(k){
   if (isTreeDef(P)) roles.add('structure'), roles.add('canopy');
   if (P.form==='fern') roles.add('fern'), roles.add('shade'), roles.add('woodland');
   if (P.form==='leafmound') roles.add('groundcover'), roles.add('shade'), roles.add('woodland');
-  if (['globe','spike','drumstick','rosette','agave','cycad','fanpalm','ocotillo','vertgrass','fountaingrass','cloudgrass','conifer','emergent','bamboo'].includes(P.form))
+  if (['globe','spike','drumstick','rosette','agave','cycad','fanpalm','palm','ocotillo','vertgrass','fountaingrass','cloudgrass','conifer','emergent','bamboo'].includes(P.form))
     roles.add('architectural');
   if (['umbel','cone','pincushion','bractstack'].includes(P.form)) roles.add('flower');
   if (P.form==='hydrangea') roles.add('hydrangea'), roles.add('cottage'), roles.add('romantic'), roles.add('shade');
