@@ -8481,7 +8481,12 @@ scale habit's dark interior cone shows on the broader cypresses, as it already
 did on Arizona cypress; a lacebark pine is drawn on one trunk; a columnar pine
 ('Fastigiata') is still wider than a true column, because pine brushes are sized
 by needle length; and bald cypress drops with the other `warm` trees, a week or
-two early for it.
+two early for it. **`look.sprayUp`** (0..1, the `scale` habit, opt-in) holds the
+sprays upright and tight: narrower, taller (less so near the top, which the
+sprite box holds) and turned toward vertical. With a crown `profile` that comes
+to a point it made the Italian cypress a flame-tipped pencil (0.8), and it
+stands the incense cedar's sprays on edge (0.6); every other drawing hashed the
+same.
 **0.9.60: shrubs built as shrubs (`SHRUB_HABITS`, `shrubHabitOf`,
 `drawShrubHabit`, draw.js), with leaf-out and leaf drop (`woodyLeafOut`,
 world.js).** Every informal shrub -- 88 `bush` species and the 7 hydrangeas,

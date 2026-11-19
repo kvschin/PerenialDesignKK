@@ -3348,6 +3348,22 @@ test('a conifer tree is built in the round, and ?conifer=0 is the way back', () 
   } finally { CONIFER_HABIT.on=prev; }
 });
 
+test('an Italian cypress is a flame: upright sprays on a crown that comes to a point', () => {
+  /* The evergreen audit's stretch list: drawn as a blunt column of slanted
+     sprays, it read as a juniper. `sprayUp` turns the scale habit's sprays
+     upright and tight; a crown `profile` brings the top to a point. */
+  const L=PLANTS.italiancypress.look;
+  assert(L.sprayUp>0.5 && L.profile, 'it holds its sprays up and has a crown outline');
+  assert(treeCrownHW(L.profile,0.97)<0.25*treeCrownHW(L.profile,L.profile.p), 'the crown narrows to a point');
+  const on=plantDrawCalls('italiancypress',null,'Summer',4242,1), keep=L.sprayUp;
+  let off; try { delete L.sprayUp; off=plantDrawCalls('italiancypress',null,'Summer',4242,1); } finally { L.sprayUp=keep; }
+  assert(on!==off, 'sprayUp turns the sprays');
+  // opt-in: a zero is the same drawing as none
+  const H=PLANTS.hinokicypress.look, before=plantDrawCalls('hinokicypress',null,'Summer',4242,1);
+  try { H.sprayUp=0; assertEqual(plantDrawCalls('hinokicypress',null,'Summer',4242,1),before,'sprayUp 0 changes nothing'); }
+  finally { delete H.sprayUp; }
+});
+
 test('an evergreen changes colour with the season, never shape, and keeps the cost of a tree', () => {
   /* Spring is the summer needles with new growth on the tips, so a spruce in
      May and in July are the same tree: only colours may differ. Winter adds

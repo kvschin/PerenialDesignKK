@@ -3669,12 +3669,19 @@ function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,m
       const y=baseY-crownH*Math.min(0.985,u), hw=hwAt(u)*reach, R=hw*(0.84+0.18*rnd()), bx=xAt(y);
       if (hw<1) continue;
       const sz=r0*(0.65+0.7*rnd())*(0.7+0.3*Math.min(1,hw/(cw*0.2)));
-      const rx=sz*(0.5+0.5*Math.abs(s)), ry=sz*1.3*thick*(L.fanFlat?1:0.85);
+      let rx=sz*(0.5+0.5*Math.abs(s)), ry=sz*1.3*thick*(L.fanFlat?1:0.85);
+      /* `sprayUp` (0..1): sprays held upright and tight to the crown -- an
+         Italian cypress's flame, an incense cedar's sprays on edge -- rather
+         than fanned out at a slant. Narrower, taller (less so near the top,
+         which the sprite box has to hold) and turned toward vertical. */
+      const up=L.sprayUp||0;
+      if (up){ rx*=1-0.35*up; ry*=1+0.6*up*(1-u); }
       let px=bx+R*c; const py=y+R*s*CONIFER_TILT-ry*0.3;
       if (Math.abs(px)+rx*1.1+ry*0.35>lim) px=Math.sign(px)*Math.max(0,lim-rx*1.1-ry*0.35);
       const tone=Math.round(15*lit(c)+6*s+12*(u-0.45)+(rnd()-0.5)*8);
       const o=n*CF_STRIDE; _cfIt[o]=2; _cfIt[o+1]=px; _cfIt[o+2]=py; _cfIt[o+3]=c; _cfIt[o+4]=s;
       _cfIt[o+5]=rx; _cfIt[o+6]=ry; _cfIt[o+7]=c*(L.sprayJitter===undefined?0.2:L.sprayJitter)*1.2+(rnd()-0.5)*0.3;
+      if (up) _cfIt[o+7]*=1-0.85*up;
       _cfIt[o+9]=R*0.65*s*CONIFER_TILT_C-y*CONIFER_TILT; _cfIt[o+10]=tone; n++;
       if (s>0.1 && rnd()<0.3) conesAt.push(px+(rnd()-0.5)*rx,py-ry*(0.1+0.3*rnd()),s);
     }

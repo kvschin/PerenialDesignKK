@@ -204,7 +204,8 @@ These were authored with the closest existing habit and knobs; the renderer
 rework can pick them up. No new `look` fields were added.
 
 - **Italian cypress:** a true flame-tipped pencil with foliage held tight and
-  vertical; drawn as `scale` with `columnar:0.78`.
+  vertical; drawn as `scale` with `columnar:0.78`. *Done November 18, 2026:
+  `sprayUp` and a pointed crown `profile` (see "Stretch: done" below).*
 - **Douglas fir:** soft, irregular tiers with pendulous branchlets hanging from
   upturned limbs, and hanging cones with three-pointed bracts; drawn as `spruce`.
 - **Scots and Austrian pine at maturity:** a flat-topped, irregular crown on a
@@ -215,7 +216,8 @@ rework can pick them up. No new `look` fields were added.
 - **Japanese black pine:** leaning, irregular trunk and cloud-pruned pads.
 - **Cryptomeria:** rope-like, plumose sprays of awl leaves with drooping tips;
   `scale` sprays read as fans.
-- **Incense cedar:** flat sprays held on edge (vertical).
+- **Incense cedar:** flat sprays held on edge (vertical). *Done November 18,
+  2026, with `sprayUp`.*
 - **Western red cedar:** J-shaped upswept limbs with long pendulous sprays and
   a buttressed, fluted base.
 - **Cedar of Lebanon at maturity:** tabular, flat-topped, several leaders;
@@ -349,15 +351,27 @@ the one existing plant that changed, on purpose.
 - Bald cypress drops its needles with the other `warm` trees (late October to
   mid-November), a week or two early for it.
 
+### Stretch: done
+
+- **Italian cypress** is now a flame-tipped pencil. A new opt-in `look.sprayUp`
+  (0..1) on the `scale` habit holds its sprays upright and tight (narrower,
+  taller, turned toward vertical; less tall near the top, which the sprite box
+  has to hold), and a crown `profile` ({p:0.3, eLo:2.5, eHi:1.15, lo:0.85},
+  `fullness` 0.86, `density` 1.6) brings the top to a point instead of the
+  `columnar` blunt end. `sprayUp` 0.8.
+- **Incense cedar** takes the same option at 0.6, so its flat sprays stand on
+  edge.
+
+Every other drawing is unchanged (the stream hash changed for these two
+records only), 48 sprites of the two pass the edge check, and a test holds the
+pointed crown and that `sprayUp` is opt-in.
+
 ### Not done in this pass
 
-The stretch list, untouched: the approximately drawn conifers of the section
+The rest of the stretch list: the approximately drawn conifers of the section
 above ("Architecture the conifer habits do not yet express") and the
 renderer-blocked Tier 3 plants. What each needs:
 
-- **Italian cypress**: a flame-tipped pencil of upright, tight sprays. The
-  `scale` habit lays sprays on the crown surface at a slant; it needs a sprays-
-  vertical option and a pointed top that is not the dark mass.
 - **Douglas fir**: hanging branchlets under upturned limbs, and the three-pointed
   cone bracts. A `slab` fringe that hangs further (the `hang` knob) gets part way.
 - **Mature Scots and Austrian pine, ponderosa**: a clear trunk with an irregular,
@@ -365,8 +379,6 @@ renderer-blocked Tier 3 plants. What each needs:
   in regular whorls. Needs irregular whorl spacing and missing limbs at height.
 - **Cryptomeria**: rope-like plumose sprays with drooping tips; a `fan` spray
   variant drawn as a curved rope.
-- **Incense cedar**: sprays held on edge, vertically; the same sprays-vertical
-  option as Italian cypress.
 - **Western red cedar**: J-shaped upswept limbs with hanging sprays and a fluted
   base; the `weeping` drape on an upright limb would do it.
 - **Cedar of Lebanon at maturity**: several leaders and tabular tiers.
@@ -378,7 +390,8 @@ renderer-blocked Tier 3 plants. What each needs:
 
 ### Verification
 
-- `node tests/run.js`: 1,164 passed in a clean LF export of the branch. New
+- `node tests/run.js`: 1,165 passed in a clean LF export of the branch (the
+  daily-brief test fails only in a CRLF checkout, as CLAUDE.md records). New
   tests pin the Tier 2 records (ranges, families, cultivars no bigger than their
   species, cautions), the deciduous conifers' leaf stages (full needle is the
   authored tree; tufts are the full tufts, smaller; a later fall stage's sprays
