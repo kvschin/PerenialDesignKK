@@ -8599,6 +8599,26 @@ parasol), umbrella pine 2.5-3.0, monkey puzzle 1.3, palms 0.9-2.0.
 `?growths=0.2,0.5,1` for an age series, checks an aged tree part way too, and
 `?check=tier3` bakes 552 sprites of every new and reshaped choice, none
 touching an edge.
+**0.9.138: every tree and shrub fits its pictures.** A woody plant is fitted
+to a picture's width by its sprite box less 18 of padding, or by its
+`sideScale`, and the box had about that much room and no more. Once Scots and
+Austrian pine flattened with age their crowns ran to the last pixel of the
+Library card and the catalog row and tile. The same was true of four of the
+pines added in 0.9.135 (Japanese black, pinyon, lacebark, Japanese white), the
+umbrella and green panda bamboos, 'Bailtiger' sumac and stone pine. Each now
+declares the `sideScale` its ink measures, over four seasons, four seeds and
+both renderers, plus about 0.03; that also widens its sprite box by a few
+percent. 'Fastigiata' sets `sideScale:0`, or the narrow cultivar would inherit
+its species' width. Tree lilac's panicles reached the top of the Library's 40x48
+list thumbnail, so the species declares `topScale:1.12`. **The scan that found
+them is `dev/shade-review.html?nocards&previews`**: every choice in the pictures
+the app really draws (the catalog's row and tile, the Library list thumbnail, the
+daily card), real pixels, four seasons, both renderers, about 50,000 pictures.
+`?check`'s 70x105 is a stand-in no screen uses. A recording-canvas test was tried
+and dropped: it sees stroke centres and ignores alpha, so it read white pine, 5 px
+clear in pixels, as 0.5 px over, while Scots pine, which really clipped, read
+0.08 px clear. At 0.9.138, no tree or shrub touches an edge. 88 herbaceous plants
+still do (24 grasses, 51 forbs, 13 water plants), mostly in the list thumbnail.
 **0.9.60: shrubs built as shrubs (`SHRUB_HABITS`, `shrubHabitOf`,
 `drawShrubHabit`, draw.js), with leaf-out and leaf drop (`woodyLeafOut`,
 world.js).** Every informal shrub -- 88 `bush` species and the 7 hydrangeas,

@@ -267,7 +267,34 @@ function bench(){
   document.getElementById('status').textContent='bench done: '+rows.length+' rows, see window.__bench';
   return rows;
 }
+/* Every picture the app really draws a plant into, in real pixels: the catalog's
+   row and tile (TRAY_ART_KINDS), the Library's list thumbnail (LIB_THUMB_*) and
+   the daily challenge's 72x80, four seasons, both renderers, whether its drawing
+   reaches the top or a side (the bottom 18 backing rows hold the ground and are
+   not counted, as in checkEdges). checkEdges' 70x105 is a stand-in no screen
+   uses. ?previews runs it over the whole catalog, ?previews&only=... over a list;
+   window.__previews groups what touches by plant. (0.9.138) */
+function previewScan(){
+  const sizes={row:(k,v,s,D)=>trayPlantArt(k,v,s,D,'row'), tile:(k,v,s,D)=>trayPlantArt(k,v,s,D,'tile'),
+    list:(k,v,s)=>libCanvas(k,v,s,LIB_THUMB_W,LIB_THUMB_H,LIB_THUMB_SCALE), daily:(k,v,s)=>libCanvas(k,v,s,72,80)};
+  const refs=params.get('only')?currentRefs():PLANT_KEYS.flatMap(k=>[[k,null],...Object.keys(PLANTS[k].cv||{}).map(v=>[k,v])]);
+  const byPlant={},original=ART2.on;let n=0;
+  try{for(const mode of [true,false]){ART2.on=mode;TRAY_ART.clear();
+    for(const [k,v] of refs){const D=plantDef(k,v);
+      for(const season of SEASONS)for(const [name,f] of Object.entries(sizes)){
+        const c=f(k,v,season,D),w=c.width,h=c.height,d=c.getContext('2d').getImageData(0,0,w,h).data,e=[];
+        for(let x=0;x<w;x++)if(d[x*4+3]>8){e.push('top');break;}
+        for(let y=0;y<h-18;y++)if(d[y*w*4+3]>8){e.push('left');break;}
+        for(let y=0;y<h-18;y++)if(d[(y*w+w-1)*4+3]>8){e.push('right');break;}
+        n++;if(e.length)(byPlant[k+(v?':'+v:'')]=byPlant[k+(v?':'+v:'')]||[]).push((mode?'':'classic ')+name+' '+season+' '+e.join('+'));
+      }
+      if(TRAY_ART.size>200)TRAY_ART.clear();
+    }}}finally{ART2.on=original;TRAY_ART.clear();}
+  window.__previews={checked:n,plants:Object.keys(byPlant).length,byPlant};
+  document.getElementById('status').textContent=n+' real-size pictures: '+Object.keys(byPlant).length+' plants touch an edge, see window.__previews';
+  return window.__previews;
+}
 batchSel.onchange=renderReview;document.getElementById('art').onchange=renderReview;document.getElementById('check').onclick=checkEdges;
 if(params.has('art'))document.getElementById('art').value=params.get('art');
-try{renderReview();if(params.has('check'))setTimeout(checkEdges,0);if(params.has('bench'))setTimeout(bench,0);if(params.has('measure'))setTimeout(measure,0);}catch(error){document.getElementById('status').textContent='Review failed: '+(error.stack||error);}
+try{renderReview();if(params.has('check'))setTimeout(checkEdges,0);if(params.has('bench'))setTimeout(bench,0);if(params.has('measure'))setTimeout(measure,0);if(params.has('previews'))setTimeout(previewScan,0);}catch(error){document.getElementById('status').textContent='Review failed: '+(error.stack||error);}
 </script></html>
