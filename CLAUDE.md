@@ -7351,6 +7351,34 @@ of one bulb draw alike` holds that within a record every pair differs in colour,
 eye, drawing or height. Record: `docs/plant-data/bulb-audit.md`;
 `dev/bulb-review.html` shows every choice close up, in four seasons and at true
 scale with its height marked.
+**The audit's open items (0.9.136).** Added: poppy anemone (*Anemone coronaria*,
+`flowerStyle:'coronaria'`: a saucer of broad tepals round a boss of dark stamens,
+`ring` the pale base, over `leafStyle:'feather'` leaves; 'Mr. Fokker', 'The Bride'),
+Persian lily (*Fritillaria persica*, the unused non-arching `noddingBell` raceme with
+`pedicelW`; 'Ivory Bells'), foxtail lily (*Eremurus stenophyllus*,
+`spikeStyle:'foxtail'`: a cylinder of florets opening from the bottom, `budCol` at the
+top and `fadeCol` at the foot, stamens whiskering the open band; 'Cleopatra'),
+Byzantine gladiolus (`spikeStyle:'gladiolus'`: a one-sided zigzag spike of hooded
+funnels, `eye` the streak on the lower tepals), round-leaved cyclamen (*Cyclamen
+coum*: the fall envelope with `springFoliage` and `winterFoliage`, parasol leaves,
+`petalShape`, flowering on its February-March month window with no `bloomDay`;
+'Album'; one Cyclamen card with the ivy-leaved), and the native Canada lily
+(`lilyStyle:'nodding'`: bells hanging from stalks arched round the stem top,
+`pedicelReach`, over `leafWhorls`) and wood lily (`bowl` with `tepalShape:'obovate'`
+for its clawed tepals, alternate leaves and one whorl). The trout lily NODS (`nod`:
+the scape crooks over, a bell hangs under it, its tepal tips swept back up past it).
+`snowOnLeaves` puts a few-inch plant's winter snow on its leaves rather than in caps
+bigger than its flowers. The height test now holds all 126 choices. Every option is
+opt-in: the catalog as it stood, drawn through the old and new draw.js, is call for
+call the same over 97,280 drawings, and with the new data only the new choices, the
+trout lily and the re-heighted records differ. The estimated heights now have
+sources; the Oriental and Asiatic group records take the median of MBG's 13 and 28
+cultivars (42 and 30 in). A bud colour lives in `look` (`budCol`), because `sea`
+admits only the colour keys `plants.test.js` lists. Spanish bluebell is left out by
+decision: invasive in parts of North America, and it hybridises with the English
+bluebell. Record: the 0.9.136 section of `docs/plant-data/bulb-audit.md`;
+`dev/bulb-review.html?zoom=1` zooms on the top of each drawing, `?bench=bloom` times
+each in its bloom season.
 
 **Bamboo names three species (0.9.127, audit D08).** It was one record, latin
 'Fargesia / Phyllostachys selections', whose choices ('Clumping bamboo', 'Golden

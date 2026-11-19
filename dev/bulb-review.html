@@ -4,7 +4,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}header{padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}button,select{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:8px}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(390px,1fr));gap:12px;padding:12px}article{background:#30291f;padding:10px;border-radius:6px}h2{font-size:13px;margin:0 0 2px}.latin{font-size:11px;color:#c7b9a2}.seasons{display:flex;justify-content:space-around}figure{margin:0;text-align:center;min-width:0}canvas{width:88px;height:120px;display:block}figcaption{font-size:10px}#status{padding:0 16px;font-size:12px;color:#d6c094}.notes{margin:4px 0;font-size:11px}
 #scale{padding:0 12px 12px}#scale canvas{width:100%;height:auto;background:#5f7d58;border-radius:6px}
-#close{padding:0 12px 12px}#close canvas{width:auto;max-width:100%;height:auto;border-radius:6px}#heads{padding:0 12px 12px}#heads canvas{width:100%;height:auto;background:#5f7d58;border-radius:6px}
+#zoom{padding:0 12px 12px}#zoom canvas{width:auto;max-width:100%;height:auto;border-radius:6px}#close{padding:0 12px 12px}#close canvas{width:auto;max-width:100%;height:auto;border-radius:6px}#heads{padding:0 12px 12px}#heads canvas{width:100%;height:auto;background:#5f7d58;border-radius:6px}
 </style><body>
 <script>
 (function(){
@@ -60,20 +60,22 @@ window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__re
 </script>
 <header><h1>Bulbs</h1><label>Group <select id="batch"></select></label><label>Renderer <select id="art"><option value="1">ART2</option><option value="0">Classic</option></select></label><button id="check">Check sprite edges</button></header>
 <p id="status">Loading…</p><main id="plants"></main>
+<div id="zoom"></div>
 <div id="close"></div>
 <div id="heads"></div>
 <div id="scale"></div>
 <script>
-/* Every bulb in the catalog, by group, for the bulb audit (0.9.124). Cultivars
+/* Every bulb in the catalog, by group, for the bulb audit (0.9.124, and the
+   additions of 0.9.136). Cultivars
    are listed by the catalog. ?only=key,key:cv narrows it. */
 const FAMILIES={
-  winter:['snowdrop','winteraconite','crocuschrysanthus','crocus','crocusvernus','irisreticulata','scillasiberica','glorysnow','puschkinia','anemoneblanda','woodanemone','springbeauty','yellowtroutlily'],
-  spring:['daffodil','muscari','muscarilatifolium','hyacinth','ipheion','fritillaria','crownimperial','leucojum','englishbluebell'],
+  winter:['snowdrop','winteraconite','crocuschrysanthus','crocus','crocusvernus','irisreticulata','scillasiberica','glorysnow','puschkinia','anemoneblanda','woodanemone','springbeauty','yellowtroutlily','cyclamencoum'],
+  spring:['daffodil','muscari','muscarilatifolium','hyacinth','ipheion','fritillaria','crownimperial','persianlily','leucojum','englishbluebell','poppyanemone'],
   tulips:['tulip','tulipatarda','tuliplinifolia','tulipsylvestris','gardentulip'],
   tall:['camassia','camassiaquamash','camassialeichtlinii','scillaperuviana'],
   alliums:['alliumPurpleSensation','alliumGlobemaster','alliumGladiator','alliumMountEverest','alliumPinkJewel','alliumAtropurpureum','alliumChristophii','alliumRedMohican','alliumcarinatum','alliumcaeruleum','alliumsphaerocephalon','alliummoly','alliumschubertii'],
-  lilies:['claudeshride','michiganlily','liliummartagon','liliumsuperbum','liliumregale','orientallily','asiaticlily'],
-  summer:['lycoris','dahlia','crocosmia'],
+  lilies:['claudeshride','michiganlily','liliummartagon','liliumsuperbum','liliumregale','orientallily','asiaticlily','canadalily','woodlily'],
+  summer:['lycoris','dahlia','crocosmia','foxtaillily','byzantineglad'],
   fall:['colchicum','crocusspeciosus','lycorisradiata','cyclamenhederifolium'],
 };
 const expand=keys=>keys.filter(k=>PLANTS[k]).flatMap(k=>[[k,null],...Object.keys(PLANTS[k].cv||{}).map(v=>[k,v])]);
@@ -119,7 +121,7 @@ function renderReview(){
     note.textContent=(P.heightIn?P.heightIn+' in tall':'h '+P.h+' px')+' · '+P.spread+' in wide · zones '+P.zones.join('-')+' · bloom '+(P.bloomMonths||[]).join(',');card.append(note);host.append(card);
   }
   document.getElementById('status').textContent=refs.length+' exact plant choices · actual library previews';
-  renderClose(refs);renderHeads(refs);renderScale(refs);
+  renderZoom(refs);renderClose(refs);renderHeads(refs);renderScale(refs);
 }
 /* One flower head per choice, drawn large, so ray shape, count, droop and the
    cone can be compared without the plant around them. Drawn by asking the
@@ -136,13 +138,36 @@ function renderHeads(refs){
     ctx.save();ctx.beginPath();ctx.rect(x-cellW/2+2,y+2,cellW-4,rowH-20);ctx.clip();
     const P=plantDef(k,v), H=plantVisualH(P);
     // scale so the top headFrac of the plant (and the heads over it) fills the cell
-    const frac=+params.get('headFrac')||0.5, z=Math.min(4,(rowH-30)/(H*frac*1.14));
+    const frac=+params.get('headFrac')||0.5, z=Math.min(+params.get('headZmax')||4,(rowH-30)/(H*frac*1.14));
     ctx.translate(x,y+8+H*z*1.14);ctx.scale(z,z);
     drawPlant(ctx,0,0,k,1,fixedSeason||bloomSeason(k,v),tileSeed(i+11,5),0,v||null,1);
     ctx.restore();
     ctx.fillStyle='#f4eee2';ctx.font='10px system-ui';ctx.textAlign='center';
     const name=v?PLANTS[k].cv[v].name:P.name;
     ctx.fillText(name.length>22?name.slice(0,21)+'…':name,x,y+rowH-6);
+  });
+}
+/* ?zoom: the top ?zf (default 0.3) of each choice's drawing, measured, filling a
+   ?zoomW x ?zoomH cell, in its bloom season (or ?zoomSeason): close enough to
+   judge a flower's shape on a plant of any height. ?zoom=0 hides it. */
+function renderZoom(refs){
+  const box=document.getElementById('zoom');box.replaceChildren();
+  if(!params.has('zoom')||params.get('zoom')==='0')return;
+  const cellW=+params.get('zoomW')||360,cellH=+params.get('zoomH')||300,frac=+params.get('zf')||0.3,perRow=Math.max(1,Math.floor(1240/cellW));
+  const c=document.createElement('canvas');c.width=perRow*cellW;c.height=Math.ceil(refs.length/perRow)*cellH;box.append(c);
+  const ctx=c.getContext('2d');
+  refs.forEach(([k,v],i)=>{
+    const season=params.get('zoomSeason')||bloomSeason(k,v), seed=tileSeed(i+11,5);
+    let top=0;const probe=new Proxy({},{get:(o,p)=>p in o?o[p]:p==='measureText'?()=>({width:0}):/^create/.test(p)?()=>({addColorStop(){}}):(...a)=>{
+      if(p==='moveTo'||p==='lineTo')top=Math.min(top,a[1]);else if(p==='ellipse')top=Math.min(top,a[1]-a[3]);else if(p==='quadraticCurveTo')top=Math.min(top,a[3]);},set:(o,p,x)=>{o[p]=x;return true;}});
+    drawPlant(probe,0,0,k,1,season,seed,0,v||null,1);
+    const span=Math.max(4,-top*frac), z=Math.min(40,(cellH-30)/span), x=(i%perRow)*cellW, y=Math.floor(i/perRow)*cellH;
+    ctx.fillStyle=(i%2)?'#5f7d58':'#5a7853';ctx.fillRect(x,y,cellW,cellH);
+    ctx.save();ctx.beginPath();ctx.rect(x,y,cellW,cellH-18);ctx.clip();
+    ctx.translate(x+cellW/2,y+10-top*z);ctx.scale(z,z);
+    drawPlant(ctx,0,0,k,1,season,seed,0,v||null,1);ctx.restore();
+    ctx.fillStyle='#f4eee2';ctx.font='11px system-ui';ctx.textAlign='left';
+    const P=plantDef(k,v);ctx.fillText((v?PLANTS[k].cv[v].name:P.name)+' · '+season+' · x'+z.toFixed(1),x+6,y+cellH-5);
   });
 }
 /* Close up: each choice in its four seasons, drawn ?cz times life size (default
@@ -222,7 +247,8 @@ function checkEdges(){
 /* What one bake costs, procedural, in this browser. ?bench=1 */
 function bench(){
   const c=new OffscreenCanvas(420,520),ctx=c.getContext('2d'),rows=[];
-  for(const [k,v] of currentRefs())for(const season of ['Summer','Fall','Winter']){
+  // ?bench=bloom times each choice in its own bloom season only
+  for(const [k,v] of currentRefs())for(const season of (params.get('bench')==='bloom'?[bloomSeason(k,v)]:['Summer','Fall','Winter'])){
     let best=Infinity;
     for(let r=0;r<3;r++){
       const t0=performance.now();

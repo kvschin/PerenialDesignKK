@@ -25336,3 +25336,62 @@ test('the bulb audit\'s drawings: a daffodil has a corona, a fritillary hangs, a
   assert(L.arch>0&&L.oneSided,'bluebell racemes arch over to one side');
   assert(fr.lilyStyle==='fritillary','fritillary grammar');
 });
+
+test('the 0.9.136 bulbs: lilies that hang and one that looks up, a foxtail that opens from the bottom', () => {
+  // the stalk a hanging flower is on rises and comes down to it: a quadratic whose
+  // control point is above both its ends (a back flower can hang higher on screen
+  // than the stem top it leaves, so the end is not compared with the start)
+  const hangs=ops=>{ let n=0, at=null;
+    for (const o of ops){
+      if (o.op==='moveTo') at=o.a;
+      else if (o.op==='quadraticCurveTo'){ if (at && o.a[1]<at[1]-0.5 && o.a[1]<o.a[3]-0.5) n++; at=[o.a[2],o.a[3]]; }
+      else if (o.op==='lineTo') at=o.a;
+    }
+    return n; };
+  for (const seed of [101,4410]){
+    const ca=wetOps('canadalily','Summer',null,1,seed);
+    assert(hangs(ca)>=PLANTS.canadalily.look.flowers,'Canada lily: every bell hangs from an arching stalk ('+hangs(ca)+')');
+    assertEqual(hangs(wetOps('woodlily','Summer',null,1,seed)),0,'wood lily: nothing hangs, the cups turn up');
+    // the trout lily's scape bends over at the top and the flower hangs under the crook,
+    // its stamens (the eye colour) below the bend; the old upturned star had neither
+    const tr=wetOps('yellowtroutlily','Spring',null,1,seed), eye=PLANTS.yellowtroutlily.sea.Spring.eye;
+    assert(hangs(tr)>=1,'trout lily: the scape crooks over');
+    const crook=Math.min(...tr.filter(o=>o.op==='quadraticCurveTo').map(o=>o.a[3]));
+    const stamens=tr.filter(o=>o.op==='ellipse'&&o.fill===eye);
+    assert(stamens.length>=3&&stamens.every(o=>o.a[1]>crook+1),'trout lily: the stamens hang below the crook');
+  }
+  // the foxtail lily opens from the bottom up: buds over open flowers over fading ones
+  const L=PLANTS.foxtaillily.look, S=PLANTS.foxtaillily.sea.Summer;
+  const zoneOf=f=>{ for (const [z,c] of [[0,L.budCol],[1,S.bloom],[2,L.fadeCol]]) if (f===shade(c,-10)||f===shade(shade(c,-14),-10)) return z; return -1; };
+  for (const seed of [101,4410]){
+    // each spike's florets follow its own stalk, so split the ops at each stalk
+    const spikes=[]; let cur=null;
+    for (const o of wetOps('foxtaillily','Summer',null,1,seed)){
+      if (o.op==='quadraticCurveTo'){ cur=[[],[],[]]; spikes.push(cur); continue; }
+      const z=o.op==='ellipse'?zoneOf(o.fill):-1;
+      if (z>=0&&cur) cur[z].push(o.a[1]);
+    }
+    const full=spikes.filter(s=>s[0].length&&s[1].length&&s[2].length);
+    assert(full.length>=2,'spikes with buds, open flowers and fading ones ('+full.length+')');
+    for (const [bud,open,fade] of full){
+      assert(Math.max(...bud)<=Math.min(...open)+1.2,'the buds are at the top of the spike');
+      assert(Math.max(...open)<=Math.min(...fade)+1.2,'the fading flowers at the bottom');
+    }
+  }
+  // and the long stamens stand out of the open band
+  assert(wetOps('foxtaillily','Summer',null,1,101).some(o=>o.op==='stroke'&&o.stroke===S.eye),'stamens whisker the open flowers');
+  // a cyclamen flowering in snow carries the snow on its leaves, caps smaller than its flowers
+  const CAP='rgba(240,244,250,0.85)';
+  for (const seed of [101,4410]){
+    const caps=wetOps('cyclamencoum','Winter',null,1,seed).filter(o=>o.op==='ellipse'&&o.fill===CAP);
+    assert(caps.length>=2&&caps.every(o=>o.a[2]<2.2),'coum: snow on its leaves in winter, not 2.2-unit caps on its flowers');
+  }
+  // the poppy anemone: a ring of dark stamens round a dark knob, and a pale ring where it has one
+  const pa=wetOps('poppyanemone','Spring',null,1,101), E=PLANTS.poppyanemone.sea.Spring.eye;
+  assert(pa.filter(o=>o.op==='ellipse'&&o.fill===shade(E,6)).length>=14,'a boss of stamens');
+  assert(pa.some(o=>o.op==='ellipse'&&o.fill===PLANTS.poppyanemone.look.ring),'a pale ring at the base of the tepals');
+  assert(!wetOps('poppyanemone','Spring','theBride',1,101).some(o=>o.op==='ellipse'&&o.fill===PLANTS.poppyanemone.look.ring),"'The Bride' has none");
+  // the Byzantine gladiolus: buds at the top of a spike in flower, capsules after
+  assert(wetOps('byzantineglad','Fall',null,1,101).some(o=>o.op==='ellipse'),'capsules on the dry spike in fall');
+  assertEqual(wetOps('byzantineglad','Winter',null,1,101).length,0,'and nothing in winter');
+});

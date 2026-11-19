@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,877,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,884,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),691,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),696,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -1021,9 +1021,9 @@ test('the bulb audit keeps a complete morphology and catalog contract', () => {
     assertEqual(P.type,'bulb',`${k}: stays in the bulb layer`);
     assertEqual(JSON.stringify(P.bloomMonths),JSON.stringify(months),`${k}: bloom calendar`);
   }
-  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb').length,58,'audited base bulb count');
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb').length,65,'audited base bulb count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb')
-    .reduce((n,k)=>n+1+Object.keys(PLANTS[k].cv||{}).length,0),114,'audited exact bulb count');
+    .reduce((n,k)=>n+1+Object.keys(PLANTS[k].cv||{}).length,0),126,'audited exact bulb count');
 
   assertEqual(PLANTS.alliumChristophii.latin,'Allium cristophii','Star of Persia uses the accepted spelling');
   assertEqual(PLANTS.alliumcarinatum.latin,'Allium cirrhosum','Pretty garlic uses the accepted taxon');
@@ -2500,8 +2500,8 @@ test('the 0.9.124 bulb additions carry their sourced identities', () => {
     crownimperial:['Fritillaria imperialis','martagon',[4,5],'asia',42],
     springbeauty:['Claytonia virginica','cone',[4],'north-america',7],
     liliumregale:['Lilium regale','martagon',[7],'asia',48],
-    orientallily:['Lilium Oriental Group','martagon',[7,8],'',36],
-    asiaticlily:['Lilium Asiatic Group','martagon',[6,7],'',36],
+    orientallily:['Lilium Oriental Group','martagon',[7,8],'',42],
+    asiaticlily:['Lilium Asiatic Group','martagon',[6,7],'',30],
     lycorisradiata:['Lycoris radiata','martagon',[9,10],'asia',20],
     alliummoly:['Allium moly','globe',[5,6],'europe',12],
     alliumschubertii:['Allium schubertii','globe',[5,6],'asia',18],
@@ -2548,6 +2548,66 @@ test('the folded bulb look-alikes open as the choice they looked like', () => {
     assert(PLANTS[s]&&(v===null||PLANTS[s].cv[v]),from+': opens as a choice that exists');
   }
   assertEqual(PLANTS.camassiaquamash.heightIn,15,'common camas: John Scheepers 15 in');
+});
+
+// The 0.9.124 audit's "Not done" (0.9.136): the bulbs it listed as missing, and
+// the heights it had estimated, now read from a source.
+test('the 0.9.136 bulb additions carry their sourced identities', () => {
+  const add={
+    poppyanemone:['Anemone coronaria','cone',[4,5],'europe,africa,asia',10,[7,10]],
+    persianlily:['Fritillaria persica','spike',[4,5],'asia',30,[5,8]],
+    foxtaillily:['Eremurus stenophyllus','spike',[6],'asia',48,[5,8]],
+    byzantineglad:['Gladiolus communis subsp. byzantinus','spike',[5,6],'europe,africa',20,[6,10]],
+    cyclamencoum:['Cyclamen coum','cone',[2,3],'europe,asia',4,[5,8]],
+    canadalily:['Lilium canadense','martagon',[6,7],'north-america',48,[3,8]],
+    woodlily:['Lilium philadelphicum','martagon',[7,8],'north-america',24,[3,7]],
+  };
+  for (const [k,[latin,form,months,range,height,zones]] of Object.entries(add)){
+    const P=PLANTS[k];
+    assert(P,k+': missing');
+    assertEqual(P.latin,latin,k+': botanical name');
+    assertEqual(P.form,form,k+': drawing form');
+    assertEqual(P.type,'bulb',k+': in the bulb layer');
+    assertEqual(JSON.stringify(P.bloomMonths),JSON.stringify(months),k+': bloom months');
+    assertEqual(P.nativeTo.join(','),range,k+': native range');
+    assertEqual(P.provenance,'species',k+': the wild species');
+    assertEqual(P.heightIn,height,k+': sourced height');
+    assertEqual(JSON.stringify(P.zones),JSON.stringify(zones),k+': zones');
+    assert(WIKIPEDIA_ARTICLES[k],k+': a Learn more article');
+  }
+  // the two native lilies: a nodding candelabra over whorls, and an upturned cup
+  assertEqual(PLANTS.canadalily.look.lilyStyle,'nodding','Canada lily nods');
+  assert(PLANTS.canadalily.look.leafWhorls>=4,'Canada lily: leaves in whorls up the stem');
+  assertEqual(PLANTS.woodlily.look.lilyStyle,'bowl','wood lily faces up');
+  assertEqual(PLANTS.woodlily.look.tepalShape,'obovate','wood lily: tepals narrowed to a claw at the base');
+  for (const k of ['canadalily','woodlily']){
+    assertEqual(PLANTS[k].group,'lily',k+': in the lily family');
+    assertEqual(PLANTS[k].bulbSeason,'summer',k+': a summer lily');
+  }
+  assertEqual(PLANTS.persianlily.group,'fritillary','Persian lily joins the fritillaries');
+  // Cyclamen coum: leaves from autumn through winter, flowers at winter's end, gone by summer
+  const C=PLANTS.cyclamencoum;
+  assertEqual(C.bulbSeason,'fall','coum: the autumn-leaf envelope');
+  assert(C.springFoliage&&C.winterFoliage,'coum keeps its leaves from autumn into spring');
+  assert(C.sea.Winter.bloom&&C.sea.Spring.bloom&&!C.sea.Summer.fol,'coum flowers late winter into spring and is dormant in summer');
+  assertEqual(C.bloomDay,undefined,'coum blooms on its month window, not one day in every season');
+  for (const k of ['cyclamenhederifolium','cyclamencoum']) assertEqual(PLANTS[k].group,'cyclamen',k+': one Cyclamen card');
+  // cultivars only where the look is new: a colour the record lacks
+  assertEqual(Object.keys(PLANTS.poppyanemone.cv).join(','),'mrFokker,theBride','poppy anemone: blue and white');
+  assertEqual(Object.keys(PLANTS.persianlily.cv).join(','),'ivoryBells','Persian lily: the cream one');
+  assertEqual(PLANTS.foxtaillily.cv.cleopatra.provenance,'hybrid',"'Cleopatra' is an E. x isabellinus hybrid");
+  assertEqual(PLANTS.foxtaillily.cv.cleopatra.nativeTo.length,0,"'Cleopatra' claims no wild range");
+  // the yellow trout lily nods now
+  assert(PLANTS.yellowtroutlily.look.nod,'trout lily: the flower hangs, tepals swept back');
+  // Spanish bluebell is out by decision: invasive in parts of North America, and it
+  // hybridises with the English bluebell
+  assert(!keys.some(k=>/Hyacinthoides hispanica/.test(PLANTS[k].latin)),'no Spanish bluebell');
+  // the estimated heights the audit listed now come from a source
+  const doc=JSON.parse(readRepoFile('docs/plant-data/bulb-sources.json')), rows=new Map(doc.choices.map(r=>[r.ref,r]));
+  for (const ref of ['daffodil','daffodil|actaea','gardentulip','gardentulip|springGreen','gardentulip|ballerina',
+    'dahlia','dahlia|bishopOfLlandaff','dahlia|thomasEdison','dahlia|kelvinFloodlight','orientallily','asiaticlily'])
+    assert(rows.get(ref).sources.length>0,ref+': a source read');
+  assert(doc.leftOut.some(r=>r.taxon==='Hyacinthoides hispanica'),'the sources file says why Spanish bluebell is out');
 });
 
 test('every bulb choice\'s height is in docs/plant-data/bulb-sources.json, with where it came from', () => {
