@@ -1068,7 +1068,8 @@ function treeLeafOut(P){
      for nothing. A DECIDUOUS conifer -- the larches, bald cypress, dawn
      redwood -- says so (`look.deciduous`) and takes the broadleaf cycle:
      needles out through spring, down through late fall. */
-  if (!isTreeDef(P) || !P.sea || (P.form==='conifer' && !(P.look && P.look.deciduous))) return null;
+  // a palm keeps its fronds whatever their colour (0.9.137)
+  if (!isTreeDef(P) || !P.sea || (P.form==='conifer' && !(P.look && P.look.deciduous)) || P.form==='palm') return null;
   let lo=_leafOut.get(P);
   if (lo!==undefined) return lo;
   lo=null;

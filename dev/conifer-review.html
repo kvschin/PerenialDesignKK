@@ -108,11 +108,11 @@ let CR_SEED=+(CR_Q.get('seed')||4242);
 const crHasSwitch=()=>typeof CONIFER_HABIT!=='undefined';
 const CR_REFS=[];
 for (const k of PLANT_KEYS){
-  const P=PLANTS[k]; if (P.form!=='conifer') continue;
+  const P=PLANTS[k]; if (P.form!=='conifer' && P.form!=='palm') continue;     // the trunked palms (0.9.137) ride along
   CR_REFS.push([k,null]);
   for (const v of Object.keys(P.cv||{})) CR_REFS.push([k,v]);
 }
-const habitOf=(k,v)=>{ const L=plantDef(k,v).look||{}; return L.coniferHabit||'spruce'; };
+const habitOf=(k,v)=>{ const P=plantDef(k,v), L=P.look||{}; return P.form==='palm' ? 'palm' : L.coniferHabit||'spruce'; };
 const CR_GROUPS={
   'Spruce and fir':['bluespruce','norwayspruce','serbianspruce','blackhillsspruce','whitefir','dwarfalbertaspruce','wellspirespruce','bigbertaspruce','easternhemlock'],
   'Pines':['whitepine','swissstonepine','vanderwolfpine','weepingwhitepine','mugopine'],
@@ -132,6 +132,10 @@ const CR_GROUPS={
   'Tier 2 broadleaf':['coastliveoak','corkoak','carolinacherrylaurel','topalholly','topalholly.fosteri','topalholly.savannah',
     'californiabay','southernmagnolia.ddblanchard','southernmagnolia.teddybear','southernmagnolia.kayparris',
     'liveoak.cathedral','liveoak.highrise','englishholly.jcvantol'],
+  // 0.9.137: the trees reshaped, and Tier 3
+  'Reshaped':['douglasfir','scotspine','scotspine.fastigiata','austrianpine','ponderosapine','cryptomeria','cryptomeria.yoshino',
+    'cryptomeria.radicans','westernredcedar','westernredcedar.atrovirens','westernredcedar.cancan','westernredcedar.zebrina','cedaroflebanon'],
+  'Tier 3':['stonepine','umbrellapine','monkeypuzzle','windmillpalm','cabbagepalmetto','mediterraneanfanpalm','californiafanpalm'],
 };
 /* The real-pixel sprite-edge check, as dev/woody-cultivar-review.html runs it:
    each choice baked the way the garden bakes it (makePlantSprite, an
@@ -155,7 +159,9 @@ window.coniferCheck=function(refs){
   };
   for (const ref of refs){
     const [k,v]=ref.split('.'), lo=treeLeafOut(plantDef(k,v||null));
-    for (const season of CR_SEASONS) for (const seed of [7,101,4410]) for (const gB of [8,3]) one(k,v,season,seed,-1,gB);
+    // a tree whose shape follows its age (look.aged) is checked part way too
+    const gBs=(plantDef(k,v||null).look||{}).aged ? [8,5,3] : [8,3];
+    for (const season of CR_SEASONS) for (const seed of [7,101,4410]) for (const gB of gBs) one(k,v,season,seed,-1,gB);
     if (lo){
       for (let ls=0;ls<=LEAF_STAGES;ls++) one(k,v,'Spring',101,ls);
       for (let ls=0;ls<=LEAF_FULL;ls++) one(k,v,'Fall',101,ls);
@@ -252,16 +258,18 @@ function lineupCanvas(keys, season, scale, arms){
 window.coniferSheet=function(refs,opts){
   opts=opts||{}; const cell=opts.cell||180, seasons=opts.seasons||['Summer','Winter'], per=opts.per||4;
   const arms=opts.arm==='before'?[false]:opts.arm==='both'?[false,true]:[true];
-  const lab=14, cols=per*seasons.length*arms.length, rows=Math.ceil(refs.length/per);
+  // opts.growths: one season, the columns are ages instead (a pine's cone opening into an old flat top)
+  const cols0=opts.growths ? opts.growths.length : seasons.length;
+  const lab=14, cols=per*cols0*arms.length, rows=Math.ceil(refs.length/per);
   const ov=document.getElementById('sheet'); ov.hidden=false;
   ov.width=cols*cell; ov.height=rows*(cell+lab);
   const o=ov.getContext('2d'); o.fillStyle=opts.bg||'#cdd6be'; o.fillRect(0,0,ov.width,ov.height);
   refs.forEach((ref,i)=>{
     const [k,v]=ref.split('.');
-    const rs=[]; for (const on of arms) for (const s of seasons) rs.push(shot(k,v||null,s,on,opts.seed,opts.growth));
+    const rs=[]; for (const on of arms) for (const s of (opts.growths||seasons)) rs.push(opts.growths ? shot(k,v||null,seasons[0],on,opts.seed,s) : shot(k,v||null,s,on,opts.seed,opts.growth));
     const x0=Math.min(...rs.map(r=>r.x0-r.ox)), x1=Math.max(...rs.map(r=>r.x1-r.ox));
     const y0=Math.min(...rs.map(r=>r.y0-r.oy)), y1=Math.max(...rs.map(r=>r.y1-r.oy));
-    const w=x1-x0+4, h=y1-y0+4, f=Math.min((cell-6)/w,(cell-6)/h), row=Math.floor(i/per), col=(i%per)*seasons.length*arms.length;
+    const w=x1-x0+4, h=y1-y0+4, f=Math.min((cell-6)/w,(cell-6)/h), row=Math.floor(i/per), col=(i%per)*cols0*arms.length;
     rs.forEach((r,j)=>o.drawImage(r.c, r.ox+x0-2, r.oy+y0-2, w, h, (col+j)*cell+(cell-w*f)/2, row*(cell+lab)+cell-h*f, w*f, h*f));
     o.fillStyle='#222'; o.font='10px sans-serif';
     o.fillText(nameOf(k,v||null).slice(0,30)+' · '+habitOf(k,v||null), col*cell+3, row*(cell+lab)+cell+10);
@@ -312,13 +320,14 @@ window.coniferBench=function(which,rounds){
     if (CR_Q.get('bench')){ coniferBench(CR_Q.get('bench')); return; }
     if (CR_Q.get('check')){
       const c=CR_Q.get('check');
-      const refs=c==='tier2' ? Object.keys(CR_GROUPS).filter(g=>/Tier 2|Deciduous/.test(g)).flatMap(g=>CR_GROUPS[g]) : CR_GROUPS[c] || c.split(',');
+      const refs=c==='tier3' ? ['Reshaped','Tier 3'].flatMap(g=>CR_GROUPS[g]) : c==='tier2' ? Object.keys(CR_GROUPS).filter(g=>/Tier 2|Deciduous/.test(g)).flatMap(g=>CR_GROUPS[g]) : CR_GROUPS[c] || c.split(',');
       coniferCheck(refs); return;
     }
     if (sheet){
       const refs=CR_GROUPS[sheet] || (sheet==='all' ? CR_REFS.map(([k,v])=>v?k+'.'+v:k) : sheet.split(','));
       coniferSheet(refs,{seasons:(CR_Q.get('seasons')||'Summer,Winter').split(','), cell:+(CR_Q.get('cell')||180),
-        per:+(CR_Q.get('per')||4), arm:CR_Q.get('arm')||'after', growth:+(CR_Q.get('growth')||1), bg:CR_Q.get('bg')||undefined});
+        per:+(CR_Q.get('per')||4), arm:CR_Q.get('arm')||'after', growth:+(CR_Q.get('growth')||1), bg:CR_Q.get('bg')||undefined,
+        growths:CR_Q.get('growths') ? CR_Q.get('growths').split(',').map(Number) : undefined});
       document.getElementById('status').textContent='sheet ready';
       document.title='sheet ready';
       return;

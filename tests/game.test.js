@@ -3364,6 +3364,111 @@ test('an Italian cypress is a flame: upright sprays on a crown that comes to a p
   finally { delete H.sprayUp; }
 });
 
+test('a conifer that changes shape with age follows its growth (look.aged)', () => {
+  /* 0.9.137: a Scots or Austrian pine, a ponderosa, a stone pine and a cedar of
+     Lebanon are cones when young and open into flat-topped trees with age. The
+     record's own look is the young tree; `aged` holds the old one, and the look
+     blends from one to the other as growth runs from aged.start to full. */
+  const aged=['scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine','monkeypuzzle'];
+  for (const k of aged){
+    const L=PLANTS[k].look, A=L.aged;
+    assert(A && A.profile, `${k}: an aged look with a crown outline`);
+    const young=coniferAgedLook(L,(A.start||0.3)*0.5), old=coniferAgedLook(L,1);
+    assertEqual(young.crownBase,L.crownBase,`${k}: young, its own crown base`);
+    assertEqual(young.profileMix,0,`${k}: young, its own outline`);
+    assertEqual(old.crownBase,A.crownBase,`${k}: old, the aged crown base`);
+    assertEqual(old.profileMix,1,`${k}: old, the aged outline`);
+    const mid=coniferAgedLook(L,((A.start||0.3)+1)/2);
+    assert(mid.crownBase>Math.min(L.crownBase,A.crownBase) && mid.crownBase<Math.max(L.crownBase,A.crownBase),`${k}: and part way between them`);
+    assert(plantDrawCalls(k,null,'Summer',4242,1)!==plantDrawCalls(k,null,'Summer',4242,0.2),`${k}: an old tree is not a young one drawn bigger`);
+  }
+  for (const k of ['scotspine','ponderosapine','stonepine','monkeypuzzle'])
+    assert(PLANTS[k].look.aged.crownBase>=0.5,`${k}: an old tree stands on a long clear trunk`);
+  assert(PLANTS.cedaroflebanon.look.aged.crownBase<=0.12,'an old cedar of Lebanon keeps its lower limbs (MBG)');
+  const C=PLANTS.cedaroflebanon.look;
+  assertEqual(coniferAgedLook(C,1).leaders,3,'an old cedar of Lebanon divides into several leaders');
+  assertEqual(coniferAgedLook(C,0.2).leaderSplay,0,'a young one is a single leader');
+  assertEqual(coniferAgedLook(PLANTS.ponderosapine.look,0.2).bark,'#4f3f36','a young ponderosa has dark bark');
+  assertEqual(coniferAgedLook(PLANTS.ponderosapine.look,1).bark,'#a0673f','an old one orange plates (MBG)');
+  // a record without aged is handed back untouched, so it cannot change
+  const W=PLANTS.whitepine.look;
+  assert(coniferAgedLook(W,0.4)===W,'no aged look: the record\'s own look');
+  // the cultivars that are a different shape opt out
+  assertEqual(PLANTS.scotspine.cv.fastigiata.look.aged,null,'the columnar Scots pine does not flatten with age');
+});
+
+test('the 0.9.137 conifer shapes are opt-in, and only the trees reshaped ask for them', () => {
+  const owners={aged:['scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine','monkeypuzzle'],
+    branchlets:['douglasfir'], sprayStyle:['cryptomeria'], limbJ:['westernredcedar'], strandLen:['westernredcedar'],
+    buttress:['westernredcedar'], leaders:[], whorlJitter:['douglasfir','monkeypuzzle'], limbRise:[], coneStyle:null, tuftStyle:['umbrellapine'], ropeW:['monkeypuzzle'],
+    limbCurve:['douglasfir','scotspine','austrianpine','ponderosapine','cedaroflebanon','stonepine','umbrellapine']};
+  const bad=[];
+  for (const key of PLANT_KEYS) for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
+    const D=plantDef(key,v), L=D.look||{};
+    if (D.form!=='conifer') continue;          // other forms read some of these names their own way
+    for (const [f,keys] of Object.entries(owners)){
+      if (!keys || L[f]===undefined || L[f]===null) continue;
+      if (!keys.includes(key)) bad.push(`${key}${v?'.'+v:''}.${f}`);
+    }
+  }
+  assertEqual(bad.join(' | '),'','only the reshaped trees carry the new fields');
+  assertEqual(PLANTS.westernredcedar.look.coniferHabit,'sweep','western red cedar takes the J-limbed sweep habit');
+  assertEqual(PLANTS.douglasfir.look.coneStyle,'bract','Douglas fir cones carry their three-pointed bracts');
+  // zero is the same drawing as none, for each of the per-limb numbers
+  const S=PLANTS.whitefir.look, before=plantDrawCalls('whitefir',null,'Summer',4242,1);
+  for (const f of ['branchlets','limbRise','buttress','limbJ','leaders']){
+    try { S[f]=0; assertEqual(plantDrawCalls('whitefir',null,'Summer',4242,1),before,`${f} 0 changes nothing`); }
+    finally { delete S[f]; }
+  }
+  try { S.whorlJitter=0.5; assertEqual(plantDrawCalls('whitefir',null,'Summer',4242,1),before,'whorlJitter 0.5 is the old jitter'); }
+  finally { delete S.whorlJitter; }
+  // and the reshaped trees really draw the new shape
+  const drop=(k,f)=>{ const L=PLANTS[k].look, keep=L[f]; let off;
+    try { delete L[f]; off=plantDrawCalls(k,null,'Summer',4242,1); } finally { L[f]=keep; }
+    return off; };
+  assert(drop('douglasfir','branchlets')!==plantDrawCalls('douglasfir',null,'Summer',4242,1),'Douglas fir hangs its branchlets');
+  assert(drop('cryptomeria','sprayStyle')!==plantDrawCalls('cryptomeria',null,'Summer',4242,1),'cryptomeria draws its sprays as ropes');
+  assert(drop('umbrellapine','tuftStyle')!==plantDrawCalls('umbrellapine',null,'Summer',4242,1),'an umbrella pine ends its shoots in whorls of needles');
+  // a monkey puzzle's limbs are the foliage: rope limbs, nothing hung on them, and only that habit has them
+  assertEqual(CONIFER_FORMS.araucaria.kind,'rope','the araucaria habit draws rope limbs');
+  assertEqual(PLANTS.monkeypuzzle.look.coniferHabit,'araucaria','the monkey puzzle takes it');
+  assert(Object.entries(CONIFER_FORMS).every(([h,F])=>F.kind!=='rope' || h==='araucaria'),'no other habit draws rope limbs');
+  const mp=plantDrawCalls('monkeypuzzle',null,'Winter',4242,1);
+  assert(mp.split('\n').filter(l=>l==='fill()').length<=120,'a monkey puzzle is cheap: two fills a limb');
+});
+
+test('a trunked palm is a crown of fan fronds on a trunk, built in the round (form:palm)', () => {
+  /* 0.9.137: windmill palm, cabbage palmetto, Mediterranean fan palm and
+     California fan palm. Saw palmetto's low clonal fans stay 'fanpalm'. */
+  const palms=PLANT_KEYS.filter(k=>PLANTS[k].form==='palm');
+  assertEqual(palms.sort().join(','),'cabbagepalmetto,californiafanpalm,mediterraneanfanpalm,windmillpalm','the four trunked palms');
+  const fills=log=>log.split('\n').filter(l=>l==='fill()').length;
+  for (const k of palms){
+    const P=PLANTS[k];
+    assert(isTreeDef(P),`${k}: a tree, so it stands on its trunk tile and casts shade`);
+    assertEqual(treeLeafOut(P),null,`${k}: a palm keeps its fronds`);
+    assert(frondOrSpine(P),`${k}: fronds, not a meadow or a cottage plant`);
+    assert(staticPlantRoles(k).includes('architectural'),`${k}: an architectural plant`);
+    for (const season of SEASONS){
+      const log=plantDrawCalls(k,null,season,4242,1);
+      assert(fills(log)>=12 && fills(log)<=200,`${k} ${season}: ${fills(log)} fills, a frond's two fills each`);
+    }
+    // the closing highlight strokes assume foliage fills the box; a palm's box is mostly sky
+    assert(!/globalAlpha=0.16/.test(plantDrawCalls(k,null,'Summer',4242,1)),`${k}: no stray highlight in the air`);
+  }
+  const H=100, cw=60;
+  assertEqual(palmGeom(PLANTS.mediterraneanfanpalm.look,H,cw,1).NT,5,'the Mediterranean fan palm suckers into a clump of trunks');
+  assertEqual(palmGeom(PLANTS.windmillpalm.look,H,cw,1).NT,1,'the windmill palm has one');
+  assert(PLANTS.californiafanpalm.look.skirt>0 && PLANTS.californiafanpalm.look.threads,'the California fan palm wears its petticoat and threads');
+  assertEqual(PLANTS.cabbagepalmetto.look.trunkStyle,'boots','the cabbage palmetto keeps its criss-cross boots');
+  assertEqual(PLANTS.windmillpalm.look.trunkStyle,'fiber','the windmill palm its hairy fibre');
+  assert(PLANTS.cabbagepalmetto.look.bladeDroop>PLANTS.windmillpalm.look.bladeDroop,'a costapalmate leaf arches harder than a flat fan');
+  // a frond's fan reads three-dimensionally: fronds facing the viewer and away draw differently
+  assert(plantDrawCalls('windmillpalm',null,'Summer',4242,1)!==plantDrawCalls('windmillpalm',null,'Summer',7122,1),'each palm is its own');
+  // a young palm is a small one, not the full crown scaled
+  assert(fills(plantDrawCalls('windmillpalm',null,'Summer',4242,0.2))<fills(plantDrawCalls('windmillpalm',null,'Summer',4242,1)),'a young palm carries fewer fronds');
+});
+
 test('an evergreen changes colour with the season, never shape, and keeps the cost of a tree', () => {
   /* Spring is the summer needles with new growth on the tips, so a spruce in
      May and in July are the same tree: only colours may differ. Winter adds

@@ -111,8 +111,44 @@ test('a record that states its own native range keeps it through the migration',
     assert(PLANTS.goldenhops.nativeTo.includes(r),`Humulus lupulus is native in ${r}`));
 });
 
+test('the evergreen audit\'s Tier 3: the trees that waited for the renderer', () => {
+  /* 0.9.137, docs/plant-data/evergreen-audit.md, every figure sourced in
+     docs/plant-data/evergreen-sources.json. */
+  const T3={
+    stonepine:{latin:'Pinus pinea', form:'conifer', type:'tree', habit:'pine', group:'pine', zones:[8,10], native:['europe','asia'], size:[600,420]},
+    umbrellapine:{latin:'Sciadopitys verticillata', form:'conifer', type:'tree', habit:'pine', group:undefined, zones:[5,8], native:['asia'], size:[300,180]},
+    monkeypuzzle:{latin:'Araucaria araucana', form:'conifer', type:'tree', habit:'araucaria', group:undefined, zones:[7,10], native:['south-america'], size:[480,240]},
+    windmillpalm:{latin:'Trachycarpus fortunei', form:'palm', type:'tree', group:'palm', zones:[7,10], native:['asia'], size:[240,96]},
+    cabbagepalmetto:{latin:'Sabal palmetto', form:'palm', type:'tree', group:'palm', zones:[8,11], native:['north-america'], size:[360,144]},
+    mediterraneanfanpalm:{latin:'Chamaerops humilis', form:'palm', type:'tree', group:'palm', zones:[8,11], native:['europe','africa'], size:[120,120]},
+    californiafanpalm:{latin:'Washingtonia filifera', form:'palm', type:'tree', group:'palm', zones:[9,11], native:['north-america','central-america'], size:[480,144]},
+  };
+  for (const [k,e] of Object.entries(T3)){
+    const P=PLANTS[k];
+    assert(P,`${k}: Tier 3 record is missing`);
+    assertEqual(P.latin,e.latin,`${k}: botanical name`);
+    assertEqual(P.form,e.form,`${k}: renderer form`);
+    assertEqual(P.type,e.type,`${k}: catalog type`);
+    if (e.habit) assertEqual(P.look.coniferHabit,e.habit,`${k}: conifer habit`);
+    assertEqual(P.group,e.group,`${k}: family card`);
+    assertEqual(P.zones.join('-'),e.zones.join('-'),`${k}: hardiness`);
+    assertEqual(P.nativeTo.join(','),e.native.join(','),`${k}: native range`);
+    assertEqual(P.provenance,'species',`${k}: a straight species`);
+    assertEqual(P.heightIn+'x'+P.spread,e.size.join('x'),`${k}: planning size`);
+    assert(P.heightIn>P.h && P.spread>=P.space,`${k}: real size stays separate from px-art`);
+    assert(WIKIPEDIA_ARTICLES[k],`${k}: a Wikipedia article`);
+    for (const s of SEASON_KEYS) assert(P.sea[s] && P.sea[s].fol,`${k}: evergreen foliage in ${s}`);
+  }
+  // the Mexican fan palm is left out: Cal-IPC rates it invasive (Moderate) and Florida lists it (FISC II)
+  assert(!PLANT_KEYS.some(k=>/Washingtonia robusta/.test(PLANTS[k].latin)),'no Mexican fan palm');
+  assert(/robusta/.test(PLANTS.californiafanpalm.blurb),'the California fan palm says which one not to buy');
+  assert(/Switzerland/.test(PLANTS.windmillpalm.blurb),'the windmill palm says where it has escaped');
+  assert(/[Ee]ndangered/.test(PLANTS.monkeypuzzle.blurb),'the monkey puzzle says it is endangered in the wild');
+  assertEqual(PLANTS.sawpalmetto.form,'fanpalm','saw palmetto keeps its low clonal fans');
+});
+
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,884,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,891,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),696,
     'canonical nested-choice count');
@@ -1607,7 +1643,7 @@ test('evergreen tree expansion keeps resolved taxa, scale data, and distinct arc
     ponderosapine:['Pinus ponderosa','pine'],
     italiancypress:['Cupressus sempervirens (Stricta Group)','scale'],
     incensecedar:['Calocedrus decurrens','scale'],
-    westernredcedar:['Thuja plicata','scale'],
+    westernredcedar:['Thuja plicata','sweep'],
     cryptomeria:['Cryptomeria japonica','scale'],
     rockymountainjuniper:['Juniperus scopulorum','scale'],
     cedaroflebanon:['Cedrus libani','cedar'],

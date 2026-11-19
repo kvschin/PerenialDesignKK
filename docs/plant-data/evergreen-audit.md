@@ -164,10 +164,10 @@ still drawn approximately.
 
 | Plant | Why skipped |
 | --- | --- |
-| Palms: *Sabal palmetto*, *Trachycarpus fortunei* (windmill palm, zone 7), *Washingtonia*, *Chamaerops humilis* | Need a trunked tree-palm form. `fanpalm` draws saw palmetto's clonal low fans, not a crown of fronds on a trunk. |
-| *Araucaria araucana* (monkey puzzle) | Rope-like whorled branches of overlapping scale leaves: an architecture of its own. Endangered in the wild. |
-| *Pinus pinea* (Italian stone pine) | The umbrella crown on a bare trunk is the whole plant; the `pine` habit would draw a pyramid. Wait for the renderer. |
-| *Sciadopitys verticillata* (umbrella pine) | Whorls of glossy needles like umbrella spokes; the `pine` tuft would misrepresent it. |
+| Palms: *Sabal palmetto*, *Trachycarpus fortunei* (windmill palm, zone 7), *Washingtonia*, *Chamaerops humilis* | Need a trunked tree-palm form. `fanpalm` draws saw palmetto's clonal low fans, not a crown of fronds on a trunk. **Added in 0.9.137** with a `palm` form (W. filifera; W. robusta left out, below). |
+| *Araucaria araucana* (monkey puzzle) | Rope-like whorled branches of overlapping scale leaves: an architecture of its own. Endangered in the wild. **Added in 0.9.137** (the `araucaria` habit). |
+| *Pinus pinea* (Italian stone pine) | The umbrella crown on a bare trunk is the whole plant; the `pine` habit would draw a pyramid. **Added in 0.9.137** (`look.aged`, leaders). |
+| *Sciadopitys verticillata* (umbrella pine) | Whorls of glossy needles like umbrella spokes; the `pine` tuft would misrepresent it. **Added in 0.9.137** (`tuftStyle:'whorl'`). |
 | *Pinus palustris* (longleaf pine) | Its years-long grass stage is the plant's character and no habit draws it. |
 | *Eucalyptus* spp. | Australasian, invasive in California, and the broadleaf crowns do not draw its pendulous foliage and peeling trunk. |
 | *Cinnamomum camphora* (camphor tree) | FLEPPC Category I invasive in Florida. |
@@ -224,6 +224,8 @@ rework can pick them up. No new `look` fields were added.
   `cedar` shelves with a low `taper` approximate it.
 - **Weeping blue Atlas cedar:** trained horizontally along a frame or arch,
   then hanging; the `weeping` habit makes a mound.
+- *Douglas fir, the old Scots, Austrian and ponderosa pines, cryptomeria,
+  western red cedar and the old cedar of Lebanon: done in 0.9.137 (below).*
 - Deferred until the renderer can: Italian stone pine's umbrella, umbrella
   pine's whorls, monkey puzzle, trunked palms (Tier 3).
 
@@ -406,3 +408,107 @@ renderer-blocked Tier 3 plants. What each needs:
   led to the larches moving from the `cedar` to the `pine` habit (the shelves read
   as pancakes on a pole), a denser dawn redwood, denser loblolly, pinyon and
   lacebark crowns, and denser sprays on the broad cypresses.
+
+## The reshaped conifers and Tier 3 (0.9.137, November 18, 2026)
+
+The rest of the stretch list: six existing conifers redrawn as the sources
+describe them, and the four Tier 3 entries that waited for the renderer:
+**seven new species** (catalog 884 base records to 891; nested choices
+unchanged at 696). Every figure and every shape claim, with its source, is in
+`docs/plant-data/evergreen-sources.json` (`plants` for the new records,
+`reshaped` for the redrawn ones). All the new drawing options are opt-in: the
+whole catalog was hashed call for call before and after (four seasons, two
+seeds, two growths, every woody plant at every leaf stage, 32,638 drawings),
+and only the trees below changed.
+
+### Reshaped
+
+| Tree | What changed | Source for the shape |
+| --- | --- | --- |
+| Douglas fir | Irregular whorls (`whorlJitter`), limbs turned up at the tips, short pendulous branchlets hanging under each plate (`branchlets`), pendent cones with three-pointed bracts (`coneStyle:'bract'`). | OSU (lower branches drooping, upper ascending; 3-pronged bracts), NZPCN (irregular whorls, branchlets usually drooping), MBG |
+| Scots pine | A cone branched to the ground when young; with age (`look.aged`) a long clear trunk, orange above grey-brown, under an irregular flattened crown. | MBG (conical young, open-rounded irregular crown with age; orange upper bark) |
+| Austrian pine | A dense pyramid young; old, a spreading flat-topped dome on a shorter clear trunk. | MBG |
+| Ponderosa pine | Young: a dark-barked cone. Old: a tall clear trunk of orange plates under an open crown of long-needle tufts at the ends of limbs that droop and turn up. | MBG (tufts at the branch ends; bark dark young, orange plates old) |
+| Cryptomeria | Its sprays are ropes: cords of awl leaves that arch out and droop at the tip (`sprayStyle:'rope'`), not fans. Its two cultivars follow. | MBG (tiered branching slightly pendulous at the tips; awl-shaped needles) |
+| Western red cedar | A new `sweep` habit: limbs that dip and sweep up at the tip (`limbJ`), carrying short curtains of hanging sprays (`strandLen`), on a buttressed foot (`buttress`) with ridged bark. Its three cultivars follow. | OSU (branches horizontal or drooping, turning up at the end; buttressed base; keeps its lower branches) |
+| Cedar of Lebanon | A pyramid young; old, a few broad level tiers with sky between, flat on top, on a trunk forking into three leaders (`leaders`), still branched low. | MBG (flattened top, lower branches often touching the ground), Wikipedia (broadly tabular with age; old trunks fork into several erect branches) |
+
+The pines and the cedar of Lebanon change shape with age, so their shape now
+follows growth: the record's own look is the young tree and `look.aged` the
+old one, blended as growth runs from `aged.start` to full. In the garden an
+Established tree and every preview is the old one; Today shows a young planting
+young. 'Fastigiata' (Scots pine) opts out (`aged:null`).
+
+### Added
+
+| Key | Botanical | Zones | Planning size | Native | Drawn as |
+| --- | --- | --- | --- | --- | --- |
+| `stonepine` | *Pinus pinea* | 8-10 | 50 x 35 ft (MBG 40-60 x 20-40) | Europe, Asia (Turkey, Lebanon) | A rounded bush young; old, a broad flat-topped parasol on a clear trunk forking into four leaders. Joins **Pine**. |
+| `umbrellapine` | *Sciadopitys verticillata* | 5-8 | 25 x 15 ft (MBG 25-30 x 15-20) | Japan | A dense narrow pyramid whose shoots end in whorls of long flat needles like umbrella ribs (`tuftStyle:'whorl'`). Own card: the only member of its family. |
+| `monkeypuzzle` | *Araucaria araucana* | 7-10 | 40 x 20 ft (MBG 50-80 ft, but 20-30 ft typical in cultivation) | South America | A new `araucaria` habit: rope limbs clad in scale leaves, in whorls, with rope branchlets; an open pyramid young, a domed crown on a bare trunk old. Endangered in the wild (IUCN). |
+| `windmillpalm` | *Trachycarpus fortunei* | 7-10 | 20 x 8 ft (MBG 20-40 ft) | China | A slim fibre-clad trunk under a round head of fans; brown dead fronds hang under the crown. New **Palm** card. |
+| `cabbagepalmetto` | *Sabal palmetto* | 8-11 (NC State 7b) | 30 x 12 ft (NC State 12-35 x 10-15) | SE United States | Criss-cross boots on the upper trunk under a dense head of hard-arching costapalmate fans. |
+| `mediterraneanfanpalm` | *Chamaerops humilis* | 8-11 (MBG 8b) | 10 x 10 ft (MBG 6-15 x 6-20) | Europe, North Africa | A clump of five short leaning fibre-clad trunks with stiff, deeply split fans. |
+| `californiafanpalm` | *Washingtonia filifera* | 9-11 | 40 x 12 ft (Calscape 49-66 x 10-15) | SW United States, NW Mexico | A stout ringed trunk under grey-green threaded fans, with a petticoat of dead fronds. |
+
+The palms are a new form, `palm`, built in the round: each frond is placed in
+three dimensions in a spiral and projected with the conifers' look-down, so a
+frond pointing at the viewer shows its fan and one pointing sideways is seen
+nearly edge on. Saw palmetto keeps its low clonal `fanpalm` fans.
+
+### Data decisions
+
+- **Washingtonia robusta is left out.** Cal-IPC rates the Mexican fan palm
+  Moderate (Alert) in California and the Florida Plant Atlas lists it as FISC
+  Category II. The native California fan palm takes its place, and its blurb
+  says which one not to buy.
+- **Windmill palm is in, with a caution.** No North American list calls it
+  invasive, but the Swiss federal environment office bans its sale for
+  invading the forests of Ticino; the blurb says it seeds into woods where
+  winters are mild.
+- **The Mediterranean fan palm is recorded as a tree**, though MBG calls it "a
+  shrub or small tree": the catalog draws shrubs near true scale and trees on a
+  compressed curve, and as a shrub a 10 ft clump drew taller than a 40 ft palm.
+- **Cabbage palmetto is North American only.** NC State adds the Bahamas and
+  Cuba, and the Caribbean has no region in the catalog.
+- **Zones** are rounded to whole zones conservatively where a source names a
+  half zone at the cold end (Sabal 7b, Chamaerops 8b are recorded as 8).
+- px-art was solved with `dev/cultivar-size.cjs` on eastern white pine for the
+  pines, monkey puzzle and the palms, and on white fir for the umbrella pine.
+
+### Costs and checks
+
+- Bake cost on the sprite path (OffscreenCanvas, min of 9 rounds, headless
+  Chrome, Summer and Winter): the reshaped trees 1.3-2.8 ms; stone pine 3.0-3.8
+  (its dense umbrella of tufts, beside dawn redwood's 3.3), umbrella pine
+  2.5-3.0, monkey puzzle 1.3-1.4, the palms 0.9-2.0. The catalog's existing
+  tree conifers measure 1.2-3.4 on the same page.
+- Fills at full growth stay inside the 460 a tree is allowed: western red cedar
+  373 in winter (its curtains are each a few strands in one path), umbrella pine
+  418, monkey puzzle 89, a palm under 200.
+- `dev/conifer-review.html?check=tier3`: 552 sprites baked as the garden bakes
+  them (four seasons, three seeds, two growths, and a third, part way, for a tree
+  that changes with age), none touching an edge.
+- `node dev/wikipedia-links.js --verify`: all 891 articles resolve.
+- Headless sheets of every new and reshaped choice in four seasons, age series
+  for the aged trees, and a true-scale lineup beside existing trees were
+  reviewed; they led to the denser stone pine canopy, the interior's alpha
+  stepping in at half age (blended, it was a grey haze), rope sprays thick
+  enough to cover cryptomeria's dark core, strand sets for western red cedar
+  (one wide strand per curtain read as a paper panel), whorls with a fuller dark
+  star, the cedar of Lebanon kept branched low (MBG), and a young ponderosa's
+  dark bark.
+
+### Still approximate, or not done
+
+- **Japanese black pine** (leaning trunk, cloud-pruned pads) and the **trained
+  weeping blue Atlas cedar** were outside this pass.
+- **Lacebark pine** is still one trunk; `leaders` with a fork below the crown
+  (`forkAt` negative, as the stone pine uses) could now draw it several-stemmed.
+- **Scots pine 'Fastigiata'** is still wider than a true column.
+- **Western red cedar 'Can-can'** is an 8 ft cone and its sprite is small, so its
+  curtains read softer than the species'.
+- **Palm flowers and fruit** are dots along arching stalks; a windmill palm's
+  dense yellow panicles and a Washingtonia's 15 ft sprays are only suggested.
+- **Longleaf pine, Eucalyptus, camphor tree, free-grown English yew** stay
+  skipped for the reasons in Tier 3.

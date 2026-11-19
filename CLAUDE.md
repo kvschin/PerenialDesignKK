@@ -1593,7 +1593,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    red-tipped canes), `shrub` herbaceous mound, `fern`, `leafmound` hosta, `bush`
    woody shrub, `hydrangea` (`look.bloomShape` 'mop'|'lacecap'|'panicle';
    grouped in the tray by flower type — mophead/lacecap/panicle/oakleaf —
-   not by species), `tree` deciduous, `conifer`). Conifers use one data-driven
+   not by species), `tree` deciduous, `conifer`, `palm` a trunked palm, 0.9.137). Conifers use one data-driven
    renderer with `look.coniferHabit`: `spruce` for whorled spruce/fir/hemlock
    plates, `pine` for open limbs and needle tufts, `cedar` for shelf-like true
    cedars, `scale` for arborvitae/juniper/cypress sprays, and `weeping` for
@@ -8522,6 +8522,83 @@ sprite box holds) and turned toward vertical. With a crown `profile` that comes
 to a point it made the Italian cypress a flame-tipped pencil (0.8), and it
 stands the incense cedar's sprays on edge (0.6); every other drawing hashed the
 same.
+**0.9.137: conifers whose shape follows their age, the rest of the evergreen
+audit's stretch list, and trunked palms (`look.aged`, `drawPalm`).** Six
+existing conifers were redrawn as the sources describe them, and the audit's
+Tier 3 went in: Italian stone pine, Japanese umbrella pine, monkey puzzle and
+four palms (884 base records to 891). Figures and shape citations are in
+`docs/plant-data/evergreen-sources.json`, the account in the audit's dated
+section. Every option below is opt-in: the whole catalog hashed call for call
+before and after (32,638 drawings, leaf stages included), and only the trees
+named changed.
+**`look.aged`** (`coniferAgedLook`, draw.js): a pine or a cedar of Lebanon is a
+cone young and a different tree old, so the record's own look is the young
+tree and `aged` the old one. As growth runs from `aged.start` (0.3) to full,
+each numeric field blends from the young value (the record's, else
+`CONIFER_AGE_DEF`, else the habit table's) to the aged one, an aged `profile`
+fades in over the young taper (`profileMix`, read by `coniferTreeDims.hwAt`),
+`leaders` is a count taken whole with `leaderSplay` blending from nothing, a
+string (a ponderosa's bark) switches at half age, and the dark interior's
+`massA` steps in at half age, since blended it is a grey haze over the crown.
+`drawConiferTree` and `coniferTreeBelow` both resolve the look first, so the
+drawing and its sprite box agree at every age; it is cached per look object
+and age, so a test that mutates an aged look must use a fresh object. An
+Established tree and every preview is the old tree; Today shows a young
+planting young. `aged.start` is not `from`, which the puff kind already uses
+for a limb's bare fraction. A cultivar of another shape opts out with
+`aged:null` (Scots pine 'Fastigiata').
+**`leaders`/`leaderSplay`/`forkAt`**: the trunk divides at `forkAt` of the crown
+(negative is below the crown base: the stone pine's fork) into leaders spread
+`leaderSplay` of the width; a limb above the fork leaves the leader on its own
+side, shortened by how far that leader already stands out, and each leader
+gets its own top (a cedar's nod shrunk to the crown, not the tier gap). Also
+`whorlJitter` (the tier-height jitter, 0.5 being the old one), `limbRise` (a
+limb climbing a share of its length, less toward the top) and `limbCurve` (the
+limb stroked through the curve its tufts are laid along, so an open pine's
+brushes sit on it). Slab `branchlets` hang short strands under each plate
+(Douglas fir) and `coneStyle:'bract'` is its cone. `sprayStyle:'rope'`
+(`cfRope`) draws scale foliage as cords drooping at the tip (cryptomeria), at
+1.5 times the spray count so the ropes cover the dark core. The `sweep` habit
+(drape kind, `hideTrunk`) is western red cedar: limbs that dip and turn up
+(`limbJ`), short curtains of hanging sprays (`strandLen`, in tier gaps, each a
+`cfStrandSet` of three strands in one fill: one wide strand read as a paper
+panel, and more strands broke the 460-fill budget) over a `buttress`ed foot.
+`tuftStyle:'whorl'` (`cfWhorl`) ends a puff's shoots in umbrella-rib needle
+whorls (umbrella pine). The `araucaria` habit is a new kind, `rope`: no foliage
+hung on the limbs, each limb is the foliage, a serrated rope of scale leaves
+with rope branchlets, two fills a limb (monkey puzzle). `branchlets` and
+`tuftStyle` are also forb look keys of their own; only the conifer renderer
+reads these meanings.
+**Palms (`form:'palm'`, `drawPalm`, `palmTrunk`, `palmSkirt`, `palmBelow`,
+`palmGeom`).** Saw palmetto's `fanpalm` draws low fans flat on the screen; a
+crown in the air is built in the round. Each frond is placed in three
+dimensions in a golden-angle spiral, young fronds upright and old ones
+drooping (`phiTop`/`phiLow`), and projected with `CONIFER_TILT`: a petiole
+bowing out to a fan spread in the plane of the petiole and the level line
+across it, so a frond facing the viewer shows a broad fan and one facing
+sideways is nearly edge on. The fan is joined to `split` of its radius and
+divided into `segments` beyond, tips sagging (`segSag`); `bladeDroop` bends it
+off the petiole (a costapalmate cabbage palmetto arches hard). Two fills a
+frond, back to front round each trunk. `trunks`/`clumpW`/`lean` cluster and
+lean several trunks (Mediterranean fan palm), `trunkStyle` is fiber, boots,
+ringed or smooth, `skirt` hangs a petticoat of dead fronds (California fan
+palm), `deadFrac` hangs brown fronds under the crown, `threads` draws a
+Washingtonia's filaments, and flowers or fruit hang out on arching stalks
+(`inflor`, `inflorLen`, `inflorHang`). Everything stays inside the box
+plantDrawBox guarantees (`lim`, and the crown kept under the box's top);
+`palmBelow` joins `plantDrawBelow`. A palm keeps its fronds (`treeLeafOut`
+returns null for it whatever its colour), is `architectural`, is in
+`FRONDS_AND_SPINES` (no cottage or meadow style), and drawPlant's closing
+highlight strokes skip it. The palms are type `tree`, the Mediterranean fan
+palm too: as a shrub it is drawn near true scale and came out taller than a
+40 ft palm. The Mexican fan palm (W. robusta) is left out as invasive (Cal-IPC
+Moderate, FISC II); the windmill palm's blurb says Switzerland banned its sale.
+Costs on the bake path: reshaped trees 1.3-2.8 ms, stone pine 3.0-3.8 (its dense
+parasol), umbrella pine 2.5-3.0, monkey puzzle 1.3, palms 0.9-2.0.
+`dev/conifer-review.html` shows the palms with the conifers, takes
+`?growths=0.2,0.5,1` for an age series, checks an aged tree part way too, and
+`?check=tier3` bakes 552 sprites of every new and reshaped choice, none
+touching an edge.
 **0.9.60: shrubs built as shrubs (`SHRUB_HABITS`, `shrubHabitOf`,
 `drawShrubHabit`, draw.js), with leaf-out and leaf drop (`woodyLeafOut`,
 world.js).** Every informal shrub -- 88 `bush` species and the 7 hydrangeas,
