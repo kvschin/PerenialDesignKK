@@ -1020,6 +1020,9 @@ const BROWSE_RESIST_KEYS=new Set([
   // the 0.9.124 bulb additions with the same defences: alkaloids, or the crown
   // imperial's foxy smell
   'muscarilatifolium','scillasiberica','glorysnow','crownimperial','lycorisradiata','irisreticulata','crocosmia',
+  // the 0.9.134 additions a source names: MBG for the poppy anemone and Persian lily,
+  // DutchGrown for the foxtail lily, Burncoose and Plant Lust for Cyclamen coum
+  'poppyanemone','persianlily','foxtaillily','cyclamencoum',
   // tough shrubs — berried natives and the resistant viburnums, listed by key
   // rather than by group because doublefile shares group:'viburnum' and is browsed
   'sumac','coralberry','smokebush','winterberry','inkberry','chokeberry',
@@ -1029,7 +1032,9 @@ const SQUIRREL_RESIST_GROUPS=new Set(['allium','alliumbulb']);
 const SQUIRREL_RESIST_KEYS=new Set([
   'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
   'muscari','leucojum','scillaperuviana','puschkinia','ipheion','hyacinth',
-  'muscarilatifolium','scillasiberica','glorysnow','crownimperial','lycorisradiata'
+  'muscarilatifolium','scillasiberica','glorysnow','crownimperial','lycorisradiata',
+  // John Scheepers: 'Deer- and rodent-resistant Fritillaria' (0.9.134)
+  'persianlily'
 ]);
 // readily browsed despite a broad cue (hosta, tulips, crocus, sedum, lilies,
 // New Jersey tea, doublefile viburnum, ninebark, red-twig dogwood, both

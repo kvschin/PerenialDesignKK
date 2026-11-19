@@ -929,6 +929,122 @@
     "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=282305"
    ],
    "estimate": "MBG 12-24 in. DutchGrown says 32-36 in, which is not the plant most sources describe."
+  },
+  {
+   "ref": "poppyanemone",
+   "heightIn": 10,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=286104"
+   ],
+   "estimate": "MBG 0.75-1.5 ft overall, its text stems 10-12 in. Zones 7-10, April-June, MBG."
+  },
+  {
+   "ref": "poppyanemone|mrFokker",
+   "heightIn": 8,
+   "sources": [
+    "https://www.dutchgrown.com/products/anemone-de-caen-mr-fokker"
+   ],
+   "estimate": "DutchGrown 8 in for every De Caen anemone it sells."
+  },
+  {
+   "ref": "poppyanemone|theBride",
+   "heightIn": 8,
+   "sources": [
+    "https://www.dutchgrown.com/products/anemone-de-caen-the-bride"
+   ],
+   "estimate": "DutchGrown 8 in."
+  },
+  {
+   "ref": "persianlily",
+   "heightIn": 30,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281771",
+    "https://www.johnscheepers.com/fritillaria-persica.html"
+   ],
+   "estimate": "John Scheepers 30 in, MBG 1-3 ft. Zones: MBG 5-8, Scheepers 4-8; 5-8. MBG May-June, Scheepers April-May in zone 5."
+  },
+  {
+   "ref": "persianlily|ivoryBells",
+   "heightIn": 33,
+   "sources": [
+    "https://www.johnscheepers.com/fritillaria-persica-ivory-bells.html"
+   ],
+   "estimate": "John Scheepers 30-36 in."
+  },
+  {
+   "ref": "foxtaillily",
+   "heightIn": 48,
+   "sources": [
+    "https://www.rhs.org.uk/plants/62450/eremurus-stenophyllus-subsp-stenophyllus/details",
+    "https://www.dutchgrown.com/products/eremurus-foxtail-lily-stenophylus-bungei"
+   ],
+   "estimate": "RHS: to 1.5 m in flower, max height 1-1.5 m; DutchGrown says 2 ft, which no other source supports. 48 in, inside the RHS range. Zones 5-8 (DutchGrown, and John Scheepers for the genus)."
+  },
+  {
+   "ref": "foxtaillily|cleopatra",
+   "heightIn": 48,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=246124",
+    "https://www.johnscheepers.com/eremurus-ruiter-hybrid-cleopatra.html"
+   ],
+   "estimate": "MBG 3-5 ft, John Scheepers 3-6 ft: 48 in. MBG June-July."
+  },
+  {
+   "ref": "byzantineglad",
+   "heightIn": 20,
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281320",
+    "https://www.johnscheepers.com/gladiolus-communis-ssp-byzantinus.html"
+   ],
+   "estimate": "MBG 1-2 ft, John Scheepers 16-24 in: 20 in. Zones: MBG 7-10, Scheepers 5-9, and most catalogs zone 6; 6-10."
+  },
+  {
+   "ref": "cyclamencoum",
+   "heightIn": 4,
+   "sources": [
+    "https://www.rhs.org.uk/plants/5135/cyclamen-coum/details",
+    "https://plants.ces.ncsu.edu/plants/cyclamen/common-name/persian-violet/"
+   ],
+   "estimate": "RHS up to 10 cm, flowers from late winter. Not in MBG. Zones: NC State 4a-8b for C. coum; 5-8 as a planning range."
+  },
+  {
+   "ref": "cyclamencoum|album",
+   "heightIn": 4,
+   "sources": [
+    "https://www.rhs.org.uk/plants/238825/cyclamen-coum-album/details"
+   ],
+   "estimate": "RHS to 10 cm; white with a purple mark at the base of each petal, winter to early spring."
+  },
+  {
+   "ref": "canadalily",
+   "heightIn": 48,
+   "sources": [
+    "https://plantfinder.nativeplanttrust.org/plant/Lilium-canadense",
+    "https://mtcubacenter.org/plants/canada-lily/",
+    "https://www.wildflower.org/plants/result.php?id_plant=LICA3",
+    "https://gobotany.nativeplanttrust.org/species/lilium/canadense/"
+   ],
+   "estimate": "Native Plant Trust 3-5 ft, Mt. Cuba 3-5 ft, Wildflower Center 3-8 ft: 48 in. Zones: Native Plant Trust 3-8, Mt. Cuba 4-8. Go Botany: whorled leaves, nodding bell-shaped flowers, reddish anthers. Wildflower Center June-July."
+  },
+  {
+   "ref": "woodlily",
+   "heightIn": 24,
+   "sources": [
+    "https://www.prairiemoon.com/lilium-philadelphicum-prairie-lily-prairie-moon-nursery.html",
+    "https://www.minnesotawildflowers.info/flower/wood-lily",
+    "https://www.wildflower.org/plants/result.php?id_plant=LIPH"
+   ],
+   "estimate": "Prairie Moon 2 ft, Minnesota Wildflowers 1-3 ft, Wildflower Center 1-4 ft: 24 in. Zones 3-7 and July-August, Prairie Moon. Minnesota Wildflowers: leaves mostly alternate with one or two whorls under the flowers, tepals narrowed abruptly at the base."
+  }
+ ],
+ "leftOut": [
+  {
+   "taxon": "Hyacinthoides hispanica",
+   "name": "Spanish bluebell",
+   "sources": [
+    "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=281891"
+   ],
+   "why": "Left out by decision: it is invasive in parts of North America (MBG's Plant Finder flags it as invasive in the US) and it hybridises with the English bluebell, which MBG notes too."
   }
  ]
 }
