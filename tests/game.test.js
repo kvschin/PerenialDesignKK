@@ -6792,6 +6792,21 @@ test('Layers "All" means every layer, and leaves the overlays alone', () => {
     'a visibility row changes under the pointer and says so itself — no toast');
 });
 
+test('switching Today / Established says nothing: the seg and the garden show it', () => {
+  setup(21, 21);
+  const oldToast = toast, wasIn = game.inGarden; let said = [];
+  toast = m => { said.push(m); };
+  game.inGarden = false;            // keep saveSolo out of it
+  try {
+    game.previewMode = 'today';
+    setPreviewMode('established');
+    assertEqual(game.previewMode, 'established', 'the lens changes');
+    setPreviewMode('today');
+    assertEqual(game.previewMode, 'today', 'and changes back');
+  } finally { toast = oldToast; game.inGarden = wasIn; }
+  assertEqual(said.length, 0, 'with no toast either way: ' + said.join(' | '));
+});
+
 test('the Layers flyout re-renders in place, keeping its scroll and focus', () => {
   /* No layout here, and no replaceChildren or focus on the stubs, so a DOM
      assertion would pass without testing anything. The behaviour is verified in

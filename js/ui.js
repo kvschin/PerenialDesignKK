@@ -2009,7 +2009,8 @@ function setPreviewMode(mode){
   game.dirty=true;
   updatePreviewToggle();
   if (game.inGarden&&hasStorage) saveSolo(true);
-  toast(mode==='established'?'Previewing established plants.':'Previewing today.');
+  // No toast: the seg the gardener just pressed shows the new lens, and so
+  // does the garden under it.
 }
 // updateHUD runs every rendered frame; assigning textContent replaces the text
 // node even when the string is identical (a real DOM mutation + style recalc
