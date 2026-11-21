@@ -217,6 +217,41 @@ function gsElevationSides(ctx,st,x,y,base){
     }
   });
 }
+/* The tops of the stage's walls, through the garden's own drawWallCap (0.9.146),
+   or a terrace in the guidebook would be a face with nothing on top while the
+   garden's has its coping. The stage draws tile by tile, so each faced side is
+   its own short run, laid in the VIEW lattice (a tile at view (vx,vy) has its
+   corners at vx..vx+1, vy..vy+1, wound so that sgn 1 is inward), and told which
+   wall it meets at each end so a corner mitres instead of notching. */
+function gsWallCapEdges(st){
+  const edges=[], at=new Map(), key=(p,h)=>p[0]+','+p[1]+','+h;
+  const sides=[[[1,0],[1,0],[1,1]],[[0,1],[1,1],[0,1]],[[-1,0],[0,1],[0,0]],[[0,-1],[0,0],[1,0]]];
+  for (let y=0;y<st.rows;y++) for (let x=0;x<st.cols;x++){
+    const h=gsElev(st,x,y); if (h<=0) continue;
+    const o=gsGet(st.terrain,x,y), wall=wallStyle(o&&o.w); if (!wall.cap) continue;
+    const [vx,vy]=gsView(st,x,y);
+    for (const [[dvx,dvy],a,b] of sides){
+      const [dx,dy]=gsViewDir(st,dvx,dvy);
+      if (h-gsElev(st,x+dx,y+dy)<=0) continue;
+      const e={x,y,h,wall,a:[vx+a[0],vy+a[1]],b:[vx+b[0],vy+b[1]],n:[-dvx,-dvy]};
+      edges.push(e);
+      for (const p of [e.a,e.b]){ const k=key(p,h); (at.get(k)||at.set(k,[]).get(k)).push(e); }
+    }
+  }
+  for (const e of edges){
+    const other=p=>{ const o=(at.get(key(p,e.h))||[]).find(q=>q!==e); return o?o.n:null; };
+    e.ends={n0:other(e.a), n1:other(e.b)};
+  }
+  return edges;
+}
+function gsWallCaps(ctx,st,x,y,amb,edges){
+  for (const e of edges){
+    if (e.x!==x || e.y!==y) continue;
+    const lift=e.h*ELEV_STEP;
+    const proj=(cx,cy,z)=>[isoX(cx,cy)+st.pan[0], isoY(cx,cy)+st.pan[1]-lift-z*EDGE_RISE_PX];
+    drawWallCap(ctx,[e.a,e.b],1,false,e.wall,proj,tileSeed(x,y),!!amb.snow,e.ends);
+  }
+}
 /* Edging draws only where a material tile meets LAWN — the rule that makes
    filling a bed the natural gesture rather than tracing its outline, and the
    reason an edge that becomes interior stops drawing on its own. This is
@@ -237,6 +272,7 @@ function gsPaintGround(ctx,st,amb){
   for (let y=0;y<st.rows;y++) for (let x=0;x<st.cols;x++) tiles.push([x,y]);
   tiles.sort((a,b)=>(gsDepth(st,a[0],a[1])-gsDepth(st,b[0],b[1]))
     || (gsElev(st,a[0],a[1])-gsElev(st,b[0],b[1])));
+  const caps=gsWallCapEdges(st);
   tiles.forEach(([x,y])=>{
     const {col,o,k,rs}=gsGroundColour(st,x,y,amb);
     const [sx,sy]=gsProject(st,x,y);
@@ -244,6 +280,7 @@ function gsPaintGround(ctx,st,amb){
     if (k==='water') drawWaterTexture(ctx,sx,sy,x,y,o,amb,false,gsWaterDepth(st,x,y));
     else drawGroundTexture(ctx,sx,sy,x,y,k,k==='path',amb,col,rs,o);
     gsEdging(ctx,st,x,y);
+    if (caps.length) gsWallCaps(ctx,st,x,y,amb,caps);
   });
 }
 /* The real waterField derives depth from distance to the bank and caches it on

@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.145';
+const APP_VERSION = '0.9.146';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -212,16 +212,33 @@ const ELEV_RISER_IN = ELEV_STEP/PX_PER_FT*12;
    ground bake through machinery that already exists.
    `face` names the coursing recipe the way a fence names its `infill`, and
    `courseIn` is the real height of one course — a brick course is 3 inches
-   whatever the wall is holding back. */
+   whatever the wall is holding back.
+   The TOP of a wall (0.9.146), in real inches: `topIn` how thick it is across,
+   `capIn` how far it stands above the ground it holds, `overIn` how far it
+   overhangs its face, and `cap` how it is laid (drawWallCap, renderer.js). A
+   wall used to be a face with nothing on top, which is most of why a raised bed
+   read as a box of soil with a skirt rather than as something built. `copeIn`
+   is the length of one coping unit along the run, and a row that names `cope`
+   has a separate coping course, which the planting list bills by the foot
+   (dry stone's capstones, a stone coping, a brick-on-edge cap); the others are
+   the wall's own top. Tops are thin, at most 10 in: a plant on a bed's edge
+   tile stands 9 in in from the wall, and a thicker top would put it on the wall. */
 const WALL_STYLES = [
   {id:'none',     label:'Bare earth',      short:'None',     face:null},
-  {id:'drystone', label:'Dry-stone Wall',  short:'Dry stone',face:'rubble',  courseIn:6,  tone:'#918d83', line:'rgba(48,44,38,0.34)'},
-  {id:'stone',    label:'Mortared Stone',  short:'Stone',    face:'coursed', courseIn:7,  tone:'#9d998e', line:'rgba(52,48,42,0.30)'},
-  {id:'brick',    label:'Brick',           short:'Brick',    face:'brick',   courseIn:3,  tone:'#a35c43', line:'rgba(60,32,24,0.34)'},
-  {id:'sleeper',  label:'Timber Sleeper',  short:'Sleeper',  face:'sleeper', courseIn:9,  tone:'#7f6343', line:'rgba(40,28,16,0.40)'},
-  {id:'gabion',   label:'Gabion Basket',   short:'Gabion',   face:'gabion',  courseIn:12, tone:'#8d8e86', line:'rgba(38,40,36,0.46)'},
-  {id:'concrete', label:'Poured Concrete', short:'Concrete', face:'smooth',  courseIn:24, tone:'#aaa79e', line:'rgba(60,58,52,0.20)'},
-  {id:'corten',   label:'Corten Steel',    short:'Corten',   face:'plate',   courseIn:36, tone:'#8d5134', line:'rgba(56,28,16,0.34)'},
+  {id:'drystone', label:'Dry-stone Wall',  short:'Dry stone',face:'rubble',  courseIn:6,  tone:'#918d83', line:'rgba(48,44,38,0.34)',
+    cap:'slabs',   topIn:8,  capIn:3,   overIn:1,   copeIn:15, capTone:'#a09b8f', cope:'capstones'},
+  {id:'stone',    label:'Mortared Stone',  short:'Stone',    face:'coursed', courseIn:7,  tone:'#9d998e', line:'rgba(52,48,42,0.30)',
+    cap:'coping',  topIn:7,  capIn:2,   overIn:1,   copeIn:24, capTone:'#aeaa9f', cope:'stone coping'},
+  {id:'brick',    label:'Brick',           short:'Brick',    face:'brick',   courseIn:3,  tone:'#a35c43', line:'rgba(60,32,24,0.34)',
+    cap:'rowlock', topIn:8,  capIn:3.6, overIn:0.5, copeIn:2.6, capTone:'#9a5640', cope:'brick-on-edge cap'},
+  {id:'sleeper',  label:'Timber Sleeper',  short:'Sleeper',  face:'sleeper', courseIn:9,  tone:'#7f6343', line:'rgba(40,28,16,0.40)',
+    cap:'timber',  topIn:7,  capIn:1,   overIn:0,   copeIn:96, capTone:'#8d7150'},
+  {id:'gabion',   label:'Gabion Basket',   short:'Gabion',   face:'gabion',  courseIn:12, tone:'#8d8e86', line:'rgba(38,40,36,0.46)',
+    cap:'cage',    topIn:10, capIn:0.5, overIn:0,   copeIn:6,  capTone:'#96968e'},
+  {id:'concrete', label:'Poured Concrete', short:'Concrete', face:'smooth',  courseIn:24, tone:'#aaa79e', line:'rgba(60,58,52,0.20)',
+    cap:'flat',    topIn:6,  capIn:2,   overIn:0,   copeIn:120,capTone:'#b8b5ac'},
+  {id:'corten',   label:'Corten Steel',    short:'Corten',   face:'plate',   courseIn:36, tone:'#8d5134', line:'rgba(56,28,16,0.34)',
+    cap:'lip',     topIn:1.5,capIn:2,   overIn:0.4, copeIn:48, capTone:'#7c4429'},
 ];
 function wallStyle(id){ return WALL_STYLES.find(w=>w.id===id)||WALL_STYLES[0]; }
 function wallStyleId(id){ return wallStyle(id).id; }

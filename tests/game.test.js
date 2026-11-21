@@ -10585,21 +10585,28 @@ test('a bed on a terrace runs to its edge, and a raised bed shares one outline w
   assert(bed.loops.every(l => (l.closed ? [l] : l.arcs).every(a => !a.hard)), 'its outline is soft all round');
   assert(raisedBedTiles().has('6,5'), 'its tiles are left to its own outline');
 
-  // its wall is drawn on the camera's side only, at every rotation
-  for (const rot of [0, 1, 2, 3]) {
-    game.rot = rot;
-    const pts = [];
-    const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p];
-      return (...a) => { if (p === 'moveTo' || p === 'lineTo') pts.push(a); }; }, set(o, p, v){ o[p] = v; return true; } });
-    const W = 1600, H = 1200, region = buildTerrainRegions().find(r => r.kind === 'bed');
-    paintRaisedBedWall(rec, region, W, H);
-    assert(pts.length > 8, `rot ${rot}: the wall is drawn`);
-    // the far corner of the bed, lifted: a far wall would start up there
-    const far = Math.min(...[[4, 4], [10, 4], [10, 8], [4, 8]].map(([x, y]) => screenOfCorner(x, y, W, H)[1])) - 3 * ELEV_STEP;
-    const top = Math.min(...pts.map(p => p[1]));
-    assert(top > far + TILE_H, `rot ${rot}: none of it on the far side (${top.toFixed(1)} vs far corner ${far.toFixed(1)})`);
-  }
-  game.rot = 0;
+  /* its wall FACE is drawn on the camera's side only, at every rotation; its top
+     (0.9.146) goes all the way round, since the far side's coping shows */
+  const keepRun = drawWallRun, keepCap = drawWallCap;
+  try {
+    for (const rot of [0, 1, 2, 3]) {
+      game.rot = rot;
+      const pts = [], caps = [];
+      drawWallRun = (c, p) => { pts.push(...p); };
+      drawWallCap = (c, p, sgn, closed) => { caps.push({ p, closed }); };
+      const W = 1600, H = 1200, region = buildTerrainRegions().find(r => r.kind === 'bed');
+      paintRaisedBedWall({}, region, W, H);
+      assert(pts.length > 8, `rot ${rot}: the wall is drawn`);
+      // the far corner of the bed, lifted: a far wall would start up there
+      const far = Math.min(...[[4, 4], [10, 4], [10, 8], [4, 8]].map(([x, y]) => screenOfCorner(x, y, W, H)[1])) - 3 * ELEV_STEP;
+      const top = Math.min(...pts.map(p => p[1]));
+      assert(top > far + TILE_H, `rot ${rot}: none of the face on the far side (${top.toFixed(1)} vs far corner ${far.toFixed(1)})`);
+      assertEqual(caps.length, 1, `rot ${rot}: one top`);
+      const xs = caps[0].p.map(q => q[0]), ys = caps[0].p.map(q => q[1]);
+      assert(caps[0].closed && Math.min(...xs) < 4.6 && Math.max(...xs) > 9.4 && Math.min(...ys) < 4.6 && Math.max(...ys) > 7.4,
+        `rot ${rot}: the top goes all the way round the bed`);
+    }
+  } finally { drawWallRun = keepRun; drawWallCap = keepCap; game.rot = 0; }
 
   // a bank, or a formal garden, keeps the tile edge
   game.edgeStyle = 'formal';
@@ -10608,6 +10615,199 @@ test('a bed on a terrace runs to its edge, and a raised bed shares one outline w
   for (let x = 4; x <= 9; x++) for (let y = 4; y <= 7; y++) setTerraceTile(x, y, { h: 3, w: 'none' });
   bed = buildTerrainRegions().find(r => r.kind === 'bed');
   assert(!bed.raised, 'a bed on an earth bank keeps the tile edge, which the bank is drawn on');
+});
+
+/* ---------- wall tops, dry stone and face area (0.9.146) ---------- */
+test('every faced wall has a top, thin enough to plant beside, and the coped ones say what their coping is', () => {
+  const kinds = new Set(['slabs', 'coping', 'rowlock', 'timber', 'cage', 'flat', 'lip']);
+  for (const st of WALL_STYLES) {
+    if (!st.face) { assert(!st.cap, `${st.id}: bare earth has no top`); continue; }
+    assert(kinds.has(st.cap), `${st.id}: a known kind of top (${st.cap})`);
+    assert(st.topIn > 0 && st.topIn <= 10, `${st.id}: at most 10 in across, so a plant on the edge tile stands clear of it (${st.topIn})`);
+    assert(st.capIn >= 0 && st.capIn <= 4 && st.overIn >= 0 && st.overIn <= 2, `${st.id}: a plausible rise and overhang`);
+    assert(st.copeIn > 0 && /^#[0-9a-f]{6}$/i.test(st.capTone), `${st.id}: a unit length and a colour`);
+  }
+  assertEqual(WALL_STYLES.filter(s => s.cope).map(s => s.id).join(','), 'drystone,stone,brick', 'the walls with a separate coping course');
+});
+
+test('a wall top mitres its corners: both sides are offset by the same distance', () => {
+  // a 2x2 square, wound so that sgn 1 points inside it
+  const sq = [[0, 0], [2, 0], [2, 2], [0, 2]];
+  for (const sgn of [1, -1]) {
+    const { mit } = wallCapMiters(sq, sgn, true), d = 0.4;
+    const off = sq.map((p, i) => [p[0] + mit[i][0] * d, p[1] + mit[i][1] * d]);
+    const inside = off.every(([x, y]) => x > 0 && x < 2 && y > 0 && y < 2);
+    if (sgn === 1) {
+      assert(inside, 'sgn 1 offsets into the square');
+      assert(off.every(([x, y], i) => Math.abs(Math.abs(x - sq[i][0]) - d) < 1e-9 && Math.abs(Math.abs(y - sq[i][1]) - d) < 1e-9),
+        'each corner moves d along both sides: a mitre, not a bevel');
+    } else assert(!inside, 'the other sign offsets outward');
+  }
+  // an open run takes the neighbour's direction at an end it shares
+  const { mit } = wallCapMiters([[0, 0], [2, 0]], 1, false, { n0: [1, 0], n1: null });
+  assert(Math.abs(mit[0][0] - 1) < 1e-9 && Math.abs(mit[0][1] - 1) < 1e-9, 'a joined end is mitred with the wall it meets');
+  assert(Math.abs(mit[1][0]) < 1e-9 && Math.abs(mit[1][1] - 1) < 1e-9, 'a free end stops square');
+});
+
+test('a sunken patio’s rim runs meet at its corners, with no notch in the coping', () => {
+  setup(24, 24);
+  game.edgeStyle = 'formal';
+  for (let x = 8; x <= 11; x++) for (let y = 8; y <= 11; y++) setTerraceTile(x, y, { h: -2, w: 'drystone' });
+  // the corner tiles are not rim, so it traces as several runs (where two sides'
+  // end tiles touch diagonally the trace walks through, and they are one run)
+  const runs = buildElevationRuns().filter(r => r.wall === 'drystone');
+  assert(runs.length >= 2 && runs.length <= 4, `the rim is a few runs (${runs.length})`);
+  const keep = drawWallCap, calls = [];
+  try {
+    drawWallCap = (c, pts, sgn, closed, st, proj, seed, snow, ends) => calls.push({ pts, sgn, ends });
+    paintWallRuns(new Proxy({}, { get(o, p){ return p in o ? o[p] : () => {}; }, set(o, p, v){ o[p] = v; return true; } }), 1600, 1200, AMBIENCE.Summer, 0, null);
+  } finally { drawWallCap = keep; }
+  assertEqual(calls.length, runs.length, 'each run draws its top');
+  assert(calls.every(c => c.ends && c.ends.n0 && c.ends.n1), 'and every end knows the wall it meets');
+  // the inner corners of neighbouring tops land on the same point
+  const d = wallStyle('drystone').topIn / TILE_IN, corners = new Map();
+  for (const c of calls) {
+    const { mit } = wallCapMiters(c.pts, c.sgn, false, c.ends);
+    for (const i of [0, c.pts.length - 1]) {
+      const k = c.pts[i].join(','), q = [c.pts[i][0] + mit[i][0] * d, c.pts[i][1] + mit[i][1] * d];
+      (corners.get(k) || corners.set(k, []).get(k)).push(q);
+    }
+  }
+  assertEqual(corners.size, runs.length, 'as many shared corners as runs');
+  for (const [k, qs] of corners) {
+    assertEqual(qs.length, 2, `${k}: two tops meet`);
+    assert(Math.hypot(qs[0][0] - qs[1][0], qs[0][1] - qs[1][1]) < 1e-9, `${k}: on one point`);
+  }
+});
+
+test('a wall’s top is drawn round the far side of a terrace too, with its inner edge showing', () => {
+  setup(24, 24);
+  game.edgeStyle = 'formal';
+  for (let x = 6; x <= 9; x++) for (let y = 6; y <= 8; y++) setTerraceTile(x, y, { h: 3, w: 'brick' });
+  // each fill with how many points its path had: a fill of nothing proves nothing
+  const fills = []; let ops = 0;
+  const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p];
+    if (p === 'getTransform') return () => ({ a: 1, b: 0 });
+    return (...a) => { if (p === 'beginPath') ops = 0; else if (p === 'moveTo' || p === 'lineTo') ops++;
+      else if (p === 'fill') fills.push({ col: o.fillStyle, n: ops }); }; }, set(o, p, v){ o[p] = v; return true; } });
+  const filled = col => fills.some(f => f.col === col && f.n >= 8);
+  const run = buildElevationRuns()[0], st = wallStyle('brick');
+  const W = 1600, H = 1200, proj = wallCapProj(W, H, run.h * ELEV_STEP);
+  const pts = wallRunDrawPoints(run.edges);
+  const e0 = run.edges[0], dv = [e0.b[0] - e0.a[0], e0.b[1] - e0.a[1]];
+  const sgn = Math.sign((-e0.n[0]) * (-dv[1]) + (-e0.n[1]) * dv[0]) || 1;
+  drawWallCap(rec, pts, sgn, true, st, proj, 7, false, null);
+  assert(filled(st.capTone), 'the top in its own colour');
+  assert(filled(shade(st.capTone, -16)), 'the front edge over the face');
+  assert(filled(shade(st.capTone, -26)), 'the inner edge on the far side');
+  // and it sits INSIDE the terrace: every inner point is on a terrace tile
+  const { mit } = wallCapMiters(pts.slice(0, -1), sgn, true), d = st.topIn / TILE_IN;
+  pts.slice(0, -1).forEach((p, i) => {
+    const q = [p[0] + mit[i][0] * d, p[1] + mit[i][1] * d];
+    assert(elevationAt(Math.floor(q[0]), Math.floor(q[1])) === 3, `corner ${i}: the top lies on the terrace (${q})`);
+  });
+  // snow lies on it in winter
+  fills.length = 0;
+  drawWallCap(rec, pts, sgn, true, st, proj, 7, true, null);
+  assert(!filled(st.capTone) && filled(mixHex(st.capTone, '#e8edf2', 0.72)), 'a snowy top in winter');
+});
+
+/* The plan draws a wall at its thickness, on the tile edges the garden draws it
+   on. It followed the smoothed, jittered contour, which skewed a rectangular
+   terrace into a trapezoid on paper, and a sunken patio's runs did not mitre. */
+test('the plan draws a wall at its thickness, on its tile edges, mitred at a sunken patio', () => {
+  setup(24, 24);
+  game.edgeStyle = 'organic';
+  for (let x = 4; x <= 7; x++) for (let y = 4; y <= 6; y++) setTerraceTile(x, y, { h: 3, w: 'sleeper' });
+  for (let x = 12; x <= 15; x++) for (let y = 12; y <= 15; y++) setTerraceTile(x, y, { h: -2, w: 'stone' });
+  wallRunCache.sig = null;
+  const faces = [], fills = []; let cur = [];
+  const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p];
+    return (...a) => {
+      if (p === 'beginPath') cur = [];
+      else if (p === 'moveTo' || p === 'lineTo') cur.push([a[0], a[1]]);
+      else if (p === 'stroke' && o.lineWidth === 2.2) faces.push(cur);
+      else if (p === 'fill') fills.push({ col: o.fillStyle, pts: cur });
+    }; }, set(o, p, v){ o[p] = v; return true; } });
+  const g = { cell: 10, padL: 0, padT: 0, W2: 240, H2: 240, X: x => x * 10, Y: y => y * 10 };
+  drawPlanGround(rec, g, { lightsLive: [], bouldersLive: [] });
+  assert(faces.length >= 2, `the walls are drawn (${faces.length})`);
+  for (const pp of faces) assert(pp.every(([x, y]) => Math.abs(x / 10 - Math.round(x / 10)) < 1e-9 && Math.abs(y / 10 - Math.round(y / 10)) < 1e-9),
+    'every face line is on the tile lattice, in an organic garden too');
+  // the sleeper terrace's band: 7 in thick, so its back line is 7/18 of a tile in
+  const band = fills.find(f => f.col === mixHex(wallStyle('sleeper').capTone, '#f4efe3', 0.45));
+  assert(band, 'the band is tinted by its material');
+  const t = wallStyle('sleeper').topIn / TILE_IN * 10;
+  assert(band.pts.some(([x, y]) => Math.abs(x - (40 + t)) < 1e-6 && Math.abs(y - (40 + t)) < 1e-6), 'the back line is the wall\'s thickness in, mitred at the corner');
+  // the sunken patio: each band corner lands on its neighbour's
+  const sb = fills.filter(f => f.col === mixHex(wallStyle('stone').capTone, '#f4efe3', 0.45));
+  assert(sb.length >= 2, 'the rim is drawn');
+  const ts = wallStyle('stone').topIn / TILE_IN * 10;
+  for (const [cx, cy, sx, sy] of [[120, 120, -1, -1], [160, 120, 1, -1], [160, 160, 1, 1], [120, 160, -1, 1]]) {
+    const want = [cx + sx * ts, cy + sy * ts];
+    const hits = sb.filter(f => f.pts.some(([x, y]) => Math.abs(x - want[0]) < 1e-6 && Math.abs(y - want[1]) < 1e-6)).length;
+    assert(hits >= 1, `corner ${cx},${cy}: the band turns it on the mitre`);
+  }
+});
+
+test('a wall is billed by its face area, its coping by the foot', () => {
+  setup(30, 30);
+  game.edgeStyle = 'formal';
+  for (let x = 6; x <= 9; x++) for (let y = 6; y <= 8; y++) setTerraceTile(x, y, { h: 3, w: 'brick' });
+  for (let x = 16; x <= 19; x++) for (let y = 6; y <= 8; y++) setTerraceTile(x, y, { h: 3, w: 'sleeper' });
+  wallRunCache.sig = null;
+  const rows = withUnits('imperial', () => hardscapeRows().filter(r => r.kind === 'Retaining wall'));
+  const brick = rows.find(r => /Brick/.test(r.name)), sleeper = rows.find(r => /Sleeper/.test(r.name));
+  // a 4x3 terrace: 14 tile edges, 21 ft round, 3 levels of 5.14 in
+  const hi = 3 * ELEV_RISER_IN;
+  assert(Math.abs(brick.n - 21 * hi / 12) < 0.05, `brick: 21 ft x ${hi.toFixed(1)} in of face (${brick.n.toFixed(2)})`);
+  assertEqual(brick.count, `${Math.round(21 * hi / 12)} sq ft`, 'the quantity is the face area');
+  assertEqual(brick.detail, '21 ft long, 15 in high, with 21 ft of brick-on-edge cap', 'how long, how high, and the coping');
+  // a sleeper wall has no separate coping; its proud top is part of its face
+  assert(Math.abs(sleeper.n - 21 * (hi + 1) / 12) < 0.05, `sleeper: the top inch counts as face (${sleeper.n.toFixed(2)})`);
+  assert(!/with/.test(sleeper.detail), `no coping line for a sleeper wall (${sleeper.detail})`);
+  // two heights of one material: a range
+  for (let x = 6; x <= 9; x++) for (let y = 12; y <= 13; y++) setTerraceTile(x, y, { h: 6, w: 'brick' });
+  wallRunCache.sig = null;
+  const b2 = withUnits('imperial', () => hardscapeRows().find(r => r.kind === 'Retaining wall' && /Brick/.test(r.name)));
+  assert(/15 in to 31 in high/.test(b2.detail), `a range of heights (${b2.detail})`);
+  const m = withUnits('metric', () => hardscapeRows().find(r => r.kind === 'Retaining wall' && /Brick/.test(r.name)));
+  assert(/sq m$/.test(m.count) && /m long/.test(m.detail) && /cm/.test(m.detail), `metric for a metric gardener (${m.count}; ${m.detail})`);
+});
+
+test('dry stone is laid as stones, larger toward the foot, and as course lines when too small to read', () => {
+  const run = (scale) => {
+    const fills = [], strokes = []; let cur = null;
+    const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p];
+      if (p === 'getTransform') return () => ({ a: scale, b: 0 });
+      return (...a) => {
+        if (p === 'beginPath') cur = [];
+        else if ((p === 'moveTo' || p === 'lineTo') && cur) cur.push([p, a[0], a[1]]);
+        else if (p === 'fill' && cur) { fills.push({ col: o.fillStyle, path: cur }); }
+        else if (p === 'stroke' && cur) strokes.push(cur);
+      }; }, set(o, p, v){ o[p] = v; return true; } });
+    // 3 tile edges long, 31 in high (6 levels)
+    drawWallRun(rec, [[0, 0], [3 * TILE_EDGE_PX, 0]], 6 * ELEV_STEP, wallStyle('drystone'), 11, 3);
+    return { fills, strokes };
+  };
+  const big = run(1);
+  const tones = big.fills.filter(f => f.path.filter(q => q[0] === 'moveTo').length > 3);
+  assert(tones.length >= 3, `stones in several tones (${tones.length})`);
+  // each moveTo opens a stone; group them into stones and measure their heights
+  const stones = [];
+  for (const f of tones) { let c = null;
+    for (const q of f.path) { if (q[0] === 'moveTo') { c = []; stones.push(c); } c.push([q[1], q[2]]); } }
+  assert(stones.length > 12, `a 4.5 ft wall is a good few stones (${stones.length})`);
+  const h = st => Math.max(...st.map(q => q[1])) - Math.min(...st.map(q => q[1]));
+  const mid = st => (Math.max(...st.map(q => q[1])) + Math.min(...st.map(q => q[1]))) / 2;
+  const D = 6 * ELEV_STEP, upper = stones.filter(s => mid(s) < D * 0.35), lower = stones.filter(s => mid(s) > D * 0.65);
+  const avg = a => a.reduce((t, s) => t + h(s), 0) / a.length;
+  assert(upper.length && lower.length && avg(lower) > avg(upper) * 1.15,
+    `the courses are larger toward the foot (${avg(upper).toFixed(1)} vs ${avg(lower).toFixed(1)})`);
+  // far out, a stone is a pixel: course lines instead
+  const small = run(0.05);
+  assert(!small.fills.some(f => f.path.filter(q => q[0] === 'moveTo').length > 3), 'no stones at a tiny scale');
+  assert(small.strokes.length >= 3, 'course lines instead');
 });
 
 test('dry-stone courses follow the wall round its corners, and terrace tops carry no grid', () => {
@@ -17487,7 +17687,7 @@ test('wall feet are what the list bills, and do not depend on the camera', () =>
   // and the planting list reports exactly that, not a count of tile faces
   const row = hardscapeRows().find(r => r.kind === 'Retaining wall');
   assert(row, 'the list carries a wall row');
-  assertEqual(row.count, `${Math.round(f0)} ft`, 'the row is the traced contour');
+  assert(row.detail.startsWith(`${Math.round(f0)} ft long`), `the row's length is the traced contour (${row.detail})`);
 
   /* A wall painted ONE TILE WIDE is a different object from a terrace: its
      contour runs up one side and back down the other, so counting every face

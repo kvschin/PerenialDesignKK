@@ -425,7 +425,7 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex,rect){
     paintGroundTile(ctx,x,y,W,H,amb,showLand,organic);
   }
   if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect);
-  if (showLand) paintWallRuns(ctx,W,H);
+  if (showLand) paintWallRuns(ctx,W,H,amb,ex,rect);
 }
 /* Repaint ONE rectangle of the bake, in device pixels. Clears it, clips to it,
    and paints the tiles that can reach it — so the tile loop is bounded by the
@@ -1345,6 +1345,8 @@ function makeWallRun(edges,h){
    both of its sides), so the wall in the garden that prompted this was billed
    at 54 ft for a run of about 24. It is a number somebody quotes from. */
 function wallRunFeet(run){ return run.billTiles*TILE_IN/12; }
+// how high its face stands, in inches: the drop, and a wall's own proud top
+function wallRunFaceIn(run,st){ st=st||wallStyle(run.wall); return run.drop*ELEV_RISER_IN+(st.cope?0:(st.capIn||0)); }
 /* The faced runs, drawn after the ground and its material blobs. A wall hangs
    DOWN from its terrace edge, so it has to come after the surface it belongs to
    or the blob would paint over its own coping; runs are ordered low terrace
@@ -1362,42 +1364,82 @@ function wallRunFeet(run){ return run.billTiles*TILE_IN/12; }
 function wallRunDrawPoints(edges){
   return mergeCollinearOpen(edges.map(e=>e.a).concat([edges[edges.length-1].b]));
 }
-function paintWallRuns(ctx,W,H){
+/* `ex` and `rect` are paintGround's: the bake's margin past the viewport, and the
+   band a partial bake is repainting. The wall pass used to cull to the viewport
+   alone, so a wall in the margin was left out of the bake and popped in at the
+   pan-settle rebake, and a band bake drew every wall in view, clipped away. */
+function paintWallRuns(ctx,W,H,amb,ex,rect){
   const runs=buildElevationRuns(), rbt=raisedBedTiles();
   const beds=rbt ? buildTerrainRegions().filter(r=>r.raised) : [];
   if (!runs.length && !beds.length) return;
   const face=viewDirToWorld(1,0), side=viewDirToWorld(0,1);
   const shown=e=>((e.n[0]===face[0]&&e.n[1]===face[1])||(e.n[0]===side[0]&&e.n[1]===side[1]))
     && !(rbt && rbt.has(e.tile));                 // a raised bed draws its own, along its curve
+  ex=ex||0;
+  const inView=(x0,x1,y0,y1)=>!(x1<-TILE_W-ex || x0>W+TILE_W+ex || y1<-TILE_H-ex || y0>H+TILE_H*2+ex) &&
+    !(rect && (x1<rect[0]-8 || x0>rect[2]+8 || y1<rect[1]-8 || y0>rect[3]+8));
+  const snow=!!(amb && amb.snow), endsFor=wallRunEndsFor(runs);
   const jobs=[];
-  for (const r of beds) jobs.push([r.elev, ()=>paintRaisedBedWall(ctx,r,W,H)]);
-  for (const run of runs) jobs.push([run.h, ()=>paintWallRun(ctx,run,W,H,shown)]);
+  for (const r of beds) jobs.push([r.elev, ()=>paintRaisedBedWall(ctx,r,W,H,inView,snow)]);
+  for (const run of runs) jobs.push([run.h, ()=>paintWallRun(ctx,run,W,H,shown,inView,snow,rbt,endsFor)]);
   jobs.sort((a,b)=>a[0]-b[0]);                    // low terraces first, as before
   for (const j of jobs) j[1]();
 }
-function paintWallRun(ctx,run,W,H,shown){
-  {
-    const st=wallStyle(run.wall);
-    if (!st.face) return;                         // bare earth: drawn per tile above
-    const lift=run.h*ELEV_STEP, fall=run.drop*ELEV_STEP;
-    let piece=[];
-    const emit=()=>{
-      if (piece.length>0){
-        const p=wallRunDrawPoints(piece);
-        let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-        const pts=p.map(([gx,gy])=>{
-          const q=screenOfCorner(gx,gy,W,H), r=[q[0],q[1]-lift];
-          if (r[0]<minX) minX=r[0]; if (r[0]>maxX) maxX=r[0];
-          if (r[1]<minY) minY=r[1]; if (r[1]>maxY) maxY=r[1];
-          return r; });
-        if (!(maxX<-TILE_W || minX>W+TILE_W || maxY+fall<-TILE_H || minY>H+TILE_H*2))
-          drawWallRun(ctx,pts,fall,st,run.seed,polyTiles(p));
-      }
-      piece=[];
-    };
-    for (const e of run.edges){ if (shown(e)) piece.push(e); else emit(); }
-    emit();
+/* A lattice run's top, as drawWallCap wants it: the face line on the tile edges,
+   which side is the ground it holds (from the first edge: its outward normal `n`
+   points at the lower tile), and whether it closes on itself. Shared by the
+   garden and the plan sheet, so the two cannot disagree about where a top runs. */
+function wallRunCapGeom(run){
+  const e0=run.edges[0], d=[e0.b[0]-e0.a[0],e0.b[1]-e0.a[1]], last=run.edges[run.edges.length-1];
+  return {pts:wallRunDrawPoints(run.edges), sgn:Math.sign((-e0.n[0])*(-d[1])+(-e0.n[1])*d[0])||1,
+          closed:last.b[0]===e0.a[0]&&last.b[1]===e0.a[1]};
+}
+/* Where one run's top meets another's at a corner (a sunken patio's rim is
+   several runs), each needs the other's direction to mitre the corner. Keyed by
+   the vertex AND the level, since only a top at the same height carries on. */
+function wallRunEndsFor(runs){
+  const ends=new Map(), endKey=(p,h)=>p[0]+','+p[1]+','+h;
+  for (const run of runs){ if (!wallStyle(run.wall).cap) continue;
+    const a=run.edges[0], b=run.edges[run.edges.length-1];
+    if (b.b[0]===a.a[0]&&b.b[1]===a.a[1]) continue;
+    for (const [p,e] of [[a.a,a],[b.b,b]]){ const k=endKey(p,run.h);
+      (ends.get(k)||ends.set(k,[]).get(k)).push({run,n:[-e.n[0],-e.n[1]]}); } }
+  return run=>{ const a=run.edges[0], b=run.edges[run.edges.length-1];
+    const other=p=>{ const l=ends.get(endKey(p,run.h))||[]; const o=l.find(q=>q.run!==run); return o?o.n:null; };
+    return {n0:other(a.a), n1:other(b.b)}; };
+}
+/* The projector a wall's top is drawn through: tile-corner coordinates on a
+   terrace `lift` draw units up, and zIn inches above it. */
+function wallCapProj(W,H,lift){
+  return (gx,gy,zIn)=>{ const q=screenOfCorner(gx,gy,W,H); return [q[0],q[1]-lift-zIn*EDGE_RISE_PX]; };
+}
+function paintWallRun(ctx,run,W,H,shown,inView,snow,rbt,endsFor){
+  const st=wallStyle(run.wall);
+  if (!st.face) return;                           // bare earth: drawn per tile above
+  const lift=run.h*ELEV_STEP, fall=run.drop*ELEV_STEP;
+  const all=wallRunDrawPoints(run.edges);
+  if (inView){
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for (const [gx,gy] of all){ const q=screenOfCorner(gx,gy,W,H);
+      if (q[0]<minX) minX=q[0]; if (q[0]>maxX) maxX=q[0]; if (q[1]<minY) minY=q[1]; if (q[1]>maxY) maxY=q[1]; }
+    const reach=TILE_W*0.6;                       // the top's offset along the ground, either way
+    if (!inView(minX-reach,maxX+reach,minY-lift-reach-(st.capIn||0)*EDGE_RISE_PX,maxY-lift+fall+reach)) return;
   }
+  let piece=[];
+  const emit=()=>{
+    if (piece.length>0){
+      const p=wallRunDrawPoints(piece);
+      drawWallRun(ctx,p.map(([gx,gy])=>{ const q=screenOfCorner(gx,gy,W,H); return [q[0],q[1]-lift]; }),fall,st,piece[0].seed,polyTiles(p));
+    }
+    piece=[];
+  };
+  for (const e of run.edges){ if (shown(e)) piece.push(e); else emit(); }
+  emit();
+  // the top, round the whole run whichever way it faces; a raised bed's tiles
+  // draw theirs along the bed's curve
+  if (rbt && run.edges.every(e=>rbt.has(e.tile))) return;
+  const g=wallRunCapGeom(run);
+  drawWallCap(ctx,g.pts,g.sgn,g.closed,st,wallCapProj(W,H,lift),run.edges[0].seed,snow,g.closed||!endsFor?null:endsFor(run));
 }
 /* A fixed order for painting a region's grain, where the flood's order would do
    for everything else. Grains of neighbouring tiles overlap a little, so paint
@@ -1526,20 +1568,28 @@ function raisedBedTiles(){
    smoothed curve: splitting the TILE edges by facing first and then smoothing
    each piece on its own is what broke a curved terrace's wall into fragments,
    since along a diagonal every other tile edge faces away. */
-function paintRaisedBedWall(ctx,region,W,H){
+function paintRaisedBedWall(ctx,region,W,H,inView,snow){
   const st=wallStyle(region.raised.wall);
   if (!st.face) return;
   const lift=region.elev*ELEV_STEP, fall=region.raised.drop*ELEV_STEP;
   const scr=p=>{ const q=screenOfCorner(p[0],p[1],W,H); return [q[0],q[1]-lift]; };
   const first=region.tiles.values().next().value, ci=first.indexOf(',');
   const seed=tileSeed(+first.slice(0,ci),+first.slice(ci+1));
+  if (inView){
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for (const k of region.tiles){ const c=k.indexOf(','), q=screenOfFlat(+k.slice(0,c),+k.slice(c+1),W,H);
+      if (q[0]<minX) minX=q[0]; if (q[0]>maxX) maxX=q[0]; if (q[1]<minY) minY=q[1]; if (q[1]>maxY) maxY=q[1]; }
+    if (!inView(minX-TILE_W,maxX+TILE_W,minY-lift-TILE_H*2,maxY-lift+fall+TILE_H*2)) return;
+  }
+  let pieceNo=0;
   for (const loop of region.loops){
     const side=loop.side||1;
     for (const arc of (loop.closed?[loop]:loop.arcs)){
       if (arc.hard || arc.covered) continue;
       const wp=edgingCurvePoints(arc,p=>p);
       let piece=[], len=0;
-      const emit=()=>{ if (piece.length>1) drawWallRun(ctx,piece.map(scr),fall,st,seed,len); piece=[]; len=0; };
+      // each stretch its own seed, or every stretch of a bed starts with the same stones
+      const emit=()=>{ if (piece.length>1) drawWallRun(ctx,piece.map(scr),fall,st,(seed^Math.imul(++pieceNo,0x9e3779b1))>>>0,len); piece=[]; len=0; };
       for (let i=1;i<wp.length;i++){
         const a=wp[i-1], b=wp[i], dx=b[0]-a[0], dy=b[1]-a[1], m=Math.hypot(dx,dy);
         if (!(m>1e-9)){ continue; }
@@ -1553,6 +1603,8 @@ function paintRaisedBedWall(ctx,region,W,H){
         else emit();
       }
       emit();
+      // the top, all the way round; the trace's winding says which side is the bed
+      drawWallCap(ctx,wp,-side,!!loop.closed,st,wallCapProj(W,H,lift),seed,snow);
     }
   }
 }

@@ -1203,17 +1203,28 @@ function hardscapeRows(){
   const edgingFt=edgingRunFeet();
   for (const id in edgingFt) add('Edging', edgingLabelFor(id), fmtFeet(edgingFt[id]), edgingFt[id]);
 
-  /* Linear feet of wall, measured along the TRACED CONTOUR rather than by
-     counting exposed tile faces. Faces double-count a diagonal -- every step
-     contributes both of its sides -- and count the far side of a wall you can
-     only build once, so the wall in the garden that prompted this was billed at
-     54 ft for a run of 24. It is a number somebody quotes from. */
+  /* A wall is billed by its FACE AREA (0.9.146): block, stone and brick are
+     ordered by the square foot of face, and a length alone cannot say how much
+     wall a 36 in terrace is against a 10 in one. The length is measured along the
+     TRACED CONTOUR rather than by counting exposed tile faces, which
+     double-count a diagonal and count the far side of a wall you build once (the
+     wall that prompted that was billed at 54 ft for a run of 24). The sub-line
+     says how long and how high, and, for a wall with a separate coping course,
+     how many feet of coping: that is ordered by the foot, round every faced
+     side. A wall's own proud top (sleeper, concrete, steel) is part of its face. */
   const wallBy={};
   for (const run of buildElevationRuns()){
-    const w=wallStyleId(run.wall); if (w==='none') continue;
-    wallBy[w]=(wallBy[w]||0)+wallRunFeet(run);
+    const st=wallStyle(run.wall); if (!st.face) continue;
+    const ft=wallRunFeet(run), hIn=wallRunFaceIn(run,st);
+    const w=wallBy[st.id]||(wallBy[st.id]={ft:0,area:0,lo:Infinity,hi:0});
+    w.ft+=ft; w.area+=ft*hIn/12; w.lo=Math.min(w.lo,hIn); w.hi=Math.max(w.hi,hIn);
   }
-  for (const id in wallBy) add('Retaining wall', wallLabelFor(id), fmtFeet(wallBy[id]), wallBy[id]);
+  for (const id in wallBy){
+    const w=wallBy[id], st=wallStyle(id), h=v=>fmtLengthIn(v,{ftAt:48});
+    const high=Math.round(w.lo)===Math.round(w.hi) ? h(w.hi) : `${h(w.lo)} to ${h(w.hi)}`;
+    add('Retaining wall', wallLabelFor(id), fmtAreaSqFt(w.area), w.area,
+      `${fmtFeet(w.ft)} long, ${high} high${st.cope?`, with ${fmtFeet(w.ft)} of ${st.cope}`:''}`);
+  }
 
   const fenceFt=fenceRunFeet();
   for (const id in fenceFt){
@@ -2949,16 +2960,40 @@ function drawPlanGround(ctx,g,site){
      as a staircase running alongside a bed the sheet had already drawn as a
      smooth curve — the exact mismatch terrainLoopPath exists to prevent, one
      system over. Unlike the garden this shows every face, front and back: a
-     plan is read from above and has no camera to hide behind. */
+     plan is read from above and has no camera to hide behind.
+     Since 0.9.146 a wall is drawn at its THICKNESS (the material's topIn), the
+     way a plan draws a wall: the face as the heavy line, the back as a light
+     one, and the band between tinted by what it is built of. It was one heavy
+     line whatever the wall was, so a gabion and a steel edge looked the same. */
   {
-    ctx.save(); ctx.strokeStyle='#4a423a'; ctx.lineWidth=2.6;
-    ctx.lineCap='round'; ctx.lineJoin='round';
-    for (const run of buildElevationRuns()){
-      if (wallStyleId(run.wall)==='none' || run.pts.length<2) continue;
-      const pts=run.pts.map(([gx,gy])=>[X(gx),Y(gy)]);   // the sheet projector the blobs use
-      ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
-      for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
-      ctx.stroke();
+    ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+    const band=(wp,sgn,closed,st,ends)=>{
+      if (closed && wp.length>2 && Math.hypot(wp[0][0]-wp[wp.length-1][0],wp[0][1]-wp[wp.length-1][1])<1e-6) wp=wp.slice(0,-1);
+      if (wp.length<2) return;
+      const {mit}=wallCapMiters(wp,sgn,closed,ends), t=(st.topIn||6)/TILE_IN;
+      const face=wp.map(([gx,gy])=>[X(gx),Y(gy)]);        // the sheet projector the blobs use
+      const back=wp.map(([gx,gy],i)=>[X(gx+mit[i][0]*t),Y(gy+mit[i][1]*t)]);
+      const line=(ps,close)=>{ ctx.moveTo(ps[0][0],ps[0][1]); for (let i=1;i<ps.length;i++) ctx.lineTo(ps[i][0],ps[i][1]); if (close) ctx.closePath(); };
+      ctx.fillStyle=mixHex(st.capTone||st.tone,'#f4efe3',0.45); ctx.beginPath();
+      if (closed){ line(face,true); line(back,true); ctx.fill('evenodd'); }
+      else { line(face.concat(back.slice().reverse()),true); ctx.fill(); }
+      ctx.strokeStyle='#4a423a'; ctx.lineWidth=2.2; ctx.beginPath(); line(face,closed); ctx.stroke();
+      ctx.strokeStyle='rgba(74,66,58,0.7)'; ctx.lineWidth=0.9; ctx.beginPath(); line(back,closed); ctx.stroke();
+    };
+    /* On the tile edges, as the garden draws them since 0.9.144 (the smoothed
+       contour, jittered, skewed a rectangular terrace on paper), with a raised
+       bed's wall along its bed's curve, and a sunken patio's corners mitred. */
+    const runs=buildElevationRuns(), endsFor=wallRunEndsFor(runs), rbt=raisedBedTiles();
+    for (const run of runs){
+      const st=wallStyle(run.wall);
+      if (!st.face || (rbt && run.edges.every(e=>rbt.has(e.tile)))) continue;
+      const g=wallRunCapGeom(run);
+      band(g.pts,g.sgn,g.closed,st,g.closed?null:endsFor(run));
+    }
+    if (rbt) for (const r of buildTerrainRegions()) if (r.raised){
+      const st=wallStyle(r.raised.wall); if (!st.face) continue;
+      for (const loop of r.loops) for (const arc of (loop.closed?[loop]:loop.arcs))
+        if (!arc.hard && !arc.covered) band(edgingCurvePoints(arc,p=>p),-(loop.side||1),!!loop.closed,st,null);
     }
     ctx.restore();
   }

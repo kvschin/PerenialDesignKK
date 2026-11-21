@@ -4631,6 +4631,38 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     filling a raised bed's lawn top with soil flooded every lawn tile in the
     garden. `paintWallAt` is still the one-face writer and is kept for callers
     that want exactly one face.
+    **0.9.146: a wall has a top, dry stone is stones, and a wall is billed by its
+    face.** *Tops* (`drawWallCap`, `wallCapMiters`, world.js; `wallCapProj`,
+    renderer.js): each `WALL_STYLES` row names `cap` (slabs, coping, rowlock,
+    timber, cage, flat, lip), `topIn` (at most 10, since a plant on an edge tile
+    stands 9 in in), `capIn` (how far it stands proud), `overIn`, `copeIn` (one
+    unit along the run) and `capTone`; a row naming `cope` has a separate coping
+    course. The top is drawn in WORLD tile-corner coordinates through a projector,
+    so a lattice run, a raised bed's curve (`paintRaisedBedWall`, sgn `-loop.side`),
+    a tray chip (`drawChipWallCap`, at 40% width) and the guidebook stage
+    (`gsWallCapEdges`, per tile in the view lattice) share one painter. It goes ALL
+    the way round, not only where the face shows: a far side shows its top and its
+    inner edge, which is what makes a raised bed read as built. Facing is judged
+    on screen per segment; corners mitre (`wallCapMiters`, clamped when sharp). A
+    sunken patio's rim traces as several open runs (its corner tiles are not rim),
+    so `paintWallRuns` hands each run the inward normal of the run it meets at
+    either end (`ends`, keyed by vertex and level), or every corner of a coping
+    left a notch. Snow lies on a top in winter. *Dry stone* (`drawDryStoneFace`):
+    courses from the top down, larger toward the foot, stones of their own lengths
+    as rough six-sided polygons over the gap colour, four tones, light on each
+    top edge, batched by tone; under 2.6 device px a course it draws course lines.
+    *Billing* (`hardscapeRows`, `wallRunFaceIn`): a wall's quantity is its face
+    area (length along the traced contour x drop, plus a proud top that is not a
+    separate coping); the sub-line says how long, how high (a range where heights
+    differ) and how many feet of coping. *Plan*: a wall is drawn at its thickness,
+    heavy face line, light back line, band tinted by material. *Culling*:
+    `paintWallRuns` takes paintGround's `ex` and `rect`; it culled to the viewport
+    alone, so a wall in the bake's margin was left out until the pan-settle rebake,
+    and a band bake drew every wall in view, clipped away. Bake with a dozen walled
+    terraces: level at the fitted view, 41 against 38 ms at 100%. Steps were
+    considered and left: a flight is a run of terraces a step apart, which Terrace
+    builds and the caps now draw as risers with nosings; a tool that grades a
+    flight in one drag would be its own piece of work.
 12d. **Water features** (`WATER_FEATURES`/`WATER_FINISHES`, `drawWaterFeature`) —
     pond, river and lake are AREAS: you paint them, they shelve from a bank, and
     until 0.8.71 they were the only water the app could draw. The water that

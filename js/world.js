@@ -2525,7 +2525,77 @@ function wallGeom(pts, units){
   const betweenT=(t0,t1)=>{ const out=[], d0=t0*total, d1=t1*total;
     for (let i=1;i<pts.length-1;i++) if (cum[i]>d0+1e-6 && cum[i]<d1-1e-6) out.push([pts[i][0],pts[i][1],cum[i]/total]);
     return out; };
-  return {at, between, betweenT, total, units:Math.max(1,Math.round(units||1))};
+  return {at, between, betweenT, total, units:Math.max(1,Math.round(units||1)),
+          lenIn:Math.max(1,(units||1)*TILE_IN)};
+}
+/* Dry stone, laid as STONES (0.9.146). It was a pale band with a few wandering
+   course lines and tick marks, which read as rendered concrete; what makes dry
+   stone read is the stones themselves, irregular and of different sizes, with
+   dark gaps between them where no mortar is. So the face is filled with its
+   gap colour and the stones are laid over it: courses from the top down, lower
+   and larger toward the foot as a waller lays them, each course a row of stones
+   of their own lengths, each stone a rough six-sided polygon inset from its
+   neighbours, in one of four tones, with the light catching its top edge.
+   Everything is in the wall's own inches (s along, v down), so a stone is the
+   same size on a short wall and a long one, and it follows the run round its
+   bends like any course line. Stones are batched by tone: four fills and two
+   strokes a run, however many stones. Below about 2.6 device px a course is
+   noise, so there it draws the old course lines instead. */
+function drawDryStoneFace(ctx,g,drop,st,seed,P){
+  const D=Math.max(1,drop/ELEV_STEP*ELEV_RISER_IN), L=g.lenIn, r=mulberry((seed||1)>>>0);
+  const m=ctx.getTransform&&ctx.getTransform(), dev=(m&&(m.a||m.b))?Math.hypot(m.a,m.b):1;
+  const dpi=drop/D*dev;                                   // device px per inch down the face
+  // the courses, top down: lower and smaller near the coping, bigger at the foot
+  const cs=[]; let v=0;
+  while (v<D-0.4){ const f=v/D, ch=(3.2+3.4*f)*(0.82+0.36*r()); cs.push(ch); v+=ch; }
+  const k=D/(v||1);
+  if (Math.min(...cs)*k*dpi<2.6){                          // too small to read as stones
+    for (let i=1;i<cs.length;i++){ let u=0; for (let j=0;j<i;j++) u+=cs[j]*k/D;
+      const p0=P(0,u), p1=P(1,u); ctx.strokeStyle=st.line; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(p0[0],p0[1]);
+      for (const p of g.betweenT(0,1)) ctx.lineTo(p[0],p[1]+drop*u);
+      ctx.lineTo(p1[0],p1[1]); ctx.stroke(); }
+    return;
+  }
+  ctx.fillStyle=shade(st.tone,-44); ctx.beginPath();      // the gaps
+  const ringAll=[P(0,0)].concat(g.between(0,1),[P(1,0),P(1,1)],
+    g.between(0,1).reverse().map(p=>[p[0],p[1]+drop]),[P(0,1)]);
+  ctx.moveTo(ringAll[0][0],ringAll[0][1]); for (const p of ringAll) ctx.lineTo(p[0],p[1]);
+  ctx.closePath(); ctx.fill();
+  const tones=[shade(st.tone,-8),st.tone,shade(st.tone,9),mixHex(st.tone,'#a08a6a',0.28)];
+  const paths=tones.map(()=>[]), tops=[];
+  const at=(s,vv)=>P(s/L,vv/D);
+  const edge=(s0,s1,vv,out)=>{ for (const p of g.betweenT(s0/L,s1/L)) out.push([p[0],p[1]+drop*(vv/D)]); };
+  const gap=0.55;
+  let v0=0;
+  for (let ci=0;ci<cs.length;ci++){
+    const ch=cs[ci]*k, v1=v0+ch;
+    let s=-r()*ch*1.4;                                     // stagger: a course starts part-way into a stone
+    while (s<L){
+      const len=ch*(1.1+1.7*r())*(r()<0.12?1.7:1), s1=Math.min(L,s+len), a=Math.max(0,s);
+      if (s1-a>gap*2.2){
+        const x0=a+(a>0?gap:0), x1=s1-(s1<L?gap:0), y0=v0+(ci?gap:0)+r()*ch*0.08, y1=v1-gap-r()*ch*0.1;
+        const cut=()=>Math.min((x1-x0)*0.3,ch*0.22)*(0.3+r()*0.7);
+        const c0=cut(), c1=cut(), c2=cut(), c3=cut(), mid=x0+(x1-x0)*(0.3+r()*0.4), bow=(r()-0.5)*ch*0.12;
+        const poly=[at(x0,y0+c0*0.6),at(x0+c0,y0)];
+        edge(x0+c0,mid,y0,poly); poly.push(at(mid,y0+bow));
+        edge(mid,x1-c1,y0,poly); poly.push(at(x1-c1,y0),at(x1,y0+c1*0.6),at(x1,y1-c2*0.6),at(x1-c2,y1));
+        const back=[]; edge(x0+c3,x1-c2,y1,back); for (let i=back.length-1;i>=0;i--) poly.push(back[i]);
+        poly.push(at(x0+c3,y1),at(x0,y1-c3*0.6));
+        paths[(r()*tones.length)|0].push(poly);
+        const top=[at(x0+c0,y0)]; edge(x0+c0,mid,y0,top); top.push(at(mid,y0+bow)); edge(mid,x1-c1,y0,top); top.push(at(x1-c1,y0));
+        tops.push(top);
+      }
+      s+=len;
+    }
+    v0=v1;
+  }
+  paths.forEach((ps,i)=>{ if (!ps.length) return; ctx.fillStyle=tones[i]; ctx.beginPath();
+    for (const p of ps){ ctx.moveTo(p[0][0],p[0][1]); for (let j=1;j<p.length;j++) ctx.lineTo(p[j][0],p[j][1]); ctx.closePath(); }
+    ctx.fill(); });
+  ctx.strokeStyle='rgba(255,248,232,0.30)'; ctx.lineWidth=0.9; ctx.beginPath();   // light on each stone's top
+  for (const t of tops){ ctx.moveTo(t[0][0],t[0][1]); for (let j=1;j<t.length;j++) ctx.lineTo(t[j][0],t[j][1]); }
+  ctx.stroke();
 }
 function drawWallSurface(ctx, g, drop, st, seed){
   const lift=(p,u)=>[p[0], p[1]+drop*u];
@@ -2555,16 +2625,8 @@ function drawWallSurface(ctx, g, drop, st, seed){
   quad(0,0,1,1,st.tone);                                   // the wall itself
   const n=wallCourses(drop,st), r=mulberry((seed||1)>>>0);
   switch (st.face){
-    case 'rubble':                                          // dry stone: no straight joint
-      for (let i=1;i<n;i++){
-        const u=i/n;
-        line(0,u+(r()-0.5)*0.06,1,u+(r()-0.5)*0.06,st.line,1);
-      }
-      for (let i=0;i<n;i++){                                // broken vertical joints
-        const u0=i/n, u1=(i+1)/n;
-        for (let m=0;m<U;m++){ const k=2+((r()*2)|0);
-          for (let j=1;j<k;j++){ const t=tu(m,j/k+(r()-0.5)*0.12); line(t,u0,t,u1,st.line,0.9); } }
-      }
+    case 'rubble':                                          // dry stone: stones, no straight joint
+      drawDryStoneFace(ctx,g,drop,st,seed,P);
       break;
     case 'coursed':
     case 'brick':
@@ -2608,6 +2670,120 @@ function drawWallFace(ctx,a,b,drop,st,seed){ drawWallSurface(ctx, wallGeom([a,b]
 function drawWallRun(ctx,pts,drop,st,seed,units){
   if (!pts || pts.length<2) return;
   drawWallSurface(ctx, wallGeom(pts,units), drop, st, seed);
+}
+/* Where a wall's top runs, offset from its face line: per segment the unit
+   normal pointing INTO the ground the wall holds (`sgn` says which side that is,
+   in the polyline's own winding), and per vertex the mitre that offsets both
+   neighbouring segments by the same distance, so a cap turns a corner without a
+   notch or an overlap. A very sharp corner is clamped rather than spiking.
+   `ends` gives an open run the inward normal of the wall it meets at either
+   end, where there is one: the four sides of a sunken patio's rim are four runs
+   (the corner tiles are not rim), so each cap stopped square at the corner and
+   left a notch where a coping turns. */
+function wallCapMiters(pts,sgn,closed,ends){
+  const n=pts.length, segs=closed?n:n-1, segN=[], mit=[];
+  for (let i=0;i<segs;i++){ const a=pts[i], b=pts[(i+1)%n], dx=b[0]-a[0], dy=b[1]-a[1], m=Math.hypot(dx,dy)||1;
+    segN.push([-sgn*dy/m, sgn*dx/m]); }
+  for (let i=0;i<n;i++){
+    let A=closed?segN[(i-1+segs)%segs]:(i>0?segN[i-1]:(ends&&ends.n0)||null), B=closed?segN[i%segs]:(i<segs?segN[i]:(ends&&ends.n1)||null);
+    if (!A) A=B; if (!B) B=A;
+    const f=1/Math.max(0.3,1+A[0]*B[0]+A[1]*B[1]);
+    mit.push([(A[0]+B[0])*f,(A[1]+B[1])*f]);
+  }
+  return {segN,mit,segs};
+}
+/* The TOP of a wall (0.9.146): its coping, or the top of its own last course.
+   `pts` is the face line in WORLD tile-corner coordinates and `proj(x,y,zIn)`
+   puts a point there, zIn inches above the ground the wall holds, on screen; so
+   the garden, a raised bed's curve and a tray chip all draw a top through one
+   function. It is drawn ALL the way round, not only where the face shows: the
+   far side of a raised bed shows its coping's top and its inner edge, which is
+   most of what makes the bed read as a box with walls rather than soil with a
+   skirt. Where the face shows, the top's front edge stands over it (overhanging
+   by `overIn`, with its shadow on the face); where it does not, the inner edge
+   rises out of the soil. A coped top is laid in units (copeIn along the run):
+   capstones of their own lengths, cut coping, bricks on edge; a timber top has
+   its grain, a gabion its mesh over stone. Snow lies on it in winter. */
+function drawWallCap(ctx,pts,sgn,closed,st,proj,seed,snow,ends){
+  if (!st.cap || !pts || pts.length<2) return;
+  if (closed && pts.length>2){ const a=pts[0], b=pts[pts.length-1]; if (Math.hypot(a[0]-b[0],a[1]-b[1])<1e-6) pts=pts.slice(0,-1); }
+  const {segN,mit,segs}=wallCapMiters(pts,sgn,closed,ends), n=pts.length;
+  const tI=st.topIn/TILE_IN, oI=(st.overIn||0)/TILE_IN, rise=st.capIn||0;
+  const off=(i,d)=>[pts[i][0]+mit[i][0]*d, pts[i][1]+mit[i][1]*d];
+  const O=[], I=[], Ob=[], Ib=[];
+  for (let i=0;i<n;i++){ const o=off(i,-oI), q=off(i,tI);
+    O.push(proj(o[0],o[1],rise)); I.push(proj(q[0],q[1],rise)); Ob.push(proj(o[0],o[1],0)); Ib.push(proj(q[0],q[1],0)); }
+  const quad=(a,b,c,d)=>{ ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); ctx.closePath(); };
+  const top=snow ? mixHex(st.capTone,'#e8edf2',0.72) : st.capTone;
+  // which segments' face shows: their outward side moves DOWN the screen
+  const facing=[];
+  for (let i=0;i<segs;i++){ const a=pts[i], b=pts[(i+1)%n], mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+    facing.push(proj(mx-segN[i][0]*0.25,my-segN[i][1]*0.25,0)[1] > proj(mx,my,0)[1]+1e-6); }
+  const m=ctx.getTransform&&ctx.getTransform(), dev=(m&&(m.a||m.b))?Math.hypot(m.a,m.b):1;
+  if (rise>0){
+    // the overhang's shadow on the face, under the front edge
+    if (st.overIn>0){ ctx.fillStyle='rgba(20,16,12,0.24)'; ctx.beginPath();
+      for (let i=0;i<segs;i++) if (facing[i]){ const j=(i+1)%n;
+        quad(proj(pts[i][0],pts[i][1],0),proj(pts[j][0],pts[j][1],0),proj(pts[j][0],pts[j][1],-1.3),proj(pts[i][0],pts[i][1],-1.3)); }
+      ctx.fill(); }
+    ctx.fillStyle=st.cope?shade(st.capTone,-16):st.tone; ctx.beginPath();          // the front edges
+    for (let i=0;i<segs;i++) if (facing[i]){ const j=(i+1)%n; quad(Ob[i],Ob[j],O[j],O[i]); }
+    ctx.fill();
+    ctx.fillStyle=shade(st.cope?st.capTone:st.tone,-26); ctx.beginPath();          // the inner edges, out of the soil
+    for (let i=0;i<segs;i++) if (!facing[i]){ const j=(i+1)%n; quad(Ib[i],Ib[j],I[j],I[i]); }
+    // an open run's ends, where they face the camera and no other wall carries on
+    if (!closed) for (const [i,sgnEnd,joined] of [[0,-1,ends&&ends.n0],[n-1,1,ends&&ends.n1]]){
+      if (joined) continue;
+      const k=i===0?0:segs-1, a=pts[k], b=pts[(k+1)%n], dx=(b[0]-a[0])*sgnEnd, dy=(b[1]-a[1])*sgnEnd;
+      if (proj(pts[i][0]+dx*0.05,pts[i][1]+dy*0.05,0)[1] > proj(pts[i][0],pts[i][1],0)[1]+1e-6) quad(Ob[i],Ib[i],I[i],O[i]); }
+    ctx.fill();
+  }
+  // the top
+  ctx.fillStyle=top; ctx.beginPath();
+  if (closed){ ctx.moveTo(O[0][0],O[0][1]); for (let i=1;i<n;i++) ctx.lineTo(O[i][0],O[i][1]); ctx.closePath();
+    ctx.moveTo(I[0][0],I[0][1]); for (let i=1;i<n;i++) ctx.lineTo(I[i][0],I[i][1]); ctx.closePath(); ctx.fill('evenodd'); }
+  else { ctx.moveTo(O[0][0],O[0][1]); for (let i=1;i<n;i++) ctx.lineTo(O[i][0],O[i][1]);
+    for (let i=n-1;i>=0;i--) ctx.lineTo(I[i][0],I[i][1]); ctx.closePath(); ctx.fill(); }
+  // what it is laid in, segment by segment: units along, or lines along
+  const r=mulberry(((seed||1)^0x5bd1e995)>>>0), lerp=(p,q,f)=>[p[0]+(q[0]-p[0])*f,p[1]+(q[1]-p[1])*f];
+  const lenPx=(i,j)=>Math.hypot(O[j][0]-O[i][0],O[j][1]-O[i][1])*dev;
+  if (!snow && st.cap!=='flat' && st.cap!=='lip'){
+    const tones=[shade(top,-9),top,shade(top,8)], fills=tones.map(()=>[]), lines=[];
+    for (let i=0;i<segs;i++){
+      const j=(i+1)%n, a=pts[i], b=pts[j], segIn=Math.hypot(b[0]-a[0],b[1]-a[1])*TILE_IN;
+      const unit=st.copeIn, px=unit/Math.max(segIn,1e-6)*lenPx(i,j);
+      if (px<3.2) continue;                                 // under a few device px, units are noise
+      if (st.cap==='timber' || st.cap==='cage'){
+        // lines ALONG the top: grain, or the mesh's long wires
+        for (const f of st.cap==='timber'?[0.36,0.7]:[0.5]) lines.push([lerp(O[i],I[i],f),lerp(O[j],I[j],f)]);
+      }
+      // and the joints ACROSS it: equal units, or a waller's own lengths
+      let f=0; const cuts=[];
+      if (st.cap==='slabs'){ while (true){ f+=unit*(0.6+0.8*r())/segIn; if (f>=1-0.25*unit/segIn) break; cuts.push(f); } }
+      else { const k=Math.max(1,Math.round(segIn/unit)); for (let c=1;c<k;c++) cuts.push(c/k); }
+      for (const c of cuts){ const p=lerp(O[i],O[j],c); lines.push([p,lerp(I[i],I[j],c)]);
+        if (rise>0 && facing[i]) lines.push([p,lerp(Ob[i],Ob[j],c)]); }
+      if (st.cap==='slabs' || st.cap==='rowlock' || st.cap==='cage'){   // each unit its own tone
+        const all=[0].concat(cuts,[1]);
+        for (let u=0;u<all.length-1;u++){ const f0=all[u], f1=all[u+1];
+          if (st.cap==='cage'){ fills[(r()*3)|0].push([lerp(O[i],O[j],f0),lerp(O[i],O[j],f1),lerp(lerp(O[i],I[i],0.5),lerp(O[j],I[j],0.5),f1),lerp(lerp(O[i],I[i],0.5),lerp(O[j],I[j],0.5),f0)]);
+            fills[(r()*3)|0].push([lerp(lerp(O[i],I[i],0.5),lerp(O[j],I[j],0.5),f0),lerp(lerp(O[i],I[i],0.5),lerp(O[j],I[j],0.5),f1),lerp(I[i],I[j],f1),lerp(I[i],I[j],f0)]); }
+          else fills[(r()*3)|0].push([lerp(O[i],O[j],f0),lerp(O[i],O[j],f1),lerp(I[i],I[j],f1),lerp(I[i],I[j],f0)]); }
+      }
+    }
+    fills.forEach((ps,t)=>{ if (!ps.length || tones[t]===top) return; ctx.fillStyle=tones[t]; ctx.beginPath();
+      for (const p of ps) quad(p[0],p[1],p[2],p[3]); ctx.fill(); });
+    ctx.beginPath(); for (const [p,q] of lines){ ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); }
+    ctx.strokeStyle=st.cap==='cage'?'rgba(52,54,50,0.62)':st.cap==='timber'?'rgba(48,32,18,0.34)':shade(st.capTone,-38);
+    ctx.lineWidth=st.cap==='cage'?0.8:0.75; ctx.stroke();
+  }
+  // light on the front arris; a shadow where the top meets the soil behind it
+  ctx.lineWidth=1; ctx.strokeStyle='rgba(255,250,236,0.34)'; ctx.beginPath();
+  for (let i=0;i<segs;i++) if (facing[i]){ const j=(i+1)%n; ctx.moveTo(O[i][0],O[i][1]); ctx.lineTo(O[j][0],O[j][1]); }
+  ctx.stroke();
+  ctx.strokeStyle='rgba(28,22,16,0.30)'; ctx.beginPath();
+  for (let i=0;i<segs;i++){ const j=(i+1)%n, P0=facing[i]?I[i]:Ib[i], P1=facing[i]?I[j]:Ib[j]; ctx.moveTo(P0[0],P0[1]); ctx.lineTo(P1[0],P1[1]); }
+  ctx.stroke();
 }
 /* Treads climbing that same face. A flight cannot be painted ON the wall
    plane — that gives horizontal bands, which is what a staircase drawn flat

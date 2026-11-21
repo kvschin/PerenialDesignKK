@@ -691,6 +691,15 @@ function drawEdgingIcon(tc,id,W,H){
   else drawEdgingRun(tc,pts,st,7,TILE_EDGE_PX*0.8*Math.min(1,W/72));
   tc.restore();
 }
+/* A chip's wall top, through the garden's own drawWallCap. A chip's terrace is
+   a whole terrace drawn about one tile across, so its top is drawn at 40% of
+   its real width, or a raised bed chip would be half coping. Chip space is a
+   unit square of tile corners: (0,0) the top of the diamond, (1,0) its right. */
+function drawChipWallCap(tc,st,pts,sgn,closed,cx,cy,hw,hh){
+  if (!st.cap) return;
+  const s=Object.assign({},st,{topIn:st.topIn*0.4,copeIn:st.copeIn*0.4,capIn:(st.capIn||0)*0.7,overIn:(st.overIn||0)*0.6});
+  drawWallCap(tc,pts,sgn,closed,s,(x,y,z)=>[cx+(x-y)*hw, cy-hh+(x+y)*hh-z*0.9],7,false,null);
+}
 function drawWallIcon(tc,id){
   const f=gradeChipFace(), st=wallStyle(id);
   tc.fillStyle='#7d9358';                            // the turf on top
@@ -705,6 +714,7 @@ function drawWallIcon(tc,id){
   tc.fillStyle='#6f8a50';
   tc.beginPath(); tc.moveTo(27,27); tc.lineTo(45,17); tc.lineTo(45,32); tc.lineTo(27,42);
   tc.closePath(); tc.fill();
+  drawChipWallCap(tc,st,[[0,1],[1,1]],-1,false,27,17,18,10);   // along the faced side
 }
 /* A terrace chip: a block standing as tall as the chip's height, faced in the
    chip's wall — or, sunk, a hollow seen from above with its two far walls
@@ -737,6 +747,7 @@ function drawTerraceIcon(tc,d){
     const W=[24-hw,cy], S=[24,cy+hh], E=[24+hw,cy];
     face(W,S,'#6b5a44'); face(S,E,'#5d4e3b');
     top(24,cy,hw,hh);
+    drawChipWallCap(tc,st,[[0,0],[1,0],[1,1],[0,1]],1,true,24,cy,hw,hh);
     return;
   }
   // a hollow: lawn round it, then inside the opening its floor and far walls
@@ -748,6 +759,7 @@ function drawTerraceIcon(tc,d){
   top(24,cy+drop,ihw,ihh);
   face(W,N,'#5d4e3b'); face(N,E,'#6b5a44');
   tc.restore();
+  drawChipWallCap(tc,st,[[0,0],[1,0],[1,1],[0,1]],-1,true,24,cy,ihw,ihh);   // round the rim
 }
 function drawMaterialIcon(tc,cx,cy,hw,hh,kind,id,stroke){
   const amb=AMBIENCE.Summer, o={k:kind,c:id};
