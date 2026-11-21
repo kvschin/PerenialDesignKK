@@ -1238,11 +1238,49 @@ function terraceFacingText(w){
   const st=wallStyle(w);
   return st.face ? `with ${(st.short||st.label).toLowerCase()} walls` : 'with earth banks';
 }
+// the top as a chip says it ("Soil", "Warm", "Lawn"), from the material last chosen under Ground
+function terraceTopShort(top){
+  if (top==='bed') return bedStyle(game.bedStyle).short||bedStyle(game.bedStyle).label;
+  if (top==='path') return pathColor(game.pathColor).short||pathColor(game.pathColor).label;
+  if (top==='lawn') return lawnIsNone(game.lawnStyle) ? 'Lawn' : (lawnStyle(game.lawnStyle).short||lawnStyle(game.lawnStyle).label);
+  return 'Keep';
+}
+// and as a sentence needs it: "a soil bed", "paved in warm gravel", "laid to lawn"
+function terraceTopText(top){
+  if (top==='bed') return `a ${bedStyle(game.bedStyle).label.toLowerCase()} bed`;
+  if (top==='path') return `paved in ${pathColor(game.pathColor).label.toLowerCase()}`;
+  if (top==='lawn') return lawnIsNone(game.lawnStyle) ? 'laid to lawn' : `laid to ${lawnStyle(game.lawnStyle).label.toLowerCase()}`;
+  return '';
+}
 function terraceLabel(d){
   d=normalizeTerraceDraft(d||terraceDraft());
   const st=wallStyle(d.w);
-  return `${d.h<0?'Sunken':'Terrace'} ${fmtLengthIn(Math.abs(d.h)*ELEV_RISER_IN)} · ${st.face?(st.short||st.label):'Bank'}`;
+  return `${d.h<0?'Sunken':'Terrace'} ${terraceInches(d.h)} · ${st.face?(st.short||st.label):'Bank'}`
+    +(d.top==='keep'?'':' · '+terraceTopShort(d.top));
 }
+/* The top a terrace is laid with (TERRACE_TOPS), through placeTerrainAt with the
+   matching Ground tool, so it obeys every rule a painted surface does: no paving
+   over a plant, lawn under one, a tile's edging kept or inherited. */
+function setTerraceTop(x,y,top){
+  const T=TERRACE_TOPS.find(t=>t.id===top); if (!T || !T.tool) return false;
+  const was=game.tool;
+  try { game.tool=T.tool; return !!placeTerrainAt(x,y); } finally { game.tool=was; }
+}
+// one tile of a terrace: its height and wall, then its top
+function buildTerraceTile(x,y,d){
+  d=normalizeTerraceDraft(d);
+  const a=setTerraceTile(x,y,d), b=setTerraceTop(x,y,d.top);
+  return (a||b) ? 'terrace' : null;
+}
+/* What a tap ON a terrace changes: only what the gardener has picked in the
+   Terrace panel (renderGradeTools marks it). It rebuilt the whole terrace to the
+   armed height and wall, so refacing a 15 in terrace with the panel set to 10 in
+   lowered it as well, and the only way to avoid that was to set the panel to the
+   terrace's height first, which nothing showed. Kept until a garden opens or the
+   eyedropper picks a terrace up (which sets every choice from that terrace). */
+let terraceTouched=new Set();
+function touchTerrace(field){ terraceTouched.add(field); }
+function resetTerraceTouched(){ terraceTouched=new Set(); }
 /* One tile to the draft's height and facing. A sunken terrace's walls belong
    to the ground AROUND it -- a face is the higher tile's (paintWallAt) -- so
    lowering a tile also faces any neighbour it now drops away from. Only a
@@ -1300,7 +1338,7 @@ function buildTerraceRect(r,d){
   r=pergolaRect(r.x0,r.y0,r.x1,r.y1);
   if (terraceRectBlocker(r)) return 0;
   let n=0;
-  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++) if (setTerraceTile(x,y,d)) n++;
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++) if (buildTerraceTile(x,y,d)) n++;
   return n;
 }
 /* The terrace a tile belongs to: the 4-connected run of tiles standing at its
@@ -1319,24 +1357,44 @@ function terraceRegionAt(x,y){
   }
   return {h, tiles, has:seen};
 }
+/* "Raised a 4.5 x 7.5 ft soil bed 36 in, with brick walls." A bed on top names
+   the thing ("bed" rather than "terrace" or "patio"); paving or lawn is added. */
 function terraceBuiltText(r,d){
   const size=pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1);
-  return d.h<0
-    ? `Sank a ${size} patio ${fmtLengthIn(-d.h*ELEV_RISER_IN)}, ${terraceFacingText(d.w)}.`
-    : `Raised a ${size} terrace ${fmtLengthIn(d.h*ELEV_RISER_IN)}, ${terraceFacingText(d.w)}.`;
+  const noun=d.top==='bed' ? `${bedStyle(game.bedStyle).label.toLowerCase()} bed` : d.h<0 ? 'patio' : 'terrace';
+  const more=d.top==='path'||d.top==='lawn' ? ', '+terraceTopText(d.top) : '';
+  return `${d.h<0?'Sank':'Raised'} a ${size} ${noun} ${terraceInches(d.h)}, ${terraceFacingText(d.w)}${more}.`;
 }
-/* A tap ON a terrace rebuilds the whole of it to the armed height and facing --
-   which is how a 10 in bed becomes a 15 in one, or a bank becomes a brick wall,
-   without redrawing it. On level ground a tap lays a 4.5 x 7.5 ft bed, the way
-   a tap with the pergola lays a pergola. Any other size is a drag. */
+// what a tap changed, as a list: "36 in high", "dry stone walls", "a soil bed"
+function terraceChangeText(d,H,Wl,T){
+  const st=wallStyle(d.w), parts=[];
+  if (H) parts.push(d.h<0 ? `sunk ${terraceInches(d.h)}` : `${terraceInches(d.h)} high`);
+  if (Wl) parts.push(st.face ? `${(st.short||st.label).toLowerCase()} walls` : 'earth banks');
+  if (T && terraceTopText(d.top)) parts.push(terraceTopText(d.top));
+  return parts.join(', ');
+}
+/* A tap ON a terrace changes all of it, but only in what the gardener picked
+   (terraceTouched): a new height keeps each tile's own wall, a new wall keeps the
+   height, a new top keeps both. That is how a 10 in bed becomes a 15 in one, or
+   a bank a brick wall, without redrawing it. On level ground a tap lays a
+   4.5 x 7.5 ft raised bed, the way a tap with the pergola lays a pergola, with
+   every choice. Any other size is a drag. */
 function tapTerraceAt(x,y){
   const d=terraceDraft(), reg=terraceRegionAt(x,y);
   if (reg){
+    const noun=reg.h<0?'patio':'terrace';
+    if (!terraceTouched.size){ toast(`Pick a height, a wall or a top, then tap the ${noun} to change it to that.`); return; }
+    const H=terraceTouched.has('h'), Wl=terraceTouched.has('w'), T=terraceTouched.has('top');
+    // a hollow's walls are on the ground round it
+    const t=reg.h<0 ? wallTargetAt(x,y) : null;
+    const rimWall=t && t.owners.length ? wallStyleAt(t.owners[0][0],t.owners[0][1]) : 'none';
     let n=0;
-    for (const [tx,ty] of reg.tiles) if (setTerraceTile(tx,ty,d)) n++;
-    if (n){ hapticFeedback('place');
-      toast(`Changed the ${reg.h<0?'patio':'terrace'} to ${terraceHeightText(d.h).toLowerCase()}, ${terraceFacingText(d.w)}.`); }
-    else toast('Already built like that. Drag corner to corner for another.');
+    for (const [tx,ty] of reg.tiles){
+      const dd={h:H?d.h:reg.h, w:Wl?d.w:(reg.h>0?wallStyleAt(tx,ty):rimWall), top:T?d.top:'keep'};
+      if (buildTerraceTile(tx,ty,dd)) n++;
+    }
+    if (n){ hapticFeedback('place'); toast(`Changed the ${noun}: ${terraceChangeText(d,H,Wl,T)}.`); }
+    else toast(`That ${noun} is already like that. Drag corner to corner for another.`);
     return;
   }
   const r=terraceTapRect(x,y), bl=terraceRectBlocker(r);

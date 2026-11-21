@@ -319,7 +319,7 @@ const game = {
   seatDraft:{type:'bench4',finish:'teak'},           // settings for the next seat
   ornamentDraft:{kind:'sphere',finish:'granite',face:0}, // settings for the next garden ornament
   wallDraft:'drystone',                              // material the wall brush paints onto a terrace face
-  terraceDraft:{h:3,w:'drystone'},                   // the height and facing the next terrace is built at
+  terraceDraft:{h:3,w:'drystone',top:'bed'},        // the height, facing and top the next terrace is built with
   edgingDraft:'steel',                               // material the edging brush paints onto a bed or path edge
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
@@ -1828,7 +1828,7 @@ function tileTerrain(x,y){ const t=terrainAt(x,y); return t?t.k:null; }
    raises (LAYER_CACHES gives `elevation` a `trace`, and trace bumps it) and
    which a planting edit never raises — so a paint drag does not rebuild this.
    Object identity and the plot size ride along to catch a wholesale swap.
-   Int8Array is enough: ELEV_MIN/MAX are +-4. */
+   Int8Array is enough: ELEV_MIN/MAX are -2 and 7. */
 let elevGrid={rev:-1, ref:null, gw:-1, gh:-1, g:null, empty:true, lo:0, hi:0};
 function elevationGrid(){
   const src=game.elevation;
@@ -2191,14 +2191,17 @@ function pointOnWallFace(px,py,f){
   const t=(px-f.a[0])/((f.b[0]-f.a[0])||1), ey=f.a[1]+t*(f.b[1]-f.a[1]);
   return py>=ey && py<=ey+f.drop;
 }
-/* Which tile's face is under a screen point, nearest the camera first. A face
-   spans at most (ELEV_MAX-ELEV_MIN) steps, under a tile height and a half, so
-   its owner is within three tiles BEHIND the point in view. */
+/* Which tile's face is under a screen point, nearest the camera first. The point
+   is mapped to a tile at GRADE, so a hollow's face (below its owner's edge) maps
+   up to a tile or two in front of the owner, and a terrace's face (above its
+   owner's grade edge, by up to ELEV_MAX*ELEV_STEP = 63px at 36 in) maps up to two
+   or three tiles BEHIND it. The window reached one tile forward, which held for
+   21 in walls and missed the top of a 36 in one (0.9.145). */
 function wallFaceAt(sx,sy,W,H){
   if (!game.elevation) return null;
   const [pvx,pvy]=viewPointAt(sx,sy,W,H).map(Math.round);
   let best=null;
-  for (let vy=pvy-3;vy<=pvy+1;vy++) for (let vx=pvx-3;vx<=pvx+1;vx++){
+  for (let vy=pvy-3;vy<=pvy+3;vy++) for (let vx=pvx-3;vx<=pvx+3;vx++){
     const [x,y]=viewToWorld(vx,vy);
     if (!inWorldTile(x,y)) continue;
     for (const f of wallFaceQuads(x,y,W,H))
@@ -2262,7 +2265,7 @@ function tileDiamond(ctx,sx,sy,fill,stroke,dash){
    a step riser on the same terrace agree by construction. */
 function wallCourses(drop,st){
   const inches=drop/ELEV_STEP*ELEV_RISER_IN;
-  return Math.max(1,Math.min(8,Math.round(inches/(st.courseIn||6))));
+  return Math.max(1,Math.min(14,Math.round(inches/(st.courseIn||6))));   // 12 brick courses in 36 in
 }
 /* One tile SIDE — 18 real inches — as a screen segment. Everything about a
    run scales off it, so the same painter serves the garden and the plan

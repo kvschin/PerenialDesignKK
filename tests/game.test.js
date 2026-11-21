@@ -140,7 +140,10 @@ test('tileAt picks the drawn diamond for elevated terrain', () => {
     game.elevation = {};
     setElevationAt(6, 7, ELEV_MAX);
     setElevationAt(10, 7, ELEV_MIN);
-    for (const [x, y, label] of [[4, 5, 'flat'], [6, 7, 'raised'], [10, 7, 'lowered']]){
+    // the flat tile sits clear of the raised one at every rotation: at ELEV_MAX (36 in)
+    // a raised tile's top stands over the tile two rows in front of it, and tileAt is
+    // right to answer the raised one there
+    for (const [x, y, label] of [[2, 13, 'flat'], [6, 7, 'raised'], [10, 7, 'lowered']]){
       const [sx, sy] = screenOf(x, y, W, H);
       const [px, py] = tileAt(sx, sy + TILE_H / 2, W, H);
       assertEqual(`${px},${py}`, `${x},${y}`, `${label} tile picked at rot ${rot}`);
@@ -210,8 +213,8 @@ test('tileAt probes only the levels the garden holds, and answers exactly as the
   assertEqual(probes(sweep), 0, 'a flat garden probes no elevated level (it was 6 per call)');
   game.elevation = {}; setElevationAt(4, 4, 2);
   assertEqual(probes(sweep), 200, 'a garden raised to level 2 probes levels 2 and 1 only');
-  assertEqual(probes(() => { for (let i = 0; i < 100; i++) tileAtFullProbe(100 + i * 7, 200 + i * 3, W, H); }), 600,
-    'against six for the old loop');
+  assertEqual(probes(() => { for (let i = 0; i < 100; i++) tileAtFullProbe(100 + i * 7, 200 + i * 3, W, H); }), (ELEV_MAX - ELEV_MIN) * 100,
+    'against every non-zero level for the old loop');
 });
 
 test('multi-tile structure depth follows the rotated footprint', () => {
@@ -9850,6 +9853,97 @@ test('the Ground tab is a shelf per tool, with its surfaces face up', () => {
     'a tool change with no rebuild still moves the mark on the new chips');
 });
 
+/* A raised bed was two tools (a terrace, then a bed painted over it) and a tap
+   on an existing terrace rebuilt it to every armed choice, so refacing a 15 in
+   terrace with the panel at 10 in lowered it too (0.9.145). */
+test('Terrace lays its top, and a tap on a terrace changes only what was picked', () => {
+  setup(21, 21);
+  game.bedStyle = 'mulch'; game.pathColor = 'warm'; game.lawnStyle = 'mown';
+  game.tool = 'terrace'; game.terraceDraft = { h: 3, w: 'brick', top: 'bed' };
+  game.actX = 10; game.actY = 10; actHere();
+  assertEqual(tileTerrain(10, 10), 'bed', 'a tap on level ground lays a raised bed');
+  assertEqual((terrainAt(9, 11) || {}).c, 'mulch', 'in the bed last chosen under Ground');
+  assertEqual(elevationAt(12, 11), 3, 'standing 15 in');
+
+  // nothing picked: nothing changes, and it says how
+  resetTerraceTouched();
+  game.terraceDraft = { h: 1, w: 'gabion', top: 'path' };
+  tapTerraceAt(10, 10);
+  assertEqual(elevationAt(10, 10), 3, 'an unpicked height is left alone');
+  assertEqual(wallStyleAt(10, 10), 'brick', 'and an unpicked wall');
+  assertEqual(tileTerrain(10, 10), 'bed', 'and an unpicked top');
+
+  // a wall alone: the height stays
+  touchTerrace('w'); tapTerraceAt(10, 10);
+  assertEqual(wallStyleAt(8, 11), 'gabion', 'refaced');
+  assertEqual(elevationAt(8, 11), 3, 'at its own height');
+  assertEqual(tileTerrain(8, 11), 'bed', 'with its own top');
+
+  // a height alone keeps each tile's own wall
+  resetTerraceTouched();
+  setTile('elevation', '12,11', Object.assign({}, game.elevation['12,11'], { w: 'sleeper' }));
+  game.terraceDraft = { h: 7, w: 'concrete', top: 'keep' }; touchTerrace('h');
+  tapTerraceAt(10, 10);
+  assertEqual(elevationAt(10, 10), 7, 'raised to 36 in');
+  assertEqual(wallStyleAt(12, 11), 'sleeper', 'each tile keeping its own wall');
+  assertEqual(wallStyleAt(8, 10), 'gabion', 'everywhere');
+
+  // a top alone, on paving: plants stand where paving cannot go
+  resetTerraceTouched();
+  const forb = firstOfType('forb');
+  setTile('plants', '11,11', { s: forb, d: 0, t: 1 });
+  game.terraceDraft = { h: 7, w: 'concrete', top: 'path' }; touchTerrace('top');
+  tapTerraceAt(10, 10);
+  assertEqual(tileTerrain(10, 10), 'path', 'paved');
+  assertEqual(tileTerrain(11, 11), 'bed', 'except under a plant, as painting a path would');
+  assertEqual(elevationAt(10, 10), 7, 'the height untouched');
+
+  // Keep leaves the top alone when a new terrace is built over a bed
+  setTile('terrain', '3,3', { k: 'bed', c: 'gravel', t: 1 });
+  game.terraceDraft = { h: 2, w: 'none', top: 'keep' };
+  buildTerraceRect({ x0: 3, y0: 3, x1: 4, y1: 4 }, terraceDraft());
+  assertEqual((terrainAt(3, 3) || {}).c, 'gravel', 'Keep keeps the gravel');
+  assertEqual(tileTerrain(4, 4), null, 'and the lawn');
+  assert(/soil bed|mulch bed|bark mulch bed/.test(terraceBuiltText({ x0: 0, y0: 0, x1: 4, y1: 2 }, { h: 3, w: 'brick', top: 'bed' })),
+    'the toast says what the top is laid with');
+});
+
+/* 36 in is a height (ELEV_MAX 7, 0.9.145): a raised bed and a terrace wall are
+   commonly 24-36 in, and the limit was 21. */
+test('terraces go to 36 in, and the ground pass keeps a tall wall at the top of the screen', () => {
+  setup(21, 21);
+  assertEqual(ELEV_MAX, 7, 'seven levels');
+  assert(Math.abs(ELEV_MAX * ELEV_RISER_IN - 36) < 0.1, 'which is 36 in');
+  assertEqual(TERRACE_LEVELS[0], ELEV_MAX, 'offered on the Terrace panel');
+  setTerraceTile(5, 5, { h: 7, w: 'brick' });
+  assertEqual(elevationAt(5, 5), 7, 'and stands that high');
+  assert(wallCourses(7 * ELEV_STEP, wallStyle('brick')) >= 12, 'a 36 in brick wall keeps 3 in courses');
+  const src = readRepoFile('js/renderer.js');
+  const body = src.slice(src.indexOf('function paintGround('), src.indexOf('function paintGround(') + 4000);
+  assert(/sy<-TILE_H\*2-ELEV_MAX\*ELEV_STEP-ex/.test(body), 'the tile loop keeps a tile whose wall hangs into the top of the view');
+});
+
+/* wallFaceAt maps the pointer to a tile at GRADE, so a point near the top of a
+   36 in face maps two or three tiles behind its owner. The window reached one tile
+   forward, enough for 21 in and not for 36. */
+test('a press near the top of a 36 in face lands on its owner, at every rotation', () => {
+  const W = 1000, H = 700;
+  for (let rot = 0; rot < 4; rot++){
+    setup(21, 21); game.rot = rot;
+    game.terraceDraft = { h: ELEV_MAX, w: 'stone', top: 'keep' }; finishTerraceDrag(8, 8, 11, 11);
+    const [dx, dy] = viewDirToWorld(1, 0);
+    let owner = null;
+    for (let x = 8; x <= 11 && !owner; x++) for (let y = 8; y <= 11 && !owner; y++)
+      if (elevationAt(x + dx, y + dy) === 0 && elevationAt(x - dy, y + dx) === ELEV_MAX && elevationAt(x + dy, y - dx) === ELEV_MAX) owner = [x, y];
+    assert(owner, `rot ${rot}: a tile mid-way along a front edge`);
+    const [sx, sy] = screenOf(owner[0], owner[1], W, H), drop = ELEV_MAX * ELEV_STEP;
+    for (const u of [0.05, 0.5, 0.95]){
+      const [px, py] = [sx + TILE_W / 4, sy + TILE_H * 0.75 + drop * u];
+      assertEqual(wallTileAt(px, py, W, H).join(','), owner.join(','), `rot ${rot}: ${u} down a 36 in face lands on its owner`);
+    }
+  }
+});
+
 test('the Grade tab says what each tool does, and opens the armed one\'s options under it', () => {
   setup(21, 21);
   const tray = document.getElementById('toolTray');
@@ -9858,9 +9952,12 @@ test('the Grade tab says what each tool does, and opens the armed one\'s options
   try {
     let kids = page('hand');
     const rows = kids.filter(c => /\blt-row\b/.test(c.className));
-    assertEqual(rows.map(r => r.dataset.k).join(), 'terrace,raise,lower,level,wall', 'a row per tool, Terrace first');
+    assertEqual(rows.map(r => r.dataset.k).join(), 'terrace,raise,lower,level', 'a row per tool, Terrace first; Wall only while armed');
     assert(rows.every(r => r.children[1].children[1].textContent.length > 20), 'each with the sentence its tooltip used to hold');
-    assertEqual(kids.length, rows.length, 'and nothing else until one is armed');
+    const heads = kids.filter(c => /\blg-head\b/.test(c.className));
+    assertEqual(heads.map(h => h.children[0].textContent).join(), 'Shape the ground', 'Raise, Lower and Level under their own heading');
+    assertEqual(kids.indexOf(heads[0]), kids.indexOf(rows[1]) - 1, 'directly above Raise');
+    assertEqual(kids.length, rows.length + 1, 'and nothing else until one is armed');
     assertEqual(rows[0].children[1].children[2].textContent, terraceLabel(), 'Terrace says the height and wall it will build');
     kids = page('terrace');
     const at = kids.findIndex(c => c.dataset && c.dataset.k === 'terrace' && /\blt-row\b/.test(c.className));
@@ -9868,8 +9965,11 @@ test('the Grade tab says what each tool does, and opens the armed one\'s options
     assertEqual(kids[at + 1].textContent, 'Height', 'and its options open directly under it');
     assertEqual(kids.filter(c => c.dataset && c.dataset.terraceH).length, TERRACE_LEVELS.length, 'every height');
     assertEqual(kids.filter(c => c.dataset && c.dataset.terraceW).length, WALL_STYLES.length, 'and every wall');
+    assertEqual(kids.filter(c => c.dataset && c.dataset.terraceTop).map(c => c.dataset.terraceTop).join(), 'bed,path,lawn,keep', 'and every top');
+    assert(kids.some(c => /\blg-note\b/.test(c.className) && /what you pick here/.test(c.textContent)), 'with a line saying a tap changes only what is picked');
     assert(kids.findIndex(c => c.dataset && c.dataset.k === 'raise') > at + 1 + TERRACE_LEVELS.length, 'above the next tool, not below the last');
     kids = page('wall');
+    assert(kids.some(c => c.dataset && c.dataset.k === 'wall' && /\blt-row\b/.test(c.className)), 'armed from a search or the rail, Wall shows its row');
     assertEqual(kids.filter(c => c.dataset && c.dataset.wallStyle).length, WALL_STYLES.length, 'Wall opens its materials the same way');
     assertEqual(kids.filter(c => c.dataset && c.dataset.terraceH).length, 0, 'and Terrace\'s close');
   } finally { [game.tool, game.trayCat, game.drill, game.terraceDraft, game.wallDraft] = saved; }
@@ -10247,7 +10347,7 @@ test('a terrace tap lays a raised bed on level ground and rebuilds a terrace it 
     assertEqual(elevationAt(x, y), 2, `the bed stands at ${x},${y}`);
 
   // tapping it rebuilds ALL of it — taller, and faced in something else
-  game.terraceDraft = { h: 4, w: 'corten' };
+  game.terraceDraft = { h: 4, w: 'corten' }; touchTerrace('h'); touchTerrace('w');
   game.actX = 10; game.actY = 11; actHere();
   for (let x = 10; x <= 14; x++) for (let y = 11; y <= 13; y++){
     assertEqual(elevationAt(x, y), 4, `rebuilt to the new height at ${x},${y}`);
@@ -10279,7 +10379,7 @@ test('a sunken terrace faces the ground round it, and leaves no stale walls when
   assertEqual(applyToolAt(4, 6), null, 'the Wall tool agrees it is already faced');
 
   // rebuilt as a bank, the rim records go: at grade they only carried the wall
-  game.tool = 'terrace'; game.terraceDraft = { h: -1, w: 'none' };
+  game.tool = 'terrace'; game.terraceDraft = { h: -1, w: 'none' }; touchTerrace('h'); touchTerrace('w');
   tapTerraceAt(6, 6);
   assert(!live(game.elevation).includes('4,6'), 'no bare-earth record left on the rim');
   assertEqual(elevationAt(6, 6), -1, 'and the hollow is shallower');
@@ -10384,13 +10484,16 @@ test('a refused wall says why, and a terrace reads as one tool on the Grade tab'
   assert(TERRACE_LEVELS.every(h => h && h >= ELEV_MIN && h <= ELEV_MAX), 'every height is a reachable level');
   assertEqual(terraceHeightText(3), fmtLengthIn(3 * ELEV_RISER_IN), 'a height reads in the reader’s units');
   assert(/^Sunk /.test(terraceHeightText(-1)), 'and a hollow says so');
-  assertEqual(normalizeTerraceDraft({ h: 7, w: 'marble' }).h, 3, 'an unknown height falls back');
+  assertEqual(normalizeTerraceDraft({ h: 9, w: 'marble' }).h, 3, 'an unknown height falls back');
+  assertEqual(normalizeTerraceDraft({ h: 7 }).h, 7, 'and 36 in is a height (0.9.145)');
+  assertEqual(normalizeTerraceDraft({}).top, 'bed', 'a new terrace is a raised bed by default');
+  assertEqual(normalizeTerraceDraft({ top: 'moss' }).top, 'bed', 'an unknown top is a bed');
   assertEqual(normalizeTerraceDraft({ h: 2, w: 'marble' }).w, 'none', 'an unknown facing is a bank');
 
   // the draft travels with the garden
   game.terraceDraft = { h: -1, w: 'gabion' };
   const blob = buildSaveBlob();
-  assertEqual(JSON.stringify(blob.terraceDraft), JSON.stringify({ h: -1, w: 'gabion' }), 'saved with the garden');
+  assertEqual(JSON.stringify(normalizeTerraceDraft(blob.terraceDraft)), JSON.stringify({ h: -1, w: 'gabion', top: 'bed' }), 'saved with the garden');
 });
 
 /* The Wall tool faced one tile's edge per stroke, aimed at a face 10px tall at
@@ -10442,7 +10545,7 @@ test('the eyedropper picks up a terrace, and Fill stops at a change of level', (
   game.terraceDraft = { h: 4, w: 'brick' };
   pickAt(6, 5);
   assertEqual(game.tool, 'terrace', 'the Terrace tool is armed');
-  assertEqual(JSON.stringify(game.terraceDraft), JSON.stringify({ h: 2, w: 'gabion' }), 'at its height and with its wall');
+  assertEqual(JSON.stringify(game.terraceDraft), JSON.stringify({ h: 2, w: 'gabion', top: 'bed' }), 'at its height, with its wall and its top');
   assertEqual(game.bedStyle, 'mulch', 'and the bed on it is the bed choice too');
 
   // Fill on the terrace top stays on the terrace; Fill at grade stays off it

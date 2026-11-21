@@ -102,7 +102,7 @@ const TOOLS={
      `apply` sets a tile to an ABSOLUTE height, so unlike raise/lower it needs
      no `once`. */
   terrace: {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, measure:'rect',
-    apply:(x,y,o)=>setTerraceTile(x,y,terraceDraft()), rect:(x0,y0,x1,y1)=>finishTerraceDrag(x0,y0,x1,y1)},
+    apply:(x,y,o)=>buildTerraceTile(x,y,terraceDraft()), rect:(x0,y0,x1,y1)=>finishTerraceDrag(x0,y0,x1,y1)},
   /* Edging acts on a whole bed per tap (paintEdgingAt), so it has no disc size
      and nothing for Fill to add; a drag still edges every bed it crosses. */
   edging:  {layer:'landscape', brush:true,  placement:true,  paints:false, material:true, apply:(x,y,o)=>paintEdgingAt(x,y)},
@@ -713,7 +713,18 @@ function drawWallIcon(tc,id){
    grows with the height so the four chips read as a ladder. */
 function drawTerraceIcon(tc,d){
   d=normalizeTerraceDraft(d);
-  const st=wallStyle(d.w), drop=4+Math.abs(d.h)*3.5, seed=7;
+  // 2.6 a level, so a 36 in terrace (7) still fits the 48x44 chip
+  const st=wallStyle(d.w), drop=4+Math.abs(d.h)*2.6, seed=7;
+  /* The top in the material it will be laid with (the one last chosen under
+     Ground), drawn by the Ground chips' own painter; Keep is the lawn with a
+     dashed edge, since what is there is not known to a chip. */
+  const top=(cx,cy,hw,hh)=>{
+    const k=d.top==='bed'?'bed':d.top==='path'?'path':(d.top==='lawn'&&!lawnIsNone(game.lawnStyle))?'lawn':null;
+    if (k) drawMaterialIcon(tc,cx,cy,hw,hh,k,k==='bed'?game.bedStyle:k==='path'?game.pathColor:game.lawnStyle);
+    else diamond(cx,cy,hw,hh,'#7d9358');
+    if (d.top==='keep'){ tc.save(); tc.setLineDash([3,2]); tc.strokeStyle='rgba(243,236,221,0.85)'; tc.lineWidth=1.2;
+      materialIconPath(tc,cx,cy,hw-1,hh-0.5); tc.stroke(); tc.restore(); }
+  };
   const face=(a,b,shadeCol)=>{
     if (st.face) drawWallFace(tc,a,b,drop,st,seed);
     else { tc.fillStyle=shadeCol; tc.beginPath(); tc.moveTo(a[0],a[1]); tc.lineTo(b[0],b[1]);
@@ -725,7 +736,7 @@ function drawTerraceIcon(tc,d){
     const cy=22-drop/2, hw=17, hh=8.5;
     const W=[24-hw,cy], S=[24,cy+hh], E=[24+hw,cy];
     face(W,S,'#6b5a44'); face(S,E,'#5d4e3b');
-    diamond(24,cy,hw,hh,'#7d9358');
+    top(24,cy,hw,hh);
     return;
   }
   // a hollow: lawn round it, then inside the opening its floor and far walls
@@ -734,7 +745,7 @@ function drawTerraceIcon(tc,d){
   const N=[24,cy-ihh], E=[24+ihw,cy], S=[24,cy+ihh], W=[24-ihw,cy];
   tc.save(); tc.beginPath(); tc.moveTo(N[0],N[1]); tc.lineTo(E[0],E[1]); tc.lineTo(S[0],S[1]); tc.lineTo(W[0],W[1]);
   tc.closePath(); tc.clip();
-  diamond(24,cy+drop,ihw,ihh,'#647a49');
+  top(24,cy+drop,ihw,ihh);
   face(W,N,'#5d4e3b'); face(N,E,'#6b5a44');
   tc.restore();
 }
@@ -1060,7 +1071,11 @@ function pickAt(x,y){
       if (terr.k==='bed') game.bedStyle=bedStyleId(terr.c||game.bedStyle);
       if (terr.k==='lawn') game.lawnStyle=lawnStyleId(terr.c||game.lawnStyle);
     }
-    game.terraceDraft=normalizeTerraceDraft({h,w}); game.wallDraft=wallStyleId(w);
+    // its top too, so a second one comes out the same; bare lawn is left as Keep
+    // rather than changing the lawn choice under Ground to plain mown lawn
+    const top=terr && (terr.k==='bed'||terr.k==='path'||terr.k==='lawn') ? terr.k : 'keep';
+    game.terraceDraft=normalizeTerraceDraft({h,w,top}); game.wallDraft=wallStyleId(w);
+    resetTerraceTouched();   // the panel now says what this terrace is: nothing is picked to change yet
     game.fillMode=false; game.trayCat='leveling';
     setTool('terrace', null); buildToolTray();
     toast(`Picked ${terraceLabel()}.`);
@@ -3802,12 +3817,19 @@ function renderGroundShelves(tray,cat){
 /* Grade: a row per tool that says what it does. Those sentences were the
    buttons' tooltips, so on a phone nobody had read them. The armed tool's
    options open under its own row. */
+/* Terrace leads and is the tool: it builds a raised bed, a terrace or a sunken
+   patio with its wall and its top, and a tap on one changes just what the panel
+   was set to. Raise, Lower and Level sit under their own heading, as the tools
+   for berms and swales, so they no longer read as four more ways to build a
+   terrace. Wall has no row of its own (0.9.145): Terrace refaces a terrace
+   without touching its height, which was all Wall added. The tool stays, for
+   search and for a brush the rail remembers, and shows its row while armed. */
 const GRADE_TOOLS=[
-  {k:'terrace',name:'Terrace',desc:'A raised bed, terrace or sunken patio, built with its wall. Drag corner to corner, or tap.'},
-  {k:'raise',  name:'Raise',  desc:'Lift the ground a step. Drag to shape a berm.'},
-  {k:'lower',  name:'Lower',  desc:'Dig the ground down a step, for a swale or a basin.'},
-  {k:'level',  name:'Level',  desc:'Put the ground back to grade.'},
-  {k:'wall',   name:'Wall',   desc:'Face a whole terrace or sunken patio with stone, brick or timber. Tap it.'}
+  {k:'terrace',name:'Terrace',desc:'A raised bed, terrace or sunken patio, with its wall and its top. Drag corner to corner, or tap. Tap one to change it.'},
+  {k:'wall',   name:'Wall',   desc:'Face a whole terrace or sunken patio with stone, brick or timber. Tap it.', armedOnly:true},
+  {k:'raise',  name:'Raise',  desc:'Lift the ground a step. Drag to shape a berm.', shape:true},
+  {k:'lower',  name:'Lower',  desc:'Dig the ground down a step, for a swale or a basin.', shape:true},
+  {k:'level',  name:'Level',  desc:'Put the ground back to grade.', shape:true}
 ];
 function drawGradeIcon(tc,kind){
   const high=kind==='raise', low=kind==='lower';
@@ -3833,7 +3855,11 @@ function renderGradeTools(tray,cat){
     b.append(c,trayEl('span',null,label)); b.title=tip||label; b.onclick=fn;
     tray.appendChild(b); return b;
   };
-  GRADE_TOOLS.filter(t=>cat.tools.includes(t.k)).forEach(t=>{
+  let shaped=false;
+  GRADE_TOOLS.filter(t=>cat.tools.includes(t.k) && (!t.armedOnly || game.tool===t.k)).forEach(t=>{
+    if (t.shape && !shaped){ shaped=true;
+      const head=trayEl('div','lg-head'); head.append(trayEl('b',null,'Shape the ground'),trayEl('span',null,'Berms, swales and banks, a step at a time'));
+      tray.appendChild(head); }
     const on=game.tool===t.k, b=trayEl('button','lt-row'+(on?' sel':'')); b.type='button'; b.dataset.k=t.k;
     b.setAttribute('aria-pressed',on?'true':'false');
     const {c,x}=trayCanvas(48,44,true);
@@ -3845,17 +3871,25 @@ function renderGradeTools(tray,cat){
     tray.appendChild(b);
     if (on&&t.k==='terrace'){
       const td=terraceDraft();
-      const arm=next=>{ game.terraceDraft=normalizeTerraceDraft(Object.assign({},terraceDraft(),next));
-        setTool('terrace',null); buildToolTray(); };
+      // a choice made here is one a tap on an existing terrace will change (terraceTouched)
+      const arm=(next,field)=>{ game.terraceDraft=normalizeTerraceDraft(Object.assign({},terraceDraft(),next));
+        touchTerrace(field); setTool('terrace',null); buildToolTray(); };
       sep('Height');
       TERRACE_LEVELS.forEach(h=>optionBtn('terrace',terraceHeightText(h),td.h===h,
-        tc=>drawTerraceIcon(tc,{h,w:td.w}),()=>arm({h}),
-        h<0?`Sink a patio ${fmtLengthIn(-h*ELEV_RISER_IN)} below the ground around it`
-           :`Raise it ${fmtLengthIn(h*ELEV_RISER_IN)}`).dataset.terraceH=String(h));
+        tc=>drawTerraceIcon(tc,{h,w:td.w,top:td.top}),()=>arm({h},'h'),
+        h<0?`Sink it ${terraceInches(h)} below the ground around it`
+           :`Raise it ${terraceInches(h)}`).dataset.terraceH=String(h));
       sep('Wall');
       WALL_STYLES.forEach(ws=>optionBtn('terrace',ws.face?(ws.short||ws.label):'Bank',td.w===ws.id,
-        tc=>drawTerraceIcon(tc,{h:td.h,w:ws.id}),()=>arm({w:ws.id}),
+        tc=>drawTerraceIcon(tc,{h:td.h,w:ws.id,top:td.top}),()=>arm({w:ws.id},'w'),
         ws.face?ws.label:'A grass bank — no wall').dataset.terraceW=ws.id);
+      sep('Top');
+      // named by kind; the picture shows the material ("Bluestone" alone did not say paving)
+      TERRACE_TOPS.forEach(tp=>optionBtn('terrace',tp.label,td.top===tp.id,
+        tc=>drawTerraceIcon(tc,{h:td.h,w:td.w,top:tp.id}),()=>arm({top:tp.id},'top'),
+        tp.id==='keep' ? 'Leave the top as it is'
+          : `Lay the top with ${terraceTopText(tp.id).replace(/^a |^paved in |^laid to /,'')}: the ${tp.label.toLowerCase()} you last chose under Ground`).dataset.terraceTop=tp.id);
+      tray.appendChild(trayEl('p','lg-note','Tap a terrace to change it to what you pick here. What you have not picked stays as it is.'));
     }
     if (on&&t.k==='wall'){
       sep('Wall material');
@@ -5165,7 +5199,7 @@ function toolGuide(){
     edging:{k:edgingLabel(),v:edgingDraft()==='none'?'Tap a bed to lift its edging':'Tap a bed or path to edge all of it; tap again in another style to change it'},
     wall:{k:wallLabel(),v:wallDraft()==='none'?'Tap a terrace to strip its wall back to earth':'Tap a terrace or sunken patio to face all of it'},
     terrace:{k:terraceLabel(),v:game.fillMode?'Tap a bed or area to build all of it to this height'
-      :`Drag corner to corner, or tap for a ${pergolaSizeText(TERRACE_TAP_W,TERRACE_TAP_H)} bed — tap a terrace to rebuild it`},
+      :`Drag corner to corner, or tap for a ${pergolaSizeText(TERRACE_TAP_W,TERRACE_TAP_H)} raised bed — tap a terrace to change what you picked`},
     raise:{k:'Raise grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
     lower:{k:'Lower grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
     level:{k:'Level grade',v:`Tap or drag — ${game.brushSize}-tile brush`},

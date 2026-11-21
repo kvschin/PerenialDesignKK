@@ -3748,6 +3748,8 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
 .lg-chip.lg-all .ui-icon{width:15px;height:15px;color:var(--color-accent-700)}
 .lg-chip.lg-all:hover{border-color:var(--color-accent)}
 .lg-group{grid-column:1/-1;margin:4px 2px 0;font-size:12px;font-weight:600;color:var(--text-muted)}
+/* a sentence under a tool's options saying how they apply (the Terrace panel) */
+.lg-note{grid-column:1/-1;margin:2px 2px 4px;font-size:12.5px;line-height:1.35;color:var(--text-secondary)}
 .lg-edge{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;border-radius:16px;background:var(--color-surface)}
 .lg-edge>div:first-child{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
 .lg-edge b{font-size:13.5px;color:var(--color-text)}

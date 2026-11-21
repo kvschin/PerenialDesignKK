@@ -4574,8 +4574,33 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     changes under it. The ghost is a box at the target height, its two
     camera-facing walls painted through `drawWallRun` (flat tone past
     `TERRACE_GHOST_UNITS` edges), red where blocked; hovering a terrace traces
-    its boundary. Raise/Lower/Level stay for berms and swales, Wall for
-    refacing a stretch. The guidebook's grade demo teaches Terrace.
+    its boundary. The guidebook's grade demo teaches Terrace.
+    **0.9.145 made Terrace the one tool for this.** *36 in*: `ELEV_MAX` is 7
+    (was 4, 21 in), `TERRACE_LEVELS` 7..1 and the two sunk; heights read in
+    inches to 36 (`terraceInches`, ftAt 48, since a chip row read "3 ft",
+    "2.6 ft", "21 in"); `wallCourses` caps at 14 so a 36 in brick wall keeps
+    3 in courses; the ground pass keeps a tile whose wall hangs into the top of
+    the view (`-ELEV_MAX*ELEV_STEP` in its cull). Everything else follows
+    `ELEV_MAX`: `tileAt`'s probe range, `plotGroundExtentDevice`, the slope
+    allowance in seat, ornament and boulder sprite boxes (which grew by 13.5px
+    each way), save validation. An older build refuses a garden file holding
+    a level above 4. *A top*: the draft is `{h,w,top}`, `top` one of
+    `TERRACE_TOPS` (bed, path, lawn, keep; default bed, so a tap on level ground
+    lays a raised bed), laid by `setTerraceTop` through `placeTerrainAt` with the
+    matching Ground tool and the material last chosen under Ground, so it obeys
+    the painted-surface rules (no paving over a plant; edging inherited).
+    `buildTerraceTile` is height, wall, then top, and is the tool's `apply`, so
+    Fill lays the top too. *A tap on a terrace changes only what was picked*:
+    the panel's chips mark their field (`touchTerrace`, `terraceTouched`), and
+    `tapTerraceAt` applies only marked fields (a new height keeps each tile's
+    own wall; a new wall keeps the height; nothing marked changes nothing and
+    says so). It rebuilt to every armed choice, so refacing a 15 in terrace with
+    the panel at 10 in lowered it too. Marks clear when a garden opens
+    (`enterGarden`) and when the eyedropper picks a terrace (which sets the
+    panel from it, top included). *The Grade tab*: Terrace, then a "Shape the
+    ground" heading over Raise, Lower and Level; the Wall row only while Wall is
+    armed (from search or the rail's memory), since Terrace now refaces without
+    touching height. The tool and its `TRAY_CATS` entry stay.
     **The Wall tool's hit-test aims at FACES** (`wallTileAt`/`wallFaceAt`/
     `wallFaceQuads`, world.js; `evPlacement` uses it when Wall is armed).
     `tileAt` answers "whose top is under the pointer". On a low raised terrace

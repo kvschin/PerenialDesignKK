@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.144';
+const APP_VERSION = '0.9.145';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -196,7 +196,10 @@ const TILE_IN = 18;                   // real-world inches per tile side (export
    3-8 ft is inside the range that draws true. */
 const PX_PER_FT = 21;
 const ELEV_STEP = 9;                   // pixels per elevation step in the isometric view
-const ELEV_MIN = -2, ELEV_MAX = 4;     // first-pass earthwork range: shallow swales to low berms
+/* Two courses down (a sunken patio or a swale) to seven up: 36 in, a terrace wall
+   or a sitting-height raised bed. It was 4 (21 in) until 0.9.145, short of the
+   24-36 in a raised bed and a garden terrace are commonly built to. */
+const ELEV_MIN = -2, ELEV_MAX = 7;
 /* A level change is ELEV_STEP px, and PX_PER_FT turns that into a real
    height: 9/21*12 = 5.14 inches. That is a genuine step riser (real ones run
    4-7in) and about one course of walling, so steps and the wall beside them
@@ -233,15 +236,31 @@ function wallLabelFor(id){ return wallStyle(id).label; }
    planting list and the plan sheet read it unchanged.
    The heights are the elevation steps (ELEV_RISER_IN each), offered in real
    inches; a negative one is a sunken patio. */
-const TERRACE_LEVELS = [4,3,2,1,-1,-2];
+const TERRACE_LEVELS = [7,6,5,4,3,2,1,-1,-2];
+/* What a terrace is laid with on top (0.9.145): a raised bed is a terrace with a
+   bed on it, and that took two tools, a terrace and then a bed painted over it
+   (and Fill, until 0.9.144, spilled off the top over the whole lawn). The
+   material is the one last chosen under Ground (game.bedStyle, pathColor,
+   lawnStyle), so the Grade tab does not grow a second material picker. 'keep'
+   leaves whatever is there. */
+const TERRACE_TOPS = [
+  {id:'bed',  label:'Bed',   tool:'bed'},
+  {id:'path', label:'Paving',tool:'path'},
+  {id:'lawn', label:'Lawn',  tool:'lawn'},
+  {id:'keep', label:'Keep',  tool:null},
+];
+function terraceTopId(id){ return (TERRACE_TOPS.find(t=>t.id===id)||TERRACE_TOPS[0]).id; }
 function normalizeTerraceDraft(d){
   d=d||{};
   const h=TERRACE_LEVELS.includes(+d.h) ? +d.h : 3;
-  return {h, w:wallStyleId(d.w===undefined ? 'drystone' : d.w)};
+  return {h, w:wallStyleId(d.w===undefined ? 'drystone' : d.w), top:terraceTopId(d.top)};
 }
+/* A terrace's height in inches all the way up to 36 (or cm): at the general
+   24 in switch the row of height chips read "3 ft", "2.6 ft", "2.1 ft", "21 in". */
+function terraceInches(h){ return fmtLengthIn(Math.abs(h)*ELEV_RISER_IN,{ftAt:48}); }
 // "15 in" up, "Sunk 10 in" down, in the reader's units
 function terraceHeightText(h){
-  return (h<0?'Sunk ':'')+fmtLengthIn(Math.abs(h)*ELEV_RISER_IN);
+  return (h<0?'Sunk ':'')+terraceInches(h);
 }
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 

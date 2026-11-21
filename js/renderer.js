@@ -413,14 +413,14 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex,rect){
   if (showLand && elevationGrid().hi>0) for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     if (!onPlot(x,y) || !(elevationAt(x,y)>0)) continue;
     const [sx,sy]=screenOfFlat(x,y,W,H);
-    if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ex||sy>H+TILE_H*2+ex) continue;
+    if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ELEV_MAX*ELEV_STEP-ex||sy>H+TILE_H*2+ex) continue;
     if (rect && (sx<rx0||sx>rx1||sy<ry0||sy>ry1)) continue;
     paintGradeUnder(ctx,x,y,W,H,amb);
   }
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     if (!onPlot(x,y)) continue;   // off an irregular lot: draw nothing, same as beyond the plot rectangle
     const [sx,sy]=screenOf(x,y,W,H);
-    if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ex||sy>H+TILE_H*2+ex) continue;
+    if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ELEV_MAX*ELEV_STEP-ex||sy>H+TILE_H*2+ex) continue;
     if (rect && (sx<rx0||sx>rx1||sy<ry0||sy>ry1)) continue;
     paintGroundTile(ctx,x,y,W,H,amb,showLand,organic);
   }

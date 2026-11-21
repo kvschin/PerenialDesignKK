@@ -1922,10 +1922,10 @@ grade:{ loop:12000, rest:0.92,
       st.cursor={x:c[0],y:c[1],down:u>0.06&&u<0.4,press:0};
       st.notes=[{text:'Drag corner to corner',at:[3.5,6.4],dy:28}];
     } else if (u<0.56){
-      st.notes=[{text:'It rises with its wall, in one go',at:[3.5,6.4],dy:28,alpha:gAt(u,0.42,0.48)}];
+      st.notes=[{text:'It rises with its wall and its bed, in one go',at:[3.5,6.4],dy:28,alpha:gAt(u,0.42,0.48)}];
     } else {
       st.cursor={x:3.5,y:2,down:u>0.7&&u<0.74,press:gAt(u,0.7,0.74)};
-      st.notes=[{text:'Tap it to rebuild it taller, or in another wall',at:[3.5,6.4],dy:28}];
+      st.notes=[{text:'Pick a new height and tap it: only that changes',at:[3.5,6.4],dy:28}];
     }
   }},
 
@@ -2929,12 +2929,13 @@ function guideChapters(){
             'It draws only where the bed meets lawn, and widening an edged bed widens its edging.',
             'The planting list bills exactly the feet you can see.']},
       {id:'grade', demo:'grade', title:'Terraces and retaining walls',
-       lead:'A raised bed, a terrace or a sunken patio, built with its wall in one drag.',
-       how:['Pick a height and a wall under Terrace, then drag corner to corner. A tap lays a bed about 4 by 8 feet.',
-            'Tap a terrace to rebuild all of it at the armed height and wall. A bank is a real answer too.',
-            'For a curved bed, lay the bed first, turn on Fill and tap it with Terrace. Paint a bed over the whole top and it becomes a raised bed, its wall following the bed’s curve.',
-            'Wall refaces a whole terrace or sunken patio with one tap, without changing its height. The eyedropper picks a terrace up to build another like it.',
-            'Raise, Lower and Level still shape berms and swales by the brush.']},
+       lead:'A raised bed, a terrace or a sunken patio, up to 36 in, built with its wall and its top in one drag.',
+       how:['Pick a height, a wall and a top under Terrace, then drag corner to corner. A tap lays a raised bed about 4 by 8 feet.',
+            'The top is laid in the bed, paving or lawn last chosen under Ground; Keep leaves what is there.',
+            'Tap a terrace to change it: only what you pick changes, so a new wall keeps its height and a new height keeps its wall. A bank is a real answer too.',
+            'For a curved raised bed, lay the bed first, turn on Fill and tap it with Terrace. Its wall follows the bed’s curve.',
+            'The eyedropper picks a terrace up to build another like it.',
+            'Under Shape the ground, Raise, Lower and Level shape berms and swales by the brush.']},
      ]},
 
     {id:'hardscape', title:'Everything else that stands there',

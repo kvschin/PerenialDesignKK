@@ -1488,6 +1488,7 @@ function enterGarden(){
   setActiveCanvas(cnv);
   setViewportFill('#4b5044');
   resetSelectionState();
+  resetTerraceTouched();   // what the Terrace panel changes on a tap belongs to the last garden
   hidePlantCard();     // a card about the last garden's plant would describe nothing here
   game.ruler=null;
   resetSeasonFade();   // never crossfade from a previous garden's last frame
