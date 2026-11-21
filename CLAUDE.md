@@ -5064,16 +5064,96 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the tile seed.
 12i. **One occupancy rule for solid objects** (`solidBlockerAt`, commands.js;
     F08). Fences, lights, fire pits, water features, climbing frames, boulders,
-    pots and seats never share a tile, and every placer asks this one function
-    rather than its own hand list -- the lists had drifted, so pot-then-fence
-    worked and fence-then-pot was refused. What may share: a pet claims nothing
-    (it keeps itself off solids; nothing refuses a cat), and under a pergola
-    roof lights, pots, seats, boulders and water features stand while a fence,
-    fire pit or climbing frame do not. Water paint skips pots, seats and
+    pots, seats and ornaments (§12j) never share a tile, and every placer asks
+    this one function rather than its own hand list -- the lists had drifted, so
+    pot-then-fence worked and fence-then-pot was refused. What may share: a pet
+    claims nothing (it keeps itself off solids; nothing refuses a cat), and under
+    a pergola roof lights, pots, seats, boulders, water features and every
+    ornament but the 7 ft feeder pole stand while a fence, fire pit or climbing
+    frame do not. Water paint skips pots, seats, ornaments and
     pergolas too (F09); erasing a fence takes its climber as a support does
     (F11). A grade-level `{h:0,w}` record keeps its wall while a lower neighbour
     remains, is erasable by the record rather than its height, and
     `tidyGradeWallsAround` drops it once the hollow it faced is gone (F14, F15).
+12j. **Garden ornaments** (`ORNAMENTS`/`ORNAMENT_FINISHES`/`ORNAMENT_GROUPS`,
+    core.js; `ornamentBuild`/`drawOrnamentArt`/`ornPaintBall`, draw.js;
+    `placeOrnamentAt`, commands.js; `drawOrnamentChip`, tray.js;
+    `drawPlanOrnament`, io.js; 0.9.143). The decor a planting is planned AROUND
+    that is neither furniture nor water, chosen by an audit of what was missing:
+    **focal points** (an 18 in and a 30 in stone sphere, an armillary sphere, a
+    sundial, a gazing ball, a kasuga stone lantern), **for wildlife** (a bird
+    feeder pole, a nest box on a post, an insect hotel) and **the working
+    garden** (a rain barrel, a 1 cu yd compost bay). Each is the ornament one of
+    the app's garden styles is planned around -- the lantern for Japanese, the
+    hotel, feeder and nest box for Pollinator and wildlife planting, the barrel
+    for a rain garden, the gazing ball for Cottage, the armillary and sundial for
+    Formal -- and the sphere is the commonest sculpture set in grasses. **Dropped,
+    with reasons** (so nobody re-audits them): figurative statuary (unreadable at
+    ~40px, and spheres plus standing stones cover sculpture); wind chimes, rain
+    chains and bat boxes (they hang from eaves, trees or walls the app does not
+    model); signage (illegible at garden scale; the plan's codes do that job);
+    stepping logs (a ground material, and stepping stones exist); raised timber
+    planters and obelisk planters (Terrace with a timber wall, containers and
+    supports cover them); arbours and gazebos (the arch and building
+    footprints); cold frames, potting benches, beehives, hedgehog houses
+    (kitchen-garden or specialist); hanging lanterns (Lighting has lantern posts).
+    **The water feature's shape exactly** (§12d): one keyed layer `game.ornaments`
+    (`"x,y"` origin -> `{kind,finish,face,t}`), a row per piece with real
+    `wIn`/`dIn`/`hIn` and the finishes it is really made in IN ITS OWN ORDER (no
+    cobalt lantern; `ornamentFinishFor` snaps), a footprint by the seat's
+    rounding (everything 1x1 but the large sphere and the compost bay, 2x2), a
+    `face` that a quarter turn swaps, and `turns` naming the pieces a Turn chip
+    changes. One tool, `ornament`, on the **Decor** tab between containers and
+    pets, in the pots' idiom: every piece always up under its group's heading,
+    the Finish and Facing rows unfolding once one is armed. Placement is the
+    seat's: lawn, a bed or paving, never water and never a planting, through
+    `solidBlockerAt` both ways (`SOLID_PLACERS` in the F08 test carries it); the
+    one rule of its own is the roof -- `ORNAMENT_ROOF_IN` (72 in), so the 88 in
+    feeder pole is refused under a pergola and a pergola over it
+    (`pergolaBlockerAt` 'tall'), in a selection move too. Erase (Landscape),
+    Pick (to the Decor tab), selection move/turn/copy/paste (one row in
+    `SEL_LAYERS` and `SEL_FOOTPRINTS`), the sweep report, saves and the import
+    validator all come through the tables those already read.
+    **The painter is the seat's** (§12b): every part laid out in the piece's own
+    frame in real inches, +v its FRONT (the side a nest box's hole and a bee
+    hotel's cells face), projected through `fpProjector`; boxy parts are solids
+    put in depth order by `solPaint`. Two opt-in hooks were added to the solid
+    painter for what is ON a face: `s.face(ctx,P,i,n)` in `solDrawHex` (i is the
+    SOL_FACES index, so +v is 4) and `s.side(ctx,Pc,D)` in `solDrawCyl`, each run
+    in that solid's own depth slot -- the lantern's windows, sun and moon, the
+    hole, the hotel's six kinds of nest (`ornHotelCell`), a barrel's staves,
+    hoops, inlet and tap (drawn only when the tap faces the camera), a sundial's
+    hour lines. Seats and boulders carry neither hook and draw call for call as
+    before. What is not a solid -- a ball, an armillary's three rings (stroked
+    back halves, then the polar arrow, then the front halves, by depth along
+    `solViewDir`), a gnomon, a feeder's crook -- is drawn after the solids it
+    stands ON. **A ball is drawn halfway to round** (`ORN_BALL_ROUND`): the
+    honest projection makes it 1.3x wider than tall, because height here is
+    drawn at ~0.68 of a true view, and a ball that shape reads as a cushion. A
+    gazing ball is a mirror -- sky above a horizon that curves down at the rim,
+    the season's own grass below it, a hard sun spot. **Nothing reads the camera,
+    the clock or the tile seed**: these are made things, so two of a kind share
+    a sprite (`'D|'+structRecordSig`) and a moved piece keeps it. The chip
+    (`drawOrnamentChip`) fits `ornamentArtExtent` -- the piece's stated box plus
+    the shadow's reach, inside which `ornamentBuild` keeps every part (a test
+    walks every piece, finish, facing and season through a recorder) -- and a
+    tall piece names `chipTop` to show the top, where what it is lives.
+    **Documents**: one line per piece and finish on the planting list
+    ('Ornament'), its sub-line what you would ask a supplier for
+    (`ornamentTakeoffText`: a sphere's diameter, a barrel's 55 US gal / 210 L, a
+    compost bay's cu yd, else its height); on the plan each is drawn TO SCALE in
+    its own plan outline with one mark (`drawPlanOrnament`). **Measured**
+    (0.9.143, headless Chrome, software raster): `measureStructBoxes` 0 escaping,
+    `measureFootprintCentres` within 3.8px (the worst case is an existing boulder),
+    `verifyStructureSprites({rot:true})` 0.157-0.198% of pixels with nothing
+    clipped over all 30 piece-and-finish combinations; a procedural draw (one per
+    bake) 0.10-0.62ms, the insect hotel dearest, against seats' and boulders'
+    0.08-0.5; and `drawProfile` put 30 on screen at **0.22ms a frame together,
+    7.3us each**. `furnishGarden` now scatters 8 one-tile ornaments after
+    everything else it lays, so perfBench gardens include them and the earlier
+    pieces land where they always did. `dev/ornament-review.html` shows every
+    piece at four rotations on its own tiles beside its chip (`?only=`, `?rots=`,
+    `?fin=1`, `?season=`, `?face=`, `?sheet=1` for every finish, `?bench=1`).
 13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
     fallback when IndexedDB is unavailable. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh,stamp,sum}]`
@@ -6054,8 +6134,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and reflecting basin, each in the finishes that piece is really made in,
     behind their own drill-in beside the fire pit.
     Fire pits, boulders and water features erase as Landscape, move/rotate/copy
-    in selections, and eyedrop with Pick. The **Decor** tab holds **containers** (§12b) and **garden pets**
-    (§12a), and Hardscape adds **seating** — bench 4/6 ft, Adirondack chair,
+    in selections, and eyedrop with Pick. The **Decor** tab holds **containers** (§12b), **garden
+    ornaments** (§12j) and **garden pets** (§12a), and Hardscape adds **seating** — bench 4/6 ft, Adirondack chair,
     dining chair, stool, bistro table, dining table, picnic table and sun
     lounger, each in the finishes it is really made in (`SEAT_TYPES` /
     `SEAT_FINISHES`, §12b), each claiming its real footprint.

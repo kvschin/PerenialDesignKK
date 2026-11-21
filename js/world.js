@@ -258,6 +258,7 @@ const game = {
   pets:{},            // "x,y" -> {species,coat,mark,t} or {removed:true,t} — ornament only, never on the plan
   pots:{},            // "x,y" origin -> {style,size,t} or {removed:true,t} — the one thing that makes paving plantable
   seats:{},           // "x,y" origin -> {type,finish,t} or {removed:true,t}
+  ornaments:{},       // "x,y" origin -> {kind,finish,face,t} or {removed:true,t}: spheres, feeders, rain barrels
   startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false, skipClockHeld:false,
   actX:15, actY:15,                                  // tile the last tap / keyboard action addresses
   house:null,                                        // legacy single-house field; migrated into game.houses on load
@@ -316,6 +317,7 @@ const game = {
   petDraft:{species:'cat',coat:'marmalade',mark:'solid'}, // settings for the next garden pet
   potDraft:{style:'terracotta',size:'p18'},          // settings for the next container
   seatDraft:{type:'bench4',finish:'teak'},           // settings for the next seat
+  ornamentDraft:{kind:'sphere',finish:'granite',face:0}, // settings for the next garden ornament
   wallDraft:'drystone',                              // material the wall brush paints onto a terrace face
   terraceDraft:{h:3,w:'drystone'},                   // the height and facing the next terrace is built at
   edgingDraft:'steel',                               // material the edging brush paints onto a bed or path edge
@@ -362,6 +364,7 @@ const GAME_LAYERS=[
   {k:'pets'},
   {k:'pots'},
   {k:'seats'},
+  {k:'ornaments'},
   {k:'houses', array:true},
   {k:'buildings', array:true},
 ];
@@ -513,6 +516,7 @@ const LAYER_CACHES={
      an unrelated edit paying for a cache it cannot have invalidated. */
   pots:      {scene:1, pots:1},   // the vessel is one sprite; its plant is an ordinary plant on the same tile
   seats:     {scene:1},
+  ornaments: {scene:1},   // one sprite in the depth pass, like a seat
   /* Both structure layers carry `trace`, not merely `ground`, because a wall is
      now part of the organic edge classification: isLawnTile refuses a house or
      building tile, so terrainUnitEdges asks about them and the region cache has
@@ -840,6 +844,7 @@ function canPlaceShrubAt(x,y,np,opts){
   if (structureSupportAt(x,y)) return {ok:false, reason:'support'};
   if (boulderAt(x,y)) return {ok:false, reason:'boulder'};
   if (seatAt(x,y)) return {ok:false, reason:'seat'};
+  if (ornamentAt(x,y)) return {ok:false, reason:'ornament'};
   const terr=tileTerrain(x,y);
   if ((terr==='path'||terr==='water') && !potAt(x,y)) return {ok:false, reason:terr};
   const k=`${x},${y}`, p=game.plants[k];

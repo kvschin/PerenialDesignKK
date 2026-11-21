@@ -14025,8 +14025,8 @@ function solMeasure(P,s,D){
     const c=s.c; s.verts=c;
     s.ctr=[0,0,0]; for (const p of c) for (let i=0;i<3;i++) s.ctr[i]+=p[i]/8;
     s.planes=[]; s.faces=[]; let big=0;
-    for (const f of SOL_FACES){
-      const a=c[f[0]], b=c[f[1]], e=c[f[2]], g=c[f[3]];
+    for (let fi=0;fi<SOL_FACES.length;fi++){
+      const f=SOL_FACES[fi], a=c[f[0]], b=c[f[1]], e=c[f[2]], g=c[f[3]];
       const d1=[e[0]-a[0],e[1]-a[1],e[2]-a[2]], d2=[g[0]-b[0],g[1]-b[1],g[2]-b[2]];
       let n=[d1[1]*d2[2]-d1[2]*d2[1],d1[2]*d2[0]-d1[0]*d2[2],d1[0]*d2[1]-d1[1]*d2[0]];
       const m=Math.hypot(n[0],n[1],n[2]); if (m<1e-9) continue;
@@ -14034,7 +14034,7 @@ function solMeasure(P,s,D){
       const fc=[(a[0]+b[0]+e[0]+g[0])/4-s.ctr[0],(a[1]+b[1]+e[1]+g[1])/4-s.ctr[1],(a[2]+b[2]+e[2]+g[2])/4-s.ctr[2]];
       if (dot(n,fc)<0) n=n.map(x=>-x);
       s.planes.push({n,d:dot(n,a)});
-      s.faces.push({f,n,area:m/2}); if (m/2>big) big=m/2;
+      s.faces.push({f,n,area:m/2,i:fi}); if (m/2>big) big=m/2;
     }
     s.big=big;
   }
@@ -14166,7 +14166,7 @@ function solPaint(ctx,P,ax,ay,list,snow){
   for (const s of list) solMeasure(P,s,D);
   for (const s of solOrder(list,D,solGroundOf(P))){
     if (s.cyl) solDrawCyl(ctx,P,ax,ay,D,s,snow);
-    else solDrawHex(ctx,ax,ay,D,s,snow);
+    else solDrawHex(ctx,ax,ay,D,s,snow,P);
   }
 }
 /* The ground point under a screen point: P inverted at z=0. Any point on the
@@ -14177,7 +14177,11 @@ function solGroundOf(P){
   return (x,y)=>{ const dx=x-O[0], dy=y-O[1]; return [(d*dx-b*dy)/det,(a*dy-c*dx)/det,0]; };
 }
 const SOL_SNOW='rgba(242,245,249,0.84)';
-function solDrawHex(ctx,ax,ay,D,s,snow){
+/* `s.face(ctx,P,i,n)`, where a solid has one, paints what is ON face i (its
+   SOL_FACES index) in that face's own depth slot, after its fill: a nest box's
+   entrance hole, the cells of an insect hotel. It draws through P in the
+   solid's own frame, so it turns with the piece. Seats and rocks carry none. */
+function solDrawHex(ctx,ax,ay,D,s,snow,P){
   for (const fc of s.faces){
     const n=fc.n;
     if (n[0]*D[0]+n[1]*D[1]+n[2]*D[2]<=1e-4) continue;          // faces away
@@ -14186,6 +14190,7 @@ function solDrawHex(ctx,ax,ay,D,s,snow){
     fpPoly(ctx,q); ctx.fill();
     if (s.grain && fc.area>=s.big*0.55) solGrain(ctx,q,s);
     if (s.speck && n[2]>0.5) solSpeck(ctx,q,s);
+    if (s.face && P) s.face(ctx,P,fc.i,n);
     if (snow && n[2]>0.55){ ctx.fillStyle=SOL_SNOW; fpPoly(ctx,q); ctx.fill(); }
   }
 }
@@ -14214,6 +14219,8 @@ function solDrawCyl(ctx,P,ax,ay,D,s,snow){
     ctx.stroke(); ctx.restore();
   }
   if (s.speck) solSpeck(ctx,[Pc(-s.r*0.6,-s.r*0.6,s.z1),Pc(s.r*0.6,-s.r*0.6,s.z1),Pc(s.r*0.6,s.r*0.6,s.z1),Pc(-s.r*0.6,s.r*0.6,s.z1)],s);
+  // what is ON the drum (a barrel's hoops), in its depth slot: solDrawHex's face hook
+  if (s.side) s.side(ctx,Pc,D);
   if (snow){ ctx.fillStyle=SOL_SNOW; fpPoly(ctx,top); ctx.fill(); }
 }
 /* Grain: two fine lines down a board's length, placed from the board's own
@@ -15894,4 +15901,513 @@ function drawFirepitGlow(ctx,W,H,f,x,y){
   ctx.fillStyle=gr; ctx.fillRect(cx-r,cy-r*0.45,r*2,r*0.95);
   fpFlames(ctx,P,lay,true,FP_FLAME.glow);
   ctx.restore();
+}
+
+/* ---------- garden ornaments ----------
+   Spheres, an armillary, a sundial, a gazing ball, a stone lantern, a feeder
+   pole, a nest box, an insect hotel, a rain barrel and a compost bay. Built
+   the seat's way (§12b): every part is laid out in the piece's OWN frame --
+   u across, v front to back with +v its FRONT (the side a nest box's hole and
+   a bee hotel's cells face), z up, all in real inches -- and projected through
+   fpProjector, so a piece turns with the view and stands at the scale a fence
+   and a pot do. Boxy parts are SOLIDS, put in depth order by solPaint; what is
+   ON a face (a hole, a window, a hotel's cells, a barrel's hoops) is painted by
+   that solid's face hook, in its own depth slot. What is not a solid -- a ball,
+   an armillary's rings, a sundial's gnomon, a feeder pole's crook -- is drawn
+   after the solids it stands on, which works because each sits ON TOP of them.
+
+   Nothing here reads the camera or the clock: drawOrnament asks groundCenterRot
+   where its tiles are and hands everything else to drawOrnamentArt, so the
+   garden, the tray chip and the plan sheet paint one piece. Nothing is seeded
+   off the tile either: these are made things, so two of a kind are the same
+   and a moved piece keeps its sprite. */
+function drawOrnament(ctx,W,H,season,o,x,y){
+  if (!o) return;
+  const d=normalizeOrnamentDraft(o);
+  const [cx,cy]=groundCenterRot(x,y,ornamentTileSize(d),W,H);
+  drawOrnamentArt(ctx,cx,cy,d,season,isoAxes());
+}
+/* Screen px per inch: `sx` across a level circle, `gy` up the screen for the
+   same circle lying on the ground. A ball's honest outline is sx wide and
+   sqrt(gy^2+FP_Z^2) tall, which here is 1.3x wider than tall (height is drawn
+   at about 0.68 of a true view: the world's scale). Drawn that shape a ball
+   reads as a cushion, so it is drawn halfway to round; the extent below allows
+   for it, and the rest of the piece keeps the honest scale. */
+const ORN_BALL_ROUND=0.5, ORN_BALL_SINK=0.08;
+function ornScales(ax,ay){
+  const sx=Math.hypot(ax[0],ay[0])/TILE_IN, gy=Math.hypot(ax[1],ay[1])/TILE_IN;
+  return {sx, gy, sy:Math.sqrt(gy*gy+FP_Z*FP_Z)};
+}
+// a ball of radius r resting at (u,v,z0): its centre, semi-axes and ground ring
+function ornBallGeom(P,ax,ay,u,v,z0,r){
+  const k=ornScales(ax,ay), g=P(u,v,z0);
+  const rx=r*k.sx, ry=r*(k.sy+(k.sx-k.sy)*ORN_BALL_ROUND);
+  return {x:g[0], y:g[1]-ry*(1-ORN_BALL_SINK), rx, ry, gx:g[0], gy:g[1], grx:r*k.sx, gry:r*k.gy};
+}
+// a soft round shadow on the ground, laid three times like solShadow's
+function ornShadowRound(ctx,P,u,v,r){
+  for (const [e,a] of [[SOL_SHADOW_REACH,0.05],[0.6,0.07],[-2.4,0.08]]){
+    if (r+e<=0.5) continue;
+    ctx.fillStyle=`rgba(0,0,0,${a})`;
+    fpPoly(ctx,fpArc((uu,vv,z)=>P(uu+u,vv+v,z),r+e,0,Math.PI*2,0)); ctx.fill();
+  }
+}
+const ORN_STONE='#aaa498';             // a cast-stone pedestal, under whatever stands on it
+const ORN_POST='#7a624a';              // a timber post or stand
+const ORN_POLE='#28282a';              // powder-coated steel
+function ornStone(seed){ return {speck:8, seed:(seed>>>0)||1}; }
+function ornWood(col,k){ return {grain:shade(col,-24), gt:[0.24+((k*0.13)%0.18),0.62+((k*0.07)%0.2)]}; }
+/* A ball: stone, steel or a mirror. Stone and steel are shaded under the app's
+   upper-left light; a mirror shows what is round it -- the sky above its
+   horizon and the garden below, in the season's own grass. */
+function ornPaintBall(ctx,b,fin,seed,snow,season){
+  const {x,y,rx,ry}=b, col=fin.body;
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);
+  if (fin.mat==='glass'){
+    ctx.save(); ctx.clip();
+    const silver=fin.id==='silver';
+    const top=silver?'#eef4f7':mixCol(col,'#ffffff',0.55), low=silver?'#a9bccb':mixCol(col,'#ffffff',0.12);
+    const grass=(AMBIENCE[season]||AMBIENCE.Summer).grass[0];
+    const ground=snow?'#c9d2da':mixCol(silver?'#43503f':shade(col,-30),grass,silver?0.45:0.25);
+    let g=ctx.createLinearGradient(x,y-ry,x,y+ry*0.3);
+    g.addColorStop(0,top); g.addColorStop(1,low);
+    ctx.fillStyle=g; ctx.fillRect(x-rx,y-ry,rx*2,ry*2);
+    // the garden reflected below a horizon that curves down at the rim
+    g=ctx.createLinearGradient(x,y,x,y+ry);
+    g.addColorStop(0,ground); g.addColorStop(1,shade(ground,-34));
+    ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(x,y+ry*0.78,rx*1.3,ry*0.84,0,0,Math.PI*2); ctx.fill();
+    // a darker rim, where a mirror shows the ball's own edge
+    ctx.strokeStyle='rgba(0,0,0,0.30)'; ctx.lineWidth=Math.max(1,rx*0.16);
+    ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.92)';
+    ctx.beginPath(); ctx.ellipse(x-rx*0.36,y-ry*0.44,rx*0.17,ry*0.12,-0.5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.ellipse(x+rx*0.28,y-ry*0.18,rx*0.10,ry*0.24,0.25,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  } else {
+    const g=ctx.createRadialGradient(x-rx*0.38,y-ry*0.42,Math.min(rx,ry)*0.06,x-rx*0.12,y-ry*0.12,Math.max(rx,ry)*1.16);
+    const metal=fin.mat==='metal';
+    g.addColorStop(0,shade(col,metal?34:40)); g.addColorStop(0.36,shade(col,metal?6:10));
+    g.addColorStop(0.8,shade(col,-26)); g.addColorStop(1,shade(col,-42));
+    ctx.fillStyle=g; ctx.fill();
+    ctx.save(); ctx.clip();
+    const rs=mulberry((seed>>>0)||1);
+    if (fin.mat==='stone'){
+      // aggregate: flecks spread by area, so a big sphere is not a speckled small one
+      const n=Math.max(10,Math.min(90,Math.round(rx*ry*0.05)));
+      for (let i=0;i<n;i++){
+        const a=rs()*Math.PI*2, d=Math.sqrt(rs())*0.94, px=x+Math.cos(a)*rx*d, py=y+Math.sin(a)*ry*d;
+        ctx.fillStyle=i%3?'rgba(48,44,38,0.22)':'rgba(255,252,242,0.26)';
+        ctx.fillRect(px-0.35,py-0.35,0.7,0.7);
+      }
+    } else if (metal){
+      // weathering steel: a patina in patches, darker where rain runs off
+      for (let i=0;i<9;i++){
+        const a=rs()*Math.PI*2, d=Math.sqrt(rs())*0.75;
+        ctx.fillStyle=i%2?'rgba(70,30,14,0.09)':'rgba(205,125,72,0.09)';
+        ctx.beginPath(); ctx.ellipse(x+Math.cos(a)*rx*d,y+Math.sin(a)*ry*d,rx*(0.22+rs()*0.2),ry*(0.18+rs()*0.16),rs()*3,0,Math.PI*2); ctx.fill();
+      }
+      // and a fine bloom of rust over the whole of it
+      for (let i=0;i<Math.min(60,Math.round(rx*ry*0.03));i++){
+        const a=rs()*Math.PI*2, d=Math.sqrt(rs())*0.94;
+        ctx.fillStyle=i%2?'rgba(60,24,10,0.18)':'rgba(214,140,84,0.16)';
+        ctx.fillRect(x+Math.cos(a)*rx*d-0.35,y+Math.sin(a)*ry*d-0.35,0.7,0.7);
+      }
+    }
+    // the light the ground throws back up into the lower rim
+    ctx.strokeStyle='rgba(255,250,235,0.10)'; ctx.lineWidth=Math.max(1,rx*0.08);
+    ctx.beginPath(); ctx.ellipse(x,y+ry*0.06,rx*0.95,ry*0.92,0,0.35,Math.PI-0.35); ctx.stroke();
+    if (snow){
+      ctx.fillStyle=SOL_SNOW;
+      ctx.beginPath(); ctx.ellipse(x-rx*0.04,y-ry*0.86,rx*0.66,ry*0.36,0,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+/* A circle in 3D: centre c, radius r, in the plane of unit vectors e1 and e2,
+   sampled as n points with their depth toward the camera. */
+function ornRing(c,r,e1,e2,n){
+  const out=[];
+  for (let i=0;i<=n;i++){ const t=i/n*Math.PI*2, cs=Math.cos(t), sn=Math.sin(t);
+    out.push([c[0]+r*(cs*e1[0]+sn*e2[0]), c[1]+r*(cs*e1[1]+sn*e2[1]), c[2]+r*(cs*e1[2]+sn*e2[2])]); }
+  return out;
+}
+// stroke the stretches of a ring on one side of its centre: back first, front last
+function ornStrokeRing(ctx,P,D,c,pts,front,col,w){
+  ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath();
+  let on=false;
+  for (let i=0;i<pts.length;i++){
+    const p=pts[i], dep=(p[0]-c[0])*D[0]+(p[1]-c[1])*D[1]+(p[2]-c[2])*D[2];
+    const near=dep>=0;
+    if (near===front){ const s=P(p[0],p[1],p[2]); if (on) ctx.lineTo(s[0],s[1]); else { ctx.moveTo(s[0],s[1]); on=true; } }
+    else on=false;
+  }
+  ctx.stroke();
+}
+function ornCross(a,b){ return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]; }
+function ornUnit(a){ const m=Math.hypot(a[0],a[1],a[2])||1; return [a[0]/m,a[1]/m,a[2]/m]; }
+// a filled circle on a vertical face: in the u-z plane at v (axis 'v') or the v-z plane at u (axis 'u')
+function ornFaceDisc(ctx,P,axis,at,s,z,r,col){
+  const pts=[];
+  for (let i=0;i<12;i++){ const a=i/12*Math.PI*2, cs=Math.cos(a)*r, sn=Math.sin(a)*r;
+    pts.push(axis==='v'?P(s+cs,at,z+sn):P(at,s+cs,z+sn)); }
+  ctx.fillStyle=col; fpPoly(ctx,pts); ctx.fill();
+}
+function ornFaceRect(ctx,P,axis,at,s0,s1,z0,z1,col){
+  const pt=(s,z)=>axis==='v'?P(s,at,z):P(at,s,z);
+  ctx.fillStyle=col; fpPoly(ctx,[pt(s0,z0),pt(s1,z0),pt(s1,z1),pt(s0,z1)]); ctx.fill();
+}
+/* The cells of an insect hotel, each a different nest: hollow stems, a drilled
+   log, pine cones, straw, a holed brick, and reeds again. What a bee hotel is
+   for is the variety, so the cells are what say "insect hotel". */
+function ornHotelCell(ctx,P,v,u0,u1,z0,z1,kind){
+  const w=u1-u0, h=z1-z0;
+  const back={tubes:'#3a2a1a', log:'#9c7a52', cones:'#4a3424', straw:'#cdb67a', brick:'#a65a3c', reeds:'#3a2a1a'}[kind];
+  ornFaceRect(ctx,P,'v',v,u0,u1,z0,z1,back);
+  const rs=mulberry((Math.round((u0+20)*7+z0*13)*2654435761)>>>0 || 1);
+  if (kind==='tubes'||kind==='reeds'){
+    const r=kind==='tubes'?0.95:0.62, step=r*2.05;
+    for (let row=0, z=z0+r*1.05; z<z1-r*0.5; row++, z+=step*0.88)
+      for (let u=u0+r*1.05+(row%2?r:0); u<u1-r*0.6; u+=step){
+        ornFaceDisc(ctx,P,'v',v,u,z,r,row%3?'#cdb37c':'#bea06a');
+        ornFaceDisc(ctx,P,'v',v,u,z,r*0.48,'#2e2216');
+      }
+  } else if (kind==='log'){
+    // end grain, then the drilled holes
+    for (const f of [0.78,0.5,0.24]) ornFaceDisc(ctx,P,'v',v,(u0+u1)/2,(z0+z1)/2,Math.min(w,h)*f*0.5,shade(back,f>0.6?-10:f>0.3?6:-6));
+    for (let i=0;i<9;i++) ornFaceDisc(ctx,P,'v',v,u0+w*(0.15+rs()*0.7),z0+h*(0.18+rs()*0.64),0.34,'#241a10');
+  } else if (kind==='cones'){
+    for (let i=0;i<5;i++){
+      const u=u0+w*(0.18+((i*0.37)%1)*0.64), z=z0+h*(0.25+((i*0.53)%1)*0.5);
+      ornFaceDisc(ctx,P,'v',v,u,z,Math.min(w,h)*0.2,'#6e4a2e');
+      ornFaceDisc(ctx,P,'v',v,u-0.3,z+0.4,Math.min(w,h)*0.1,'#93693f');
+    }
+  } else if (kind==='straw'){
+    for (let i=0;i<26;i++) ornFaceDisc(ctx,P,'v',v,u0+w*(0.06+rs()*0.88),z0+h*(0.08+rs()*0.84),0.2,i%3?'#5a4a24':'#8a7638');
+  } else if (kind==='brick'){
+    for (let i=0;i<3;i++) for (let j=0;j<2;j++) ornFaceDisc(ctx,P,'v',v,u0+w*(0.22+i*0.28),z0+h*(0.32+j*0.36),0.42,'#2a1a12');
+  }
+}
+const ORN_HOTEL_CELLS=[['log','cones'],['tubes','brick'],['straw','reeds']];
+/* The solids of one piece, plus what is drawn after them (`after`) and the
+   shadow it casts (`rect` for a box, `round` for a ring). Every number is
+   inches in its own frame; nothing reaches outside [-w/2,w/2] x [-d/2,d/2] x
+   [0,h], which is what ornamentArtExtent and the sprite box both rely on. */
+function ornamentBuild(o){
+  const d=normalizeOrnamentDraft(o), spec=ornamentKind(d.kind), fin=ornamentFinish(d.finish);
+  const L=[], col=fin.body;
+  let rect=null, round=null, after=null;
+  switch(spec.form){
+    case 'sphere':{
+      const r=spec.wIn/2;
+      round={u:0,v:0,r:r*0.86};
+      after=(ctx,P,ax,ay,D,snow,season)=>ornPaintBall(ctx,ornBallGeom(P,ax,ay,0,0,0,r),fin,0x5f3a+spec.wIn,snow,season);
+      break;
+    }
+    case 'gazing':{
+      // a fluted cast-stone stand with a cup, and the ball sitting in it
+      L.push(solCyl(0,0,4.8,0,1.8,ORN_STONE,ornStone(0x6a1)));
+      L.push(solCyl(0,0,2.5,1.8,17.6,ORN_STONE,ornStone(0x6a2)));
+      L.push(solCyl(0,0,3.3,8.6,10.2,ORN_STONE,ornStone(0x6a3)));
+      L.push(solCyl(0,0,3.7,17.6,20.6,ORN_STONE,ornStone(0x6a4)));
+      round={u:0,v:0,r:4.4};
+      after=(ctx,P,ax,ay,D,snow,season)=>ornPaintBall(ctx,ornBallGeom(P,ax,ay,0,0,20.3,5.6),fin,0x6a5,snow,season);
+      break;
+    }
+    case 'armillary':{
+      L.push(solBox(-6,6,-6,6,0,3,ORN_STONE,ornStone(0xa71)));
+      L.push(solCyl(0,0,3.3,3,26.5,ORN_STONE,ornStone(0xa72)));
+      L.push(solBox(-4.6,4.6,-4.6,4.6,26.5,29.6,ORN_STONE,ornStone(0xa73)));
+      L.push(solCyl(0,0,1.1,29.6,31.3,col,{gloss:10}));
+      rect=[-6,6,-6,6];
+      after=(ctx,P,ax,ay,D)=>{
+        const R=8.2, c=[0,0,31.3+R], lat=40*Math.PI/180;
+        const A=[0,Math.cos(lat),Math.sin(lat)], E=[1,0,0];
+        const tilt=23.4*Math.PI/180;
+        // the ecliptic's pole: the polar axis tipped 23.4 degrees about E
+        const Nec=ornUnit([0,Math.cos(lat+tilt),Math.sin(lat+tilt)]);
+        const rings=[
+          {pts:ornRing(c,R,[0,1,0],[0,0,1],56), w:2.8},                       // meridian
+          {pts:ornRing(c,R*0.96,E,ornUnit(ornCross(A,E)),56), w:2.1},          // equator
+          {pts:ornRing(c,R*0.93,E,ornUnit(ornCross(Nec,E)),56), w:3.4, band:true}, // ecliptic band
+        ];
+        const dark=shade(col,-34), lite=shade(col,26);
+        ctx.lineCap='round';
+        for (const g of rings) ornStrokeRing(ctx,P,D,c,g.pts,false,dark,g.w);
+        // the arrow on the polar axis: the gnomon of an armillary sundial
+        const a0=[c[0]-A[0]*R*1.2,c[1]-A[1]*R*1.2,c[2]-A[2]*R*1.2], a1=[c[0]+A[0]*R*1.22,c[1]+A[1]*R*1.22,c[2]+A[2]*R*1.22];
+        const s0=P(a0[0],a0[1],a0[2]), s1=P(a1[0],a1[1],a1[2]);
+        ctx.strokeStyle=shade(col,-46); ctx.lineWidth=1.3;
+        ctx.beginPath(); ctx.moveTo(s0[0],s0[1]); ctx.lineTo(s1[0],s1[1]); ctx.stroke();
+        const hd=[c[0]+A[0]*R*0.98,c[1]+A[1]*R*0.98,c[2]+A[2]*R*0.98], sh=P(hd[0],hd[1],hd[2]);
+        const dx=s1[0]-sh[0], dy=s1[1]-sh[1], m=Math.hypot(dx,dy)||1, nx=-dy/m*2.2, ny=dx/m*2.2;
+        ctx.fillStyle=shade(col,-40);
+        ctx.beginPath(); ctx.moveTo(s1[0],s1[1]); ctx.lineTo(sh[0]+nx,sh[1]+ny); ctx.lineTo(sh[0]-nx,sh[1]-ny); ctx.closePath(); ctx.fill();
+        for (const g of rings){
+          ornStrokeRing(ctx,P,D,c,g.pts,true,col,g.w);
+          ornStrokeRing(ctx,P,D,c,g.pts,true,g.band?shade(col,-14):lite,g.band?0.7:0.6);
+        }
+      };
+      break;
+    }
+    case 'sundial':{
+      const st=ornStone(0x5d1);
+      L.push(solBox(-7,7,-7,7,0,3,col,ornStone(0x5d2)));
+      L.push(solCyl(0,0,5.2,3,6,col,ornStone(0x5d3)));
+      L.push(solCyl(0,0,3.9,6,24.6,col,st));
+      L.push(solCyl(0,0,5,24.6,27,col,ornStone(0x5d5)));
+      L.push(solBox(-6.3,6.3,-6.3,6.3,27,30.4,col,ornStone(0x5d4)));
+      const bronze='#7a6234';
+      L.push(solCyl(0,0,5.6,30.4,30.9,bronze,{gloss:12, side:(ctx,Pc)=>{
+        // the hour lines on the dial's face, and its chapter ring
+        ctx.strokeStyle='rgba(40,28,10,0.55)'; ctx.lineWidth=0.6; ctx.beginPath();
+        for (let h=0;h<13;h++){ const a=Math.PI*(0.05+0.9*h/12);
+          const p0=Pc(Math.cos(a)*1.0,-Math.sin(a)*1.0,30.9), p1=Pc(Math.cos(a)*4.6,-Math.sin(a)*4.6,30.9);
+          ctx.moveTo(p0[0],p0[1]); ctx.lineTo(p1[0],p1[1]); }
+        ctx.stroke();
+        ctx.beginPath(); const ring=fpArc(Pc,5.0,0,Math.PI*2,30.9); ctx.moveTo(ring[0][0],ring[0][1]);
+        for (const p of ring) ctx.lineTo(p[0],p[1]); ctx.stroke();
+      }}));
+      rect=[-7,7,-7,7];
+      after=(ctx,P,ax,ay,D)=>{
+        // the gnomon: a bronze blade standing on the noon line, high end to the north (+v)
+        const z=30.9, tri=[P(0,-3.6,z),P(0,3.4,z),P(0,3.4,z+3.6)];
+        const lit=fpLight(ax,ay,D[0]>=0?1:-1,0);
+        ctx.fillStyle=shade(bronze,Math.round(-14+18*lit)); fpPoly(ctx,tri); ctx.fill();
+        ctx.strokeStyle=shade(bronze,30); ctx.lineWidth=0.6;
+        ctx.beginPath(); ctx.moveTo(tri[0][0],tri[0][1]); ctx.lineTo(tri[2][0],tri[2][1]); ctx.stroke();
+      };
+      break;
+    }
+    case 'lantern':{
+      // a kasuga lantern: base, shaft with its knot, platform, firebox, roof, jewel
+      let k=0; const sv=()=>ornStone(0x1a0+(k++));
+      L.push(solCyl(0,0,8.6,0,3.6,col,sv()));
+      L.push(solCyl(0,0,6.6,3.6,5.6,col,sv()));
+      L.push(solCyl(0,0,3.0,5.6,24,col,sv()));
+      L.push(solCyl(0,0,3.7,13.8,15.4,col,sv()));
+      L.push(solCyl(0,0,7.4,24,27.4,col,sv()));
+      const dark='#2a2724';
+      L.push(solBox(-5.4,5.4,-5.4,5.4,27.4,39.6,col,Object.assign(sv(),{face:(ctx,P,i)=>{
+        // a window each way, and the sun and the moon cut through the sides
+        if (i===4) ornFaceRect(ctx,P,'v',5.42,-3.3,3.3,29.6,36.6,dark);
+        else if (i===2) ornFaceRect(ctx,P,'v',-5.42,-3.3,3.3,29.6,36.6,dark);
+        else if (i===3) ornFaceDisc(ctx,P,'u',5.42,0,33.2,2.3,dark);
+        else if (i===5){ const pts=[];
+          for (let j=0;j<=10;j++){ const a=Math.PI*0.5+Math.PI*j/10; pts.push(P(-5.42,Math.cos(a)*2.3,33.2+Math.sin(a)*2.3)); }
+          for (let j=10;j>=0;j--){ const a=Math.PI*0.5+Math.PI*j/10; pts.push(P(-5.42,Math.cos(a)*0.9,33.2+Math.sin(a)*2.3)); }
+          ctx.fillStyle=dark; fpPoly(ctx,pts); ctx.fill(); }
+      }})));
+      L.push(solBox(-10.2,10.2,-10.2,10.2,39.6,40.6,col,sv()));
+      L.push(solHex([[-9.8,-9.8,40.6],[9.8,-9.8,40.6],[9.8,9.8,40.6],[-9.8,9.8,40.6],
+                     [-2.4,-2.4,46],[2.4,-2.4,46],[2.4,2.4,46],[-2.4,2.4,46]],col,sv()));
+      L.push(solCyl(0,0,1.8,46,47.4,col,sv()));
+      rect=[-8.6,8.6,-8.6,8.6];
+      after=(ctx,P,ax,ay,D,snow,season)=>{
+        // the eave's corners curl up (warabite), wherever they are not behind the roof
+        ctx.strokeStyle=shade(col,-18); ctx.lineWidth=1.4; ctx.lineCap='round';
+        for (const [su,sv2] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
+          if (su*D[0]+sv2*D[1] < -0.2) continue;
+          const a=P(su*9,sv2*9,40.6), b=P(su*10.4,sv2*10.4,41.4), c2=P(su*10.6,sv2*10.6,42.9);
+          ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.quadraticCurveTo(b[0],b[1],c2[0],c2[1]); ctx.stroke();
+        }
+        const fin2={id:'stone',mat:'stone',body:col};
+        const b=ornBallGeom(P,ax,ay,0,0,47,2.3);
+        ornPaintBall(ctx,b,fin2,0x1af,snow,season);
+        // the jewel's point
+        ctx.fillStyle=shade(col,8);
+        ctx.beginPath(); ctx.moveTo(b.x-b.rx*0.34,b.y-b.ry*0.78); ctx.lineTo(b.x,b.y-b.ry*1.45); ctx.lineTo(b.x+b.rx*0.34,b.y-b.ry*0.78); ctx.closePath(); ctx.fill();
+      };
+      break;
+    }
+    case 'feeder':{
+      // a shepherd's crook pole and a hanging seed tube, caps in the finish
+      const pu=-5.2, fu=5.2, tube='#c4a067';
+      L.push(solCyl(pu,0,0.55,0,82,ORN_POLE,{gloss:6}));
+      L.push(solCyl(fu,0,2.5,74.8,76.2,col,{gloss:fin.mat==='metal'?14:6}));
+      L.push(solCyl(fu,0,0.75,76.2,77,col,{gloss:8}));
+      L.push(solCyl(fu,0,1.65,62.2,74.8,tube,{side:(ctx,Pc,D)=>{
+        // the seed showing through a clear tube, and the tube's own shine
+        const f=Math.atan2(D[1],D[0]), rs=mulberry(0xfeed);
+        for (let i=0;i<22;i++){ const a=f+(rs()-0.5)*2.6, z=62.6+rs()*11.6, p=Pc(Math.cos(a)*1.66,Math.sin(a)*1.66,z);
+          ctx.fillStyle=i%3?'rgba(52,40,30,0.55)':'rgba(240,226,190,0.6)'; ctx.fillRect(p[0]-0.6,p[1]-0.4,1.2,0.8); }
+        const a=f+0.85, p0=Pc(Math.cos(a)*1.66,Math.sin(a)*1.66,63.2), p1=Pc(Math.cos(a)*1.66,Math.sin(a)*1.66,74.2);
+        ctx.strokeStyle='rgba(255,255,255,0.55)'; ctx.lineWidth=0.8;
+        ctx.beginPath(); ctx.moveTo(p0[0],p0[1]); ctx.lineTo(p1[0],p1[1]); ctx.stroke();
+      }}));
+      L.push(solCyl(fu,0,2.9,61.2,62.2,col,{gloss:6}));
+      // perches each side of the tube, in halves so neither passes through it
+      const perch='#9a9a9a';
+      L.push(solBeam([fu-3.4,0,64.4],[fu-1.6,0,64.4],0.4,0.4,[0,0,1],perch));
+      L.push(solBeam([fu+1.6,0,64.4],[fu+3.4,0,64.4],0.4,0.4,[0,0,1],perch));
+      L.push(solBeam([fu,-3.4,70.2],[fu,-1.6,70.2],0.4,0.4,[0,0,1],perch));
+      L.push(solBeam([fu,1.6,70.2],[fu,3.4,70.2],0.4,0.4,[0,0,1],perch));
+      round={u:pu,v:0,r:1.8};
+      after=(ctx,P)=>{
+        // the crook: up over the top and down to the hook the feeder hangs from
+        const pts=[P(pu,0,81.6)];
+        for (let i=0;i<=14;i++){ const t=Math.PI-Math.PI*i/14; pts.push(P(Math.cos(t)*5.2,0,82+Math.sin(t)*5.2)); }
+        pts.push(P(fu,0,80.2)); pts.push(P(fu-0.6,0,79.4)); pts.push(P(fu-1.1,0,80));
+        ctx.lineCap='round'; ctx.lineJoin='round';
+        ctx.strokeStyle=ORN_POLE; ctx.lineWidth=1.6;
+        ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for (const p of pts) ctx.lineTo(p[0],p[1]); ctx.stroke();
+        const w0=P(fu,0,79.6), w1=P(fu,0,77);
+        ctx.strokeStyle='#5a5a5a'; ctx.lineWidth=0.6;
+        ctx.beginPath(); ctx.moveTo(w0[0],w0[1]); ctx.lineTo(w1[0],w1[1]); ctx.stroke();
+      };
+      break;
+    }
+    case 'nestbox':{
+      // a box on a 4x4 post, its roof falling to the front over the entrance hole
+      const wood=fin.mat==='wood', roofCol=fin.id==='sage'?'#5f5d57':shade(col,-22), post=fin.id==='weathered'?shade(col,-12):ORN_POST;
+      L.push(solBox(-1.75,1.75,-1.75,1.75,0,55.2,post,ornWood(post,1)));
+      const zt=v=>66-(v+4)*(1.5/8);
+      L.push(solHex([[-3.75,-4,55.2],[3.75,-4,55.2],[3.75,4,55.2],[-3.75,4,55.2],
+                     [-3.75,-4,zt(-4)],[3.75,-4,zt(-4)],[3.75,4,zt(4)],[-3.75,4,zt(4)]],col,
+        Object.assign(wood?ornWood(col,2):{},{face:(ctx,P,i)=>{
+          if (i!==4) return;
+          ornFaceDisc(ctx,P,'v',4.02,0,61.2,0.95,'rgba(0,0,0,0.25)');
+          ornFaceDisc(ctx,P,'v',4.03,0,61.2,0.72,'#1c1611');
+        }})));
+      const zr=v=>zt(v)+0.02;
+      L.push(solHex([[-4.7,-4.9,zr(-4.9)],[4.7,-4.9,zr(-4.9)],[4.7,5.9,zr(5.9)],[-4.7,5.9,zr(5.9)],
+                     [-4.7,-4.9,zr(-4.9)+0.9],[4.7,-4.9,zr(-4.9)+0.9],[4.7,5.9,zr(5.9)+0.9],[-4.7,5.9,zr(5.9)+0.9]],roofCol,
+        wood&&fin.id!=='sage'?ornWood(roofCol,3):{}));
+      rect=[-1.75,1.75,-1.75,1.75];
+      break;
+    }
+    case 'hotel':{
+      // a timber frame on its own legs, three shelves of nests, a gable roof
+      const wood=ornWood(col,4), dk=shade(col,-30);
+      L.push(solBox(-12,-10.5,-5,5,0,42,col,ornWood(col,5)));
+      L.push(solBox(10.5,12,-5,5,0,42,col,ornWood(col,6)));
+      L.push(solBox(-10.5,10.5,-5,-4.2,14,42,dk));
+      const shelf=[14,23,32,40.6];
+      for (let i=0;i<shelf.length;i++) L.push(solBox(-10.5,10.5,-5,5,shelf[i],shelf[i]+1.4,col,ornWood(col,7+i)));
+      for (let b=0;b<3;b++){
+        const z0=shelf[b]+1.4, z1=shelf[b+1], cells=ORN_HOTEL_CELLS[b];
+        L.push(solBox(-10.5,10.5,-4.2,4.0,z0,z1,'#5a4632',{face:(ctx,P,i)=>{
+          if (i!==4) return;
+          ornHotelCell(ctx,P,4.02,-10.4,-0.5,z0+0.05,z1-0.05,cells[0]);
+          ornHotelCell(ctx,P,4.02,0.5,10.4,z0+0.05,z1-0.05,cells[1]);
+        }}));
+        L.push(solBox(-0.5,0.5,-4.2,5,z0,z1,col,wood));
+      }
+      // the gable: two roof slopes and the triangle each end
+      const ridge=49.2, eave=42.6;
+      // a prism with its top drawn down to the ridge line: the two gable ends
+      L.push(solHex([[-11.6,-5,42],[11.6,-5,42],[11.6,5,42],[-11.6,5,42],
+                     [-11.6,0,ridge-0.6],[11.6,0,ridge-0.6],[11.6,0,ridge-0.6],[-11.6,0,ridge-0.6]],col,wood));
+      for (const s of [-1,1]){
+        const ve=s*5.5;
+        L.push(solHex([[-12,0,ridge-0.8],[12,0,ridge-0.8],[12,ve,eave-0.8],[-12,ve,eave-0.8],
+                       [-12,0,ridge],[12,0,ridge],[12,ve,eave],[-12,ve,eave]],shade(col,-16),ornWood(shade(col,-16),8)));
+      }
+      rect=[-12,12,-5,5];
+      break;
+    }
+    case 'barrel':{
+      const wood=fin.mat==='wood', r=11.4, z0=13, z1=47;
+      L.push(solBox(-9.8,9.8,-9.8,9.8,0,z0,ORN_POST,ornWood(ORN_POST,9)));
+      L.push(solCyl(0,0,r,z0,z1,col,{gloss:wood?0:8, side:(ctx,Pc,D)=>{
+        const f=Math.atan2(D[1],D[0]);
+        if (wood){
+          ctx.strokeStyle='rgba(38,20,8,0.34)'; ctx.lineWidth=0.7; ctx.beginPath();
+          for (let k2=0;k2<20;k2++){ const a=k2/20*Math.PI*2; if (Math.cos(a-f)<0.1) continue;
+            const p0=Pc(Math.cos(a)*r,Math.sin(a)*r,z0+0.6), p1=Pc(Math.cos(a)*r,Math.sin(a)*r,z1-0.6);
+            ctx.moveTo(p0[0],p0[1]); ctx.lineTo(p1[0],p1[1]); }
+          ctx.stroke();
+          ctx.strokeStyle='#26231f'; ctx.lineWidth=1.5;
+          for (const z of [z0+3,z0+(z1-z0)*0.34,z0+(z1-z0)*0.66,z1-3]){
+            const arc=fpArc(Pc,r+0.06,f-Math.PI/2,f+Math.PI/2,z);
+            ctx.beginPath(); ctx.moveTo(arc[0][0],arc[0][1]); for (const p of arc) ctx.lineTo(p[0],p[1]); ctx.stroke();
+          }
+        } else {
+          // the moulded ribs of a plastic barrel
+          for (const z of [z0+4,z0+(z1-z0)*0.5,z1-4]){
+            const arc=fpArc(Pc,r+0.04,f-Math.PI/2,f+Math.PI/2,z);
+            ctx.strokeStyle=shade(col,-22); ctx.lineWidth=1.1;
+            ctx.beginPath(); ctx.moveTo(arc[0][0],arc[0][1]); for (const p of arc) ctx.lineTo(p[0],p[1]); ctx.stroke();
+            ctx.strokeStyle=shade(col,18); ctx.lineWidth=0.6;
+            ctx.beginPath(); ctx.moveTo(arc[0][0],arc[0][1]-0.9); for (const p of arc) ctx.lineTo(p[0],p[1]-0.9); ctx.stroke();
+          }
+        }
+        // the screened inlet a downspout fills, on the lid
+        ctx.fillStyle='rgba(30,30,28,0.75)'; fpPoly(ctx,fpArc(Pc,r*0.34,0,Math.PI*2,z1)); ctx.fill();
+        ctx.strokeStyle='rgba(150,150,145,0.55)'; ctx.lineWidth=0.4; ctx.beginPath();
+        for (let i=-2;i<=2;i++){ const a=Pc(i*r*0.12,-r*0.3,z1), b=Pc(i*r*0.12,r*0.3,z1); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
+        ctx.stroke();
+        // the tap, on the front, where it faces the camera
+        if (D[1]>0.12){
+          const t0=Pc(0,r,z0+4.4), t1=Pc(0,r+1.7,z0+4.4), t2=Pc(0,r+1.7,z0+3.2);
+          ctx.strokeStyle='#3c2e12'; ctx.lineWidth=2.2; ctx.lineCap='round';
+          ctx.beginPath(); ctx.moveTo(t0[0],t0[1]); ctx.lineTo(t1[0],t1[1]); ctx.lineTo(t2[0],t2[1]); ctx.stroke();
+          ctx.strokeStyle='#c09a46'; ctx.lineWidth=1.3;
+          ctx.beginPath(); ctx.moveTo(t0[0],t0[1]); ctx.lineTo(t1[0],t1[1]); ctx.lineTo(t2[0],t2[1]); ctx.stroke();
+        }
+      }}));
+      rect=[-9.8,9.8,-9.8,9.8];
+      break;
+    }
+    case 'compost':{
+      // a slatted timber bay, open at the top, three-quarters full
+      const h=36, p=3, hw=18;
+      for (const [su,sv] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
+        const u0=su<0?-hw:hw-p, v0=sv<0?-hw:hw-p;
+        L.push(solBox(u0,u0+p,v0,v0+p,0,h,shade(col,-14),ornWood(shade(col,-14),10)));
+      }
+      const boards=[[1.2,6.2],[7.8,12.8],[14.4,19.4],[21,26],[27.6,32.6]];
+      let k=0;
+      for (const [z0,z1] of boards){
+        const t=0.9, tone=shade(col,((k*37)%5)-2);
+        L.push(solBox(-hw+p,hw-p,-hw+0.6,-hw+0.6+t,z0,z1,tone,ornWood(tone,k++)));
+        L.push(solBox(-hw+p,hw-p,hw-0.6-t,hw-0.6,z0,z1,tone,ornWood(tone,k++)));
+        L.push(solBox(-hw+0.6,-hw+0.6+t,-hw+p,hw-p,z0,z1,tone,ornWood(tone,k++)));
+        L.push(solBox(hw-0.6-t,hw-0.6,-hw+p,hw-p,z0,z1,tone,ornWood(tone,k++)));
+      }
+      L.push(solBox(-hw+1.6,hw-1.6,-hw+1.6,hw-1.6,0,25.5,'#46331f',{face:(ctx,P,i)=>{
+        if (i!==1) return;
+        // the heap: clippings, leaves and straw on the top of it
+        const rs=mulberry(0xc0b);
+        for (let j=0;j<70;j++){
+          const q=P(-15+rs()*30,-15+rs()*30,25.5);
+          ctx.fillStyle=['#6f8a3a','#8a5a2a','#c2a35a','#2e2014','#7a9a46'][j%5];
+          ctx.fillRect(q[0]-0.8,q[1]-0.4,1.6,0.8);
+        }
+      }}));
+      rect=[-hw,hw,-hw,hw];
+      break;
+    }
+  }
+  return {list:L, rect, round, after, spec};
+}
+function drawOrnamentArt(ctx,cx,cy,o,season,axes){
+  if (!o) return;
+  season=season||'Summer';
+  const d=normalizeOrnamentDraft(o);
+  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,d.face);
+  const P=fpProjector(cx,cy,ax,ay), b=ornamentBuild(d);
+  const snow=!!(AMBIENCE[season]&&AMBIENCE[season].snow);
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+  if (b.rect) solShadow(ctx,P,b.rect);
+  if (b.round) ornShadowRound(ctx,P,b.round.u,b.round.v,b.round.r);
+  if (b.list.length) solPaint(ctx,P,ax,ay,b.list,snow);
+  if (b.after) b.after(ctx,P,ax,ay,solViewDir(ax,ay),snow,season);
+  ctx.restore();
+}
+/* How far a piece reaches from its ground point at scale 1 on the given axes:
+   the eight corners of its stated box, the shadow's reach and, for a ball, the
+   ball drawn halfway to round. Every part is built inside that box (see
+   ornamentBuild), so this bounds the drawing -- the chip fits itself to it and
+   the sprite box is checked against the real ink by measureStructBoxes. */
+function ornamentArtExtent(o,axes){
+  const d=normalizeOrnamentDraft(o), sp=ornamentKind(d.kind);
+  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,d.face), P=fpProjector(0,0,ax,ay);
+  const hu=sp.wIn/2+SOL_SHADOW_REACH, hv=sp.dIn/2+SOL_SHADOW_REACH;
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  const take=p=>{ if (p[0]<x0)x0=p[0]; if (p[0]>x1)x1=p[0]; if (p[1]<y0)y0=p[1]; if (p[1]>y1)y1=p[1]; };
+  for (const u of [-hu,hu]) for (const v of [-hv,hv]) for (const z of [0,sp.hIn]) take(P(u,v,z));
+  return {x0,x1,y0,y1};
 }

@@ -2423,6 +2423,7 @@ function drawStructEnt(ctx,e,W,H,season,lit){
     }
     case SCENE_K.POT:  drawPot(ctx,W,H,season,e.p,e.x,e.y); return;
     case SCENE_K.SEAT: drawSeat(ctx,W,H,season,e.s,e.x,e.y); return;
+    case SCENE_K.ORNAMENT: drawOrnament(ctx,W,H,season,e.o,e.x,e.y); return;
     case SCENE_K.BUILDING: drawBuildingTile(ctx,W,H,e.b,e.x,e.y); return;
     case SCENE_K.BUILDING_OUTLINE: drawBuildingOutline(ctx,W,H,e.b); return;
     case SCENE_K.HOUSE: drawHouse(ctx,W,H,season,e.h); return;
@@ -2479,6 +2480,15 @@ function structDrawBox(e){
          is anchored on one. */
       const sz=seatTileSize(e.s), slope=(ELEV_MAX-ELEV_MIN)*ELEV_STEP/2;
       return {w:sz.w, h:sz.h, up:feetToPx(38/12)+slope+12, pad:TILE_W*0.5, down:slope+22};
+    }
+    case SCENE_K.ORNAMENT:{
+      /* Every part is built inside the piece's stated box (ornamentBuild), so
+         it reaches up by its own height and sideways by little more than its
+         shadow: the widest, the 24 in insect hotel and the 30 in sphere, stand
+         inside their tile diamonds at every turn. The slope is the seat's:
+         a 2x2 piece is centred on the mean of its tiles and anchored on one. */
+      const sz=ornamentTileSize(e.o), slope=sz.w*sz.h>1?(ELEV_MAX-ELEV_MIN)*ELEV_STEP/2:0;
+      return {w:sz.w, h:sz.h, up:feetToPx(sz.spec.hIn/12)+slope+16, pad:TILE_W*0.3, down:slope+14};
     }
     case SCENE_K.BOULDER:{
       /* A boulder sits INSIDE its own tile diamonds — measured across every
@@ -2588,6 +2598,9 @@ function computeStructSpriteSpec(e){
       return Object.assign({key:'P|'+structRecordSig(e.p)}, box);
     case SCENE_K.SEAT:
       return Object.assign({key:'S|'+structRecordSig(e.s)}, box);
+    // a made thing: nothing is seeded off its tile, so two of a kind share a sprite
+    case SCENE_K.ORNAMENT:
+      return Object.assign({key:'D|'+structRecordSig(e.o)}, box);
     case SCENE_K.BOULDER:
       /* The shape comes from the stone's own seed (boulderSeedAt), not from
          where it stands — so a moved stone finds its sprite already baked,
@@ -2758,6 +2771,9 @@ function measureStructBoxes(){
   for (const st of SEAT_TYPES) for (let f=0;f<4;f++)
     cases.push({name:'SEAT:'+st.id+'/f'+f, kind:SCENE_K.SEAT, field:'s', rec:{type:st.id,finish:'teak',face:f,t:1},
       size:s=>seatTileSize(s), draw:(c,s)=>drawSeat(c,W,H,season,s,x,y)});
+  for (const o of ORNAMENTS) for (const fin of ornamentFinishes(o.id)) for (let f=0;f<4;f++)
+    cases.push({name:'ORNAMENT:'+o.id+'/'+fin.id+'/f'+f, kind:SCENE_K.ORNAMENT, field:'o', rec:{kind:o.id,finish:fin.id,face:f,t:1},
+      size:s=>ornamentTileSize(s), draw:(c,s)=>drawOrnament(c,W,H,season,s,x,y)});
   for (const p of POT_STYLES) for (let f=0;f<4;f++) for (const sz of POT_SIZES)
     cases.push({name:'POT:'+p.id+'/'+sz.id+'/f'+f, kind:SCENE_K.POT, field:'p',
       rec:{style:p.id,size:potSizeFor(p.id,sz.id),face:f,t:1},
@@ -2866,6 +2882,10 @@ function measureFootprintCentres(){
   for (const t of SEAT_TYPES) for (let f=0;f<4;f++)
     cases.push({name:'SEAT:'+t.id+'/f'+f, rec:{type:t.id,finish:'teak',face:f,t:1},
       size:s=>seatTileSize(s), draw:(c,s)=>drawSeat(c,W,H,season,s,x,y)});
+  // the large sphere and the compost bay are 2x2; every piece is checked anyway
+  for (const o of ORNAMENTS) for (let f=0;f<4;f++)
+    cases.push({name:'ORNAMENT:'+o.id+'/f'+f, rec:{kind:o.id,finish:o.finishes[0],face:f,t:1},
+      size:s=>ornamentTileSize(s), draw:(c,s)=>drawOrnament(c,W,H,season,s,x,y)});
   for (const p of POT_STYLES) for (const sz of potStyleSizes(p.id)) for (let f=0;f<4;f++)
     cases.push({name:'POT:'+p.id+'/'+sz.id+'/f'+f, rec:{style:p.id,size:sz.id,face:f,t:1},
       size:s=>potTileSize(s), draw:(c,s)=>drawPot(c,W,H,season,s,x,y)});
@@ -3194,7 +3214,7 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    identity in sceneStale. Side fix: stunting is now computed against the FULL
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
-const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12,WATERF:13,SUPPORT:14,PERGOLA:15};
+const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12,WATERF:13,SUPPORT:14,PERGOLA:15,ORNAMENT:16};
 let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[], stunted:new Set()};
 const STUNT_GROWTH=0.45;   // a full-sun plant struggling under an active canopy draws at this share of its growth
 function sceneLayerBits(){
@@ -3216,14 +3236,14 @@ function sceneStale(skey){
 function sceneRefs(){
   return {plants:game.plants,bulbs:game.bulbs,fences:game.fences,
     lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,
-    pots:game.pots,seats:game.seats,waterFeatures:game.waterFeatures,supports:game.supports,
+    pots:game.pots,seats:game.seats,ornaments:game.ornaments,waterFeatures:game.waterFeatures,supports:game.supports,
     pergolas:game.pergolas,houses:game.houses,buildings:game.buildings};
 }
 function sceneRefsChanged(r){
   return !r ||
     r.plants!==game.plants || r.bulbs!==game.bulbs || r.fences!==game.fences ||
     r.lights!==game.lights || r.firepits!==game.firepits || r.boulders!==game.boulders || r.pets!==game.pets || r.houses!==game.houses || r.buildings!==game.buildings ||
-    r.pots!==game.pots || r.seats!==game.seats || r.waterFeatures!==game.waterFeatures || r.supports!==game.supports ||
+    r.pots!==game.pots || r.seats!==game.seats || r.ornaments!==game.ornaments || r.waterFeatures!==game.waterFeatures || r.supports!==game.supports ||
     r.pergolas!==game.pergolas;
 }
 /* ---- camera-free screen bounds, for the viewport cull ----
@@ -3492,6 +3512,13 @@ function* sceneBuildSteps(W,H){
       ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.39, kind:SCENE_K.SEAT,
         bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,s:s2});
     }
+    for (const k in game.ornaments||{}){ const o=game.ornaments[k];
+      if (++count%64===0) yield;
+      if (!o || o.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=ornamentTileSize(o);
+      ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.385, kind:SCENE_K.ORNAMENT,
+        bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,o});
+    }
     for (const b of game.buildings||[]){
       if (++count%64===0) yield;
       const r=buildingBounds(b); if (!r) continue;
@@ -3565,6 +3592,7 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===
     case SCENE_K.PET:
     case SCENE_K.POT:
     case SCENE_K.SEAT:
+    case SCENE_K.ORNAMENT:
     case SCENE_K.BUILDING:
     case SCENE_K.BUILDING_OUTLINE:
     case SCENE_K.HOUSE:
@@ -4999,6 +5027,7 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
       if (c.waterFeature) drawWaterFeature(cx,W,H,season,c.waterFeature,nx,ny);
       if (c.support) drawSupport(cx,W,H,season,c.support,nx,ny);
       if (c.boulder) drawBoulder(cx,W,H,season,c.boulder,nx,ny);
+      if (c.ornament) drawOrnament(cx,W,H,season,c.ornament,nx,ny);
       if (c.bulb){ const g=displayPlantGrowth(c.bulb);
         if (g>0.02) drawPlantMaybeCached(cx,sx,sy+TILE_H/2,c.bulb.s,g,season,
           (tileSeed(c.x,c.y)^0x9e37)>>>0,sway,c.bulb.v,undefined,ghostSprites); }

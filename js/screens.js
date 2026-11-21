@@ -1508,6 +1508,7 @@ function enterGarden(){
   if (!game.pets) game.pets={};
   if (!game.pots) game.pots={};
   if (!game.seats) game.seats={};
+  if (!game.ornaments) game.ornaments={};
   if (!game.buildings) game.buildings=[];
   ensureSchemes();   // every garden runs on at least one planting scheme
   if (!game.houseDraft) game.houseDraft=draftFromHouses();
@@ -4389,7 +4390,7 @@ function perfBench(opts){
   setWorldSize(gw,gh);
   game.worldId='perfbench'; game.worldName='perfBench scratch';
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={};
-  game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.pots={}; game.seats={};
+  game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.pots={}; game.seats={}; game.ornaments={};
   game.houses=[]; game.buildings=[]; game.schemes=[]; game.schemeActive=null;
   game.rot=0; game.edgeStyle=edge; game.bedStyle='soil'; game.pathColor='warm';
   const keys=PLANT_KEYS.filter(k=>!PLANTS[k].hidden);
@@ -4610,6 +4611,11 @@ function furnishGarden(opts){
     size:potSizes[(rnd()*potSizes.length)|0],t:now}));
   const seats=scatter('seats',num(opts.seats,10),()=>({type:seatTypes[(rnd()*seatTypes.length)|0],
     finish:fins[(rnd()*fins.length)|0],face:(rnd()*4)|0,t:now}));
+  // the ornaments last, so the pieces above land exactly where they always have
+  if (!game.ornaments) game.ornaments={};
+  const ornKinds=ORNAMENTS.filter(o=>o.wIn<=TILE_IN*1.4&&o.dIn<=TILE_IN*1.4).map(o=>o.id);
+  const ornaments=scatter('ornaments',num(opts.ornaments,8),()=>{ const kind=ornKinds[(rnd()*ornKinds.length)|0];
+    return {kind,finish:ornamentKind(kind).finishes[0],face:(rnd()*4)|0,t:now}; });
   /* One building footprint. It is the class most able to surprise you: the
      polygon becomes one scene entity per TILE, so a garage is 200+ entities. */
   let footprint=0;
@@ -4624,7 +4630,7 @@ function furnishGarden(opts){
   }
   markGroundChanged({terrain:true}); markModelChanged(); game.sceneRev++;
   groundKey='';
-  const out={edgedTiles:edged, terraceTiles:terraced, fenceTiles:fenced, pots, seats, footprintTiles:footprint};
+  const out={edgedTiles:edged, terraceTiles:terraced, fenceTiles:fenced, pots, seats, ornaments, footprintTiles:footprint};
   console.log('furnishGarden '+JSON.stringify(out));
   return out;
 }

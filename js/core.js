@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.142';
+const APP_VERSION = '0.9.143';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1923,6 +1923,118 @@ function waterFeatureTileSize(d){
 function waterFeatureLabelFor(d){
   d=normalizeWaterFeatureDraft(d);
   return `${waterFinish(d.finish).label} ${waterFeature(d.form).label.toLowerCase()}`;
+}
+
+/* ---------- garden ornaments ----------
+   The things a planting is planned AROUND that are neither furniture nor water:
+   a focal point at the end of a path, a nest box in a border, a rain barrel at a
+   downspout. Each is the one ornament a garden style of this app is planned
+   around -- the stone lantern for Japanese, the bee hotel, feeder and nest box
+   for Pollinator and wildlife planting, the rain barrel for a rain garden, the
+   gazing ball for Cottage, the armillary and sundial for Formal -- and the
+   sphere is the commonest sculpture set among grasses. All of them are bought,
+   so unlike a pet they reach the planting list and the plan.
+
+   The water feature's shape exactly (§12d): an origin tile, a claimed
+   rectangle from real inches, a `form` naming the drawing branch, and the
+   finishes a piece is really made in, in its own order, the first being its
+   default. `group` is the heading it is listed under; `turns` says a Turn chip
+   changes how it reads (a sphere looks the same every way round); `name` is
+   how the planting list says it, {f} being the finish, lower-cased. */
+const ORNAMENT_GROUPS = [
+  {id:'focal',    label:'Focal points',   desc:'Something to plant toward'},
+  {id:'wildlife', label:'For wildlife',   desc:'Food and shelter for birds and bees'},
+  {id:'working',  label:'Working garden', desc:'Water and compost, where they are used'},
+];
+const ORNAMENTS = [
+  {id:'sphere',   group:'focal', label:'Stone Sphere',     short:'Sphere',     form:'sphere',
+   wIn:18, dIn:18, hIn:18, name:'{f} sphere',            finishes:['granite','concrete','corten']},
+  {id:'sphere30', group:'focal', label:'Large Sphere',     short:'Large sphere', form:'sphere',
+   wIn:30, dIn:30, hIn:30, name:'Large {f} sphere',      finishes:['granite','concrete','corten']},
+  {id:'armillary',group:'focal', label:'Armillary Sphere', short:'Armillary',  form:'armillary',
+   wIn:18, dIn:18, hIn:48, name:'{f} armillary sphere',  finishes:['verdigris','bronze','iron'], turns:true},
+  {id:'sundial',  group:'focal', label:'Sundial',          short:'Sundial',    form:'sundial',
+   wIn:16, dIn:16, hIn:35, name:'{f} sundial',           finishes:['concrete','granite'], turns:true},
+  {id:'gazing',   group:'focal', label:'Gazing Ball',      short:'Gazing ball',form:'gazing',
+   wIn:12, dIn:12, hIn:32, name:'{f} gazing ball',       finishes:['silver','cobalt','emerald']},
+  {id:'lantern',  group:'focal', label:'Stone Lantern',    short:'Lantern',    form:'lantern',
+   wIn:21, dIn:21, hIn:52, name:'Stone lantern, {f}',     finishes:['granite','concrete'], turns:true},
+  {id:'feeder',   group:'wildlife', label:'Bird Feeder Pole', short:'Feeder',  form:'feeder',
+   wIn:18, dIn:8,  hIn:88, name:'Bird feeder pole, {f}', finishes:['green','copper','steel'], turns:true, chipTop:0.42},
+  {id:'nestbox',  group:'wildlife', label:'Nest Box on Post', short:'Nest box', form:'nestbox',
+   wIn:10, dIn:12, hIn:68, name:'{f} nest box on a post',finishes:['cedar','sage','weathered'], turns:true, chipTop:0.45},
+  {id:'bughotel', group:'wildlife', label:'Insect Hotel',  short:'Bee hotel',  form:'hotel',
+   wIn:24, dIn:11, hIn:50, name:'{f} insect hotel',      finishes:['larch','cedar'], turns:true},
+  {id:'rainbarrel',group:'working', label:'Rain Barrel',   short:'Rain barrel',form:'barrel',
+   wIn:24, dIn:24, hIn:48, name:'{f} rain barrel',       finishes:['oak','green','slate','terracotta'], turns:true, gal:55},
+  {id:'compost',  group:'working', label:'Compost Bay',    short:'Compost',    form:'compost',
+   wIn:36, dIn:36, hIn:36, name:'{f} compost bay',       finishes:['pine','cedar'], cuYd:1},
+];
+/* `mat` is how a finish is DRAWN -- stone takes speckle, metal a sheen on what
+   faces up, glass a reflection, wood grain -- the seat finishes' convention. */
+const ORNAMENT_FINISHES = [
+  {id:'granite',  label:'Granite',      mat:'stone', body:'#8e8a83'},
+  {id:'concrete', label:'Cast Stone',   mat:'stone', body:'#aaa498'},
+  {id:'corten',   label:'Corten',       mat:'metal', body:'#8f5233'},
+  {id:'verdigris',label:'Verdigris',    mat:'metal', body:'#5e8c7a'},
+  {id:'bronze',   label:'Bronze',       mat:'metal', body:'#76603a'},
+  {id:'iron',     label:'Black Iron',   mat:'metal', body:'#34332f'},
+  {id:'silver',   label:'Silver',       mat:'glass', body:'#a9b6bd'},
+  {id:'cobalt',   label:'Cobalt',       mat:'glass', body:'#2c4d97'},
+  {id:'emerald',  label:'Emerald',      mat:'glass', body:'#25744c'},
+  {id:'green',    label:'Green',        mat:'paint', body:'#3f6a3a'},
+  {id:'copper',   label:'Copper',       mat:'metal', body:'#a8673a'},
+  {id:'steel',    label:'Brushed Steel',mat:'metal', body:'#9aa0a4'},
+  {id:'cedar',    label:'Cedar',        mat:'wood',  body:'#9b6444'},
+  {id:'sage',     label:'Sage Painted', mat:'paint', body:'#7f9378'},
+  {id:'weathered',label:'Weathered',    mat:'wood',  body:'#8b867d'},
+  {id:'larch',    label:'Larch',        mat:'wood',  body:'#b0834f'},
+  {id:'pine',     label:'Pine',         mat:'wood',  body:'#bea173'},
+  {id:'oak',      label:'Oak',          mat:'wood',  body:'#83583a'},
+  {id:'slate',    label:'Slate Grey',   mat:'paint', body:'#5b6166'},
+  {id:'terracotta',label:'Terracotta',  mat:'paint', body:'#a65f3e'},
+];
+function ornamentGroup(id){ return ORNAMENT_GROUPS.find(g=>g.id===id)||ORNAMENT_GROUPS[0]; }
+function ornamentKind(id){ return ORNAMENTS.find(o=>o.id===id)||ORNAMENTS[0]; }
+function ornamentKindId(id){ return ornamentKind(id).id; }
+function ornamentFinish(id){ return ORNAMENT_FINISHES.find(f=>f.id===id)||ORNAMENT_FINISHES[0]; }
+// the finishes a piece is really made in, in ITS order (waterFeatureFinishes)
+function ornamentFinishes(id){
+  return ornamentKind(id).finishes.map(fid=>ORNAMENT_FINISHES.find(f=>f.id===fid)).filter(Boolean);
+}
+// a finish the new piece is not made in snaps to its first, the fire pit's rule
+function ornamentFinishFor(kindId,finishId){
+  const opts=ornamentFinishes(kindId);
+  return opts.some(f=>f.id===finishId) ? finishId : opts[0].id;
+}
+function normalizeOrnamentDraft(d){
+  d=d&&typeof d==='object'?d:{};
+  const kind=ornamentKindId(d.kind);
+  return {kind, finish:ornamentFinishFor(kind,d.finish), face:normalizeFacing(d.face)};
+}
+/* Footprint in tiles, the water features' rounding: anything up to ~27 in
+   claims one tile and overhangs it the way a shrub canopy does; the large
+   sphere and the compost bay take real ground. A quarter turn swaps it. */
+function ornamentTileSize(d){
+  const o=ornamentKind(d&&d.kind);
+  const tw=Math.max(1,Math.round(o.wIn/TILE_IN)), td=Math.max(1,Math.round(o.dIn/TILE_IN));
+  return normalizeFacing(d&&d.face)%2 ? {w:td,h:tw,spec:o} : {w:tw,h:td,spec:o};
+}
+/* The planting list's sub-line: what you would ask a supplier for. A sphere is
+   sold by its diameter, a rain barrel by what it holds, a compost bay by its
+   volume, and everything else by how tall it stands. */
+const L_PER_GAL=3.78541;
+function ornamentTakeoffText(d,n){
+  const o=ornamentKind(normalizeOrnamentDraft(d).kind);
+  if (o.form==='sphere') return `${fmtLengthIn(o.wIn)} across`;
+  if (o.gal) return `holds ${metricUnits()?Math.round(o.gal*L_PER_GAL/5)*5+' L':o.gal+' US gal'}, ${fmtLengthIn(o.hIn)} tall on its stand`;
+  if (o.cuYd) return `${fmtLengthIn(o.wIn)} square, holds about ${fmtVolumeCuYd(o.cuYd)}`;
+  return `${fmtLengthIn(o.hIn)} tall`;
+}
+function ornamentLabelFor(d){
+  d=normalizeOrnamentDraft(d);
+  const s=ornamentKind(d.kind).name.replace('{f}',ornamentFinish(d.finish).label.toLowerCase());
+  return s[0].toUpperCase()+s.slice(1);
 }
 
 /* ---------- garden pets: a cat or dog as ornament ----------

@@ -459,7 +459,7 @@ cnv.addEventListener('pointerdown',e=>{
   beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
-    sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, building:0, fence:0, light:0, firepit:0, boulder:0, pet:0, pot:0, seat:0, waterFeature:0, support:0};
+    sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, building:0, fence:0, light:0, firepit:0, boulder:0, pet:0, pot:0, seat:0, ornament:0, waterFeature:0, support:0};
     sweepTap={x,y,moved:false};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
@@ -524,6 +524,7 @@ const DRAG_DONE={
   boulder:   n=>`Placed ${n} boulder${n>1?'s':''} - ${boulderLabel()}.`,
   pot:       n=>`Placed ${n} container${n>1?'s':''} - ${potLabel()}.`,
   seat:      n=>`Placed ${n} seat${n>1?'s':''} - ${seatLabel()}.`,
+  ornament:  n=>`Placed ${n} ornament${n>1?'s':''} - ${ornamentLabel()}.`,
   // a drag edges each bed it crosses once, so the count is of beds, not tiles
   edging:    n=>edgingDraft()==='none' ? `Lifted the edging off ${n} bed${n>1?'s':''}.`
     : `${edgingLabel()} laid round ${n} bed${n>1?'s':''}.`,
@@ -685,7 +686,7 @@ const SWEEP_NOUNS=[
   ['support','support'],
   // BAYS, not pergolas: a pergola is one however many tiles its roof covers
   ['pergola','pergola bay'],
-  ['pet','pet'], ['pot','container'], ['seat','seat'],
+  ['pet','pet'], ['pot','container'], ['seat','seat'], ['ornament','ornament'],
   ['house','house'], ['building','building footprint'],
 ];
 function endSweep(){

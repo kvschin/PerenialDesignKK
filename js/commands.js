@@ -233,6 +233,12 @@ function actHere(opts){
     else toast('No room for that here.');
     return;
   }
+  if (game.tool==='ornament'){
+    const r=applyToolAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(`${ornamentLabel()} placed.`); }
+    else rejectPlacement(ornamentRefusalText(x,y));
+    return;
+  }
   if (game.tool==='firepit'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${firepitLabel()} placed.`); }
@@ -293,7 +299,7 @@ function actHere(opts){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0,waterFeature:0,support:0,pergola:0};
+    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0,ornament:0,waterFeature:0,support:0,pergola:0};
     eraseBrush(x,y,counts);
     if (eraseCountTotal(counts)===0) eraseShrubBySpread(x,y,counts);
     const parts=[];
@@ -312,6 +318,7 @@ function actHere(opts){
     if (counts.pet) parts.push(counts.pet>1?`${counts.pet} pets`:'a pet');
     if (counts.pot) parts.push(`${counts.pot} pot${counts.pot>1?'s':''}`);
     if (counts.seat) parts.push(`${counts.seat} seat${counts.seat>1?'s':''}`);
+    if (counts.ornament) parts.push(`${counts.ornament} ornament${counts.ornament>1?'s':''}`);
     if (counts.house) parts.push(`${counts.house} house${counts.house>1?'s':''}`);
     if (counts.building) parts.push(`${counts.building} building footprint${counts.building>1?'s':''}`);
     if (parts.length){
@@ -325,6 +332,7 @@ function actHere(opts){
     if (game.tool==='water' && fenceAt(x,y)){ toast('Move the fence before making water.'); return; }
     if (game.tool==='water' && lightAt(x,y)){ toast('Move the light before making water.'); return; }
     if (game.tool==='water' && petAt(x,y)){ toast('Move your pet before making water.'); return; }
+    if (game.tool==='water' && ornamentAt(x,y)){ toast('Move the ornament before making water.'); return; }
     if (firepitAt(x,y)){ toast('Move the fire pit before changing the ground.'); return; }
     if (waterFeatureAt(x,y)){ toast('Move the water feature before changing the ground.'); return; }
   if (structureSupportAt(x,y)){ toast('Move the support before changing the ground.'); return; }
@@ -352,6 +360,7 @@ function actHere(opts){
   if (firepitAt(x,y)){ toast('A fire pit is in the way.'); return; }
   if (waterFeatureAt(x,y)){ toast('A water feature is in the way.'); return; }
   if (boulderAt(x,y)){ toast('A boulder is in the way.'); return; }
+  if (ornamentAt(x,y)){ toast(`The ${ornamentKind(ornamentAt(x,y).kind).label.toLowerCase()} is in the way.`); return; }
   const def=PLANTS[game.tool] ? plantDef(game.tool,game.toolVar) : null;
   if (!def) return;
   // a marginal on dry ground falls through and plants like any perennial
@@ -554,7 +563,7 @@ function placeTerrainAt(x,y){
   /* Pots and seats stand happily on paving, so they refuse only WATER -- and so
      does a pergola, whose posts cannot stand in a pond (pergolaBlockerAt).
      Skipping the tile leaves the object exactly as it was. */
-  if (game.tool==='water' && (potAt(x,y) || seatAt(x,y) || pergolaAt(x,y))) return null;
+  if (game.tool==='water' && (potAt(x,y) || seatAt(x,y) || ornamentAt(x,y) || pergolaAt(x,y))) return null;
   if (firepitAt(x,y)) return null;
   if (waterFeatureAt(x,y)) return null;
   if (structureSupportAt(x,y)) return null;
@@ -660,6 +669,7 @@ function placePlantAt(x,y,opts){
   if (waterFeatureAt(x,y)) return null;
   if (boulderAt(x,y)) return null;
   if (seatAt(x,y)) return null;
+  if (ornamentAt(x,y)) return null;
   if (pot && isTreeDef(def)) return null;          // a tree needs open ground
   const np={s:game.tool,d:woodyPlantedDay(def,game.woodyAge),t:Date.now()};   // woody: age-at-placement (T10)
   if (game.toolVar) np.v=game.toolVar;
@@ -751,6 +761,9 @@ function pergolaBlockerAt(x,y){
   if (fenceAt(x,y)) return 'fence';
   if (firepitAt(x,y)) return 'firepit';
   if (structureSupportAt(x,y)) return 'support';
+  // a 7 ft feeder pole would stand through a 7 ft roof; the rest stand under it
+  const orn=ornamentAt(x,y);
+  if (orn && ornamentTooTallForRoof(orn)) return 'tall';
   const p=game.plants[`${x},${y}`];
   if (p && !p.removed && isTreeDef(PLANTS[p.s])) return 'tree';
   return null;
@@ -763,6 +776,7 @@ const PERGOLA_BLOCKER_TEXT={
   firepit:'Keep the fire pit out from under the pergola.',
   support:'Move the climbing frame first — the pergola posts will carry the climber.',
   tree:'A tree is in the way — it would grow up through the roof.',
+  tall:'The feeder pole is taller than the roof. Move it out from under the pergola.',
 };
 function canPlacePergola(x,y){ return !pergolaBlockerAt(x,y); }
 function pergolaDraft(){ return game.pergolaDraft=normalizePergolaDraft(game.pergolaDraft); }
@@ -851,8 +865,8 @@ function finishPergolaDrag(x0,y0,x1,y1){
   return n;
 }
 /* ---------- one occupancy rule for the solid objects ----------
-   Fences, lights, fire pits, water features, climbing frames, boulders, pots
-   and seats each stand ON their ground, and no two of them share a tile. Each
+   Fences, lights, fire pits, water features, climbing frames, boulders, pots,
+   seats and ornaments each stand ON their ground, and no two share a tile. Each
    placer used to list the others it refused by hand, and the lists had drifted
    apart: a pot refused a fence while a fence never asked about pots, so
    pot-then-fence was legal and fence-then-pot was not, and which one you got
@@ -877,6 +891,7 @@ function solidBlockerAt(x,y,kind,ignoreKey){
   if ((o=boulderAt(x,y)) && other('boulder',o.key)) return 'boulder';
   if ((o=potAt(x,y)) && other('pot',o.key)) return 'pot';
   if ((o=seatAt(x,y)) && other('seat',o.key)) return 'seat';
+  if ((o=ornamentAt(x,y)) && other('ornament',o.key)) return 'ornament';
   return null;
 }
 function canPlaceFence(x,y){
@@ -933,7 +948,7 @@ function lightLabel(l){
 function canPlacePet(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  return !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && !waterFeatureAt(x,y);
+  return !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && !waterFeatureAt(x,y) && !ornamentAt(x,y);
 }
 function placePetAt(x,y){
   if (!canPlacePet(x,y)) return null;
@@ -1355,6 +1370,59 @@ function placeSeatAt(x,y){
   setTile('seats',k,Object.assign({},d,{t:Date.now()}));
   return 'seat';
 }
+/* ---------- garden ornaments ----------
+   A seat's rules exactly (an origin tile, a claimed rectangle, the shared
+   solidBlockerAt), because an ornament stands on its ground the way a bench
+   does: on lawn, a bed or paving, never in water, and never on a planting --
+   a sphere set among grasses has the grasses around it, not under it. The one
+   rule of its own is the roof: the feeder pole is 7 ft, as tall as a pergola. */
+const ORNAMENT_ROOF_IN=72;
+function ornamentDraft(){ return game.ornamentDraft=normalizeOrnamentDraft(game.ornamentDraft); }
+function ornamentLabel(o){ return ornamentLabelFor(o||ornamentDraft()); }
+function ornamentAt(x,y){ return footprintAt('ornaments',ornamentTileSize,x,y); }
+function ornamentTooTallForRoof(o){ return ornamentKind(o&&o.kind).hIn>ORNAMENT_ROOF_IN; }
+function ornamentFootprint(x,y,o){
+  const sz=ornamentTileSize(o), tiles=[];
+  for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
+  return tiles;
+}
+// why the armed piece will not stand here, or null if it will
+function ornamentBlocker(x,y,ignoreKey){
+  const d=ornamentDraft(), sz=ornamentTileSize(d);
+  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return 'off';
+  for (const [xx,yy] of ornamentFootprint(x,y,d)){
+    if (!onPlot(xx,yy)) return 'off';
+    if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return 'building';
+    if (tileTerrain(xx,yy)==='water') return 'water';
+    if (solidBlockerAt(xx,yy,'ornament',ignoreKey)) return 'solid';
+    if (ornamentTooTallForRoof(d) && pergolaAt(xx,yy)) return 'roof';
+    const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
+    if ((pl&&!pl.removed)||(bl&&!bl.removed)) return 'plant';
+  }
+  return null;
+}
+function canPlaceOrnament(x,y,ignoreKey){ return !ornamentBlocker(x,y,ignoreKey); }
+function ornamentRefusalText(x,y){
+  const why=ornamentBlocker(x,y,`${x},${y}`), what=ornamentKind(ornamentDraft().kind).label.toLowerCase();
+  return !why ? `That ${what} is already there.`
+    : why==='plant' ? `Lift the planting first: the ${what} needs its own ground.`
+    : why==='water' ? `The ${what} needs dry ground.`
+    : why==='roof' ? PERGOLA_BLOCKER_TEXT.tall
+    : why==='off' ? `Keep the ${what} on the plot.`
+    : why==='building' ? 'A building is in the way.'
+    : 'Something is already standing there.';
+}
+function placeOrnamentAt(x,y){
+  if (!game.ornaments) game.ornaments={};
+  const d=normalizeOrnamentDraft(ornamentDraft()), k=`${x},${y}`;
+  const cur=game.ornaments[k];
+  // the same piece already standing here is not an edit; a new finish or turn is
+  if (cur && !cur.removed && cur.kind===d.kind && ornamentFinishFor(cur.kind,cur.finish)===d.finish
+      && normalizeFacing(cur.face)===d.face) return null;
+  if (!canPlaceOrnament(x,y,k)) return null;
+  setTile('ornaments',k,Object.assign({},d,{t:Date.now()}));
+  return 'ornament';
+}
 function petLabel(p){
   const d=normalizePetDraft(p||petDraft());
   const mark=d.mark==='solid' ? '' : `${petMark(d.mark).label.toLowerCase()} `;
@@ -1618,7 +1686,7 @@ function validateBuildingFootprint(vs,ignoreId){
     if (!onPlot(x,y)) return {ok:false,msg:'The lot line cuts through there.'};
     const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
     if (siteStructureAt(x,y) || buildingAt(x,y,ignoreId)) return {ok:false,msg:'A building cannot overlap another structure.'};
-    if ((p&&!p.removed)||(b&&!b.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||waterFeatureAt(x,y))
+    if ((p&&!p.removed)||(b&&!b.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||waterFeatureAt(x,y)||ornamentAt(x,y))
       return {ok:false,msg:'Lift plants, paths, and hardscape before drawing a building here.'};
   }
   return {ok:true,tiles};
@@ -1686,7 +1754,7 @@ function buildingTileFree(x,y){
   if (!onPlot(x,y) || buildingAt(x,y) || houseAt(x,y) || isDoor(x,y)) return false;
   const k=`${x},${y}`, p=game.plants[k], bl=game.bulbs[k];
   return !((p&&!p.removed)||(bl&&!bl.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)
-    ||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||waterFeatureAt(x,y));
+    ||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||waterFeatureAt(x,y)||ornamentAt(x,y));
 }
 function tilesTouch(x,y,keys){
   return keys.has(`${x+1},${y}`)||keys.has(`${x-1},${y}`)||keys.has(`${x},${y+1}`)||keys.has(`${x},${y-1}`);
@@ -1787,6 +1855,8 @@ function clearTerrainForHouse(x,y,w,h){
     if (wfc){ clearTile('waterFeatures',wfc.key); n++; }
     const bo=boulderAt(xx,yy);
     if (bo){ clearTile('boulders',bo.key); n++; }
+    const orn=ornamentAt(xx,yy);
+    if (orn){ clearTile('ornaments',orn.key); n++; }
     if (petAt(xx,yy)){ clearTile('pets',k); n++; }
   };
   for (let yy=y;yy<y+h;yy++) for (let xx=x;xx<x+w;xx++) clear(xx,yy);
@@ -2087,6 +2157,8 @@ function eraseBrush(cx,cy,counts){
       if (po){ counts.plants+=clearPotAndPlanting(po); counts.pot=(counts.pot||0)+1; }
       const se=seatAt(x,y);
       if (se){ clearTile('seats',se.key); counts.seat=(counts.seat||0)+1; }
+      const orn=ornamentAt(x,y);
+      if (orn){ clearTile('ornaments',orn.key); counts.ornament=(counts.ornament||0)+1; }
     }
     if (terrOK){ const hh=houseAt(x,y);     // landscape erase also lifts a whole house
       if (hh){ const i=game.houses.indexOf(hh);
@@ -2136,7 +2208,7 @@ const SEL_LAYERS=[
   ['plant','plants',1],['bulb','bulbs',1],['terr','terrain',0],['elev','elevation',0],
   ['fence','fences',0],['light','lights',0],['firepit','firepits',1],['waterFeature','waterFeatures',1],
   ['boulder','boulders',1],['pet','pets',0],['pot','pots',1],['seat','seats',1],
-  ['support','supports',1],['pergola','pergolas',0],
+  ['ornament','ornaments',1],['support','supports',1],['pergola','pergolas',0],
 ];
 /* The movable things that claim MORE than their origin tile, each with its own
    size rule (which already swaps for a turned piece) and its live lookup. A
@@ -2149,6 +2221,7 @@ const SEL_FOOTPRINTS={
   waterFeature:{layer:'waterFeatures', size:waterFeatureTileSize, at:(x,y)=>waterFeatureAt(x,y)},
   pot:{layer:'pots', size:potTileSize, at:(x,y)=>potAt(x,y)},
   seat:{layer:'seats', size:seatTileSize, at:(x,y)=>seatAt(x,y)},
+  ornament:{layer:'ornaments', size:ornamentTileSize, at:(x,y)=>ornamentAt(x,y)},
   support:{layer:'supports', size:supportTileSize, at:(x,y)=>structureSupportAt(x,y)},
 };
 const SEL_FOOTPRINT_KEYS=Object.keys(SEL_FOOTPRINTS);
@@ -2296,7 +2369,7 @@ function selectionPlantDestValid(rec,x,y,ctx,isBulb){
   if (sup && !isVine && !sup.open) return false;
   if (sup && sup.kind==='pergola' && tree) return false;
   if (selectionLightAt(x,y,ctx)) return false;
-  for (const f of ['firepit','waterFeature','boulder','seat'])
+  for (const f of ['firepit','waterFeature','boulder','seat','ornament'])
     if (selectionObjectAt(x,y,ctx,f)) return false;
   if (pot && tree) return false;
   const terr=selectionTerrainKindAt(x,y,ctx);
@@ -2351,7 +2424,7 @@ function selectionFootprintDestValid(f,o,x,y,ctx){
     if (selectionStayingFenceAt(xx,yy,ctx) || selectionStayingLightAt(xx,yy,ctx)) return false;
     if (selectionTerrainKindAt(xx,yy,ctx)==='water') wet++;
     if (selectionStayingWaterAt(xx,yy,ctx)) stayingWet++;
-    if ((f==='firepit'||f==='support') && selectionPergolaAt(xx,yy,ctx)) return false;
+    if ((f==='firepit'||f==='support'||(f==='ornament'&&ornamentTooTallForRoof(o))) && selectionPergolaAt(xx,yy,ctx)) return false;
     const k=`${xx},${yy}`, p=selectionPlantAt(xx,yy,ctx,null), b=selectionBulbAt(xx,yy,ctx,null);
     if (f==='pot'){
       // a plant already in the ground there would be standing in the pot by accident
@@ -2377,6 +2450,8 @@ function selItemDestValid(c,x,y,ctx){
   if (c.pergola){
     if (selectionStayingWaterAt(x,y,ctx) || selectionFenceAt(x,y,ctx)) return false;
     if (selectionObjectAt(x,y,ctx,'firepit') || selectionObjectAt(x,y,ctx,'support')) return false;
+    const orn=selectionObjectAt(x,y,ctx,'ornament');
+    if (orn && ornamentTooTallForRoof(orn)) return false;
     const p=selectionPlantAt(x,y,ctx,null);
     if (p && PLANTS[p.s] && isTreeDef(plantDef(p.s,p.v))) return false;
   }
@@ -2603,6 +2678,8 @@ function clearRectLayers(r){
     if (po) clearTile('pots',po.key);
     const se=seatAt(x,y);
     if (se) clearTile('seats',se.key);
+    const orn=ornamentAt(x,y);
+    if (orn) clearTile('ornaments',orn.key);
     const su=structureSupportAt(x,y);
     if (su) clearTile('supports',su.key);
     if (pergolaAt(x,y)) clearTile('pergolas',k);

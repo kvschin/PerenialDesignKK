@@ -17463,7 +17463,7 @@ test('structures are cacheable because none of them animate', () => {
      it has to leave drawStructEnt or the cache will freeze it. */
   const animated = ['drawPlant'];
   const still = ['drawFence', 'drawPot', 'drawSeat', 'drawBoulder', 'drawFirepit',
-    'drawLightFixture', 'drawBuildingTile', 'drawHouse', 'drawWaterFeature'];
+    'drawLightFixture', 'drawBuildingTile', 'drawHouse', 'drawWaterFeature', 'drawOrnament', 'drawOrnamentArt'];
   for (const name of still) {
     const fn = globalThis[name];
     assert(typeof fn === 'function', name + ' exists');
@@ -24150,6 +24150,7 @@ const SOLID_PLACERS = {
   water:   () => { game.waterFeatureDraft = { form: 'birdbath', finish: 'stone', face: 0 }; return placeWaterFeatureAt(6, 6); },
   support: () => { game.supportDraft = { style: 'obelisk', mat: 'timber', face: 0 }; return placeSupportAt(6, 6); },
   boulder: () => { game.boulderDraft = { type: 'round1' }; return placeBoulderAt(6, 6); },
+  ornament:() => { game.ornamentDraft = { kind: 'sphere', finish: 'granite', face: 0 }; return placeOrnamentAt(6, 6); },
 };
 test('F08: every pair of solid objects refuses to share a tile in BOTH orders', () => {
   const names = Object.keys(SOLID_PLACERS), bad = [];
@@ -24169,7 +24170,7 @@ test('F08: every pair of solid objects refuses to share a tile in BOTH orders', 
   assertEqual(solidBlockerAt(6, 6, 'seat', null), 'pot', 'and blocks anything else');
 });
 test('F08: what may stand under a pergola is the same whichever goes first', () => {
-  const under = ['light', 'pot', 'seat', 'boulder', 'water'], never = ['fence', 'firepit', 'support'];
+  const under = ['light', 'pot', 'seat', 'boulder', 'water', 'ornament'], never = ['fence', 'firepit', 'support'];
   const roof = () => { game.pergolaDraft = { mat: 'timber', height: 8 }; return placePergolaRect(pergolaRect(4, 4, 8, 8)); };
   for (const n of under){
     setup(15, 15); assert(roof(), 'roof'); assert(SOLID_PLACERS[n](), `${n} goes under a roof`);
@@ -25734,4 +25735,271 @@ test('the 0.9.136 bulbs: lilies that hang and one that looks up, a foxtail that 
   // the Byzantine gladiolus: buds at the top of a spike in flower, capsules after
   assert(wetOps('byzantineglad','Fall',null,1,101).some(o=>o.op==='ellipse'),'capsules on the dry spike in fall');
   assertEqual(wetOps('byzantineglad','Winter',null,1,101).length,0,'and nothing in winter');
+});
+
+/* ---------- garden ornaments ----------
+   Spheres, an armillary, a sundial, a gazing ball, a stone lantern, a feeder
+   pole, a nest box, an insect hotel, a rain barrel and a compost bay: one keyed
+   layer on the seat's pattern. These pin the data, the occupancy rules shared
+   with every other solid, the roof rule, the selection and erase plumbing, both
+   client documents, the save, and a painter that reads no camera. */
+const armOrnament = (kind, finish, face) => {
+  game.tool = 'ornament';
+  game.ornamentDraft = normalizeOrnamentDraft({ kind, finish, face: face || 0 });
+};
+test('every ornament has real dimensions and the finishes it is made in, in its own order', () => {
+  const groups = new Set(ORNAMENT_GROUPS.map(g => g.id));
+  for (const o of ORNAMENTS){
+    assert(o.wIn > 0 && o.dIn > 0 && o.hIn > 0, o.id + ' has real dimensions in inches');
+    assert(groups.has(o.group), o.id + ' is listed under a group heading that exists');
+    const fins = ornamentFinishes(o.id);
+    assertEqual(fins.map(f => f.id).join(), o.finishes.join(), o.id + ' keeps its OWN finish order');
+    assert(fins.every(f => f && f.mat && /^#[0-9a-f]{6}$/i.test(f.body)), o.id + ' names only finishes that exist');
+    assertEqual(normalizeOrnamentDraft({ kind: o.id }).finish, o.finishes[0], o.id + ' defaults to its first finish');
+    const label = ornamentLabelFor({ kind: o.id, finish: o.finishes[0] });
+    assert(/^[A-Z]/.test(label) && !/[{}]/.test(label), o.id + ' has a finished label: ' + label);
+    assert(!/stone stone|Stone stone/.test(label), o.id + ' does not say the material twice');
+  }
+  for (const g of ORNAMENT_GROUPS) assert(ORNAMENTS.some(o => o.group === g.id), g.id + ' has at least one piece');
+  // a finish the new piece is not made in snaps to its first, a possible one is kept
+  assertEqual(normalizeOrnamentDraft({ kind: 'lantern', finish: 'cobalt' }).finish, 'granite', 'no cobalt lantern');
+  assertEqual(normalizeOrnamentDraft({ kind: 'rainbarrel', finish: 'slate' }).finish, 'slate', 'a slate barrel is kept');
+  assertEqual(normalizeOrnamentDraft({ kind: 'nope' }).kind, ORNAMENTS[0].id, 'an unknown piece falls back to the first');
+  assertEqual(normalizeOrnamentDraft({ kind: 'feeder', face: 7 }).face, 3, 'a facing is a quarter turn, 0-3');
+});
+
+test('an ornament claims its footprint, and a quarter turn swaps it', () => {
+  setup(15, 15);
+  armOrnament('sphere');
+  assertEqual(applyToolAt(3, 3), 'ornament', 'a sphere is placed');
+  assertEqual(ornamentAt(3, 3).kind, 'sphere', 'and is found on its tile');
+  assertEqual(ornamentTileSize({ kind: 'sphere' }).w, 1, 'an 18 in sphere claims one tile');
+  for (const k of ['sphere30', 'compost']){
+    const sz = ornamentTileSize({ kind: k });
+    assert(sz.w === 2 && sz.h === 2, k + ' takes real ground: 2x2');
+  }
+  armOrnament('compost');
+  assertEqual(applyToolAt(6, 6), 'ornament', 'a compost bay is placed');
+  assert(ornamentAt(7, 7) && ornamentAt(7, 7).kind === 'compost', 'it claims its far corner');
+  assert(!ornamentAt(8, 7), 'and stops there');
+  for (const o of ORNAMENTS){
+    const a = ornamentTileSize({ kind: o.id, face: 0 }), b = ornamentTileSize({ kind: o.id, face: 1 });
+    assert(a.w === b.h && a.h === b.w, o.id + ': a quarter turn swaps the claim');
+  }
+  armOrnament('sphere', 'corten');
+  assertEqual(applyToolAt(3, 3), 'ornament', 'a new finish restyles it in place');
+  assertEqual(ornamentAt(3, 3).finish, 'corten', 'to the new finish');
+  assertEqual(applyToolAt(3, 3), null, 'the same piece again is not an edit');
+});
+
+test('an ornament and every other solid refuse each other, and nothing grows through it', () => {
+  const forb = firstOfType('forb');
+  setup(15, 15);
+  armOrnament('sundial');
+  assertEqual(applyToolAt(5, 5), 'ornament', 'placed');
+  for (const [tool, label] of [['fence','a fence'], ['light','a light'], ['firepit','a fire pit'],
+                               ['boulder','a boulder'], ['pot','a container'], ['seat','a seat'], ['waterfeature','a water feature']]){
+    game.tool = tool;
+    assertEqual(applyToolAt(5, 5), null, label + ' refuses the ornament tile');
+  }
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(5, 5), null, 'and so does a plant');
+  game.tool = 'water';
+  assertEqual(placeTerrainAt(5, 5), null, 'and painting a pond over it');
+  game.tool = 'path';
+  assertEqual(placeTerrainAt(5, 5), 'path', 'paving under it is fine, as under a bench');
+  assert(ornamentAt(5, 5), 'and the sundial is still standing');
+  assertEqual(canPlaceShrubAt(5, 5, { s: firstOfType('shrub') }).ok, false, 'a shrub refuses it too');
+
+  setup(15, 15);
+  setTile('plants', '4,4', { s: forb, d: 0, t: 1 });
+  armOrnament('sphere');
+  assertEqual(applyToolAt(4, 4), null, 'a planted tile refuses it');
+  assert(/Lift the planting/.test(ornamentRefusalText(4, 4)), 'and says why: ' + ornamentRefusalText(4, 4));
+  setup(15, 15);
+  setTile('terrain', '4,4', { k: 'water', c: 'pond', t: 1 });
+  armOrnament('rainbarrel');
+  assertEqual(applyToolAt(4, 4), null, 'open water refuses it');
+  assert(/dry ground/.test(ornamentRefusalText(4, 4)), 'and says so');
+  // a pet keeps off it, like every other solid
+  setup(15, 15);
+  armOrnament('gazing'); applyToolAt(6, 6);
+  game.tool = 'pet';
+  assertEqual(applyToolAt(6, 6), null, 'no cat inside the gazing ball');
+  assertEqual(solidBlockerAt(6, 6, 'ornament', '6,6'), null, 'an ornament is not its own blocker');
+  assertEqual(solidBlockerAt(6, 6, 'seat', null), 'ornament', 'and blocks anything else');
+});
+
+test('only the feeder pole is too tall for a pergola, whichever goes first', () => {
+  const roof = () => { game.pergolaDraft = { mat: 'timber', height: 8 }; return placePergolaRect(pergolaRect(4, 4, 8, 8)); };
+  for (const o of ORNAMENTS){
+    if (o.wIn > TILE_IN * 1.4) continue;     // the 2x2 pieces are covered by the 1x1 rule
+    const tall = o.hIn > ORNAMENT_ROOF_IN;
+    setup(15, 15); assert(roof(), 'roof');
+    armOrnament(o.id);
+    assertEqual(!!placeOrnamentAt(6, 6), !tall, `${o.id} ${tall ? 'is refused' : 'stands'} under a roof`);
+    setup(15, 15); armOrnament(o.id); assert(placeOrnamentAt(6, 6), o.id + ' on open ground');
+    assertEqual(!!roof(), !tall, `a roof ${tall ? 'is refused over' : 'goes over'} the ${o.id}`);
+  }
+  assert(ORNAMENTS.some(o => o.hIn > ORNAMENT_ROOF_IN), 'sanity: the feeder pole really is the tall one');
+  setup(15, 15); assert(roof(), 'roof');
+  armOrnament('feeder');
+  assertEqual(ornamentRefusalText(6, 6), PERGOLA_BLOCKER_TEXT.tall, 'the refusal names the roof');
+});
+
+test('an ornament erases as landscape, is eyedropped, and moves, turns and copies in a selection', () => {
+  setup(15, 15);
+  armOrnament('nestbox', 'sage', 1);
+  applyToolAt(4, 4);
+  // eyedropper: the piece, its finish and its facing come back as the brush, on the Decor tab
+  game.tool = 'pick'; game.ornamentDraft = normalizeOrnamentDraft({ kind: 'sphere' });
+  pickAt(4, 4);
+  assertEqual(game.tool, 'ornament', 'Pick arms the ornament tool');
+  assertEqual(game.trayCat, 'decor', 'on the tab it lives on');
+  assertEqual(game.ornamentDraft.kind, 'nestbox', 'as the piece picked');
+  assertEqual(game.ornamentDraft.finish, 'sage', 'in its finish');
+
+  // a selection carries it, moves it rigidly and turns its face
+  game.sel = { x0: 4, y0: 4, x1: 4, y1: 4 }; game.selItems = selectionPayload(game.sel);
+  assert(game.selItems.some(c => c.ornament), 'the selection owns it');
+  assert(commitSelectionOffset(3, 0, false), 'it moves');
+  assert(!ornamentAt(4, 4) && ornamentAt(7, 4), 'and lands where it was dragged');
+  game.sel = { x0: 7, y0: 4, x1: 7, y1: 4 }; game.selItems = selectionPayload(game.sel);
+  rotateSelection();
+  assertEqual(ornamentAt(7, 4).face, 2, 'a turn turns the piece itself');
+  game.selItems = selectionPayload(game.sel);
+  assert(commitSelectionOffset(0, 3, true), 'it copies');
+  assert(ornamentAt(7, 4) && ornamentAt(7, 7), 'and both stand');
+  // a move refuses to land on a planting
+  setTile('plants', '9,4', { s: firstOfType('forb'), d: 0, t: 1 });
+  game.sel = { x0: 7, y0: 4, x1: 7, y1: 4 }; game.selItems = selectionPayload(game.sel);
+  assert(!commitSelectionOffset(2, 0, false), 'a move onto a planting is refused');
+
+  // the landscape erase lifts it, and the report says what it lifted
+  game.eraseMode = 'terrain'; game.brushSize = 1;
+  const counts = { plants: 0, bulbs: 0, terr: 0 };
+  eraseBrush(7, 7, counts);
+  assert(!ornamentAt(7, 7), 'erased');
+  assertEqual(counts.ornament, 1, 'and counted');
+  assert(SWEEP_NOUNS.some(([k]) => k === 'ornament'), 'the sweep report has a noun for it');
+});
+
+test('ornaments reach both client documents, which pets never do', () => {
+  setup(15, 15);
+  armOrnament('sphere', 'granite'); applyToolAt(2, 2); applyToolAt(4, 2);
+  armOrnament('rainbarrel', 'oak'); applyToolAt(6, 6);
+  armOrnament('compost', 'pine'); applyToolAt(9, 9);
+  const rows = hardscapeRows().filter(r => r.kind === 'Ornament');
+  assertEqual(rows.length, 3, 'three kinds of piece, three lines');
+  const sph = rows.find(r => /sphere/.test(r.name));
+  assertEqual(sph.count, 2, 'identical pieces are counted, not listed twice');
+  assertEqual(sph.name, 'Granite sphere', 'the finish is named: it is what you order');
+  assert(/18 in across/.test(sph.detail), 'a sphere is sold by its diameter');
+  const barrel = rows.find(r => /barrel/.test(r.name));
+  assert(/55 US gal/.test(barrel.detail), 'a rain barrel by what it holds: ' + barrel.detail);
+  assert(/cu yd/.test(rows.find(r => /compost/.test(r.name)).detail), 'a compost bay by its volume');
+  setUnitsPref('metric');
+  try {
+    assert(/L,/.test(hardscapeRows().find(r => /barrel/.test(r.name)).detail), 'in litres for a metric gardener');
+  } finally { setUnitsPref('imperial'); }
+  // on the plan, to scale
+  const io = readRepoFile('js/io.js');
+  const ground = io.slice(io.indexOf('function drawPlanGround'));
+  assert(/game\.ornaments/.test(ground.slice(0, ground.indexOf('\nfunction '))), 'the plan iterates the layer');
+  assert(/drawPlanOrnament\(/.test(ground), 'through its own symbol painter');
+  for (const o of ORNAMENTS)
+    assert(new RegExp(`case '${o.form}'`).test(String(drawPlanOrnament)), o.form + ' has a plan symbol');
+});
+
+test('an ornament survives a save, and an older garden simply has none', async () => {
+  setup(15, 15);
+  armOrnament('lantern', 'concrete', 3); applyToolAt(6, 6);
+  const id = 'ornament-round-trip';
+  await sSet('hortus:world:' + id, buildSaveBlob());
+  setup(15, 15);
+  assert(await loadSolo(id), 'the garden loads');
+  const o = ornamentAt(6, 6);
+  assert(o && o.kind === 'lantern' && o.finish === 'concrete' && o.face === 3, 'the lantern comes back as it was');
+  assertEqual(game.ornamentDraft.kind, 'lantern', 'and the brush comes back with it');
+  const legacy = 'ornament-legacy';
+  await sSet('hortus:world:' + legacy, { v: SAVE_VERSION, gw: 15, gh: 15, name: 'Before ornaments', plants: {}, bulbs: {} });
+  assert(await loadSolo(legacy), 'the older garden loads');
+  assert(game.ornaments && !Object.keys(game.ornaments).length, 'with an empty layer rather than an undefined one');
+  assertEqual(gardenFileProblem({ v: SAVE_VERSION, gw: 15, gh: 15, plants: {}, ornamentDraft: 'x' }) !== null, true,
+    'a malformed ornament draft in an imported file is refused');
+});
+
+/* The bounds of a drawing, ignoring what is drawn inside a clip (a mirror's
+   reflections, a ball's texture): artBounds' recorder, with gradients. */
+function ornamentInk(fn){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity, clip=0; const stack=[];
+  const pt=(x,y)=>{ if (clip||!isFinite(x)||!isFinite(y)) return; if (x<x0)x0=x; if (x>x1)x1=x; if (y<y0)y0=y; if (y>y1)y1=y; };
+  const grad={ addColorStop(){} };
+  const ctx=new Proxy({},{ get(o,p){
+    if (p==='createRadialGradient'||p==='createLinearGradient') return () => grad;
+    if (p==='measureText') return () => ({ width: 0 });
+    return (...a)=>{
+      if (p==='save') stack.push(clip);
+      else if (p==='restore') clip=stack.length?stack.pop():0;
+      else if (p==='clip') clip=1;
+      else if (p==='moveTo'||p==='lineTo') pt(a[0],a[1]);
+      else if (p==='quadraticCurveTo'){ pt(a[0],a[1]); pt(a[2],a[3]); }
+      else if (p==='ellipse'){ const [ex,ey,erx,ery]=a; pt(ex-erx,ey-ery); pt(ex+erx,ey+ery); }
+      else if (p==='fillRect') pt(a[0],a[1]), pt(a[0]+a[2],a[1]+a[3]);
+    };
+  }, set(){ return true; } });
+  fn(ctx);
+  return {x0,y0,x1,y1};
+}
+test('an ornament is drawn from a ground point, inside its own extent, at every facing and season', () => {
+  setup(21, 21);
+  for (const f of [drawOrnamentArt, ornamentBuild, ornPaintBall]){
+    const src = String(f);
+    for (const read of ['screenOf(', 'isoAxes(', 'cam.', 'game.rot', 'tileSeed(', 'Math.random'])
+      assert(!src.includes(read), f.name + ' does not read ' + read.replace('(', ''));
+  }
+  assert(/groundCenterRot\(/.test(String(drawOrnament)), 'drawOrnament positions through groundCenterRot');
+  for (const o of ORNAMENTS) for (const fin of o.finishes) for (let face = 0; face < 4; face++)
+    for (const season of ['Summer', 'Winter']){
+      const d = { kind: o.id, finish: fin, face };
+      const b = ornamentInk(c => drawOrnamentArt(c, 0, 0, d, season, ISO_AXES_FLAT)), e = ornamentArtExtent(d);
+      const slack = 0.6;
+      assert(isFinite(b.x0), `${o.id}/${fin}: something was drawn`);
+      assert(b.x0 >= e.x0 - slack && b.x1 <= e.x1 + slack && b.y0 >= e.y0 - slack && b.y1 <= e.y1 + slack,
+        `${o.id}/${fin}/f${face}/${season}: drawn ${[b.x0, b.x1, b.y0, b.y1].map(Math.round)} inside ${[e.x0, e.x1, e.y0, e.y1].map(Math.round)}`);
+    }
+});
+
+test('an ornament sprite is keyed on the piece, so two of a kind share one', () => {
+  setup(15, 15);
+  const keyOf = (o, x, y) => { const e = { kind: SCENE_K.ORNAMENT, x, y, bx0: x, bx1: x, by0: y, by1: y, o };
+    const s = computeStructSpriteSpec(e); return s && s.key; };
+  const a = keyOf({ kind: 'sundial', finish: 'granite', face: 0, t: 1 }, 2, 2);
+  assert(a, 'an ornament is sprite-cached');
+  assertEqual(keyOf({ kind: 'sundial', finish: 'granite', face: 0, t: 9 }, 8, 5), a, 'a made thing looks the same wherever it stands');
+  assert(keyOf({ kind: 'sundial', finish: 'concrete', face: 0, t: 1 }, 2, 2) !== a, 'a new finish is a new sprite');
+  assert(keyOf({ kind: 'sundial', finish: 'granite', face: 1, t: 1 }, 2, 2) !== a, 'and so is a turn');
+  // the scene builds one record a piece, and the box holds the tallest of them
+  armOrnament('feeder'); applyToolAt(3, 3);
+  game.sceneRev++; buildScene(800, 600);
+  const rec = scene.ents.find(e => e.kind === SCENE_K.ORNAMENT);
+  assert(rec && rec.o.kind === 'feeder', 'buildScene lists it');
+  assert(structDrawBox(rec).up >= feetToPx(88 / 12), 'and its box reaches the top of the pole');
+  assert(/case SCENE_K\.ORNAMENT/.test(String(drawSceneEnt)), 'drawSceneEnt routes it through the structure cache');
+});
+
+test('ornaments are on the Decor tab, armed by chips drawn through the garden painter', () => {
+  const decor = TRAY_CATS.find(c => c.id === 'decor');
+  assert(decor.tools.includes('ornament'), 'the Decor tab lists the tool');
+  assertEqual(brushTrayCatForTool('ornament'), 'decor', 'and the rail restores it there');
+  assert(TOOLS.ornament && TOOLS.ornament.placement && TOOLS.ornament.apply, 'the tool places through applyToolAt');
+  const tray = readRepoFile('js/tray.js');
+  const page = tray.slice(tray.indexOf("if (cat.tools.includes('ornament')){"), tray.indexOf('/* Seating collapses'));
+  assert(page.length > 200, 'found the ornament page source');
+  assert(/drawOrnamentChip\(/.test(page) && !/drawOrnamentArt\(/.test(page), 'every chip is fitted through drawOrnamentChip');
+  assert(/ORNAMENT_GROUPS/.test(page), 'listed under their group headings');
+  // the search finds a piece by name and arms THAT piece
+  const hits = searchOptionItems().filter(i => i.tool === 'ornament');
+  assertEqual(hits.length, ORNAMENTS.length, 'every piece is searchable');
+  assert(hits.some(i => /bee hotel|insect hotel/i.test(i.hay || i.label)), 'including the insect hotel by name');
 });

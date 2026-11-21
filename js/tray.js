@@ -22,7 +22,7 @@ const TRAY_CATS=[
   {id:'leveling', label:'Grade',            tools:['terrace','raise','lower','level','wall']},
   {id:'structures',label:'Hardscape',       tools:['fence','pergola','support','firepit','waterfeature','boulder','seat']},
   {id:'lighting', label:'Lighting',         tools:['light']},
-  {id:'decor',    label:'Decor',            tools:['pot','pet']},
+  {id:'decor',    label:'Decor',            tools:['pot','ornament','pet']},
 ];
 // two-tier tab grouping: a top-level Plants / Build toggle decides which set
 // of category sub-tabs shows, so the bar never spills all twelve at once.
@@ -136,6 +136,8 @@ const TOOLS={
      drag lays a neat row rather than 24 copies on one spot. */
   pot:     {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placePotAt(x,y)},
   seat:    {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeSeatAt(x,y)},
+  // a row of nest boxes along a hedge or feeders down a border drags like a pot
+  ornament:{layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeOrnamentAt(x,y)},
 };
 // plant tools are keyed by species id; their layer + placer follow the plant type
 const TOOL_PLANT={
@@ -523,6 +525,32 @@ function drawSeatChip(tc,d,w,h,capK){
   }
   tc.drawImage(bmp,0,0);
 }
+/* An ornament fitted the seat chip's way, through drawOrnamentArt and its own
+   extent. A tall piece (the feeder pole) and a squat one (a sphere) are fitted
+   separately, so each fills its chip; the true height is in the chip's title. */
+const ORNAMENT_CHIP_CACHE=new Map();
+function drawOrnamentChip(tc,d,w,h,capK){
+  if (!tc) return;
+  d=normalizeOrnamentDraft(d);
+  const key=JSON.stringify(d)+'|'+w+'x'+h+'|'+(capK||0.5);
+  let bmp=ORNAMENT_CHIP_CACHE.get(key);
+  if (!bmp){
+    if (ORNAMENT_CHIP_CACHE.size>96) ORNAMENT_CHIP_CACHE.clear();
+    bmp=document.createElement('canvas'); bmp.width=w; bmp.height=h;
+    const c=bmp.getContext('2d');
+    if (c){
+      const e=ornamentArtExtent(d), top=ornamentKind(d.kind).chipTop;
+      // a tall piece shows its top, where what it is lives; the pole runs off the chip
+      if (top) e.y1=e.y0+(e.y1-e.y0)*top;
+      const k=Math.min(capK||0.5,(w-4)/(e.x1-e.x0),(h-4)/(e.y1-e.y0));
+      c.save(); c.translate(w/2-(e.x0+e.x1)/2*k,h/2-(e.y0+e.y1)/2*k); c.scale(k,k);
+      drawOrnamentArt(c,0,0,d,'Summer',ISO_AXES_FLAT);
+      c.restore();
+    }
+    ORNAMENT_CHIP_CACHE.set(key,bmp);
+  }
+  tc.drawImage(bmp,0,0);
+}
 /* A pergola fitted to a small canvas the same way, through drawPergolaArt --
    a whole little pergola built by the garden's own frame rules, so the chip
    shows posts, beams and rafters where the canvas would put them. It used to
@@ -587,6 +615,7 @@ function drawBrushSwatchCanvas(c,includeLast){
     drawLightArt(g,c.width/2,c.height-5,ld,true,null,k2); return true; }
   if (k==='firepit'){ drawFirepitChip(g,firepitDraft(),c.width,c.height,0.34); return true; }
   if (k==='seat'){ drawSeatChip(g,seatDraft(),c.width,c.height,0.34); return true; }
+  if (k==='ornament'){ drawOrnamentChip(g,ornamentDraft(),c.width,c.height,0.34); return true; }
   if (k==='boulder'){ drawBoulderChip(g,boulderDraft(),c.width,c.height,0.4); return true; }
   if (k==='pergola'){ drawPergolaChip(g,pergolaDraft(),c.width,c.height); return true; }
   // both chip artworks are 48x44; the swatch is whatever size this canvas is
@@ -933,8 +962,8 @@ function pickAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return;
   const k=`${x},${y}`;
   const direct=game.plants[k];
-  const b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), po=potAt(x,y), se=seatAt(x,y), wf=waterFeatureAt(x,y), sp=structureSupportAt(x,y), pgk=pergolaAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
-  const onTile=(b&&!b.removed)||f||l||fp||bo||pet||po||se||wf||sp||pgk||building;
+  const b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), po=potAt(x,y), se=seatAt(x,y), orn=ornamentAt(x,y), wf=waterFeatureAt(x,y), sp=structureSupportAt(x,y), pgk=pergolaAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
+  const onTile=(b&&!b.removed)||f||l||fp||bo||pet||po||se||orn||wf||sp||pgk||building;
   const sh=onTile ? null : shrubAt(x,y);
   const p=(direct&&!direct.removed)?direct:(sh&&sh.p);
   if (p && !p.removed){
@@ -957,6 +986,12 @@ function pickAt(x,y){
     game.seatDraft=normalizeSeatDraft(se);
     setTool('seat', null); buildToolTray();
     toast(`Picked the ${seatLabel(se)}.`);
+  } else if (orn){
+    // the Decor tab unfolds its finish and facing rows for the armed piece, so no sub-page
+    game.fillMode=false; game.trayCat='decor'; game.drill=null;
+    game.ornamentDraft=normalizeOrnamentDraft(orn);
+    setTool('ornament', null); buildToolTray();
+    toast(`Picked the ${ornamentLabel(orn).toLowerCase()}.`);
   } else if (pet){
     game.fillMode=false; game.trayCat='decor';
     game.petDraft=normalizePetDraft(pet);
@@ -1902,6 +1937,8 @@ const TOOL_SEARCH={
            hay:'lighting lights path light lantern post outdoor lamp eco warm bright night'},
   pot:    {label:'Container',kind:'fill',
            hay:'pot pots container containers planter urn trough terracotta glazed cast stone timber galvanised patio courtyard balcony terrace decor colour color charcoal black white cream blue green teal cobalt copper corten'},
+  ornament:{label:'Garden Ornament',kind:'fill',
+           hay:'ornament ornaments decor sculpture statue focal point sphere ball orb armillary sundial gazing ball stone lantern japanese toro wildlife bird feeder birdhouse nest box bee hotel insect hotel bug hotel pollinator rain barrel water butt compost bin bay'},
   pet:    {label:'Garden Pet',kind:'fill',
            hay:'pet pets cat dog animal ornament decor coat marking socks paws'},
   building:{label:'Building Footprint',kind:'building',
@@ -1963,6 +2000,9 @@ const SEARCH_OPTION_SOURCES=[
    extra:r=>searchFinishLabels(LIGHT_FINISHES,r.finishes)},
   {tool:'pot',  rows:()=>POT_STYLES,  draft:'potDraft',  field:'style',norm:d=>normalizePotDraft(d),
    extra:r=>(r.natural||'')+' '+searchFinishLabels(POT_FINISHES,r.finishes)+' pot container planter'},
+  {tool:'ornament',rows:()=>ORNAMENTS,draft:'ornamentDraft',field:'kind',norm:d=>normalizeOrnamentDraft(d),
+   extra:r=>searchFinishLabels(ORNAMENT_FINISHES,r.finishes)+' ornament decor '+ornamentGroup(r.group).label,
+   icon:(tc,d)=>drawOrnamentChip(tc,d,48,44)},
   {tool:'pet',  rows:()=>PET_SPECIES, draft:'petDraft',  field:'species',norm:d=>normalizePetDraft(d)}
 ];
 /* Tools no tab lists, so neither TRAY_CATS nor the index above can reach them.
@@ -3412,7 +3452,7 @@ function trayStateSig(ignoreDiscoverySearch=false){
     g.challenge?j([g.challenge.id,g.challenge.title,g.challenge.match,g.challenge.palette,g.challenge.paletteFree]):'-',
     // every draft the tray paints a chip from
     j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.waterFeatureDraft,g.supportDraft,g.boulderDraft,g.petDraft,g.potDraft,
-       g.seatDraft,g.edgingDraft,g.wallDraft,g.terraceDraft,g.buildingStyleDraft,g.buildingDraft,
+       g.seatDraft,g.ornamentDraft,g.edgingDraft,g.wallDraft,g.terraceDraft,g.buildingStyleDraft,g.buildingDraft,
        g.houseDraft]),
     g.lastBrushTool||'', g.lastBrushVar||'', g.lastBrushTrayCat||'', g.lastBrushDrill||'',
     // tray-module state that changes what is drawn
@@ -3589,6 +3629,7 @@ function verifyTrayCache(){
     ['waterFeatureDraft', ()=>{ const o=g.waterFeatureDraft; g.waterFeatureDraft={form:'tiered',finish:'slate',face:0}; return ()=>{ g.waterFeatureDraft=o; }; }],
     ['supportDraft',  ()=>{ const o=g.supportDraft; g.supportDraft={style:'arch',mat:'black',face:0}; return ()=>{ g.supportDraft=o; }; }],
     ['potDraft',    ()=>{ const o=g.potDraft; g.potDraft=Object.assign({},o,{style:(o&&o.style)==='urn'?'timber':'urn'}); return ()=>{ g.potDraft=o; }; }],
+    ['ornamentDraft',()=>{ const o=g.ornamentDraft; g.ornamentDraft=Object.assign({},o,{kind:(o&&o.kind)==='sundial'?'lantern':'sundial'}); return ()=>{ g.ornamentDraft=o; }; }],
     ['seatDraft',   ()=>{ const o=g.seatDraft; g.seatDraft=Object.assign({},o,{face:(((o&&o.face)|0)+1)%4}); return ()=>{ g.seatDraft=o; }; }],
     ['petDraft',    ()=>{ const o=g.petDraft; g.petDraft=Object.assign({},o,{species:(o&&o.species)==='cat'?'dog':'cat'}); return ()=>{ g.petDraft=o; }; }],
     ['edgingDraft', ()=>{ const o=g.edgingDraft; g.edgingDraft=(o==='steel'?'timber':'steel'); return ()=>{ g.edgingDraft=o; }; }],
@@ -4514,6 +4555,52 @@ function buildToolTrayInner(){
       }
     }
   }
+  /* Ornaments: the pots' idiom, since they share the tab. Every piece is always
+     up under its group's heading, and the finish and facing rows unfold once
+     one is armed. Every chip is drawOrnamentChip, the piece itself through the
+     painter the garden uses, so a chip cannot advertise one the canvas does not
+     draw. The dataset names the axis a chip sets, which refreshTray reads. */
+  if (cat.tools.includes('ornament')){
+    const od=ornamentDraft(), armed=game.tool==='ornament';
+    const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
+      s.textContent=t2; tray.appendChild(s); };
+    const toolBtn=(label,sel,patch,tip,data)=>{
+      const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+      b.dataset.k='ornament'; Object.assign(b.dataset,data||{});
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      const next=Object.assign({},od,patch);
+      if (patch.kind) next.finish=ornamentFinishFor(patch.kind,od.finish);
+      drawOrnamentChip(c.getContext('2d'),next,48,44);
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp); b.title=tip||label;
+      b.onclick=()=>{
+        const cur=ornamentDraft(), n2=Object.assign({},cur,patch);
+        // a finish the new piece is not made in snaps to its first (ornamentFinishFor)
+        if (patch.kind && patch.kind!==cur.kind) n2.finish=ornamentFinishFor(patch.kind,cur.finish);
+        game.ornamentDraft=normalizeOrnamentDraft(n2);
+        setTool('ornament',null); buildToolTray(); };
+      tray.appendChild(b); return b;
+    };
+    { const head=trayEl('div','lg-head'); head.append(trayEl('b',null,'Ornaments'),trayEl('span',null,'Something to plant toward, and things for the birds and bees')); tray.appendChild(head); }
+    for (const g of ORNAMENT_GROUPS){
+      sep(g.label);
+      ORNAMENTS.filter(o=>o.group===g.id).forEach(o=>toolBtn(o.short||o.label, armed&&od.kind===o.id, {kind:o.id},
+        `${o.label}, ${fmtLengthIn(o.hIn)} tall`, {ornamentKind:o.id}));
+    }
+    if (armed){
+      const fins=ornamentFinishes(od.kind);
+      if (fins.length>1){
+        sep('Finish');
+        fins.forEach(f=>toolBtn(f.label, od.finish===f.id, {finish:f.id},
+          ornamentLabelFor({kind:od.kind,finish:f.id}), {ornamentFinish:f.id}));
+      }
+      // only a piece with a front reads differently turned (`turns`)
+      if (ornamentKind(od.kind).turns){
+        sep('Facing');
+        toolBtn('Turn', false, {face:(od.face+1)%4}, 'Turn it a quarter', {ornamentTurn:'1'});
+      }
+    }
+  }
   /* Seating collapses to one summary button and opens its own page, like every
      other Hardscape tool. It used to be the one section on this tab laid out
      flat — nine chips and a "Seating" heading under the summary buttons — which
@@ -4770,6 +4857,12 @@ function refreshTray(){
       ? game.tool==='light' && lightDraft().tone===el.dataset.lightTone
       : el.dataset.lightFinish
       ? game.tool==='light' && lightDraft().finish===el.dataset.lightFinish
+      : el.dataset.ornamentKind
+      ? game.tool==='ornament' && ornamentDraft().kind===el.dataset.ornamentKind
+      : el.dataset.ornamentFinish
+      ? game.tool==='ornament' && ornamentDraft().finish===el.dataset.ornamentFinish
+      : el.dataset.ornamentTurn
+      ? false
       : el.dataset.petSpecies
       ? game.tool==='pet' && petDraft().species===el.dataset.petSpecies
       : el.dataset.petCoat
@@ -5005,6 +5098,7 @@ function sheetContextLabel(){
   if (game.tool==='terrace') return terraceLabel();
   if (game.tool==='pot') return potLabel();
   if (game.tool==='seat') return seatLabel();
+  if (game.tool==='ornament') return ornamentLabel();
   if (game.tool==='house') return 'House';
   if (game.tool==='building') return 'Building footprint';
   if (game.tool==='building-edit') return 'Footprint · '+buildingEditMode();
@@ -5062,6 +5156,7 @@ function toolGuide(){
     boulder:{k:boulderLabel(),v:'Tap clear, dry ground to place'},
     pot:{k:cap(potLabel()),v:'Tap or drag to set it down — paving is fine, then plant it'},
     seat:{k:cap(seatLabel()),v:'Tap or drag to place seating on clear, dry ground'},
+    ornament:{k:ornamentLabel(),v:'Tap or drag to set it on lawn, a bed or paving'},
     pet:{k:cap(petLabel()),v:'Tap a clear spot — decoration only, never on the plan'},
     house:{k:'Legacy house',v:'Tap the map to place the current size and finish'}
   };

@@ -632,7 +632,7 @@ function buildSaveBlob(){
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,lawnStyle:game.lawnStyle,
-    fenceDraft:game.fenceDraft,pergolaDraft:game.pergolaDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,supportDraft:game.supportDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,terraceDraft:game.terraceDraft,edgingDraft:game.edgingDraft,
+    fenceDraft:game.fenceDraft,pergolaDraft:game.pergolaDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,supportDraft:game.supportDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,ornamentDraft:game.ornamentDraft,wallDraft:game.wallDraft,terraceDraft:game.terraceDraft,edgingDraft:game.edgingDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
@@ -959,7 +959,7 @@ function gardenFileProblem(env){
   if (w.underlay!=null && (!gardenRecord(w.underlay) || !normalizeUnderlay(w.underlay))) return 'This garden contains an invalid site photo.';
   if (w.challenge!=null && !normalizeDailyChallenge(w.challenge)) return 'This garden contains an invalid daily design brief.';
   if (w.view!=null && !normalizeGardenView(w.view)) return 'This garden contains an invalid saved view.';
-  for (const k of ['start','design','discovery','layerVis','fenceDraft','pergolaDraft','lightDraft','firepitDraft','waterFeatureDraft','supportDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
+  for (const k of ['start','design','discovery','layerVis','fenceDraft','pergolaDraft','lightDraft','firepitDraft','waterFeatureDraft','supportDraft','boulderDraft','petDraft','potDraft','seatDraft','ornamentDraft','buildingStyleDraft'])
     if (w[k]!=null && !gardenRecord(w[k])) return `This garden contains invalid ${k} settings.`;
   return null;
 }
@@ -1029,6 +1029,7 @@ async function loadSolo(id){
   game.petDraft=normalizePetDraft(s.petDraft);
   game.potDraft=normalizePotDraft(s.potDraft);
   game.seatDraft=normalizeSeatDraft(s.seatDraft);
+  game.ornamentDraft=normalizeOrnamentDraft(s.ornamentDraft);
   game.wallDraft=wallStyleId(s.wallDraft);
   game.terraceDraft=normalizeTerraceDraft(s.terraceDraft);
   game.edgingDraft=edgingStyleId(s.edgingDraft);
@@ -1103,6 +1104,56 @@ function exportRows(){
    A loose surface also carries its VOLUME on the sub-line, because a cubic yard
    of gravel is what a supplier actually sells; `depth` in the material table is
    what says a surface is loose (see the note over PATH_COLORS). */
+/* An ornament on the plan sheet, TO SCALE in its own plan outline -- a sphere a
+   circle its real diameter, a compost bay a 3 ft square -- turned the way it
+   stands and tinted by its finish, with the one mark that says what it is. It
+   is drawn rather than keyed, which is the convention for an object on a
+   planting plan; it is there at all because, unlike a pet, it is bought and
+   set out. */
+function drawPlanOrnament(ctx,x0,y0,cell,d){
+  const sp=ornamentKind(d.kind), fin=ornamentFinish(d.finish), sz=ornamentTileSize(d);
+  const ppi=cell/TILE_IN, cx=x0+sz.w*cell/2, cy=y0+sz.h*cell/2, f=d.face;
+  // the piece's own (u,v) in inches onto the sheet, a quarter turn per face
+  const Q=(u,v)=>{ const r=f===1?[-v,u]:f===2?[-u,-v]:f===3?[v,-u]:[u,v]; return [cx+r[0]*ppi, cy+r[1]*ppi]; };
+  const poly=pts=>{ ctx.beginPath(); pts.forEach((p,i)=>{ const q=Q(p[0],p[1]); if (i) ctx.lineTo(q[0],q[1]); else ctx.moveTo(q[0],q[1]); }); ctx.closePath(); };
+  const box=(u0,u1,v0,v1)=>poly([[u0,v0],[u1,v0],[u1,v1],[u0,v1]]);
+  const ring=(u,v,r)=>{ const q=Q(u,v); ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(0.8,r*ppi),0,7); };
+  const line=(a,b)=>{ const p=Q(a[0],a[1]), q=Q(b[0],b[1]); ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke(); };
+  const body=mixHex(fin.body,'#f7f3e8',0.4), mark='rgba(79,71,59,0.8)';
+  ctx.save();
+  ctx.fillStyle=body; ctx.strokeStyle='#4f473b'; ctx.lineWidth=1.1;
+  const solid=()=>{ ctx.fill(); ctx.stroke(); ctx.strokeStyle=mark; ctx.lineWidth=0.8; };
+  switch(sp.form){
+    case 'sphere':
+      ring(0,0,sp.wIn/2); solid();
+      ctx.fillStyle='rgba(255,255,255,0.8)'; ring(-sp.wIn*0.17,-sp.wIn*0.17,sp.wIn*0.09); ctx.fill(); break;
+    case 'gazing':
+      ring(0,0,4.8); solid(); ctx.fillStyle=mixHex(fin.body,'#202020',0.25); ring(0,0,2.8); ctx.fill(); break;
+    case 'armillary':
+      box(-6,6,-6,6); solid(); ring(0,0,8.2); ctx.stroke(); line([-8.2,0],[8.2,0]); line([0,-8.2],[0,8.2]); break;
+    case 'sundial':
+      box(-7,7,-7,7); solid(); ring(0,0,5.6); ctx.stroke(); line([0,-3.6],[0,3.4]); break;
+    case 'lantern':
+      box(-10.2,10.2,-10.2,10.2); solid();
+      line([-10.2,-10.2],[10.2,10.2]); line([10.2,-10.2],[-10.2,10.2]); box(-2.4,2.4,-2.4,2.4); ctx.stroke(); break;
+    case 'feeder':
+      ring(5.2,0,2.9); solid();
+      ctx.setLineDash([2,2]); line([-5.2,0],[2.3,0]); ctx.setLineDash([]);
+      ctx.fillStyle='#2a2a2a'; ring(-5.2,0,1); ctx.fill(); break;
+    case 'nestbox':
+      box(-4.7,4.7,-4.9,5.9); solid(); line([-2.2,5.9],[2.2,5.9]); line([0,4.4],[0,5.9]); break;
+    case 'hotel':
+      box(-12,12,-5.5,5.5); solid(); line([-12,0],[12,0]); break;
+    case 'barrel':
+      ring(0,0,11.4); solid(); ring(0,0,3.9); ctx.stroke(); break;
+    case 'compost':
+      box(-18,18,-18,18); solid();
+      ctx.save(); box(-16.4,16.4,-16.4,16.4); ctx.clip();
+      for (let t=-36;t<=36;t+=4) line([t-18,-18],[t+18,18]);
+      ctx.restore(); break;
+  }
+  ctx.restore();
+}
 function hardscapeRows(){
   const rows=[];
   /* `n` is the magnitude the sort reads. Most counts here are formatted
@@ -1197,7 +1248,7 @@ function hardscapeRows(){
   }
 
   /* ---- things you buy one of ---- */
-  const pots={}, seats={}, waters={}, pits={}, rocks={}, props={}, lamps={};
+  const pots={}, seats={}, waters={}, pits={}, rocks={}, props={}, lamps={}, orns={};
   for (const k in game.pots||{}){ const p2=game.pots[k]; if (!p2||p2.removed) continue;
     // colour is part of what you order, so it splits the line
     bump(pots, potStyleId(p2.style)+'|'+potSizeFor(p2.style,p2.size)+'|'+potFinishFor(p2.style,p2.finish)); }
@@ -1206,6 +1257,9 @@ function hardscapeRows(){
     const d=normalizeSeatDraft(s2); bump(seats, d.type+'|'+d.finish); }
   for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k]; if (!w||w.removed) continue;
     const d=normalizeWaterFeatureDraft(w); bump(waters, d.form+'|'+d.finish); }
+  for (const k in game.ornaments||{}){ const o=game.ornaments[k]; if (!o||o.removed) continue;
+    // which way it is turned is not something you order
+    const d=normalizeOrnamentDraft(o); bump(orns, d.kind+'|'+d.finish); }
   for (const k in game.firepits||{}){ const f=game.firepits[k]; if (!f||f.removed) continue;
     // the material is what you order; `face` is only which way it is turned
     const d=normalizeFirepitDraft(f); bump(pits, [d.style,d.finish,d.shape,d.size].join('|')); }
@@ -1225,6 +1279,8 @@ function hardscapeRows(){
     add('Seating', `${seatFinish(fi).label} ${seatType(ty).label}`, seats[id], seats[id]); }
   for (const id in waters){ const [fo,fi]=id.split('|');
     add('Water feature', `${waterFinish(fi).label} ${waterFeature(fo).label}`, waters[id], waters[id]); }
+  for (const id in orns){ const [kind,finish]=id.split('|'), d={kind,finish};
+    add('Ornament', ornamentLabelFor(d), orns[id], orns[id], ornamentTakeoffText(d,orns[id])); }
   for (const id in pits){ const [style,finish,shape,size]=id.split('|'), d={style,finish,shape,size};
     add('Fire pit', firepitLabel(d), pits[id], pits[id], firepitTakeoffText(d,pits[id])); }
   /* A boulder is ordered by the ton, so its sub-line is what it weighs — the
@@ -2869,6 +2925,11 @@ function drawPlanGround(ctx,g,site){
     for (let i=1;i<4;i++){ const t=i/4;
       ctx.beginPath(); ctx.moveTo(x0,y0+h*t); ctx.lineTo(x0+w,y0+h*t); ctx.stroke(); }
     ctx.restore();
+  }
+  for (const k in game.ornaments||{}){
+    const o=game.ornaments[k]; if (!o||o.removed) continue;
+    const [x,y]=k.split(',').map(Number);
+    drawPlanOrnament(ctx,X(x),Y(y),cell,normalizeOrnamentDraft(o));
   }
   /* Formal gardens keep crisp per-tile cells on the sheet, so their edging is
      per-tile too. The organic branch above strokes the smoothed arcs instead. */
