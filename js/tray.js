@@ -93,7 +93,9 @@ const TOOLS={
   // the wall brush paints a face that already exists, so it may sit on a tile
   // the universal guard would otherwise refuse nothing about — it is sizable
   // because a terrace edge is a run, not a spot
-  wall:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>paintWallAt(x,y)},
+  /* A tap faces a whole terrace or sunken patio (faceTerraceAt); a drag faces each
+     one it crosses. No disc and nothing for Fill to add, as with Edging. */
+  wall:    {layer:'landscape', brush:true,  placement:true,  paints:false, material:true, apply:(x,y,o)=>faceTerraceAt(x,y)},
   /* A terrace drags corner to corner like the pergola (`rect`) and a tap lays
      or rebuilds one (tapTerraceAt). `paints` is true because Fill is the way to
      raise a shape no rectangle makes: lay the bed, then fill it with Terrace.
@@ -919,8 +921,11 @@ function groundMat(x,y){ return tileTerrain(x,y) || 'grass'; }
 function doFloodFill(sx,sy){
   if (!onPlot(sx,sy) || siteStructureAt(sx,sy) || isDoor(sx,sy)) return;
   const tFill=dnow();   // one tap, unbounded region: 'fill' in the debug HUD
-  const seed=groundMat(sx,sy);
-  // BFS the 4-connected region sharing that ground material
+  const seed=groundMat(sx,sy), lvl=elevationAt(sx,sy);
+  /* BFS the 4-connected region sharing that ground material AND that level. It
+     ignored height, so filling the lawn on top of a raised bed with soil flooded
+     every lawn tile in the garden. A fill stops at a terrace's edge now, which
+     is also what lets a terrace be refilled at a new height on its own. */
   const region=[], seen=new Set([sx+','+sy]), q=[[sx,sy]];
   while (q.length){
     const [x,y]=q.shift(); region.push([x,y]);
@@ -928,7 +933,7 @@ function doFloodFill(sx,sy){
       const nx=x+dx, ny=y+dy, key=nx+','+ny;
       if (!onPlot(nx,ny) || seen.has(key)) continue;
       if (siteStructureAt(nx,ny) || isDoor(nx,ny)) continue;
-      if (groundMat(nx,ny)!==seed) continue;
+      if (groundMat(nx,ny)!==seed || elevationAt(nx,ny)!==lvl) continue;
       seen.add(key); q.push([nx,ny]);
     }
   }
@@ -1042,6 +1047,23 @@ function pickAt(x,y){
     game.fillMode=false; game.trayCat='house'; game.buildingStyleDraft=normalizeBuildingStyle(building);
     setTool('building',null); buildToolTray();
     toast(`Picked ${building.status==='proposed'?'proposed':'existing'} building footprint style.`);
+  } else if (TERRACE_LEVELS.includes(elevationAt(x,y))){
+    /* A terrace or sunken patio: its height and its wall, into the Terrace tool,
+       so a second one can be built to match. The eyedropper answered "Nothing
+       here to pick" on one. A hollow's walls are on the ground round it. What
+       the top is laid with goes into that material's own choice as well, so
+       switching to it paints the same, though the terrace is what is armed. */
+    const h=elevationAt(x,y), t=wallTargetAt(x,y);
+    const w=h>0 ? wallStyleAt(x,y) : (t&&t.owners.length ? wallStyleAt(t.owners[0][0],t.owners[0][1]) : 'none');
+    if (terr){
+      if (terr.k==='path') game.pathColor=pathColorId(terr.c||game.pathColor);
+      if (terr.k==='bed') game.bedStyle=bedStyleId(terr.c||game.bedStyle);
+      if (terr.k==='lawn') game.lawnStyle=lawnStyleId(terr.c||game.lawnStyle);
+    }
+    game.terraceDraft=normalizeTerraceDraft({h,w}); game.wallDraft=wallStyleId(w);
+    game.fillMode=false; game.trayCat='leveling';
+    setTool('terrace', null); buildToolTray();
+    toast(`Picked ${terraceLabel()}.`);
   } else if (terr){
     if (terr.k==='path') game.pathColor=pathColorId(terr.c||game.pathColor);
     if (terr.k==='water') game.waterStyle=waterStyleId(terr.c||game.waterStyle);
@@ -3785,7 +3807,7 @@ const GRADE_TOOLS=[
   {k:'raise',  name:'Raise',  desc:'Lift the ground a step. Drag to shape a berm.'},
   {k:'lower',  name:'Lower',  desc:'Dig the ground down a step, for a swale or a basin.'},
   {k:'level',  name:'Level',  desc:'Put the ground back to grade.'},
-  {k:'wall',   name:'Wall',   desc:'Face the edge of a terrace with stone, brick or timber. Drag along it.'}
+  {k:'wall',   name:'Wall',   desc:'Face a whole terrace or sunken patio with stone, brick or timber. Tap it.'}
 ];
 function drawGradeIcon(tc,kind){
   const high=kind==='raise', low=kind==='lower';
@@ -5141,7 +5163,7 @@ function toolGuide(){
     bed:{k:`${bedStyle(game.bedStyle).label} bed`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     water:{k:`${waterStyle(game.waterStyle).label} water`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     edging:{k:edgingLabel(),v:edgingDraft()==='none'?'Tap a bed to lift its edging':'Tap a bed or path to edge all of it; tap again in another style to change it'},
-    wall:{k:wallLabel(),v:`Tap or drag along the face of a terrace — ${game.brushSize}-tile brush`},
+    wall:{k:wallLabel(),v:wallDraft()==='none'?'Tap a terrace to strip its wall back to earth':'Tap a terrace or sunken patio to face all of it'},
     terrace:{k:terraceLabel(),v:game.fillMode?'Tap a bed or area to build all of it to this height'
       :`Drag corner to corner, or tap for a ${pergolaSizeText(TERRACE_TAP_W,TERRACE_TAP_H)} bed — tap a terrace to rebuild it`},
     raise:{k:'Raise grade',v:`Tap or drag — ${game.brushSize}-tile brush`},

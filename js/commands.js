@@ -259,8 +259,8 @@ function actHere(opts){
   }
   if (game.tool==='wall'){
     const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(wallDraft()==='none'?'Back to bare earth.':`${wallLabel()} faced.`); }
-    else rejectPlacement(wallRefusalText(x,y));
+    if (r){ hapticFeedback('place'); toast(wallTapText(true)); }
+    else rejectPlacement(wallTapText(false));
     return;
   }
   if (game.tool==='terrace'){ tapTerraceAt(x,y); return; }
@@ -1160,6 +1160,72 @@ function wallRefusalText(x,y){
   const any=game.elevation && Object.keys(game.elevation).some(k=>{ const e=game.elevation[k]; return e && !e.removed && +e.h; });
   return any ? 'Nothing falls away there — tap the face of a terrace.'
     : 'A wall needs a level change to hold up — build one with Terrace first.';
+}
+/* What a Wall tap acts on: a whole TERRACE or a whole sunken patio, and the tiles
+   that carry its walls. The tool used to face one tile's edge per stroke, so
+   refacing a terrace meant dragging along every face of it, a target 10px tall
+   at the zoom a garden opens at, and a tap on the terrace's top was refused.
+   Now a tap on a terrace's top or any face faces all of it, the way a tap with
+   the Terrace tool rebuilds all of it. A terrace's walls ride its own tiles; a
+   hollow's ride the ground round it that it drops away from (never a raised
+   terrace beside it, whose facing its gardener chose: setTerraceTile's rule).
+   A tap on a hollow's rim, which is grade ground with a face, means the hollow. */
+function wallTargetAt(x,y){
+  if (!onPlot(x,y)) return null;
+  if (elevationAt(x,y)===0){
+    const dirs=elevationDropDirs(x,y);
+    if (!dirs.length) return null;
+    const [dx,dy]=ELEV_DIRS[dirs[0]]; x+=dx; y+=dy;
+    if (elevationAt(x,y)>=0) return null;
+  }
+  const reg=terraceRegionAt(x,y); if (!reg) return null;
+  if (reg.h>0) return {h:reg.h, region:reg, owners:reg.tiles};
+  const owners=[], seen=new Set();
+  for (const [tx,ty] of reg.tiles) for (const [dx,dy] of ELEV_DIRS){
+    const nx=tx+dx, ny=ty+dy, nk=nx+','+ny;
+    if (seen.has(nk) || reg.has.has(nk) || !onPlot(nx,ny) || siteStructureAt(nx,ny) || isDoor(nx,ny)) continue;
+    const nh=elevationAt(nx,ny); if (nh<=reg.h || nh>0) continue;
+    seen.add(nk); owners.push([nx,ny]);
+  }
+  return {h:reg.h, region:reg, owners};
+}
+// the faces a target's walls cover, in tile sides: its length in 18 in units
+function wallTargetSides(t){
+  let n=0;
+  for (const [x,y] of t.owners) for (const i of elevationDropDirs(x,y)){
+    const [dx,dy]=ELEV_DIRS[i];
+    if (t.h<0 ? t.region.has.has((x+dx)+','+(y+dy)) : true) n++;
+  }
+  return n;
+}
+let lastWallFace=null;
+function faceTerraceAt(x,y){
+  const t=wallTargetAt(x,y);
+  lastWallFace={t, why:null};
+  if (!t) return null;
+  const want=wallDraft(); let n=0;
+  for (const [ox,oy] of t.owners){
+    if (wallStyleAt(ox,oy)===want) continue;
+    const k=ox+','+oy, rec=game.elevation&&game.elevation[k], live=(rec&&!rec.removed)?rec:null, h=elevationAt(ox,oy);
+    // at grade the record exists only to carry the wall (paintWallAt's tombstone rule)
+    if (want==='none' && h===0){ if (live){ clearTile('elevation',k); n++; } continue; }
+    if (!game.elevation) game.elevation={};
+    setTile('elevation',k,Object.assign({},live,{h,w:want,t:Date.now()})); n++;
+  }
+  if (!n){ lastWallFace.why='same'; return null; }
+  return 'wall';
+}
+function wallTapText(ok){
+  const r=lastWallFace, t=r&&r.t, noun=t&&t.h<0?'sunken patio':'terrace';
+  if (ok) return wallDraft()==='none' ? `Back to bare earth round the ${noun}.`
+    : `${wallLabel()} round the ${noun}: ${fmtFeet(wallTargetSides(t)*TILE_IN/12)}.`;
+  if (!t){
+    const any=game.elevation && Object.keys(game.elevation).some(k=>{ const e=game.elevation[k]; return e && !e.removed && +e.h; });
+    return any ? 'Tap a terrace or a sunken patio to face its walls.'
+      : 'A wall needs a level change to hold up — build one with Terrace first.';
+  }
+  return wallDraft()==='none' ? `That ${noun} has no wall to strip.`
+    : `That ${noun} is already faced in ${wallLabel().toLowerCase()}.`;
 }
 
 /* ---------- terraces ----------

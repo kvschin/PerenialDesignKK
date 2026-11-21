@@ -2518,7 +2518,11 @@ function wallGeom(pts, units){
   const between=(t0,t1)=>{ const out=[], d0=t0*total, d1=t1*total;
     for (let i=1;i<pts.length-1;i++) if (cum[i]>d0+1e-6 && cum[i]<d1-1e-6) out.push(pts[i]);
     return out; };
-  return {at, between, total, units:Math.max(1,Math.round(units||1))};
+  // the same bends, each with where it falls along the run (0..1)
+  const betweenT=(t0,t1)=>{ const out=[], d0=t0*total, d1=t1*total;
+    for (let i=1;i<pts.length-1;i++) if (cum[i]>d0+1e-6 && cum[i]<d1-1e-6) out.push([pts[i][0],pts[i][1],cum[i]/total]);
+    return out; };
+  return {at, between, betweenT, total, units:Math.max(1,Math.round(units||1))};
 }
 function drawWallSurface(ctx, g, drop, st, seed){
   const lift=(p,u)=>[p[0], p[1]+drop*u];
@@ -2531,10 +2535,16 @@ function drawWallSurface(ctx, g, drop, st, seed){
   const trace=pts=>{ ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
     for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); };
   const quad=(t0,u0,t1,u1,col)=>{ ctx.fillStyle=col; trace(ring(t0,u0,t1,u1)); ctx.fill(); };
+  /* A course line follows the run round its bends even when its two ends sit at
+     different heights on the face (dry stone wanders, so they do): u eases from
+     one end to the other. It used to follow the bends only when u0===u1, so a
+     dry-stone course went straight from end to end and cut across the top of
+     the terrace at every corner. */
   const line=(t0,u0,t1,u1,col,w)=>{
     ctx.strokeStyle=col; ctx.lineWidth=w||1; ctx.beginPath();
     const p0=P(t0,u0); ctx.moveTo(p0[0],p0[1]);
-    if (u0===u1) for (const p of g.between(t0,t1)) ctx.lineTo(p[0],p[1]+drop*u0);
+    const span=(t1-t0)||1;
+    for (const p of g.betweenT(t0,t1)) ctx.lineTo(p[0],p[1]+drop*(u0+(u1-u0)*(p[2]-t0)/span));
     const p1=P(t1,u1); ctx.lineTo(p1[0],p1[1]); ctx.stroke();
   };
   const U=g.units, tu=(m,f)=>(m+f)/U;                    // fraction f within unit m
@@ -2640,11 +2650,14 @@ function drawElevationSides(ctx,W,H,x,y,base){
     // and the flight, if this face is the one the steps climb
   });
 }
+/* A level's tint: lighter on a terrace, shadowed in a hollow. It used to stroke
+   every tile's outline as well, which drew a cream grid across every terrace top
+   and a blue one across every sunken patio: the tile lattice showing through,
+   the artifact the ground materials were rebuilt to stop. */
 function drawElevationRim(ctx,sx,sy,h){
   if (!h) return;
   const a=Math.min(0.32,0.12+Math.abs(h)*0.045);
-  tileDiamond(ctx,sx,sy,h>0?`rgba(255,244,210,${a*0.28})`:`rgba(28,36,48,${a})`,
-    h>0?'rgba(245,220,160,0.36)':'rgba(105,128,145,0.42)');
+  tileDiamond(ctx,sx,sy,h>0?`rgba(255,244,210,${a*0.28})`:`rgba(28,36,48,${a})`,null);
 }
 function toneColor(col,amt){ return col && col[0]==='#' ? shade(col,amt) : col; }
 function drawSoftShadow(ctx,x,y,rx,ry,alpha){

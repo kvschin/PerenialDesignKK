@@ -528,7 +528,9 @@ const DRAG_DONE={
   // a drag edges each bed it crosses once, so the count is of beds, not tiles
   edging:    n=>edgingDraft()==='none' ? `Lifted the edging off ${n} bed${n>1?'s':''}.`
     : `${edgingLabel()} laid round ${n} bed${n>1?'s':''}.`,
-  wall:      n=>`Faced ${n} wall tile${n>1?'s':''}.`,
+  // a drag faces each terrace it crosses once, so the count is of terraces
+  wall:      n=>wallDraft()==='none' ? `Stripped the walls of ${n} terrace${n>1?'s':''}.`
+    : `${wallLabel()} round ${n} terrace${n>1?'s':''}.`,
   building:  n=>`${buildingEditMode()==='remove'?'Trimmed':'Added'} ${n} tile${n>1?'s':''}.`,
 };
 function finishToolDrag(){

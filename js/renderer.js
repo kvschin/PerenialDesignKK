@@ -336,6 +336,11 @@ function innerTerrainGrid(){
    bake will use for it a moment later — the two can't drift apart.
    `organic` false forces the per-tile material rendering, which is what the
    overlay wants: it is standing in for a blob that has not been traced yet. */
+// plain lawn at grade, where a raised tile stands (paintGround's first pass)
+function paintGradeUnder(ctx,x,y,W,H,amb){
+  const [gx,gy]=screenOfFlat(x,y,W,H), rg=mulberry(tileSeed(x,y));
+  drawGroundTexture(ctx,gx,gy,x,y,null,false,amb,shade(amb.grass[(x+y)%2],(rg()-0.5)*14),rg,null);
+}
 function paintGroundTile(ctx,x,y,W,H,amb,showLand,organic){
   const [sx,sy]=screenOf(x,y,W,H);
   const terrObj=showLand?terrainAt(x,y):null, terrRaw=terrObj&&terrObj.k;
@@ -360,7 +365,15 @@ function paintGroundTile(ctx,x,y,W,H,amb,showLand,organic){
      material has no such history to preserve. */
   else if (terr==='lawn') col = lawnFill(terrObj,amb);
   else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
-  drawElevationSides(ctx,W,H,x,y,col);
+  // a raised bed's bed and wall are drawn along its own curve, not tile by tile;
+  // what is under it is paintGradeUnder's
+  if (organic && elevationAt(x,y)>0){
+    const rbt=raisedBedTiles();
+    if (rbt && rbt.has(x+','+y)) return;
+  }
+  /* A bank under a bed or a path is earth. In an organic garden `col` is the
+     grass laid under the blob, so a soil-topped bank showed green sides. */
+  drawElevationSides(ctx,W,H,x,y,(organic && (terrRaw==='bed'||terrRaw==='path') && amb.soil) ? amb.soil : col);
   if (water) drawWaterTexture(ctx,sx,sy,x,y,terrObj,amb);
   else if (buried){ isoDiamondPath(ctx,sx,sy,0); ctx.fillStyle=col; ctx.fill(); }
   else drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,col,rs,terrObj);
@@ -389,6 +402,21 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex,rect){
   // the curve can cut a corner and show grass under it. Formal edges keep the
   // crisp per-tile material rendering. Doorstep + elevation stay per-tile.
   const organic = showLand && game.edgeStyle==='organic';
+  /* The ground UNDER every raised tile, first and in a pass of its own. A raised
+     tile used to paint only its lifted top, so wherever a wall or that top did not
+     quite reach (the foot of most walls, a raised bed's rounded corners, most of
+     a curved terrace's front) the sky showed through. What shows there now is
+     the lawn round it. It has to be its own pass because this loop runs in WORLD
+     order, which is back to front only at rotation 0: painted tile by tile, a
+     later tile's ground landed on an earlier tile's lifted top and its faces.
+     Only RAISED tiles: under a hollow's floor is where the far rim's face hangs. */
+  if (showLand && elevationGrid().hi>0) for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
+    if (!onPlot(x,y) || !(elevationAt(x,y)>0)) continue;
+    const [sx,sy]=screenOfFlat(x,y,W,H);
+    if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ex||sy>H+TILE_H*2+ex) continue;
+    if (rect && (sx<rx0||sx>rx1||sy<ry0||sy>ry1)) continue;
+    paintGradeUnder(ctx,x,y,W,H,amb);
+  }
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     if (!onPlot(x,y)) continue;   // off an irregular lot: draw nothing, same as beyond the plot rectangle
     const [sx,sy]=screenOf(x,y,W,H);
@@ -783,16 +811,26 @@ function mergeCollinearClosed(pts){
    `skirt` marks a covered edge whose coverer stands at MY elevation: the ones
    terrainSkirts lays this region's material under (see there). A raised path
    beside a sunken bed is a terrace face, not a joint, and gets none. */
-function terrainUnitEdges(loop, set, solid, myRank, rankAt, myElev, elevAt){
+/* `dropSoft`: what an edge across a change of LEVEL is. Normally HARD — a bed on
+   a terrace runs to the terrace's edge, and a bed at the foot of a wall runs to
+   the wall — where it used to be soft whenever the ground over the drop was
+   lawn, so a raised bed drew as an oval of soil on a box of lawn and a sunken
+   patio rounded its corners off inside its own walls. A raised bed that is the
+   WHOLE top of its terrace (raisedBedInfo) is the exception: its edges stay soft
+   and its wall is drawn along the curve they make (paintRaisedBedWall). */
+function terrainUnitEdges(loop, set, solid, myRank, rankAt, myElev, elevAt, dropSoft){
   const edges=[];
   const SOFT=0, HARD=1, COVERED=2;
+  let drop=false;
   const classify=(key)=>{
+    const ci=key.indexOf(','), ox=+key.slice(0,ci), oy=+key.slice(ci+1);
+    drop=onPlot(ox,oy) && (elevationAt(ox,oy)||0)!==(myElev||0);
+    if (drop) return dropSoft ? SOFT : HARD;
     if (solid[key]){
       const r=rankAt[key];
       if (r<myRank) return SOFT;                 // laid over it: draw organic, on top
       return r>myRank ? COVERED : HARD;
     }
-    const ci=key.indexOf(','), ox=+key.slice(0,ci), oy=+key.slice(ci+1);
     return isLawnTile(ox,oy) ? SOFT : HARD;      // lawn smooths; a wall or the plot line does not
   };
   for (let i=0;i<loop.length;i++){
@@ -811,7 +849,7 @@ function terrainUnitEdges(loop, set, solid, myRank, rankAt, myElev, elevAt){
       // as opposed to the soft edges I get because the neighbour is lawn. Those
       // are the ones the bleed in terrainLoopArcs applies to, and `n` is the
       // outward unit normal it moves along.
-      const over = cls===SOFT && !!solid[out];
+      const over = cls===SOFT && !drop && !!solid[out];   // nothing is laid over ground at another level
       const oc=out.indexOf(','), ox=+out.slice(0,oc), oy=+out.slice(oc+1);
       const nrm = dx!==0 ? [0, oy===y ? 1 : -1] : [ox===x ? 1 : -1, 0];
       const skirt = cls===COVERED && (!elevAt || (elevAt[out]||0)===(myElev||0));
@@ -1206,7 +1244,7 @@ function elevationUnitEdges(loop, set, h){
          wall, and a wall painted one tile wide, whose contour runs up one side
          and back down the other. */
       const ridge=elevationAt(ix-n[0], iy-n[1])<h;
-      out.push({a:[x,y], b:[nx,ny], drop, n, ridge, wall:wallStyleAt(ix,iy), seed:tileSeed(ix,iy)});
+      out.push({a:[x,y], b:[nx,ny], drop, n, ridge, wall:wallStyleAt(ix,iy), seed:tileSeed(ix,iy), tile:inK});
       x=nx; y=ny;
     }
   }
@@ -1315,19 +1353,37 @@ function wallRunFeet(run){ return run.billTiles*TILE_IN/12; }
    wall can still overdraw it.)
    Facing is applied HERE rather than in the trace, so the cached contour — and
    the feet billed from it — do not change when the camera turns. */
+/* Two kinds of wall since 0.9.143. A raised bed's runs along its bed's curve
+   (paintRaisedBedWall). Every other wall stands on the TILE edge, in organic
+   gardens too: the bed or lawn on top now runs exactly to that edge, and a wall
+   smoothed on its own drifted off it (sky showed in the gap) and, split by facing
+   before smoothing, came apart on a diagonal. The feet BILLED are still measured
+   along the smoothed contour (makeWallRun), so a diagonal is not billed twice. */
+function wallRunDrawPoints(edges){
+  return mergeCollinearOpen(edges.map(e=>e.a).concat([edges[edges.length-1].b]));
+}
 function paintWallRuns(ctx,W,H){
-  const runs=buildElevationRuns();
-  if (!runs.length) return;
+  const runs=buildElevationRuns(), rbt=raisedBedTiles();
+  const beds=rbt ? buildTerrainRegions().filter(r=>r.raised) : [];
+  if (!runs.length && !beds.length) return;
   const face=viewDirToWorld(1,0), side=viewDirToWorld(0,1);
-  const shown=e=>(e.n[0]===face[0]&&e.n[1]===face[1])||(e.n[0]===side[0]&&e.n[1]===side[1]);
-  for (const run of runs){
+  const shown=e=>((e.n[0]===face[0]&&e.n[1]===face[1])||(e.n[0]===side[0]&&e.n[1]===side[1]))
+    && !(rbt && rbt.has(e.tile));                 // a raised bed draws its own, along its curve
+  const jobs=[];
+  for (const r of beds) jobs.push([r.elev, ()=>paintRaisedBedWall(ctx,r,W,H)]);
+  for (const run of runs) jobs.push([run.h, ()=>paintWallRun(ctx,run,W,H,shown)]);
+  jobs.sort((a,b)=>a[0]-b[0]);                    // low terraces first, as before
+  for (const j of jobs) j[1]();
+}
+function paintWallRun(ctx,run,W,H,shown){
+  {
     const st=wallStyle(run.wall);
-    if (!st.face) continue;                       // bare earth: drawn per tile above
+    if (!st.face) return;                         // bare earth: drawn per tile above
     const lift=run.h*ELEV_STEP, fall=run.drop*ELEV_STEP;
     let piece=[];
     const emit=()=>{
       if (piece.length>0){
-        const p=wallRunPoints(piece);
+        const p=wallRunDrawPoints(piece);
         let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
         const pts=p.map(([gx,gy])=>{
           const q=screenOfCorner(gx,gy,W,H), r=[q[0],q[1]-lift];
@@ -1388,8 +1444,8 @@ function buildTerrainRegions(){
       }
     }
     const o=game.terrain[k];
-    const rank=terrainRank(o.k), elev=elevAt[k];
-    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid,rank,rankAt,elev,elevAt));
+    const rank=terrainRank(o.k), elev=elevAt[k], raised=raisedBedInfo(set,elev);
+    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid,rank,rankAt,elev,elevAt,!!raised));
     const useCount={};
     for (const es of unit) for (const e of es){
       const vk=e.a.join(','); useCount[vk]=(useCount[vk]||0)+1; }
@@ -1403,9 +1459,18 @@ function buildTerrainRegions(){
     const coveredAt=(tx,ty)=>{ const kk=tx+','+ty; return !!solid[kk] && rankAt[kk]>rank && elevAt[kk]===elev; };
     const skirts=[];
     for (const es of unit){ const s=terrainSkirts(es,coveredAt); if (s) skirts.push(...s); }
+    // a raised bed's corners round by a tile at most, so a rectangle keeps its
+    // straight walls (built walls are straight) and a curved bed still curves
+    const fillet=raised ? Math.min(terrainFillet(o.k),RAISED_BED_FILLET) : terrainFillet(o.k);
     regions.push({ kind:o.k, c:o.c, rank, elev, tiles:set, paintTiles:tilesInPaintOrder(set),
-      loops:unit.map(es=>terrainLoopArcs(es,useCount,saddle,terrainFillet(o.k))),
-      skirts:skirts.length?skirts:null });
+      loops:unit.map(es=>{ const L=terrainLoopArcs(es,useCount,saddle,fillet);
+        /* Which hand the outside is on as the loop is walked: the sign of
+           direction x outward normal, the same for every edge of a traced loop,
+           and the arcs keep the trace's order. A raised bed's wall uses it to
+           know which way each stretch of its curve faces. */
+        const e=es[0]; L.side=Math.sign((e.b[0]-e.a[0])*e.n[1]-(e.b[1]-e.a[1])*e.n[0])||1;
+        return L; }),
+      skirts:skirts.length?skirts:null, raised });
   }
   // Elevation first — higher terraces paint over lower edges — then rank, so a
   // path lands on the bed it runs through rather than the other way round. The
@@ -1413,9 +1478,83 @@ function buildTerrainRegions(){
   regions.sort((a,b)=>(a.elev-b.elev)||(a.rank-b.rank));
   exposeSkirtTiles(regions);
   for (const r of regions) if (r.skirts) for (const s of r.skirts) s.tiles=tilesInPaintOrder(s.tiles);
-  terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions};
+  const raisedTiles=new Set();
+  for (const r of regions) if (r.raised) for (const t of r.tiles) raisedTiles.add(t);
+  terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions, raisedTiles};
   dev('trace',tTrace);
   return regions;
+}
+/* ---------- raised beds ----------
+   A raised bed is a bed that is the WHOLE top of its terrace, faced all round in
+   one wall material at one height: what the Terrace tool builds and then a bed
+   painted over it. Its bed and its wall share ONE outline. The bed keeps its
+   soft, traced curve (corners rounding by RAISED_BED_FILLET at most), and the wall
+   is drawn along that same curve (paintRaisedBedWall), where it used to be drawn
+   along the tile lattice under a bed that rounded away from it: an oval of soil
+   on a box of lawn, and on a curved bed a wall broken into pieces. Anything else
+   on a terrace (a top only partly planted, a mix of materials, a bank rather than
+   a wall, a bed against the plot line or a house) keeps the tile edge, and its
+   bed runs exactly to it. Organic gardens only: a formal one is the lattice. */
+const RAISED_BED_FILLET = 1;
+function raisedBedInfo(set,elev){
+  if (!(elev>0)) return null;
+  let wall=null, drop=0;
+  for (const k of set){
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    for (const [dx,dy] of ELEV_DIRS){
+      const nx=x+dx, ny=y+dy;
+      if (set.has(nx+','+ny)) continue;
+      if (!onPlot(nx,ny) || siteStructureAt(nx,ny)) return null;
+      const nh=elevationAt(nx,ny)||0;
+      if (nh>=elev) return null;                   // the top is shared with something else
+      const w=wallStyleAt(x,y), d=elev-nh;
+      if (!wallStyle(w).face) return null;         // a bank is drawn tile by tile
+      if (wall===null){ wall=w; drop=d; } else if (w!==wall || d!==drop) return null;
+    }
+  }
+  return wall ? {wall, drop} : null;
+}
+// the tiles of raised beds, which the tile pass and the lattice walls leave to the bed
+function raisedBedTiles(){
+  if (game.edgeStyle!=='organic') return null;
+  buildTerrainRegions();
+  const s=terrainLoopCache.raisedTiles;
+  return s && s.size ? s : null;
+}
+/* A raised bed's wall, along the bed's own curve. Only the stretches whose
+   outward side faces the camera are drawn, judged segment by segment on the
+   smoothed curve: splitting the TILE edges by facing first and then smoothing
+   each piece on its own is what broke a curved terrace's wall into fragments,
+   since along a diagonal every other tile edge faces away. */
+function paintRaisedBedWall(ctx,region,W,H){
+  const st=wallStyle(region.raised.wall);
+  if (!st.face) return;
+  const lift=region.elev*ELEV_STEP, fall=region.raised.drop*ELEV_STEP;
+  const scr=p=>{ const q=screenOfCorner(p[0],p[1],W,H); return [q[0],q[1]-lift]; };
+  const first=region.tiles.values().next().value, ci=first.indexOf(',');
+  const seed=tileSeed(+first.slice(0,ci),+first.slice(ci+1));
+  for (const loop of region.loops){
+    const side=loop.side||1;
+    for (const arc of (loop.closed?[loop]:loop.arcs)){
+      if (arc.hard || arc.covered) continue;
+      const wp=edgingCurvePoints(arc,p=>p);
+      let piece=[], len=0;
+      const emit=()=>{ if (piece.length>1) drawWallRun(ctx,piece.map(scr),fall,st,seed,len); piece=[]; len=0; };
+      for (let i=1;i<wp.length;i++){
+        const a=wp[i-1], b=wp[i], dx=b[0]-a[0], dy=b[1]-a[1], m=Math.hypot(dx,dy);
+        if (!(m>1e-9)){ continue; }
+        /* the outward normal, from the trace's winding (loop.side): asking which
+           side of the curve is a bed tile fails at a rounded corner, where the
+           curve runs inside the tiles and both sides of it are bed */
+        const nx=-dy/m*side, ny=dx/m*side;
+        const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+        const s0=scr([mx,my]), s1=scr([mx+nx*0.25,my+ny*0.25]);
+        if (s1[1]>s0[1]+1e-6){ if (!piece.length) piece.push(a); piece.push(b); len+=m; }
+        else emit();
+      }
+      emit();
+    }
+  }
 }
 /* Could a region tile's drawing land in this band of the bake? The same slack
    paintGround's tile loop allows: a tile's own diamond, the bleed and skirt past
@@ -4813,22 +4952,30 @@ function drawTerraceGhost(cx,W,H){
   }
   cx.restore();
 }
-/* The face a Wall tap would build on, under the pointer, so it is visible
-   which face that is before anything is painted (wallTileAt picks it). Only the
-   two camera-facing faces of a tile can be shown; a tile's far faces take the
-   same facing, out of sight. Nothing lit means nothing there to face. */
+/* Everything a Wall tap would face, before it is faced: every camera-facing face
+   of the terrace or sunken patio under the pointer (wallTargetAt), tinted in the
+   armed material, or dashed red with Bare earth armed where a wall would come
+   off. A tap faces the whole of it, so the preview has to show the whole of it;
+   it used to light only the one face under the pointer. Kept per hovered tile
+   and garden revision (wallHoverCache), so a still pointer works nothing out. */
+const wallHoverCache={key:null,t:null};
 function drawWallFaceHover(cx,W,H){
   if (game.tool!=='wall' || !game.hoverTile || !layerShown('landscape')) return;
-  const [hx,hy]=game.hoverTile, size=toolBrushSize();
-  const offs=size===1 ? [[0,0]] : brushOffsets(size);
-  cx.save(); cx.lineWidth=1.5; cx.strokeStyle='rgba(243,236,221,0.92)'; cx.fillStyle='rgba(243,236,221,0.2)';
-  for (const [dx,dy] of offs){
-    const x=hx+dx, y=hy+dy; if (!inWorldTile(x,y)) continue;
-    for (const f of wallFaceQuads(x,y,W,H)){
-      cx.beginPath(); cx.moveTo(f.a[0],f.a[1]); cx.lineTo(f.b[0],f.b[1]);
-      cx.lineTo(f.b[0],f.b[1]+f.drop); cx.lineTo(f.a[0],f.a[1]+f.drop); cx.closePath(); cx.fill(); cx.stroke();
-    }
+  const [hx,hy]=game.hoverTile, key=hx+','+hy+'|'+game.rev;
+  if (wallHoverCache.key!==key){ wallHoverCache.key=key; wallHoverCache.t=wallTargetAt(hx,hy); }
+  const t=wallHoverCache.t;
+  if (!t || t.owners.length>2500) return;
+  const st=wallStyle(wallDraft()), strip=!st.face;
+  cx.save(); cx.lineWidth=1.5; cx.lineJoin='round';
+  cx.strokeStyle=strip?'rgba(230,118,92,0.95)':'rgba(243,236,221,0.92)';
+  cx.fillStyle=strip?'rgba(196,58,44,0.16)':st.tone;
+  if (strip) cx.setLineDash([5,4]); else cx.globalAlpha=0.62;
+  cx.beginPath();
+  for (const [x,y] of t.owners) for (const f of wallFaceQuads(x,y,W,H)){
+    cx.moveTo(f.a[0],f.a[1]); cx.lineTo(f.b[0],f.b[1]);
+    cx.lineTo(f.b[0],f.b[1]+f.drop); cx.lineTo(f.a[0],f.a[1]+f.drop); cx.closePath();
   }
+  cx.fill(); cx.globalAlpha=1; cx.stroke();
   cx.restore();
 }
 function drawToolDragMetric(cx,W,H){

@@ -6590,9 +6590,14 @@ test('organic regions: elevation splits terraces and orders them low-to-high', (
   assertEqual(regions[0].elev, 0, 'low terrace first');
   assertEqual(regions[1].elev, 1, 'high terrace second');
   // the boundary between the terraces is hard on both sides
-  const hardOnSplit = r => !r.loops[0].closed &&
-    r.loops[0].arcs.some(a => a.hard && a.pts.some(([x]) => x === 5));
+  const hardOnSplit = r => r.loops[0].closed
+    ? r.loops[0].hard && r.loops[0].pts.some(([x]) => x === 5)
+    : r.loops[0].arcs.some(a => a.hard && a.pts.some(([x]) => x === 5));
   assert(hardOnSplit(regions[0]) && hardOnSplit(regions[1]), 'terrace step butts exactly at x=5');
+  /* and so is every other edge of the raised part, which drops to lawn: a bed on a
+     terrace runs to the terrace's edge (0.9.143). Soft there, it rounded away from
+     its own walls and left a lawn rim on top. */
+  assert(regions[1].loops[0].closed && regions[1].loops[0].hard, 'the raised end is hard all round');
 });
 
 test('organic edges collapse a diagonal tile staircase to a straight line', () => {
@@ -10386,6 +10391,149 @@ test('a refused wall says why, and a terrace reads as one tool on the Grade tab'
   game.terraceDraft = { h: -1, w: 'gabion' };
   const blob = buildSaveBlob();
   assertEqual(JSON.stringify(blob.terraceDraft), JSON.stringify({ h: -1, w: 'gabion' }), 'saved with the garden');
+});
+
+/* The Wall tool faced one tile's edge per stroke, aimed at a face 10px tall at
+   the zoom a garden opens at, and refused a tap on the terrace's top. A tap now
+   faces the WHOLE terrace or sunken patio, from its top or any face (0.9.143). */
+test('a Wall tap faces a whole terrace, from its top', () => {
+  setup(21, 21);
+  for (let x = 4; x <= 8; x++) for (let y = 4; y <= 6; y++) setTerraceTile(x, y, { h: 3, w: 'none' });
+  game.tool = 'wall'; game.wallDraft = 'drystone';
+  assertEqual(applyToolAt(6, 5), 'wall', 'a tap in the middle of the top takes');
+  for (let x = 4; x <= 8; x++) for (let y = 4; y <= 6; y++)
+    assertEqual(wallStyleAt(x, y), 'drystone', `${x},${y} is faced with the rest`);
+  assertEqual(wallTapText(true), `Dry-stone Wall round the terrace: ${fmtFeet(16 * TILE_IN / 12)}.`,
+    'the toast names the wall and the 16 tile sides it covers');
+  assertEqual(applyToolAt(4, 4), null, 'a second tap in the same material changes nothing');
+  assert(/already faced in dry-stone wall/.test(wallTapText(false)), 'and says so');
+  game.wallDraft = 'none';
+  assertEqual(applyToolAt(8, 6), 'wall', 'Bare earth strips it from a corner tile');
+  assertEqual(wallStyleAt(6, 5), 'none', 'all of it');
+  assertEqual(elevationAt(6, 5), 3, 'and leaves the terrace standing');
+  assertEqual(applyToolAt(15, 15), null, 'plain lawn has nothing to face');
+  assert(/Tap a terrace or a sunken patio/.test(wallTapText(false)), 'and the refusal says what to tap');
+  assert(!toolMeta('wall').sizable && !toolMeta('wall').paints, 'no brush size and no Fill: it acts on a terrace');
+  // a drag faces each terrace it crosses once, and counts terraces
+  game.wallDraft = 'brick';
+  assertEqual(DRAG_DONE.wall(2), 'Brick round 2 terraces.', 'a drag reports terraces, not tiles');
+});
+
+test('a Wall tap on a sunken patio faces the ground round it, and strips it without leaving records', () => {
+  setup(21, 21);
+  for (let x = 6; x <= 9; x++) for (let y = 6; y <= 8; y++) setTerraceTile(x, y, { h: -2, w: 'none' });
+  // a raised terrace beside the hollow keeps its own facing
+  for (let y = 6; y <= 8; y++) setTerraceTile(10, y, { h: 1, w: 'sleeper' });
+  game.tool = 'wall'; game.wallDraft = 'brick';
+  assertEqual(applyToolAt(7, 7), 'wall', 'a tap on the floor takes');
+  for (const [x, y] of [[5, 7], [7, 5], [7, 9]]) assertEqual(wallStyleAt(x, y), 'brick', `rim ${x},${y} is faced`);
+  assertEqual(wallStyleAt(10, 7), 'sleeper', 'the raised terrace beside it keeps its sleepers');
+  assert(/round the sunken patio/.test(wallTapText(true)), 'the toast calls it a sunken patio');
+  game.wallDraft = 'none';
+  assertEqual(applyToolAt(5, 7), 'wall', 'a tap on the rim means the hollow');
+  for (const [x, y] of [[5, 7], [7, 5], [7, 9]])
+    assert(!game.elevation[x + ',' + y] || game.elevation[x + ',' + y].removed, `rim ${x},${y} holds no record`);
+});
+
+test('the eyedropper picks up a terrace, and Fill stops at a change of level', () => {
+  setup(21, 21);
+  for (let x = 4; x <= 8; x++) for (let y = 4; y <= 6; y++) setTerraceTile(x, y, { h: 2, w: 'gabion' });
+  setTile('terrain', '6,5', { k: 'bed', c: 'mulch', t: 1 });
+  game.terraceDraft = { h: 4, w: 'brick' };
+  pickAt(6, 5);
+  assertEqual(game.tool, 'terrace', 'the Terrace tool is armed');
+  assertEqual(JSON.stringify(game.terraceDraft), JSON.stringify({ h: 2, w: 'gabion' }), 'at its height and with its wall');
+  assertEqual(game.bedStyle, 'mulch', 'and the bed on it is the bed choice too');
+
+  // Fill on the terrace top stays on the terrace; Fill at grade stays off it
+  setup(21, 21);
+  for (let x = 4; x <= 8; x++) for (let y = 4; y <= 6; y++) setTerraceTile(x, y, { h: 3, w: 'brick' });
+  game.tool = 'bed'; game.bedStyle = 'soil'; game.fillMode = true;
+  doFloodFill(6, 5);
+  const beds = () => Object.keys(game.terrain).filter(k => game.terrain[k] && !game.terrain[k].removed && game.terrain[k].k === 'bed');
+  assertEqual(beds().length, 15, 'the 5x3 top and nothing else');
+  game.tool = 'path'; game.pathColor = 'warm';
+  doFloodFill(15, 15);
+  assertEqual(tileTerrain(6, 5), 'bed', 'filling the lawn below leaves the raised bed alone');
+  game.fillMode = false;
+});
+
+/* A bed on a terrace runs to the terrace's edge; it used to round off it, as if
+   the drop were lawn, and draw as an oval of soil on a box of lawn. A raised bed
+   that is the whole top of its terrace keeps its curve instead, and its wall is
+   drawn along that same curve. */
+test('a bed on a terrace runs to its edge, and a raised bed shares one outline with its wall', () => {
+  setup(24, 24);
+  game.edgeStyle = 'organic';
+  // part of a terrace planted: hard against the drop, soft against the lawn on top
+  for (let x = 4; x <= 9; x++) for (let y = 4; y <= 7; y++) setTerraceTile(x, y, { h: 3, w: 'brick' });
+  for (let x = 4; x <= 6; x++) for (let y = 4; y <= 7; y++) setTile('terrain', x + ',' + y, { k: 'bed', c: 'soil', t: 1 });
+  let bed = buildTerrainRegions().find(r => r.kind === 'bed');
+  assert(!bed.raised, 'a bed on part of a terrace is not a raised bed');
+  const arcs = bed.loops[0].closed ? [bed.loops[0]] : bed.loops[0].arcs;
+  assert(arcs.some(a => a.hard) && arcs.some(a => !a.hard), 'hard where it drops, soft against the lawn beside it');
+  assert(arcs.filter(a => a.hard).every(a => a.pts.every(([x, y]) => x === 4 || y === 4 || y === 8 || x === 7)),
+    'the hard arcs lie on the terrace edge');
+
+  // the whole top planted: a raised bed, its edges soft, its wall its own
+  for (let x = 7; x <= 9; x++) for (let y = 4; y <= 7; y++) setTile('terrain', x + ',' + y, { k: 'bed', c: 'soil', t: 1 });
+  bed = buildTerrainRegions().find(r => r.kind === 'bed');
+  assert(bed.raised && bed.raised.wall === 'brick' && bed.raised.drop === 3, 'one wall, one height: a raised bed');
+  assert(bed.loops.every(l => (l.closed ? [l] : l.arcs).every(a => !a.hard)), 'its outline is soft all round');
+  assert(raisedBedTiles().has('6,5'), 'its tiles are left to its own outline');
+
+  // its wall is drawn on the camera's side only, at every rotation
+  for (const rot of [0, 1, 2, 3]) {
+    game.rot = rot;
+    const pts = [];
+    const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p];
+      return (...a) => { if (p === 'moveTo' || p === 'lineTo') pts.push(a); }; }, set(o, p, v){ o[p] = v; return true; } });
+    const W = 1600, H = 1200, region = buildTerrainRegions().find(r => r.kind === 'bed');
+    paintRaisedBedWall(rec, region, W, H);
+    assert(pts.length > 8, `rot ${rot}: the wall is drawn`);
+    // the far corner of the bed, lifted: a far wall would start up there
+    const far = Math.min(...[[4, 4], [10, 4], [10, 8], [4, 8]].map(([x, y]) => screenOfCorner(x, y, W, H)[1])) - 3 * ELEV_STEP;
+    const top = Math.min(...pts.map(p => p[1]));
+    assert(top > far + TILE_H, `rot ${rot}: none of it on the far side (${top.toFixed(1)} vs far corner ${far.toFixed(1)})`);
+  }
+  game.rot = 0;
+
+  // a bank, or a formal garden, keeps the tile edge
+  game.edgeStyle = 'formal';
+  assertEqual(raisedBedTiles(), null, 'a formal garden is the lattice');
+  game.edgeStyle = 'organic';
+  for (let x = 4; x <= 9; x++) for (let y = 4; y <= 7; y++) setTerraceTile(x, y, { h: 3, w: 'none' });
+  bed = buildTerrainRegions().find(r => r.kind === 'bed');
+  assert(!bed.raised, 'a bed on an earth bank keeps the tile edge, which the bank is drawn on');
+});
+
+test('dry-stone courses follow the wall round its corners, and terrace tops carry no grid', () => {
+  const paths = []; let cur = null;
+  const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p];
+    return (...a) => {
+      if (p === 'beginPath') cur = [];
+      else if ((p === 'moveTo' || p === 'lineTo') && cur) cur.push(a);
+      else if (p === 'stroke' && cur) { paths.push(cur); cur = null; }
+    }; }, set(o, p, v){ o[p] = v; return true; } });
+  // a V: the corner is the run's lowest top point, at x=50
+  drawWallRun(rec, [[0, 0], [50, 25], [100, 0]], 40, wallStyle('drystone'), 7, 3);
+  const crossing = paths.filter(pp => pp.length >= 2 && Math.min(...pp.map(q => q[0])) < 49 && Math.max(...pp.map(q => q[0])) > 51);
+  assert(crossing.length, 'some course runs round the corner');
+  for (const pp of crossing) assert(pp.some(q => Math.abs(q[0] - 50) < 1e-6 && q[1] >= 25 - 1e-6),
+    'and turns it on the face rather than cutting across the top');
+
+  let strokes = 0;
+  const rim = new Proxy({}, { get(o, p){ if (p in o) return o[p]; return () => { if (p === 'stroke') strokes++; }; },
+    set(o, p, v){ o[p] = v; return true; } });
+  drawElevationRim(rim, 100, 100, 3); drawElevationRim(rim, 100, 100, -2);
+  assertEqual(strokes, 0, 'no tile outline on a terrace or in a hollow');
+
+  // the ground under raised tiles is laid in its own pass, before the world-order
+  // tile loop, which is back to front only at rotation 0
+  const src = readRepoFile('js/renderer.js');
+  const body = src.slice(src.indexOf('function paintGround('), src.indexOf('function paintGround(') + 4000);
+  assert(body.indexOf('paintGradeUnder(') > 0 && body.indexOf('paintGradeUnder(') < body.indexOf('paintGroundTile('),
+    'paintGround lays the ground under raised tiles before any tile');
 });
 
 test('lights place as one-tile structures, block plants, and erase with landscape', () => {

@@ -207,9 +207,8 @@ function gsElevationSides(ctx,st,x,y,base){
     const drop=(h-gsElev(st,x+dx,y+dy))*ELEV_STEP;
     if (drop<=0) return;
     if (wall.face){
-      const mid=[];
-      drawWallSurface(ctx,{at:t=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t],
-        between:()=>mid, units:1}, drop, wall, tileSeed(x,y));
+      // the garden's own run geometry, so the guidebook cannot fall behind it
+      drawWallSurface(ctx, wallGeom([a,b],1), drop, wall, tileSeed(x,y));
     } else {
       ctx.fillStyle=shade(base,-26);
       ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
@@ -2933,8 +2932,9 @@ function guideChapters(){
        lead:'A raised bed, a terrace or a sunken patio, built with its wall in one drag.',
        how:['Pick a height and a wall under Terrace, then drag corner to corner. A tap lays a bed about 4 by 8 feet.',
             'Tap a terrace to rebuild all of it at the armed height and wall. A bank is a real answer too.',
-            'For a curved bed, lay the bed first, turn on Fill and tap it with Terrace.',
-            'Raise, Lower and Level still shape berms and swales by the brush; Wall refaces one stretch.']},
+            'For a curved bed, lay the bed first, turn on Fill and tap it with Terrace. Paint a bed over the whole top and it becomes a raised bed, its wall following the bed’s curve.',
+            'Wall refaces a whole terrace or sunken patio with one tap, without changing its height. The eyedropper picks a terrace up to build another like it.',
+            'Raise, Lower and Level still shape berms and swales by the brush.']},
      ]},
 
     {id:'hardscape', title:'Everything else that stands there',

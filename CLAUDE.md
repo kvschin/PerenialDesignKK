@@ -4444,15 +4444,38 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `buildElevationRuns` (renderer.js) traces the elevation lattice the way
     `buildTerrainRegions` traces the material lattice: flood by level, walk each
     outline with `elevationUnitEdges`, and cut a RUN wherever the drop, the
-    material or the continuity of the face changes. Each run is smoothed by the
-    same `dpOpen` + `planJitter` the soft terrain arcs use, **with the same jitter
-    seed**, so where a terrace's material outline and its level outline coincide
-    the cap and the face land on the same curve; `edgeStyle:'formal'` keeps the
-    exact lattice, because the ground above it does too. Before this the terrace
-    TOP was smoothed and the face below it was not, which is visible in any
-    screenshot of a curved terrace as a flowing cap sitting on square steps —
-    measured on a real garden, a wall that draws as 3 runs (longest a single
-    12.1 ft segment) was 22 separate parallelograms.
+    material or the continuity of the face changes. The run is smoothed (`dpOpen`
+    + `planJitter`) only to MEASURE it for the bill (`makeWallRun`); it is DRAWN
+    on the exact tile edge (`wallRunDrawPoints`), in organic gardens too, since
+    0.9.144. Measured before: smoothed on its own, a wall drifted off the tile
+    edge its terrace's top was drawn on and the sky showed in the gap, and, cut
+    into camera-facing pieces BEFORE smoothing, a diagonal terrace's wall came
+    apart (every other edge of a staircase faces away, so each piece was one
+    tile edge, smoothed alone).
+    **A bed on a terrace runs to the terrace's edge** (`terrainUnitEdges`'
+    `dropSoft`): an edge across a change of level is HARD, where it used to be
+    soft whenever the ground over the drop was lawn, so a raised bed drew as an
+    oval of soil on a box of lawn and a sunken patio rounded its corners off
+    inside its own walls. **A RAISED BED is the exception** (`raisedBedInfo`,
+    `RAISED_BED_FILLET`, `raisedBedTiles`, `paintRaisedBedWall`, renderer.js): a
+    bed that is the WHOLE top of its terrace, faced all round in one wall
+    material at one height, against no plot line or house. Its outline stays
+    soft, its corners round by a tile at most (so a rectangle keeps straight
+    walls and a blob still curves), the tile pass leaves its tiles alone, and
+    its wall is drawn along that same curve, segment by segment on the smoothed
+    curve, facing judged by the trace's winding (`loop.side`; a tile lookup
+    fails at a rounded corner, where both sides of the curve are bed). Organic
+    gardens only, and banks keep the lattice. **The ground under every raised
+    tile is painted first, in a pass of its own** (`paintGradeUnder`, in
+    `paintGround`), so whatever a wall or a raised top leaves uncovered is lawn,
+    never sky. It has to be its own pass: the tile loop runs in WORLD order,
+    which is back to front only at rotation 0, and painted per tile it landed
+    on earlier tiles' lifted tops at rotation 1. Never under a hollow, where the
+    far rim's face hangs. `drawElevationRim` no longer strokes a tile outline
+    (a cream grid over every terrace top), and a bank under a bed or path is
+    earth-coloured. `drawWallSurface`'s course line now follows the run's bends
+    when its ends sit at different heights (`betweenT`): a dry-stone course cut
+    straight across the terrace top at every corner.
     Two things the split has to keep right. **Camera facing is applied in
     `paintWallRuns`, never in the trace**: baked into the trace it made the runs,
     and therefore the linear feet the planting list bills from them, change when
@@ -4563,10 +4586,26 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the wall resolved to the floor and was refused with "raise or lower the
     ground first" beside the wall. On a 3-4 step terrace the upper half of a face
     resolved to the next tile along the edge. A face under the pointer now wins
-    unless a raised top nearer the camera is drawn over it, and
-    `drawWallFaceHover` lights the face a tap would build on. The refusal now
-    says what is actually wrong (`wallRefusalText`). A test walks all four
-    rotations.
+    unless a raised top nearer the camera is drawn over it. A test walks all
+    four rotations.
+    **A Wall tap faces a whole terrace or sunken patio** (0.9.144; `wallTargetAt`,
+    `faceTerraceAt`, `wallTapText`, commands.js). It used to face one tile's edge
+    per stroke with a sized brush, so refacing a terrace meant dragging along every
+    face, 10px tall at the opening zoom, and a tap on the top was refused. Now a
+    tap on a terrace's top or any face writes the armed facing to every tile of
+    it (the 4-connected same-height region `terraceRegionAt` finds); a tap on a
+    hollow's floor or rim faces the grade ground round it, never a raised terrace
+    beside it (setTerraceTile's rule), and Bare earth there removes the grade
+    records rather than leaving tombstones. Height is never touched, which is the
+    difference from a Terrace tap. A drag faces each terrace it crosses once. The
+    tool lost `sizable` and `paints`. `drawWallFaceHover` tints every
+    camera-facing face of the target (red dashes for Bare earth), cached per
+    hovered tile and `game.rev`. The eyedropper picks up a terrace: height and
+    wall into the Terrace draft, the top's material into its own draft. Fill
+    floods one material at one LEVEL (`doFloodFill`): it ignored height, so
+    filling a raised bed's lawn top with soil flooded every lawn tile in the
+    garden. `paintWallAt` is still the one-face writer and is kept for callers
+    that want exactly one face.
 12d. **Water features** (`WATER_FEATURES`/`WATER_FINISHES`, `drawWaterFeature`) —
     pond, river and lake are AREAS: you paint them, they shelve from a bank, and
     until 0.8.71 they were the only water the app could draw. The water that

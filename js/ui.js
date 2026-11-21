@@ -2047,7 +2047,7 @@ function actionHintText(){
     : game.tool==='terrace'
     ? (game.fillMode ? 'Tap a bed to build all of it to this height' : 'Drag corner to corner for a terrace, or tap for a raised bed')
     : game.tool==='wall'
-    ? 'Tap or drag along the face of a terrace'
+    ? 'Tap a terrace or sunken patio to face all of it'
     : game.tool==='pet'
     ? `Tap a clear spot to settle your ${petLabel()}`
     : 'Tap a tile to place · drag to paint a run';
