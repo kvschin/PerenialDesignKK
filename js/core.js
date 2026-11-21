@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.141';
+const APP_VERSION = '0.9.142';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1112,18 +1112,48 @@ function lawnMaterial(c){ const L=lawnStyle(c); return L.texture ? L : null; }
    for a material that did not exist.
    It rides the terrain record (`{k, c, e}`) exactly as a retaining wall rides
    the elevation record, so it inherits the ground-bake and region-trace
-   invalidation that terrain edits already trigger. Widths are the real thing
-   seen from above: a steel strip is a line, a brick soldier course is 4in.
-   `unitIn` marks the laid materials, whose units are counted along the run. */
+   invalidation that terrain edits already trigger.
+   It is a property of the whole BED (0.9.142): the Edging tool writes it to
+   every tile of the region a tap lands in (edgingRegionAt), and a tile painted
+   onto an edged bed takes the bed's edging (edgingInheritedAt). It is still
+   stored per tile, so a save is unchanged and an older build reads it.
+   Units: `w` is the width ACROSS the run in draw units (a tile side, 18 in, is
+   TILE_EDGE_PX, about 2.36 units an inch); `rise` is how far it stands proud in
+   inches, drawn on the built-height scale (PX_PER_FT); `unitIn` is how far
+   apart its joints or units are along the run. `kind` names the painter in
+   drawEdgingRun, the way a fence names its `infill`: strip, cut, units,
+   stones, teeth, logs, weave. `tones` vary laid units; `face` is the side of
+   a standing strip, `top` its lit upper edge. A strip and a flush band are
+   widened to at least a couple of device pixels (drawEdgingRun), because at
+   the opening zoom a true steel strip is under one. */
+const EDGING_GROUPS = [['strip','Strips & cut edges'],['laid','Brick, stone & concrete'],['wood','Timber & willow']];
 const EDGING_STYLES = [
-  {id:'none',   label:'No edging',      short:'None',   w:0},
-  {id:'spade',  label:'Cut Spade Edge', short:'Spade',  w:2.6, col:'#3f3222', soil:true},
-  {id:'steel',  label:'Steel Edging',   short:'Steel',  w:2.0, col:'#43443f'},
-  {id:'alu',    label:'Aluminium Edge', short:'Alu',    w:1.9, col:'#9ba1a3'},
-  {id:'corten', label:'Corten Strip',   short:'Corten', w:2.3, col:'#8d5134'},
-  {id:'timber', label:'Timber Board',   short:'Timber', w:3.6, col:'#7d6142'},
-  {id:'brick',  label:'Brick Soldier',  short:'Brick',  w:5.0, col:'#a35c43', unitIn:8},
-  {id:'setts',  label:'Stone Setts',    short:'Setts',  w:5.0, col:'#96928a', unitIn:5},
+  {id:'none',   label:'No edging',      short:'None',   group:'strip', w:0},
+  {id:'spade',  label:'Cut Spade Edge', short:'Spade',  group:'strip', w:4.2, kind:'cut', col:'#3f3222'},
+  {id:'steel',  label:'Steel Edging',   short:'Steel',  group:'strip', w:2.2, kind:'strip', rise:1.2,
+   col:'#3a3b36', top:'#7c7e76', face:'#26271f'},
+  {id:'alu',    label:'Aluminium Edge', short:'Alu',    group:'strip', w:2.0, kind:'strip', rise:1.2,
+   col:'#a7adae', top:'#e2e6e5', face:'#6f7577'},
+  {id:'corten', label:'Corten Strip',   short:'Corten', group:'strip', w:2.4, kind:'strip', rise:3,
+   col:'#8d4c2c', top:'#c77a4c', face:'#5a2e18'},
+  {id:'concrete', label:'Concrete Mow Strip', short:'Concrete', group:'laid', w:14, kind:'units', unitIn:48,
+   col:'#bdb7aa', tones:['#c3bdb0','#b9b3a6','#bfb9ac'], joint:'#8a8478'},
+  {id:'brick',  label:'Brick Soldier',  short:'Brick',  group:'laid', w:8.5, kind:'units', rise:1, unitIn:2.6,
+   col:'#a35c43', tones:['#a65a40','#b76b4c','#924f39','#ad6248'], joint:'#cdbfa8', face:'#6c3a29'},
+  {id:'sawtooth', label:'Brick Sawtooth', short:'Sawtooth', group:'laid', w:5, kind:'teeth', rise:3.4, unitIn:4.4,
+   col:'#a65a40', tones:['#a65a40','#b76b4c','#924f39'], face:'#6c3a29'},
+  {id:'ropetop', label:'Rope-top Tile', short:'Rope-top', group:'laid', w:3.6, kind:'strip', rise:5, rope:true, unitIn:12,
+   col:'#b86948', top:'#d68a64', face:'#8a4a30'},
+  {id:'setts',  label:'Stone Setts',    short:'Setts',  group:'laid', w:9.4, kind:'units', rise:0.6, unitIn:4.2,
+   col:'#96928a', tones:['#9e998f','#8a867d','#aaa599','#918c82'], joint:'#5c5952', face:'#605d56'},
+  {id:'stone',  label:'Fieldstone Edge', short:'Fieldstone', group:'laid', w:14, kind:'stones', rise:3.5, unitIn:5.6,
+   col:'#9b9588', tones:['#a59f92','#8f897c','#b3ac9d','#81796c'], face:'#5b564d'},
+  {id:'timber', label:'Timber Board',   short:'Timber', group:'wood', w:3.6, kind:'strip', rise:2, unitIn:96,
+   col:'#7f6243', top:'#b0906a', face:'#54402b'},
+  {id:'logroll', label:'Log Roll',      short:'Log roll', group:'wood', w:7, kind:'logs', rise:4, unitIn:3,
+   col:'#7d5d3c', top:'#c8a97c', face:'#55402a'},
+  {id:'willow', label:'Woven Willow',   short:'Willow', group:'wood', w:4, kind:'weave', rise:6, unitIn:12,
+   col:'#8c7556', top:'#b39b74', face:'#5e4c36'},
 ];
 function edgingStyle(id){ return EDGING_STYLES.find(e=>e.id===id)||EDGING_STYLES[0]; }
 function edgingStyleId(id){ return edgingStyle(id).id; }

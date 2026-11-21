@@ -524,7 +524,9 @@ const DRAG_DONE={
   boulder:   n=>`Placed ${n} boulder${n>1?'s':''} - ${boulderLabel()}.`,
   pot:       n=>`Placed ${n} container${n>1?'s':''} - ${potLabel()}.`,
   seat:      n=>`Placed ${n} seat${n>1?'s':''} - ${seatLabel()}.`,
-  edging:    n=>`Laid ${n} edging tile${n>1?'s':''}.`,
+  // a drag edges each bed it crosses once, so the count is of beds, not tiles
+  edging:    n=>edgingDraft()==='none' ? `Lifted the edging off ${n} bed${n>1?'s':''}.`
+    : `${edgingLabel()} laid round ${n} bed${n>1?'s':''}.`,
   wall:      n=>`Faced ${n} wall tile${n>1?'s':''}.`,
   building:  n=>`${buildingEditMode()==='remove'?'Trimmed':'Added'} ${n} tile${n>1?'s':''}.`,
 };

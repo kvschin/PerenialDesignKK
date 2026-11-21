@@ -1872,27 +1872,24 @@ edging:{ loop:10000, rest:0.92,
   run(st,u){
     const bed=[];
     for (let y=2;y<=4;y++) for (let x=2;x<=5;x++) bed.push([x,y]);
-    const f=gAt(u,0.1,0.5), n=Math.round(f*bed.length);
-    /* Brick rather than steel, on measurement: a 2px steel strip came to 746
-       differing pixels against no edging at all — drawn, and invisible at demo
-       scale against a dark bed. A brick soldier course is 5 in and measures
-       1571. This demo's whole subject is the strip. */
-    const edge=u>0.58?'brick':null;
+    const f=gAt(u,0.08,0.4), n=Math.round(f*bed.length);
+    /* One tap edges the whole bed, and a tap in another style changes all of
+       it: edging is a property of the bed (paintEdgingAt), which is the lesson.
+       Brick then corten, the two whose faces read at demo scale. */
+    const t1=gTap(u,0.5), t2=gTap(u,0.76);
+    const edge=u>=0.76?'corten':u>=0.5?'brick':null;
     bed.slice(0,n).forEach(function(p){
       gsSet(st.terrain,p[0],p[1],{k:'bed',c:'mulch',e:edge});
     });
-    if (u<0.55){
+    if (u<0.44){
       const c=gPath(f,[[2,2],[5,2],[2,4],[5,4]]);
-      st.cursor={x:c[0],y:c[1],down:u>0.08&&u<0.52,press:0};
-      st.notes=[{text:'Fill the bed first',at:[3.5,6.4],dy:28}];
+      st.cursor={x:c[0],y:c[1],down:u>0.06&&u<0.42,press:0};
+      st.notes=[{text:'Lay the bed',at:[3.5,6.4],dy:28}];
     } else {
-      const c2=gPath(gAt(u,0.58,0.92),[[1.6,3],[6,3]]);
-      st.cursor={x:c2[0],y:c2[1],down:u<0.94,press:0};
-      /* Edging draws ONLY where a tile meets lawn, which is what makes
-         filling the bed the gesture rather than tracing its outline: the
-         interior joints never draw and are never billed. */
-      st.notes=[{text:'Edging draws only where it meets the lawn',at:[3.5,6.4],dy:28,
-        alpha:gAt(u,0.6,0.7)}];
+      const late=u>=0.7, tap=late?t2:t1;
+      st.cursor={x:3.5,y:3,down:tap.down,press:tap.press};
+      st.notes=[{text:late?'Tap again in another style to change it':'One tap edges the whole bed',
+        at:[3.5,6.4],dy:28,alpha:gAt(u,late?0.7:0.46,late?0.76:0.52)}];
     }
   }},
 
@@ -2927,9 +2924,10 @@ function guideChapters(){
             'Water plants go in the shallows. Everything else refuses water.',
             'For a birdbath or a bubbling urn, look under Hardscape instead — those are objects, not areas.']},
       {id:'edging', demo:'edging', title:'Edging',
-       lead:'The strip that separates a bed from the lawn — steel, corten, timber, brick, setts, or a cut spade edge.',
-       how:['Fill the bed first, then run the edging over it.',
-            'It draws only where the bed meets lawn, so an edge that later becomes interior stops drawing on its own.',
+       lead:'The strip that holds a bed back from the lawn: steel, corten, brick, setts, fieldstone, timber, willow or a cut spade edge.',
+       how:['Lay the bed, then tap it with Edging: one tap edges the whole bed.',
+            'Tap it again in another style to change all of it, or with No edging to lift it. A drag edges every bed it crosses.',
+            'It draws only where the bed meets lawn, and widening an edged bed widens its edging.',
             'The planting list bills exactly the feet you can see.']},
       {id:'grade', demo:'grade', title:'Terraces and retaining walls',
        lead:'A raised bed, a terrace or a sunken patio, built with its wall in one drag.',

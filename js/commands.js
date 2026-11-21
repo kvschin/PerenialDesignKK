@@ -247,10 +247,8 @@ function actHere(opts){
   }
   if (game.tool==='edging'){
     const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(edgingDraft()==='none'?'Edging lifted.':`${edgingLabel()} laid.`); }
-    else rejectPlacement(!tileTerrain(x,y) ? 'Edging runs along a bed or a path — lay one first.'
-      : edgingDraft()==='none' ? 'No edging there to lift.'
-      : 'Already edged in that material.');
+    if (r){ hapticFeedback('place'); toast(edgingTapText(true,x,y)); }
+    else rejectPlacement(edgingTapText(false,x,y));
     return;
   }
   if (game.tool==='wall'){
@@ -566,8 +564,16 @@ function placeTerrainAt(x,y){
      this same record (e), so writing a bare {k,c,t} silently lifted a restraint
      the gardener had painted and paid for — switching a bed from soil to gravel
      wiped its steel edge, with nothing said. Edging is lifted by painting
-     'none', which is a deliberate act. */
-  const keep=v=>Object.assign({},terrObj,v,{t:Date.now()});
+     'none', which is a deliberate act.
+     And a tile with no edging of its own takes the edging of the bed it joins
+     (edgingInheritedAt): edging is a property of the bed, so widening an edged
+     bed widens its edging rather than leaving a stretch the planting list does
+     not bill and the renderer draws anyway. */
+  const keep=v=>{
+    const rec=Object.assign({},terrObj,v,{t:Date.now()});
+    if (edgingStyleId(rec.e)==='none'){ const e=edgingInheritedAt(x,y,rec.k,rec.c); if (e) rec.e=e; else delete rec.e; }
+    return rec;
+  };
   /* 'mown' is the none row of LAWN_STYLES, so painting it LIFTS the record
      instead of writing one — a tile carrying no terrain has always drawn as
      mown lawn. That is what makes mowing a path through a meadow the same
@@ -1067,19 +1073,44 @@ function potFitWarning(def,pot){
 }
 
 /* ---------- edging ----------
-   A material on the terrain record, painted with the shared disc brush. It
-   only DRAWS where the tile meets lawn, so filling a whole bed with it is
-   the natural gesture — you do not have to trace the outline by hand, and
-   an edge that later becomes interior stops drawing on its own. */
+   A material on the terrain record that only DRAWS where a tile meets lawn.
+   A tap edges the whole BED the tile belongs to (edgingRegionAt), and a drag
+   edges each bed it crosses once: it was painted a tile at a time with the
+   disc brush, which made changing a bed's edging a matter of repainting every
+   tile along its outline — and the renderer, which has only ever drawn one
+   material round a whole region, kept showing the old one until the last tile
+   was found. `lastEdging` is what the tap's toast reports. */
 function edgingDraft(){ return game.edgingDraft=edgingStyleId(game.edgingDraft); }
 function edgingLabel(id){ return edgingLabelFor(id||edgingDraft()); }
+let lastEdging=null;
+function edgingRegionNoun(kind){ return kind==='path'?'path':kind==='water'?'water':kind==='lawn'?'lawn':'bed'; }
 function paintEdgingAt(x,y){
-  const k=`${x},${y}`, t=game.terrain && game.terrain[k];
-  if (!t || t.removed) return null;                 // edging edges something
+  const reg=edgingRegionAt(x,y);
+  lastEdging=reg ? {kind:reg.kind, sides:reg.sides, why:null} : null;
+  if (!reg) return null;                            // edging edges something
   const want=edgingDraft();
-  if (edgingStyleId(t.e)===want) return null;
-  setTile('terrain',k,Object.assign({},t,{e:want,t:Date.now()}));
+  // a bed boxed in by paths and walls has no edge on lawn for a strip to hold
+  if (want!=='none' && !reg.sides){ lastEdging.why='nolawn'; return null; }
+  let changed=0;
+  for (const [tx,ty] of reg.tiles){
+    const k=tx+','+ty, t=game.terrain[k];
+    if (edgingStyleId(t.e)===want) continue;
+    const rec=Object.assign({},t,{t:Date.now()});
+    if (want==='none') delete rec.e; else rec.e=want;
+    setTile('terrain',k,rec); changed++;
+  }
+  if (!changed){ lastEdging.why='same'; return null; }
   return 'edging';
+}
+/* What a tap with the Edging armed says, either way. */
+function edgingTapText(ok,x,y){
+  const r=lastEdging, noun=r?edgingRegionNoun(r.kind):'bed';
+  if (ok) return edgingDraft()==='none' ? `Edging lifted off the ${noun}.`
+    : `${edgingLabel()} laid round the ${noun}: ${fmtFeet(r.sides*TILE_IN/12)}.`;
+  if (!r) return 'Tap a bed or a path to edge it.';
+  if (r.why==='nolawn') return `That ${noun} meets no lawn, so there is no edge to hold.`;
+  return edgingDraft()==='none' ? `That ${noun} has no edging to lift.`
+    : `That ${noun} is already edged in ${edgingLabel().toLowerCase()}.`;
 }
 
 /* ---------- retaining walls ----------

@@ -2877,9 +2877,10 @@ function drawPlanGround(ctx,g,site){
     const es=edgingStyle(t.e); if (!es.w) continue;
     const [x,y]=k.split(',').map(Number);
     ELEV_DIRS.forEach(([dx,dy])=>{
-      if (tileTerrain(x+dx,y+dy)) return;
+      // the garden's own rule (isLawnTile): a painted meadow is lawn here too
+      if (!isLawnTile(x+dx,y+dy)) return;
       const cx2=X(x)+cell/2+dx*cell/2, cy2=Y(y)+cell/2+dy*cell/2;
-      drawEdgingRun(ctx,[[cx2-dy*cell/2,cy2-dx*cell/2],[cx2+dy*cell/2,cy2+dx*cell/2]],es,1,cell);
+      drawEdgingRun(ctx,[[cx2-dy*cell/2,cy2-dx*cell/2],[cx2+dy*cell/2,cy2+dx*cell/2]],es,tileSeed(x,y),cell,true);
     });
   }
   /* Retaining walls: the SAME traced contours the garden draws, projected to

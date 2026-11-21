@@ -126,6 +126,48 @@ function edgingSidesAt(x,y){
   return n;
 }
 function edgingDrawsAt(x,y){ return edgingSidesAt(x,y)>0; }
+/* The BED a tile belongs to, as the renderer traces it: 8-connected tiles of
+   one kind, colour and level (buildTerrainRegions floods by exactly that key,
+   and a test holds the two together). Edging is a property of this, not of a
+   tile: the organic renderer has only ever drawn one material round a whole
+   region, so painting it tile by tile left the gardener repainting every edge
+   tile to change a bed, and a single forgotten tile decided what was drawn.
+   Returns null on a tile with no terrain. `sides` is the bed's lawn-facing
+   tile sides, which is its edge length in 18 in units. */
+function edgingRegionAt(x,y){
+  const k0=x+','+y, o0=game.terrain&&game.terrain[k0];
+  if (!o0 || o0.removed) return null;
+  const key=o0.k+'|'+(o0.c||'')+'|'+(elevationAt(x,y)||0);
+  const keyAt=k=>{ const o=game.terrain[k]; if (!o||o.removed) return null;
+    const ci=k.indexOf(','); return o.k+'|'+(o.c||'')+'|'+(elevationAt(+k.slice(0,ci),+k.slice(ci+1))||0); };
+  const seen=new Set([k0]), stack=[[x,y]], tiles=[];
+  let sides=0;
+  while (stack.length){
+    const [cx,cy]=stack.pop(); tiles.push([cx,cy]); sides+=edgingSidesAt(cx,cy);
+    for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++){
+      if (!dx&&!dy) continue;
+      const nk=(cx+dx)+','+(cy+dy);
+      if (seen.has(nk) || keyAt(nk)!==key) continue;
+      seen.add(nk); stack.push([cx+dx,cy+dy]);
+    }
+  }
+  return {kind:o0.k, c:o0.c, tiles, has:seen, sides};
+}
+/* What a tile painted onto a bed should be edged with: the bed's own edging,
+   read off its neighbours of the same kind, colour and level. Without it,
+   widening an edged bed drew its steel all the way round (the renderer reads
+   one material for the whole outline) while the planting list billed only the
+   old tiles; with it the new ground simply joins the bed it was painted onto. */
+function edgingInheritedAt(x,y,kind,c){
+  const lvl=elevationAt(x,y)||0;
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++){
+    if (!dx&&!dy) continue;
+    const o=game.terrain[(x+dx)+','+(y+dy)];
+    if (!o || o.removed || o.k!==kind || (o.c||'')!==(c||'') || (elevationAt(x+dx,y+dy)||0)!==lvl) continue;
+    const e=edgingStyleId(o.e); if (e!=='none') return e;
+  }
+  return null;
+}
 /* Linear feet of edging, by material. It counts exactly the edges that DRAW
    — a tile side facing lawn — so the number on the planting list is the
    number of feet you can see, and an edge that becomes interior stops being
@@ -2217,58 +2259,223 @@ function wallCourses(drop,st){
   const inches=drop/ELEV_STEP*ELEV_RISER_IN;
   return Math.max(1,Math.min(8,Math.round(inches/(st.courseIn||6))));
 }
-/* One run of edging between two screen points. `w` is a real width seen from
-   above, so a steel strip reads as a line and a brick soldier course as a
-   band. A laid material (`unitIn`) gets its joints counted along the run, so
-   the units stay the same size however long the edge is. */
 /* One tile SIDE — 18 real inches — as a screen segment. Everything about a
    run scales off it, so the same painter serves the garden and the plan
    sheet, where a tile is `cell` px instead. */
 const TILE_EDGE_PX = Math.hypot(TILE_W/2, TILE_H/2);
-function drawEdgingRun(ctx,pts,st,seed,edgePx){
-  if (!st || !st.w || pts.length<2) return;
+const EDGE_IN_PX = TILE_EDGE_PX/TILE_IN;   // draw units per real inch along the ground
+const EDGE_RISE_PX = PX_PER_FT/12;         // and up a built face (the fence scale)
+/* The thinnest a strip, a rise and a unit may come out, in DEVICE pixels.
+   Measured at the opening zoom of a 31-tile plot (38%), a true 2-unit steel
+   strip was 0.76px and every metal edging vanished: only the 5-unit brick read
+   at all. So the painter asks the context how many device pixels a unit is
+   and widens a strip to at least this, which at 100% and over changes nothing. */
+const EDGE_MIN_W = 1.8, EDGE_MIN_RISE = 1.1, EDGE_MIN_UNIT = 3.2;
+function edgeRunCum(pts){
+  const cum=[0];
+  for (let i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+  return cum;
+}
+/* A cursor along the run: at(d), for d that only ever increases, gives the
+   point and the unit tangent of the segment it lies on. */
+function edgeCursor(pts,cum){
+  let i=1;
+  return d=>{
+    while (i<pts.length-1 && cum[i]<d) i++;
+    const a=pts[i-1], b=pts[i], seg=(cum[i]-cum[i-1])||1, f=Math.max(0,Math.min(1,(d-cum[i-1])/seg));
+    return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, (b[0]-a[0])/seg, (b[1]-a[1])/seg];
+  };
+}
+/* One laid unit between d0 and d1 along the run, `hw` either side of it,
+   lifted by `oy`: as a polygon that FOLLOWS the run, every vertex between the
+   two ends included. A chord from end to end was right for a 2.6 in brick and
+   wrong for a 4 ft concrete slab, which cut straight across a curved bed. */
+function edgeSpanPoly(pts,cum,d0,d1,hw,oy,cur){
+  const L=[], R=[];
+  const add=(x,y,tx,ty)=>{ L.push(x-ty*hw,y+tx*hw+oy); R.push(x+ty*hw,y-tx*hw+oy); };
+  // units are laid in order, so the walk starts where the last unit's did
+  const pointAt=d=>{ let i=cur?cur.i:1; while (i<pts.length-1 && cum[i]<d) i++; if (cur && d===d0) cur.i=i;
+    const a=pts[i-1], b=pts[i], seg=(cum[i]-cum[i-1])||1, f=Math.max(0,Math.min(1,(d-cum[i-1])/seg));
+    return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, (b[0]-a[0])/seg, (b[1]-a[1])/seg, i]; };
+  const s=pointAt(d0), e=pointAt(d1);
+  add(s[0],s[1],s[2],s[3]);
+  for (let j=s[4];j<e[4];j++){
+    // a vertex inside the unit: lean the sides on the mean of its two segments
+    const p=pts[j], a=pts[j-1], b=pts[j+1];
+    let tx=(b[0]-a[0]), ty=(b[1]-a[1]); const m=Math.hypot(tx,ty)||1; tx/=m; ty/=m;
+    add(p[0],p[1],tx,ty);
+  }
+  add(e[0],e[1],e[2],e[3]);
+  const out=L;
+  for (let j=R.length-2;j>=0;j-=2) out.push(R[j],R[j+1]);
+  return out;
+}
+function edgeLinePath(ctx,pts,oy){
+  ctx.moveTo(pts[0][0],pts[0][1]+oy);
+  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]+oy);
+}
+/* The SIDE you see of a strip standing on the line: the run and the run lifted
+   by `rise`, as one subpath, forward along the top and back along the foot.
+   Filled nonzero that is their symmetric difference, which on a closed bed is
+   the far strip's inner face and the near strip's outer face — the two a camera
+   looking down from the south sees — and on an open run is the band itself. */
+function edgeFacePath(ctx,pts,rise){
+  ctx.beginPath(); edgeLinePath(ctx,pts,-rise);
+  for (let i=pts.length-1;i>=0;i--) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath();
+}
+function edgeUnitTone(st,i,seed){
+  const t=st.tones||[st.col];
+  return t[((Math.imul(i+1,2654435761)^(seed|0))>>>0)%t.length];
+}
+/* One run of edging along a polyline of screen points (a closed loop repeats
+   its first point last). Every kind stands ON the line: its foot is `pts`, its
+   top `rise` above, and between them is the face you see. `flat` (the plan
+   sheet) draws only what is seen from overhead, since a plan has no camera.
+   `seed` has to come from the WORLD, never from a screen point: the ground is
+   baked a band at a time and scrolled, so anything derived from the camera
+   would draw a different stone on each side of a band's edge. */
+function drawEdgingRun(ctx,pts,st,seed,edgePx,flat){
+  if (!st || !st.w || !pts || pts.length<2) return;
   edgePx = edgePx || TILE_EDGE_PX;
   const k = edgePx / TILE_EDGE_PX;
+  const m=ctx.getTransform&&ctx.getTransform(), dev=(m&&(m.a||m.b))?Math.hypot(m.a,m.b):1;
+  const w=Math.max(st.w*k, EDGE_MIN_W/dev);
+  const rise=(flat||!st.rise) ? 0 : Math.max(st.rise*EDGE_RISE_PX*k, EDGE_MIN_RISE/dev);
+  const hair=0.6/dev, kind=st.kind||'strip';
+  const cum=edgeRunCum(pts), total=cum[cum.length-1];
+  if (!(total>0)) return;
+  const unit=(st.unitIn||0)*EDGE_IN_PX*k;            // one unit along the run
+  /* big enough on screen to draw one by one. A stone needs more room than a
+     joint: at the fitted zoom of a 46-tile plot stones came out 3.6px each,
+     unreadable, and cost 2ms of a bake, against nothing measurable for any
+     other edging, so below 5px they are drawn as the band they read as. */
+  const fine=unit>0 && unit*dev>=(kind==='stones'?5:EDGE_MIN_UNIT);
+  const n=fine ? Math.max(1,Math.min(1600,Math.round(total/unit))) : 0, u=n?total/n:0;
   ctx.save(); ctx.lineJoin='round'; ctx.lineCap='butt';
-  if (st.soil){
-    // a cut spade edge is a shadow in the turf, not a manufactured strip
-    ctx.strokeStyle='rgba(38,28,16,0.42)'; ctx.lineWidth=st.w*k;
-  } else {
-    ctx.strokeStyle=st.col; ctx.lineWidth=st.w*k;
+  const stroke=(oy,col,lw)=>{ ctx.beginPath(); edgeLinePath(ctx,pts,oy); ctx.strokeStyle=col; ctx.lineWidth=lw; ctx.stroke(); };
+  // a soft shadow at the foot of anything that stands proud (stones cast their
+  // own: a band under a row of stones reads as a trench between them)
+  if (rise && !(kind==='stones' && fine)) stroke(w*0.35, 'rgba(14,10,4,0.20)', w+rise*0.5);
+
+  if (kind==='cut'){
+    /* A spade cut is a slot in the turf: a shadowed soil face as deep as the
+       cut, a dark line where it meets the bed, and the turf's lit lip along the
+       top. As a translucent stroke it all but vanished on dark mulch and grass. */
+    const deep=flat?0:Math.max(2.4*EDGE_RISE_PX*k, EDGE_MIN_RISE/dev);
+    if (deep){ edgeFacePath(ctx,pts,deep); ctx.fillStyle='rgba(52,36,20,0.9)'; ctx.fill(); }
+    stroke(0,'rgba(22,14,6,0.7)',Math.max(EDGE_MIN_W/dev,w*0.45));
+    stroke(-deep,'rgba(206,226,160,0.42)',Math.max(hair,w*0.28));
   }
-  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
-  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
-  ctx.stroke();
-  if (!st.soil){
-    // a highlight along the top arris — what makes a strip read as standing
-    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=Math.max(0.7,st.w*k*0.30);
-    ctx.stroke();
-  }
-  if (st.unitIn){
-    // joints, spaced along the real run rather than a fixed count
-    let len=0;
-    for (let i=1;i<pts.length;i++) len+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
-    const per=(st.unitIn/TILE_IN)*edgePx;                  // one unit, in px
-    const n=Math.max(1,Math.min(40,Math.round(len/Math.max(3,per))));
-    ctx.strokeStyle='rgba(0,0,0,0.30)'; ctx.lineWidth=Math.max(0.6,st.w*k*0.22);
-    for (let i=1;i<n;i++){
-      const t=i/n; let want=len*t, acc=0, p=pts[0], q=pts[1];
-      for (let j=1;j<pts.length;j++){
-        const d=Math.hypot(pts[j][0]-pts[j-1][0],pts[j][1]-pts[j-1][1]);
-        if (acc+d>=want){ p=pts[j-1]; q=pts[j]; want-=acc; acc=d; break; }
-        acc+=d;
+  else if (kind==='units'){
+    if (rise){ edgeFacePath(ctx,pts,rise); ctx.fillStyle=st.face||st.col; ctx.fill(); }
+    if (!fine){ stroke(-rise,st.col,w); }
+    else {
+      // the joint shows between the units, so lay it as a band under them
+      stroke(-rise,st.joint||'#00000055',w);
+      const gap=Math.max(0.45/dev,Math.min(u*0.13,0.9*k)), hw=w/2-gap/2, cur={i:1};
+      const byTone=new Map();
+      for (let i=0;i<n;i++){
+        const col=edgeUnitTone(st,i,seed);
+        let q=byTone.get(col); if (!q) byTone.set(col,q=[]);
+        q.push(edgeSpanPoly(pts,cum,i*u+gap/2,(i+1)*u-gap/2,hw,-rise,cur));
       }
-      const f=acc?want/acc:0;
-      const jx=p[0]+(q[0]-p[0])*f, jy=p[1]+(q[1]-p[1])*f;
-      const nx=-(q[1]-p[1]), ny=(q[0]-p[0]);
-      const m=Math.hypot(nx,ny)||1, hw=st.w*k*0.5;
+      for (const [col,list] of byTone){
+        ctx.beginPath();
+        for (const p of list){ ctx.moveTo(p[0],p[1]); for (let j=2;j<p.length;j+=2) ctx.lineTo(p[j],p[j+1]); ctx.closePath(); }
+        ctx.fillStyle=col; ctx.fill();
+      }
+    }
+  }
+  else if (kind==='stones' && fine){
+    const at=edgeCursor(pts,cum), rnd=mulberry((seed|0)^0x5bd1e995);
+    const shade=[], base=[], tops=new Map(), lit=[], lift=rise*0.7;
+    // a stone is an irregular seven-sided lump, every corner its own distance out
+    const ring=(arr,cx,cy,r,ry,f,j)=>{ for (let s=0;s<7;s++){ const a=s/7*Math.PI*2+j;
+      arr.push(cx+Math.cos(a)*r*f[s], cy+Math.sin(a)*ry*f[s]); } };
+    for (let i=0;i<n;i++){
+      const d=Math.min(total,Math.max(0,(i+0.5+(rnd()-0.5)*0.35)*u)), p=at(d);
+      const r=Math.min(w*0.56,u*0.66)*(0.8+0.4*rnd()), off=(rnd()-0.5)*w*0.25, jit=rnd()*6;
+      const f=[]; for (let s=0;s<7;s++) f.push(0.74+0.36*rnd());
+      const cx=p[0]-p[3]*off, cy=p[1]+p[2]*off, ry=r*0.64, col=edgeUnitTone(st,i,seed);
+      if (!flat){ shade.push([cx+r*0.18,cy+ry*0.35,r*1.05,ry*0.8]);
+        const b=[]; ring(b,cx,cy,r,ry,f,jit); base.push(b); }
+      const t=[]; ring(t,cx,cy-lift,r*0.96,ry*0.96,f,jit);
+      let q=tops.get(col); if (!q) tops.set(col,q=[]); q.push(t);
+      if (!flat) lit.push([cx-r*0.3,cy-lift-ry*0.32,r*0.4,ry*0.32]);
+    }
+    const poly=list=>{ for (const a of list){ ctx.moveTo(a[0],a[1]); for (let j=2;j<a.length;j+=2) ctx.lineTo(a[j],a[j+1]); ctx.closePath(); } };
+    if (shade.length){ ctx.beginPath(); for (const [x,y,rx,ry] of shade){ ctx.moveTo(x+rx,y); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); }
+      ctx.fillStyle='rgba(14,10,4,0.16)'; ctx.fill(); }
+    if (base.length){ ctx.beginPath(); poly(base); ctx.fillStyle=st.face; ctx.fill(); }
+    for (const [col,list] of tops){ ctx.beginPath(); poly(list); ctx.fillStyle=col; ctx.fill(); }
+    if (lit.length){ ctx.beginPath(); for (const [x,y,rx,ry] of lit){ ctx.moveTo(x+rx,y); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); }
+      ctx.fillStyle='rgba(255,255,250,0.16)'; ctx.fill(); }
+  }
+  else if (kind==='teeth' && fine){
+    // bricks set on the skew, so each shows a triangle standing out of the bed
+    stroke(0,st.face,Math.max(hair,w*0.55));
+    const at=edgeCursor(pts,cum), byTone=new Map();
+    for (let i=0;i<n;i++){
+      const a=at(i*u), c=at((i+0.5)*u), b=at((i+1)*u), col=edgeUnitTone(st,i,seed);
+      const ax=flat?c[0]-c[3]*w:c[0], ay=flat?c[1]+c[2]*w:c[1]-rise;
+      let q=byTone.get(col); if (!q) byTone.set(col,q=[]); q.push(a[0],a[1],ax,ay,b[0],b[1]);
+    }
+    for (const [col,q] of byTone){ ctx.beginPath();
+      for (let j=0;j<q.length;j+=6){ ctx.moveTo(q[j],q[j+1]); ctx.lineTo(q[j+2],q[j+3]); ctx.lineTo(q[j+4],q[j+5]); ctx.closePath(); }
+      ctx.fillStyle=col; ctx.fill(); ctx.strokeStyle='rgba(52,24,14,0.5)'; ctx.lineWidth=hair; ctx.stroke(); }
+  }
+  else if (kind==='logs' && fine){
+    const at=edgeCursor(pts,cum);
+    if (rise){ edgeFacePath(ctx,pts,rise); ctx.fillStyle=st.col; ctx.fill();
       ctx.beginPath();
-      ctx.moveTo(jx-nx/m*hw,jy-ny/m*hw); ctx.lineTo(jx+nx/m*hw,jy+ny/m*hw);
-      ctx.stroke();
+      for (let i=1;i<n;i++){ const p=at(i*u); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-rise); }
+      ctx.strokeStyle=st.face; ctx.lineWidth=Math.max(hair,u*0.12); ctx.stroke(); }
+    // the cut tops, round end grain, are what reads as a log roll from above
+    const at2=edgeCursor(pts,cum), rx=u*0.47, ry=flat?rx:Math.min(rx,w*0.5)*0.62;
+    ctx.beginPath();
+    for (let i=0;i<n;i++){ const p=at2((i+0.5)*u); ctx.moveTo(p[0]+rx,p[1]-rise); ctx.ellipse(p[0],p[1]-rise,rx,ry,0,0,Math.PI*2); }
+    ctx.fillStyle=st.top; ctx.fill(); ctx.strokeStyle=st.face; ctx.lineWidth=hair; ctx.stroke();
+  }
+  else if (kind==='weave' && !flat){
+    edgeFacePath(ctx,pts,rise); ctx.fillStyle=st.col; ctx.fill();
+    if (rise*dev>=4){
+      // the gaps between the woven rods, and the stakes they are woven round
+      ctx.beginPath(); edgeLinePath(ctx,pts,-rise*0.34); edgeLinePath(ctx,pts,-rise*0.67);
+      ctx.strokeStyle=st.face; ctx.lineWidth=Math.max(hair,rise*0.07); ctx.stroke();
+      if (fine){ const at=edgeCursor(pts,cum); ctx.beginPath();
+        for (let i=0;i<=n;i++){ const p=at(Math.min(total,i*u)); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-rise*1.12); }
+        ctx.lineWidth=Math.max(hair,1.1*k); ctx.stroke(); }
+    }
+    stroke(-rise,st.top,Math.max(hair,w*0.55));
+  }
+  else {
+    // strip: a steel, aluminium, corten, timber or tile edge — and the
+    // fallback for any kind whose units are too small to draw one by one
+    if (rise){
+      edgeFacePath(ctx,pts,rise); ctx.fillStyle=st.face||st.col; ctx.fill();
+      if (fine && st.kind==='strip'){
+        // board ends or tile joints down the face
+        const at=edgeCursor(pts,cum); ctx.beginPath();
+        for (let i=1;i<n;i++){ const p=at(i*u); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-rise); }
+        ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=hair; ctx.stroke();
+      }
+    }
+    stroke(-rise,st.col,w);
+    // the lit top arris: what makes a strip read as something standing
+    if (st.top) stroke(-rise-w*0.22,st.top,Math.max(hair,w*0.38));
+    if (st.rope && !flat){
+      const step=1.3*EDGE_IN_PX*k;
+      if (step*dev>=2.4){
+        const at=edgeCursor(pts,cum), hw=w*0.55, c=Math.min(2000,Math.floor(total/step));
+        ctx.beginPath();
+        for (let i=0;i<c;i++){ const p=at((i+0.5)*step);
+          ctx.moveTo(p[0]-p[3]*hw-p[2]*hw,p[1]+p[2]*hw-p[3]*hw-rise); ctx.lineTo(p[0]+p[3]*hw+p[2]*hw,p[1]-p[2]*hw+p[3]*hw-rise); }
+        ctx.strokeStyle=st.face; ctx.lineWidth=hair; ctx.stroke();
+      }
     }
   }
   ctx.restore();
-  void seed;
 }
 /* The formal edge style draws crisp per-tile cells rather than a traced blob,
    so its edging is per-tile too: a strip along each side that faces lawn. */

@@ -1535,17 +1535,26 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect){
    as "the edging cannot be removed".
    Edging is still not part of the region flood key on purpose — splitting a bed
    into two blobs because half of it is edged would be a much worse artifact
-   than resolving one material for the whole outline, and filling the bed is the
-   gesture the tool is built around anyway. */
+   than resolving one material for the whole outline, and a tap edges the whole
+   region anyway (paintEdgingAt). */
+/* Since 0.9.142 the tool writes one material to the whole region, so a mixed
+   one comes only from two edged beds painted together or an older save. It
+   then takes the material carrying the most lawn-facing SIDES rather than the
+   first tile the flood happened to reach, so what is drawn no longer depends
+   on the order the bed was painted in. 'none' never votes: a stretch with no
+   edging must not erase the rest of the outline the planting list bills. */
 function regionEdging(region){
   if (region.edging!=null) return region.edging;
-  let out='none';
+  let out='none', best=0;
+  const votes={};
   for (const k of region.tiles){
     const t=game.terrain[k];
     if (!t || t.removed) continue;
     const e=edgingStyleId(t.e); if (e==='none') continue;
-    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-    if (edgingDrawsAt(x,y)){ out=e; break; }       // an interior tile draws none
+    const ci=k.indexOf(','), n=edgingSidesAt(+k.slice(0,ci),+k.slice(ci+1));
+    if (!n) continue;                               // an interior tile draws none
+    votes[e]=(votes[e]||0)+n;
+    if (votes[e]>best || (votes[e]===best && e<out)){ best=votes[e]; out=e; }
   }
   /* Memoised onto the region, which rides terrainLoopCache and is therefore
      rebuilt by exactly the edits that could change the answer (terrainRev
@@ -1575,9 +1584,16 @@ function edgingCurvePoints(arc, proj){
   }, arc.fillet);
   return out;
 }
+/* `edgePx` is given only by the plan sheet, which is read from above, so it
+   also asks for the flat drawing. The seed comes from the arc's first WORLD
+   point, never a screen one: see drawEdgingRun. */
 function strokeEdgingArc(ctx,arc,proj,st,edgePx){
   const pts=edgingCurvePoints(arc,proj);
-  if (pts.length>=2) drawEdgingRun(ctx,pts,st,1,edgePx);
+  if (pts.length>=2) drawEdgingRun(ctx,pts,st,edgingArcSeed(arc),edgePx,!!edgePx);
+}
+function edgingArcSeed(arc){
+  const p=arc.pts[0]||[0,0];
+  return tileSeed(Math.round(p[0]*8),Math.round(p[1]*8));
 }
 /* ---------- plant sprite cache (perf) ----------
    drawPlant re-runs a plant's whole procedural recipe every frame, which is
@@ -4440,6 +4456,7 @@ function render(t){
   drawRulerOverlay(cx,W,H);
   drawPergolaGhost(cx,W,H,cal.season);
   drawTerraceGhost(cx,W,H);
+  drawEdgingGhost(cx,W,H);
   drawWallFaceHover(cx,W,H);
   drawToolDragMetric(cx,W,H);
   if (game.layerVis.edgeRulers && VW>640) drawSelectionMetrics(cx,W,H,{x0:0,y0:0,x1:GW-1,y1:GH-1});
@@ -4628,6 +4645,58 @@ function drawPergolaGhost(cx,W,H,season){
    per-tile blocker scan and the region flood are cached on game.rev, so a
    still pointer costs a few path fills a frame. */
 const TERRACE_GHOST_UNITS=48;      // past this many tile edges the walls draw as flat tone
+/* What an Edging tap is about to do, on the bed under the pointer: its whole
+   lawn-facing outline in the armed material over a pale halo, or, with No
+   edging armed, a red dash where edging would come off. A tap edges the whole
+   bed, so the preview has to show the whole bed, or a gardener hovering one
+   corner of a long border would not know the far end changes too. Built only
+   while Edging is armed and the pointer is over a bed; the region is kept
+   until the pointer leaves it or the garden changes (edgingGhostCache). */
+const edgingGhostCache={reg:null,rev:-1};
+function edgingGhostRegion(x,y){
+  const c=edgingGhostCache, k=x+','+y;
+  if (c.rev!==game.rev || !c.reg || !c.reg.has.has(k)){ c.reg=edgingRegionAt(x,y); c.rev=game.rev; }
+  return c.reg && c.reg.has.has(k) ? c.reg : null;
+}
+function edgingGhostRuns(reg,hx,hy,W,H){
+  const runs=[];
+  if (game.edgeStyle==='organic'){
+    const k0=hx+','+hy, region=buildTerrainRegions().find(r=>r.tiles.has(k0));
+    if (!region) return runs;
+    const lift=region.elev*ELEV_STEP;
+    const proj=([gx,gy])=>{ const p=screenOfCorner(gx,gy,W,H); return [p[0],p[1]-lift]; };
+    for (const loop of region.loops){
+      if (loop.closed){ if (!loop.covered && !loop.hard) runs.push([edgingCurvePoints(loop,proj),edgingArcSeed(loop)]); continue; }
+      for (const arc of loop.arcs) if (!arc.covered && !arc.hard) runs.push([edgingCurvePoints(arc,proj),edgingArcSeed(arc)]);
+    }
+    return runs;
+  }
+  for (const [x,y] of reg.tiles){
+    const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
+    const N=[sx,sy], E=[sx+TILE_W/2,cy], S=[sx,sy+TILE_H], Wp=[sx-TILE_W/2,cy];
+    for (const [[dx,dy],a,b] of [[[1,0],E,S],[[0,1],S,Wp],[[-1,0],Wp,N],[[0,-1],N,E]])
+      if (isLawnTile(x+dx,y+dy)) runs.push([[a,b],tileSeed(x,y)]);
+  }
+  return runs;
+}
+function drawEdgingGhost(cx,W,H){
+  if (game.tool!=='edging' || !game.hoverTile || !layerShown('landscape')) return;
+  const [hx,hy]=game.hoverTile, reg=edgingGhostRegion(hx,hy);
+  if (!reg || !reg.sides || reg.tiles.length>2500) return;
+  const want=edgingDraft(), st=edgingStyle(want), runs=edgingGhostRuns(reg,hx,hy,W,H);
+  const m=cx.getTransform&&cx.getTransform(), dev=(m&&(m.a||m.b))?Math.hypot(m.a,m.b):1;
+  cx.save(); cx.lineJoin='round'; cx.lineCap='round';
+  const trace=pts=>{ cx.moveTo(pts[0][0],pts[0][1]); for (let i=1;i<pts.length;i++) cx.lineTo(pts[i][0],pts[i][1]); };
+  if (!st.w){
+    cx.beginPath(); for (const [pts] of runs) trace(pts);
+    cx.setLineDash([6/dev*1.4,4/dev*1.4]); cx.strokeStyle='rgba(230,118,92,0.95)'; cx.lineWidth=2.4/dev; cx.stroke();
+  } else {
+    cx.beginPath(); for (const [pts] of runs) trace(pts);
+    cx.strokeStyle='rgba(243,236,221,0.55)'; cx.lineWidth=st.w+7/dev; cx.stroke();
+    for (const [pts,seed] of runs) drawEdgingRun(cx,pts,st,seed);
+  }
+  cx.restore();
+}
 const terraceGhostCache={key:null,bad:null,reg:null,regRev:-1};
 function terraceGhostBad(r){
   const key=`${r.x0},${r.y0},${r.x1},${r.y1},${game.rev},${GW},${GH}`;

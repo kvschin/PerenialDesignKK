@@ -101,7 +101,9 @@ const TOOLS={
      no `once`. */
   terrace: {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, measure:'rect',
     apply:(x,y,o)=>setTerraceTile(x,y,terraceDraft()), rect:(x0,y0,x1,y1)=>finishTerraceDrag(x0,y0,x1,y1)},
-  edging:  {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>paintEdgingAt(x,y)},
+  /* Edging acts on a whole bed per tap (paintEdgingAt), so it has no disc size
+     and nothing for Fill to add; a drag still edges every bed it crosses. */
+  edging:  {layer:'landscape', brush:true,  placement:true,  paints:false, material:true, apply:(x,y,o)=>paintEdgingAt(x,y)},
   house:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false}, // no apply — placed via placeHouse
   building:{layer:'landscape', brush:false, placement:true,  paints:false, material:false}, // corner-by-corner polygon input
   // add/remove tiles on an already-placed footprint. sizable so a whole wing
@@ -593,10 +595,11 @@ function drawBrushSwatchCanvas(c,includeLast){
     if (k==='terrace') drawTerraceIcon(g,terraceDraft()); else drawWallIcon(g,wallDraft());
     g.restore(); return true; }
   if (k==='pet'){ drawPet(g,c.width/2,c.height-3,petDraft(),0.62); return true; }
+  if (k==='edging'){ drawEdgingIcon(g,edgingDraft(),c.width,c.height); return true; }
   if (k==='house'){ g.fillStyle=(game.houseDraft||defaultDraft()).wall; g.fillRect(9,11,12,9);
     g.fillStyle=(game.houseDraft||defaultDraft()).roof; g.beginPath(); g.moveTo(7,11); g.lineTo(15,5); g.lineTo(23,11); g.closePath(); g.fill(); return true; }
   /* Generic fallback for the placement tools with no bespoke swatch — pot,
-     edging, building. Hiding the canvas (what used to happen
+     building. Hiding the canvas (what used to happen
      here) left the brush bar with a name and no mark, so the armed tool had no
      visual at all. A tinted tile with the tool's initial is not art, but it is
      an unmistakable "this is armed", which is the job. */
@@ -638,17 +641,24 @@ function materialIconPath(tc,cx,cy,hw,hh){
 function gradeChipFace(){
   return {a:[9,17], b:[27,27], drop:15};            // a terrace corner, in chip space
 }
-function drawEdgingIcon(tc,id){
-  const st=edgingStyle(id);
-  tc.fillStyle='#7d9358';                            // lawn
-  tc.beginPath(); tc.moveTo(24,6); tc.lineTo(44,17); tc.lineTo(24,28); tc.lineTo(4,17);
-  tc.closePath(); tc.fill();
-  tc.fillStyle='#6b5a44';                            // the bed it edges
-  tc.beginPath(); tc.moveTo(24,16); tc.lineTo(44,27); tc.lineTo(24,38); tc.lineTo(4,27);
-  tc.closePath(); tc.fill();
-  if (!st.w) return;
-  drawEdgingRun(tc,[[4,17],[24,6]],st,1);            // one edge of the boundary
-  drawEdgingRun(tc,[[24,6],[44,17]],st,2);
+/* A little bed in a lawn with the edging all the way round it, through the
+   garden's own painter. The old chip edged the far side of a lawn diamond
+   with the bed below it, so the strip sat against the sky and its face, which
+   is most of what tells one edging from another, never showed. Round a whole
+   bed both faces show: the far strip's inside and the near strip's outside. */
+function drawEdgingIcon(tc,id,W,H){
+  W=W||48; H=H||44;
+  const st=edgingStyle(id), cx=W/2, cy=H/2+1, hw=W*0.47, hh=H*0.4, rx=hw*0.66, ry=hh*0.6;
+  // the same diamond of ground every other Ground chip shows, here lawn
+  tc.save(); materialIconPath(tc,cx,H/2,hw,hh); tc.fillStyle='#7d9358'; tc.fill(); tc.clip();
+  const pts=[];
+  for (let i=0;i<=40;i++){ const a=i/40*Math.PI*2;
+    pts.push([cx+Math.cos(a)*rx*(1+0.06*Math.sin(a*3)), cy+Math.sin(a)*ry]); }
+  tc.beginPath(); tc.moveTo(pts[0][0],pts[0][1]); pts.forEach(p=>tc.lineTo(p[0],p[1])); tc.closePath();
+  tc.fillStyle='#5c4a36'; tc.fill();                  // the bed it edges
+  if (!st.w){ tc.strokeStyle='rgba(48,36,24,0.45)'; tc.lineWidth=1; tc.stroke(); }
+  else drawEdgingRun(tc,pts,st,7,TILE_EDGE_PX*0.8*Math.min(1,W/72));
+  tc.restore();
 }
 function drawWallIcon(tc,id){
   const f=gradeChipFace(), st=wallStyle(id);
@@ -1865,7 +1875,7 @@ const TOOL_SEARCH={
   path:   {label:'Path',kind:'fill',   hay:'path paths walkway gravel limestone slate charcoal red clay hardscape landscape'},
   bed:    {label:'Bed',kind:'fill',    hay:'bed beds soil gravel rock river rock leaf litter mulch bark pine straw pea gravel planting area landscape'},
   water:  {label:'Water',kind:'fill',  hay:'water pond river lake stream creek wet landscape'},
-  edging: {label:'Edging',kind:'fill', hay:'edging edge restraint mowing strip lawn border spade cut steel corten brick setts soldier course ground'},
+  edging: {label:'Edging',kind:'fill', hay:'edging edge restraint mowing strip mow strip lawn border spade cut steel corten aluminium brick setts soldier course sawtooth dogtooth rope-top victorian tile fieldstone stone concrete timber log roll willow wattle ground'},
   raise:  {label:'Raise',kind:'layers',hay:'raise elevation grade berm terrace hill leveling'},
   lower:  {label:'Lower',kind:'layers',hay:'lower elevation grade swale basin depression leveling'},
   level:  {label:'Level',kind:'layers',hay:'level elevation grade flatten reset leveling'},
@@ -3646,14 +3656,14 @@ const GROUND_SHELVES=[
   {k:'path',  name:'Path',  desc:'Gravel, stone, paving and decking',              pop:['warm','bluestone','brick']},
   {k:'bed',   name:'Bed',   desc:'Soil, mulch or gravel to plant into',            pop:['soil','mulch','pea']},
   {k:'water', name:'Water', desc:'Paint a pond, a river or a lake',                pop:['pond','river','lake']},
-  {k:'edging',name:'Edging',desc:'A strip between a bed or path and the lawn',     pop:['steel','brick','timber']}
+  {k:'edging',name:'Edging',desc:'Tap a bed to edge all of it against the lawn',   pop:['steel','brick','timber']}
 ];
 function groundShelf(k){
   if (k==='lawn')   return {table:LAWN_STYLES,  cur:lawnStyle(game.lawnStyle).id,   data:'lawnStyle',  set:id=>{ game.lawnStyle=id; }};
   if (k==='path')   return {table:PATH_COLORS,  groups:PATH_GROUPS, cur:pathColor(game.pathColor).id, data:'pathColor', set:id=>{ game.pathColor=id; }};
   if (k==='bed')    return {table:BED_STYLES,   groups:BED_GROUPS,  cur:bedStyle(game.bedStyle).id,   data:'bedStyle',  set:id=>{ game.bedStyle=id; }};
   if (k==='water')  return {table:WATER_STYLES, cur:waterStyle(game.waterStyle).id, data:'waterStyle', set:id=>{ game.waterStyle=id; }};
-  if (k==='edging') return {table:EDGING_STYLES,cur:edgingDraft(),                  data:'edging',     set:id=>{ game.edgingDraft=edgingStyleId(id); }};
+  if (k==='edging') return {table:EDGING_STYLES,groups:EDGING_GROUPS,cur:edgingDraft(), data:'edging', set:id=>{ game.edgingDraft=edgingStyleId(id); }};
   return null;
 }
 /* What a shut shelf shows: the surface in hand first, then the common ones. */
@@ -3673,7 +3683,7 @@ function renderGroundShelves(tray,cat){
         :shelf.k==='edging'&&m.id==='none'?'Lift the edging back off':m.label;
       const {c,x}=trayCanvas(72,42,true);
       // nearly the whole tile at true scale, where the old chip showed a 36x22 crop
-      if (shelf.k==='edging'){ x.save(); x.translate(15,0); x.scale(.88,.88); drawEdgingIcon(x,m.id); x.restore(); }
+      if (shelf.k==='edging') drawEdgingIcon(x,m.id,72,42);
       else drawMaterialIcon(x,36,21,34,17,shelf.k,m.id);
       b.append(c,trayEl('span',null,m.short||m.label),trayTick());
       b.onclick=()=>{ spec.set(m.id); setTool(shelf.k,null); buildToolTray(); };
@@ -5036,7 +5046,7 @@ function toolGuide(){
     path:{k:`${pathColor(game.pathColor).label} path`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     bed:{k:`${bedStyle(game.bedStyle).label} bed`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     water:{k:`${waterStyle(game.waterStyle).label} water`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
-    edging:{k:edgingLabel(),v:`Fill the bed — it draws only where it meets lawn`},
+    edging:{k:edgingLabel(),v:edgingDraft()==='none'?'Tap a bed to lift its edging':'Tap a bed or path to edge all of it; tap again in another style to change it'},
     wall:{k:wallLabel(),v:`Tap or drag along the face of a terrace — ${game.brushSize}-tile brush`},
     terrace:{k:terraceLabel(),v:game.fillMode?'Tap a bed or area to build all of it to this height'
       :`Drag corner to corner, or tap for a ${pergolaSizeText(TERRACE_TAP_W,TERRACE_TAP_H)} bed — tap a terrace to rebuild it`},

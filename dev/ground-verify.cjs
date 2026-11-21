@@ -293,6 +293,12 @@ function inPage() {
       ["formal edges", () => { game.edgeStyle = "formal"; markGroundChanged(); }],
       ["furnished + terraces", () => { game.edgeStyle = "organic"; furnishGarden({}); markGroundChanged(); }],
       ["furnished, formal", () => { game.edgeStyle = "formal"; markGroundChanged(); }],
+      /* Laid edging draws unit by unit (bricks, stones) along the whole outline,
+         with a seed that must come from the world: a unit placed from the camera
+         would land differently on each side of a band's edge. */
+      ...["brick", "stone"].map(e => ["edging: " + e, () => { game.edgeStyle = "organic";
+        for (const k in game.terrain) { const t = game.terrain[k]; if (t && !t.removed && t.e) setTile("terrain", k, Object.assign({}, t, { e })); }
+        markGroundChanged(); }]),
     ];
     for (const [name, setup] of variants) {
       setup();

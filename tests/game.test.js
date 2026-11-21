@@ -9544,8 +9544,9 @@ test('edging runs where a bed meets lawn, and only there', () => {
    draws no edging and is billed for none, decided the outline. Lifting the
    edging off the edge you can SEE then emptied the planting list and changed
    nothing on screen; the bug read as "the edging cannot be removed". The two
-   surfaces may disagree about which material wins a mixed region, but never
-   about whether there is any edging at all. */
+   surfaces must never disagree about whether there is any edging at all.
+   The tool now writes a whole bed at once, so per-tile mixtures come only from
+   an older save or two beds painted together: they are laid with setTile. */
 test('lifting the edging a bed shows also stops it being drawn', () => {
   setup(21, 21);
   const bedRegion = () => {
@@ -9554,37 +9555,210 @@ test('lifting the edging a bed shows also stops it being drawn', () => {
     return rs[0];
   };
   const billed = () => { const f = edgingRunFeet(); return Object.keys(f).length ? f : null; };
-  const fillBed = () => {
-    game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
-    for (let x = 5; x <= 9; x++) for (let y = 5; y <= 9; y++) applyToolAt(x, y);
-  };
+  const lay = (x, y, e) => setTile('terrain', x + ',' + y, Object.assign({ k: 'bed', c: 'soil', t: 1 }, e ? { e } : {}));
+  const ring = (x, y) => x === 5 || x === 9 || y === 5 || y === 9;
 
-  fillBed();
-  game.tool = 'edging'; game.edgingDraft = 'steel';
-  for (let x = 5; x <= 9; x++) for (let y = 5; y <= 9; y++) applyToolAt(x, y);
+  for (let x = 5; x <= 9; x++) for (let y = 5; y <= 9; y++) lay(x, y, 'steel');
   assertEqual(regionEdging(bedRegion()), 'steel', 'a filled bed draws its edging');
   assert(billed(), 'and is billed for it');
 
-  // lift only the ring that actually draws — the gesture that reported the bug
-  game.edgingDraft = 'none';
-  for (let x = 5; x <= 9; x++) for (let y = 5; y <= 9; y++)
-    if (x === 5 || x === 9 || y === 5 || y === 9) applyToolAt(x, y);
+  // the ring lifted, the buried tiles still carrying steel: the old bug's shape
+  for (let x = 5; x <= 9; x++) for (let y = 5; y <= 9; y++) if (ring(x, y)) lay(x, y, null);
   assertEqual(billed(), null, 'the bill goes to zero');
   assertEqual(regionEdging(bedRegion()), 'none', 'and so does what is drawn');
   assertEqual(edgingAt(7, 7), 'steel', 'the buried tiles keep it, and still draw nothing');
 
-  // the same rule in reverse: edging that never reaches lawn never draws
-  setup(21, 21);
-  fillBed();
-  game.tool = 'edging'; game.edgingDraft = 'brick';
-  for (let x = 6; x <= 8; x++) for (let y = 6; y <= 8; y++) applyToolAt(x, y);
-  assertEqual(billed(), null, 'an interior tile is billed for nothing');
-  assertEqual(regionEdging(bedRegion()), 'none', 'so it draws nothing');
-
   // one exposed tile brings it back — the answer is memoised onto the cached
   // region, and that memo must not outlive the edit that changed it
-  assertEqual(applyToolAt(5, 5), 'edging', 'laying it on an exposed tile takes');
+  lay(5, 5, 'brick');
   assertEqual(regionEdging(bedRegion()), 'brick', 'and the region picks it up at once');
+
+  // and the tool, which edges the whole bed, settles any such mixture
+  game.tool = 'edging'; game.edgingDraft = 'none';
+  assertEqual(applyToolAt(7, 7), 'edging', 'a tap in the middle of the bed lifts it');
+  for (let x = 5; x <= 9; x++) for (let y = 5; y <= 9; y++)
+    assertEqual(edgingAt(x, y), 'none', `every tile of the bed, ${x},${y} included`);
+  assert(!('e' in game.terrain['7,7']), 'lifting removes the field rather than writing none');
+});
+
+/* Edging is a property of the BED. It was painted a tile at a time with the disc
+   brush, and the renderer draws one material round a whole region, so changing
+   a bed's edging meant repainting every tile on its outline while the old one
+   stayed on screen until the last tile was found. Now a tap edges the whole bed
+   the tile belongs to, and a tap in another style changes all of it. */
+test('a tap edges the whole bed, and another tap changes all of it', () => {
+  setup(21, 21);
+  const bed = [];
+  for (let x = 4; x <= 9; x++) for (let y = 4; y <= 7; y++) if (!(x === 4 && y === 7)) bed.push([x, y]);
+  bed.push([10, 8]);                       // touching only at a corner: the same region
+  for (const [x, y] of bed) setTile('terrain', x + ',' + y, { k: 'bed', c: 'mulch', t: 1 });
+  game.tool = 'edging'; game.edgingDraft = 'steel';
+  assertEqual(applyToolAt(6, 5), 'edging', 'one tap takes');
+  for (const [x, y] of bed) assertEqual(edgingAt(x, y), 'steel', `${x},${y} is edged`);
+  assertEqual(applyToolAt(9, 4), null, 'tapping the same bed again in the same style changes nothing');
+  assert(/already edged in steel/.test(edgingTapText(false, 9, 4)), 'and says so');
+  const ft = edgingRunFeet().steel;
+  assert(ft > 0 && Math.abs(ft - edgingRegionAt(4, 4).sides * TILE_IN / 12) < 1e-9,
+    `the bill is the bed's lawn edge (${ft})`);
+  assertEqual(edgingTapText(true, 6, 5), `Steel Edging laid round the bed: ${fmtFeet(ft)}.`,
+    'the toast names the material and the length');
+
+  game.edgingDraft = 'brick';
+  assertEqual(applyToolAt(10, 8), 'edging', 'a tap on the corner tile reaches the whole bed');
+  for (const [x, y] of bed) assertEqual(edgingAt(x, y), 'brick', `${x},${y} changed with it`);
+  assertEqual(regionEdging(buildTerrainRegions().find(r => r.tiles.has('4,4'))), 'brick', 'and so did the drawing');
+  assertEqual(Object.keys(edgingRunFeet()).join(), 'brick', 'and the bill, with no steel left in it');
+
+  // a neighbour of another material, another level or another kind is another bed
+  setTile('terrain', '11,4', { k: 'bed', c: 'gravel', t: 1 });
+  setTile('terrain', '10,4', { k: 'path', c: 'warm', t: 1 });
+  game.edgingDraft = 'corten';
+  applyToolAt(4, 4);
+  assertEqual(edgingAt(11, 4), 'none', 'a gravel bed beside it is not edged');
+  assertEqual(edgingAt(10, 4), 'none', 'nor is the path between them');
+
+  // a tap on lawn edges nothing and says where to tap
+  assertEqual(applyToolAt(1, 15), null, 'lawn alone has nothing to edge');
+  assert(/Tap a bed or a path/.test(edgingTapText(false, 1, 15)), 'and the refusal says what to tap');
+});
+
+/* The tap has to reach exactly the region the renderer draws one outline round,
+   or a tap would edge half of what looks like one bed. */
+test('the bed a tap edges is the region the renderer traces', () => {
+  setup(24, 24);
+  const rnd = mulberry(4242);
+  const kinds = [['bed', 'soil'], ['bed', 'mulch'], ['path', 'warm'], ['lawn', 'meadow']];
+  for (let i = 0; i < 260; i++) {
+    const x = 1 + Math.floor(rnd() * 21), y = 1 + Math.floor(rnd() * 21), [k, c] = kinds[Math.floor(rnd() * kinds.length)];
+    setTile('terrain', x + ',' + y, { k, c, t: 1 });
+  }
+  for (let i = 0; i < 18; i++) setTile('elevation', (2 + i) + ',' + (3 + (i % 5)), { h: 1, t: 1 });
+  const regions = buildTerrainRegions();
+  let checked = 0;
+  for (const r of regions) {
+    const k = r.tiles.values().next().value, ci = k.indexOf(',');
+    const mine = edgingRegionAt(+k.slice(0, ci), +k.slice(ci + 1));
+    assertEqual(mine.has.size, r.tiles.size, `region at ${k} has the renderer's size`);
+    for (const t of r.tiles) assert(mine.has.has(t), `${t} is in the region a tap at ${k} edges`);
+    checked++;
+  }
+  assert(checked > 20, `a garden with many regions (${checked})`);
+});
+
+/* Widening an edged bed widens its edging. Without this the renderer drew the
+   old material round the new ground too (it reads one material for the whole
+   outline) while the planting list billed only the tiles carrying it. */
+test('a tile painted onto an edged bed takes its edging', () => {
+  setup(21, 21);
+  game.tool = 'bed'; game.bedStyle = 'mulch'; setBrushSize(1);
+  for (let x = 4; x <= 6; x++) for (let y = 4; y <= 6; y++) applyToolAt(x, y);
+  game.tool = 'edging'; game.edgingDraft = 'timber'; applyToolAt(5, 5);
+  game.tool = 'bed';
+  for (let y = 4; y <= 6; y++) applyToolAt(7, y);
+  for (let y = 4; y <= 6; y++) assertEqual(edgingAt(7, y), 'timber', `the new tile 7,${y} carries the bed's edging`);
+  assertEqual(Math.round(edgingRunFeet().timber), Math.round(14 * TILE_IN / 12), 'and the bill is the wider bed\'s');
+
+  // another material beside it is another bed and inherits nothing
+  game.bedStyle = 'gravel'; applyToolAt(8, 5);
+  assertEqual(edgingAt(8, 5), 'none', 'a gravel tile beside a mulch bed is not edged');
+  // nor does a path laid against it
+  game.tool = 'path'; game.pathColor = 'warm'; applyToolAt(5, 7);
+  assertEqual(edgingAt(5, 7), 'none', 'a path along the bed is not edged by it');
+  // a tile carrying its own edging keeps it: repainting the material is not an edging act
+  game.tool = 'bed'; game.bedStyle = 'soil'; applyToolAt(4, 4);
+  assertEqual(edgingAt(4, 4), 'timber', 'a repainted tile keeps the edging it had');
+});
+
+test('a bed with no lawn to hold back refuses edging, and says why', () => {
+  setup(21, 21);
+  for (let x = 4; x <= 10; x++) for (let y = 4; y <= 10; y++)
+    setTile('terrain', x + ',' + y, (x > 5 && x < 9 && y > 5 && y < 9) ? { k: 'bed', c: 'soil', t: 1 } : { k: 'path', c: 'warm', t: 1 });
+  game.tool = 'edging'; game.edgingDraft = 'steel';
+  assertEqual(applyToolAt(7, 7), null, 'a bed boxed in by paving takes no edging');
+  assertEqual(edgingAt(7, 7), 'none', 'and none is written');
+  assert(/meets no lawn/.test(edgingTapText(false, 7, 7)), 'the refusal says why');
+  game.edgingDraft = 'none';
+  assert(/no edging to lift/.test((applyToolAt(7, 7), edgingTapText(false, 7, 7))), 'lifting none says there is none');
+});
+
+test('a drag edges each bed it crosses once, and counts beds', () => {
+  setup(24, 24);
+  for (let x = 3; x <= 6; x++) for (let y = 5; y <= 7; y++) setTile('terrain', x + ',' + y, { k: 'bed', c: 'soil', t: 1 });
+  for (let x = 10; x <= 14; x++) for (let y = 5; y <= 7; y++) setTile('terrain', x + ',' + y, { k: 'bed', c: 'mulch', t: 1 });
+  game.tool = 'edging'; game.edgingDraft = 'setts';
+  const drag = { sx: 2, sy: 6, cx: 2, cy: 6, active: true, count: 0, what: null, lastX: 2, lastY: 6,
+    trace: [[2, 6]], edgeSeen: new Set(), affected: new Set(), runInches: 0 };
+  paintToolDragLine(drag, 16, 6, null);
+  assertEqual(drag.count, 2, 'two beds crossed, two edged');
+  assertEqual(edgingAt(3, 7), 'setts', 'the first bed all the way round');
+  assertEqual(edgingAt(14, 5), 'setts', 'and the second');
+  assertEqual(DRAG_DONE.edging(2), 'Stone Setts laid round 2 beds.', 'the toast counts beds, not tiles');
+  assertEqual(toolBrushSize(), 1, 'the tool has no disc: it acts on a bed');
+  assert(!toolMeta('edging').paints, 'and Fill has nothing to add to it');
+});
+
+/* Every edging stands up: a face you see, a top, and the lot widened to a
+   couple of device pixels, because at the opening zoom of a 31-tile plot (38%)
+   a true steel strip was 0.76px and every metal edging vanished. */
+test('every edging draws, and none comes out thinner than a screen can show', () => {
+  const run = (st, scale, flat, pts, seed) => {
+    const calls = [];
+    const rec = new Proxy({ getTransform: () => ({ a: scale, b: 0 }) }, {
+      get(o, p){ if (p in o) return o[p];
+        return (...a) => { calls.push({ op: p, a, lw: o.lineWidth, fill: o.fillStyle, stroke: o.strokeStyle }); }; },
+      set(o, p, v){ o[p] = v; return true; } });
+    drawEdgingRun(rec, pts || [[0, 0], [120, 60], [240, 0]], st, seed || 7, null, flat);
+    return calls;
+  };
+  for (const st of EDGING_STYLES) {
+    if (!st.w) { assertEqual(run(st, 1).length, 0, 'No edging draws nothing'); continue; }
+    for (const scale of [0.38, 1, 2.5]) {
+      const calls = run(st, scale);
+      const inked = calls.filter(c => c.op === 'fill' || c.op === 'stroke');
+      assert(inked.length >= 2, `${st.id} at ${scale} lays down ink (${inked.length})`);
+      const widths = calls.filter(c => c.op === 'stroke').map(c => c.lw);
+      assert(Math.max(...widths, 0) * scale >= EDGE_MIN_W - 1e-9 || calls.some(c => c.op === 'fill'),
+        `${st.id} at ${scale} is at least ${EDGE_MIN_W}px across`);
+      assert(st.kind && ['strip', 'cut', 'units', 'stones', 'teeth', 'logs', 'weave'].includes(st.kind), `${st.id} names a painter`);
+    }
+    // a standing edging shows a face; the plan, read from above, does not
+    if (st.rise && st.kind !== 'cut') {
+      const side = (st.kind === 'logs' || st.kind === 'weave') ? st.col : st.face;
+      const faces = run(st, 1).filter(c => c.op === 'fill' && c.fill === side).length;
+      assert(faces > 0 || st.kind === 'teeth', `${st.id} shows its face in the garden`);
+    }
+    // the stone and the tone of a unit come from the seed, never the screen:
+    // the ground is baked a band at a time, so a camera-derived choice would
+    // change across a band's edge
+    const a = run(st, 1, false, [[0, 0], [120, 60], [240, 0]], 99).map(c => c.op + c.fill);
+    const b = run(st, 1, false, [[317, -45], [437, 15], [557, -45]], 99).map(c => c.op + c.fill);
+    assertEqual(a.join('|'), b.join('|'), `${st.id} draws the same wherever the camera puts it`);
+  }
+  const byId = id => EDGING_STYLES.find(e => e.id === id);
+  ['concrete', 'sawtooth', 'ropetop', 'stone', 'logroll', 'willow'].forEach(id => assert(byId(id), `${id} is offered`));
+  EDGING_STYLES.forEach(e => assert(EDGING_GROUPS.some(g => g[0] === e.group), `${e.id} sits under a heading`));
+});
+
+/* The hover preview shows the WHOLE bed a tap will edge, so a gardener over one
+   corner of a long border can see the far end change too. */
+test('hovering a bed with Edging armed previews its whole outline', () => {
+  setup(21, 21);
+  for (let x = 4; x <= 8; x++) for (let y = 4; y <= 6; y++) setTile('terrain', x + ',' + y, { k: 'bed', c: 'soil', t: 1 });
+  const draws = () => {
+    let n = 0;
+    const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p]; return (...a) => { if (p === 'stroke' || p === 'fill') n++; }; },
+      set(o, p, v){ o[p] = v; return true; } });
+    drawEdgingGhost(rec, 1200, 800); return n;
+  };
+  game.tool = 'edging'; game.edgingDraft = 'brick'; game.hoverTile = [6, 5];
+  assert(draws() > 2, 'over a bed it draws the edging');
+  game.hoverTile = [15, 15];
+  assertEqual(draws(), 0, 'over lawn it draws nothing');
+  game.tool = 'bed'; game.hoverTile = [6, 5];
+  assertEqual(draws(), 0, 'and nothing with another tool armed');
+  game.tool = 'edging'; game.edgeStyle = 'formal';
+  assert(draws() > 2, 'a formal garden previews its tile sides');
+  game.edgeStyle = 'organic'; game.hoverTile = null;
 });
 
 /* Organic vs Formal is a per-GARDEN setting governing beds, paths and edging

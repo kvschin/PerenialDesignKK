@@ -3557,9 +3557,30 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     rides the elevation record, so it inherits the ground-bake and
     region-trace invalidation terrain edits already trigger — no new layer, no
     new cache key.
-    **It draws only where the tile meets lawn**, which makes FILLING the bed
-    the natural gesture rather than tracing its outline by hand: an edge that
-    later becomes interior stops drawing, and stops being billed, on its own.
+    **It is a property of the whole BED, and a tap sets it** (0.9.142;
+    `edgingRegionAt`, world.js; `paintEdgingAt`/`edgingTapText`, commands.js).
+    It was painted a tile at a time with the disc brush, while the organic
+    renderer has only ever drawn one material round a whole region, so changing
+    a bed's edging meant repainting every tile on its outline and the old one
+    stayed on screen until the last tile was found. Now a tap writes the armed
+    edging to every tile of the region the tap lands in (8-connected, one kind,
+    colour and level: `buildTerrainRegions`' own flood key, and a test holds the
+    two equal), a tap in another style changes all of it, No edging lifts it
+    (deleting the field), and a drag edges each bed it crosses once and counts
+    beds. The tool lost `sizable` and `paints` (no disc, nothing for Fill to
+    add). A bed with no lawn-facing side refuses, saying why. The toast names the
+    material and the bed's lawn edge in feet. **A tile painted onto an edged bed
+    takes its edging** (`edgingInheritedAt`, inside `placeTerrainAt`'s `keep`):
+    without it a widened bed drew its steel all the way round while the planting
+    list billed only the old tiles. A tile that already carries edging keeps it
+    (repainting the material is not an edging act). Storage is still per tile,
+    so saves and older builds are unchanged. While Edging is armed and the
+    pointer is over a bed, `drawEdgingGhost` (renderer.js) draws the whole
+    outline in the armed material over a pale halo, or a red dash with No
+    edging armed; the region is kept in `edgingGhostCache` until the pointer
+    leaves it or `game.rev` moves.
+    **It draws only where the tile meets lawn**: an edge that later becomes
+    interior stops drawing, and stops being billed, on its own.
     `edgingRunFeet` counts exactly the sides that draw, and a test pins it
     against `materialPerimeterFt` so the planting list and the estimator can
     never drift apart.
@@ -3575,7 +3596,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     which rides `terrainLoopCache` and is therefore rebuilt by exactly the
     edits that could change it, so the bakes that reuse a cached trace — a pan
     or zoom settle, a season turn, a rotation — no longer re-scan (2.4ms a call
-    on a solid 39x39 bed edged only in its interior). One material still wins a
+    on a solid 39x39 bed edged only in its interior). A mixed region (two edged
+    beds painted together, or an older save) takes the material with the most
+    lawn-facing SIDES, not the first tile the flood reached, so what is drawn
+    does not depend on painting order; 'none' never votes. One material still wins a
     mixed region on purpose: edging is deliberately NOT part of the region
     flood key, since splitting a bed into two blobs because half of it is edged
     would be a far worse artifact. Per-ARC material is the available follow-up
@@ -3598,10 +3622,34 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     A closed loop is a WRAPPING spline that starts halfway along its last
     segment; treating it as an open polyline left one side of every bed
     unedged with a tail hanging off the start.
-    Widths are the real thing seen from above — a steel strip is a line, a
-    brick soldier course is 4 in — and `unitIn` marks the laid materials, whose
-    joints are spaced along the real run so the units stay one size however
-    long the edge is.
+    **Every edging STANDS on its line** (0.9.142; `drawEdgingRun`, world.js).
+    Each row names a `kind`, the painter, the way a fence names its `infill`:
+    `strip` (steel, aluminium, corten, timber, rope-top tile), `cut` (spade),
+    `units` (brick soldier, setts, concrete mow strip), `stones` (fieldstone),
+    `teeth` (brick sawtooth), `logs` (log roll) and `weave` (woven willow), in
+    three tray groups (`EDGING_GROUPS`). `w` is the width across in draw units
+    (about 2.36 an inch), `rise` how far it stands proud in inches on the
+    built-height scale (`EDGE_RISE_PX`, `PX_PER_FT`/12), `unitIn` the joint or
+    unit spacing along the run. The FACE you see is one subpath, forward along
+    the top and back along the foot (`edgeFacePath`), filled nonzero: on a
+    closed bed that is the far strip's inner face and the near strip's outer
+    face, which are the two a camera looking down from the south sees. A laid
+    unit is a polygon that follows the run (`edgeSpanPoly`); as a chord a 4 ft
+    concrete slab cut straight across a curved bed. Tones and stones come from
+    `seed`, which `strokeEdgingArc` takes from the arc's first WORLD point
+    (`edgingArcSeed`): the ground is baked a band at a time, so anything taken
+    from the camera would differ across a band's edge. `ground-verify.cjs` has
+    brick and stone arms for that.
+    **Nothing is drawn thinner than a screen can show** (`EDGE_MIN_W` 1.8,
+    `EDGE_MIN_RISE` 1.1, `EDGE_MIN_UNIT` 3.2 device px, read off
+    `ctx.getTransform()`). Measured before: at the 38% a 31-tile plot opens at,
+    a true 2-unit steel strip was 0.76px and every metal edging vanished; only
+    brick read at all. Units smaller than the floor are drawn as a plain band
+    (stones below 5px, where they also cost 2ms of a bake). The plan sheet asks
+    for `flat`, the top alone. Measured on the bench garden's outlines, every
+    style but fieldstone costs nothing distinguishable from an empty bake.
+    The Ground chip is a little bed in a lawn diamond with the edging all round
+    it (`drawEdgingIcon`), which is also the brush swatch.
 
 11f. **Lawn** (`LAWN_STYLES`, `lawnFill`, world.js's blade grains) — grass was
     the ABSENCE of terrain, so the app shipped nine paving materials, seven bed
