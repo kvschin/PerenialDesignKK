@@ -4663,6 +4663,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     considered and left: a flight is a run of terraces a step apart, which Terrace
     builds and the caps now draw as risers with nosings; a tool that grades a
     flight in one drag would be its own piece of work.
+    **0.9.147: a plant on a capped edge tile is drawn in the bed** (`plantWallBounds`,
+    `WALL_PLANT_CLEAR` 6, in `plantScreenOf`). A plant stands at its tile's middle,
+    9 in from the face, and a brick top is 8 in across, so the back row stood on the
+    back coping and the front row over the front one. The drawing is kept the top's
+    width plus 6 in clear of every capped face of the plant's own tile (a free
+    offset clamped the same way, within +-0.45 so it rounds onto its own tile); a
+    wall one tile wide keeps the middle, and a top too thin to reach (corten) moves
+    nothing. Only the drawing moves: tile, spacing and rules are unchanged. A sunken
+    patio's rim plants stand back from its coping by the same rule.
 12d. **Water features** (`WATER_FEATURES`/`WATER_FINISHES`, `drawWaterFeature`) —
     pond, river and lake are AREAS: you paint them, they shelve from a bank, and
     until 0.8.71 they were the only water the app could draw. The water that

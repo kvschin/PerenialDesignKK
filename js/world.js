@@ -2038,7 +2038,37 @@ function plantScreenOf(x,y,p,W,H){
   // the offset read inline: plantOffset allocates an object, and this runs once
   // per drawn plant per frame
   const ox=Number(p&&p.ox), oy=Number(p&&p.oy);
-  return screenOf(x+(Number.isFinite(ox)?ox:0), y+(Number.isFinite(oy)?oy:0), W, H);
+  let wx=Number.isFinite(ox)?ox:0, wy=Number.isFinite(oy)?oy:0;
+  const b=plantWallBounds(x,y);
+  if (b){ wx=b.lx>b.hx ? 0 : Math.max(b.lx,Math.min(b.hx,wx));
+          wy=b.ly>b.hy ? 0 : Math.max(b.ly,Math.min(b.hy,wy)); }
+  return screenOf(x+wx, y+wy, W, H);
+}
+/* A plant on a tile with a capped wall face stands IN the bed, clear of the
+   wall's top (0.9.147). A tile is 18 in and a plant stands at its middle, 9 in
+   from the face, while a brick top is 8 in across (0.9.146), so a plant on a
+   raised bed's edge tile had its foot on the coping and read as standing on the
+   wall: the back row sat on the back cap, the front row over the front one. Its
+   DRAWING is now kept the top's width plus WALL_PLANT_CLEAR from every capped
+   face of its own tile, a free-planting offset clamped the same way. Only where
+   it is drawn moves: its tile, its spacing and every rule are unchanged. The
+   bounds stay inside +-0.45 so the point rounds onto its own tile, where its
+   elevation is read; the cull box's slip already allows a whole tile. A tile
+   with faces on both sides of an axis (a wall one tile wide) keeps its middle. */
+const WALL_PLANT_CLEAR=6;
+function plantWallBounds(x,y){
+  const g=elevationGrid();
+  if (!(g.hi>0) && !g.sunken) return null;          // no earthworks: the common case, one check
+  const st=wallStyle(wallStyleAt(x,y));
+  if (!st.cap) return null;
+  const h=elevationAt(x,y), off=0.5-Math.min(0.95,(st.topIn+WALL_PLANT_CLEAR)/TILE_IN);
+  if (off>=0.45) return null;                       // a thin top (steel) leaves the middle clear
+  let lx=-0.45, hx=0.45, ly=-0.45, hy=0.45, any=false;
+  if (elevationAt(x+1,y)<h){ hx=Math.min(hx,off); any=true; }
+  if (elevationAt(x-1,y)<h){ lx=Math.max(lx,-off); any=true; }
+  if (elevationAt(x,y+1)<h){ hy=Math.min(hy,off); any=true; }
+  if (elevationAt(x,y-1)<h){ ly=Math.max(ly,-off); any=true; }
+  return any ? {lx,hx,ly,hy} : null;
 }
 function isHedgePlant(p){
   const D=p && plantDef(p.s,p.v);

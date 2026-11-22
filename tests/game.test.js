@@ -10750,6 +10750,38 @@ test('the plan draws a wall at its thickness, on its tile edges, mitred at a sun
   }
 });
 
+/* A plant on a raised bed's edge tile stood 9 in from the face with an 8 in brick
+   top under its foot, and read as standing on the wall (reported 0.9.146). Its
+   drawing is kept clear of every capped face of its own tile; nothing else moves. */
+test('a plant on a capped edge tile is drawn in the bed, clear of the wall top', () => {
+  setup(24, 24);
+  for (let x = 6; x <= 10; x++) for (let y = 6; y <= 9; y++) setTerraceTile(x, y, { h: 3, w: 'brick' });
+  const W = 1600, H = 1200, at = (x, y, p) => plantScreenOf(x, y, p || { s: 'echinacea' }, W, H);
+  const world = (wx, wy) => screenOf(wx, wy, W, H);
+  const off = 0.5 - (wallStyle('brick').topIn + WALL_PLANT_CLEAR) / TILE_IN;
+  const near = (a, b) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
+  assert(off < 0, 'a brick top is wider than the half tile a plant stands from the face');
+  assert(near(at(8, 7), world(8, 7)), 'an interior tile is drawn where it always was');
+  assert(near(at(8, 6), world(8, 6 - off)), 'a back-edge plant is drawn in from the wall');
+  assert(near(at(8, 9), world(8, 9 + off)), 'and a front-edge one back from it');
+  assert(near(at(6, 6), world(6 - off, 6 - off)), 'a corner plant is drawn in from both walls');
+  // a free-planting offset toward the wall is held back the same way, and one away from it kept
+  assert(near(at(8, 9, { s: 'echinacea', oy: 0.39 }), world(8, 9 + off)), 'an offset toward the face is clamped');
+  assert(near(at(8, 9, { s: 'echinacea', oy: -0.4 }), world(8, 9 - 0.4)), 'an offset into the bed is kept');
+  assertEqual(elevationAt(8, 6 - off), 3, 'the shifted point still reads its own tile\'s height');
+  // a bank, and a thin steel top, leave the plant where it was
+  for (let x = 6; x <= 10; x++) for (let y = 6; y <= 9; y++) setTerraceTile(x, y, { h: 3, w: 'none' });
+  assert(near(at(8, 6), world(8, 6)), 'a bare earth bank has no top to stand clear of');
+  for (let x = 6; x <= 10; x++) for (let y = 6; y <= 9; y++) setTerraceTile(x, y, { h: 3, w: 'corten' });
+  assert(near(at(8, 6), world(8, 6)), 'a steel edge is thin enough to leave the middle clear');
+  // a sunken patio's rim: plants beside it stand back from its coping
+  setup(24, 24);
+  for (let x = 8; x <= 11; x++) for (let y = 8; y <= 11; y++) setTerraceTile(x, y, { h: -2, w: 'stone' });
+  const offS = 0.5 - (wallStyle('stone').topIn + WALL_PLANT_CLEAR) / TILE_IN;
+  assert(near(at(9, 7), world(9, 7 + offS)), 'a rim plant is drawn back from the hollow');
+  assert(near(at(9, 9), world(9, 9)), 'and a plant down in the hollow is not moved');
+});
+
 test('a wall is billed by its face area, its coping by the foot', () => {
   setup(30, 30);
   game.edgeStyle = 'formal';
