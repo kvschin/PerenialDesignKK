@@ -2606,7 +2606,7 @@ function drawStructEnt(ctx,e,W,H,season,lit){
     case SCENE_K.FIREPIT: drawFirepit(ctx,W,H,season,e.f,e.x,e.y,lit); return;
     case SCENE_K.WATERF:  drawWaterFeature(ctx,W,H,season,e.wf,e.x,e.y); return;
     case SCENE_K.SUPPORT: drawSupport(ctx,W,H,season,e.sp,e.x,e.y); return;
-    case SCENE_K.PERGOLA: drawPergola(ctx,W,H,season,e.pg,e.x,e.y); return;
+    case SCENE_K.PERGOLA: drawPergola(ctx,W,H,season,e.pg,e.x,e.y,lit); return;
     case SCENE_K.BOULDER: drawBoulder(ctx,W,H,season,e.b,e.x,e.y); return;
     case SCENE_K.PET:{
       const [sx,sy]=screenOf(e.x,e.y,W,H);
@@ -2819,7 +2819,9 @@ function computeStructSpriteSpec(e){
          the frame IS the key: ASK it rather than restating its rules, which is
          how a cached fence once lost its posts. Elevation is not in it: every
          member is placed off this tile's own anchor, which the blit supplies. */
-      return Object.assign({key:'G|'+structRecordSig(e.pg)+'|'+JSON.stringify(pergolaFrameAt(e.x,e.y))}, box);
+      // a lit roof's strings are frame too: where this bay's piece of string runs
+      return Object.assign({key:'G|'+structRecordSig(e.pg)+'|'+JSON.stringify(pergolaFrameAt(e.x,e.y))+
+        '|'+JSON.stringify(festoonRunAt(e.x,e.y))}, box);
     case SCENE_K.PET:
       return Object.assign({key:'T|'+structRecordSig(e.p)}, box);
     case SCENE_K.LIGHT:
@@ -2997,10 +2999,11 @@ function measureStructBoxes(){
     cases.push({name:'PERGOLA:'+m.id+'/'+ht, kind:SCENE_K.PERGOLA, field:'pg',
       rec:{mat:m.id,height:ht,t:1},
       size:()=>({w:1,h:1}), draw:(c,s)=>drawPergola(c,W,H,season,s,x,y)});
-  for (const lt of LIGHT_TYPES) for (const fi of lightTypeFinishes(lt.id))
-    cases.push({name:'LIGHT:'+lt.id+'/'+fi.id, kind:SCENE_K.LIGHT, field:'l',
+  // lit as well as not: a torch's flame is a night-only part, and the box must hold it
+  for (const lt of LIGHT_TYPES) for (const fi of lightTypeFinishes(lt.id)) for (const lit of [false,true])
+    cases.push({name:'LIGHT:'+lt.id+'/'+fi.id+(lit?'/lit':''), kind:SCENE_K.LIGHT, field:'l',
       rec:{type:lt.id,tone:'warm',finish:fi.id,t:1},
-      size:()=>({w:1,h:1}), draw:(c,s)=>drawLightFixture(c,W,H,season,s,x,y,false)});
+      size:()=>({w:1,h:1}), draw:(c,s)=>drawLightFixture(c,W,H,season,s,x,y,lit)});
   for (const sp of PET_SPECIES)
     cases.push({name:'PET:'+sp.id, kind:SCENE_K.PET, field:'p', rec:{species:sp.id,coat:PET_COATS[0].id,t:1},
       size:()=>({w:1,h:1}), draw:(c,s)=>{ const [sx,sy]=screenOf(x,y,W,H); drawPet(c,sx,sy+TILE_H/2,s,1); }});
@@ -3406,7 +3409,7 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
 const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12,WATERF:13,SUPPORT:14,PERGOLA:15,ORNAMENT:16};
-let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[], stunted:new Set()};
+let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[], festoons:[], stunted:new Set()};
 const STUNT_GROWTH=0.45;   // a full-sun plant struggling under an active canopy draws at this share of its growth
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
@@ -3550,7 +3553,7 @@ function buildScene(W,H){
 // One builder for ordinary draws and prepared skips. Yield between bounded
 // groups of records, and within the shade calculation, before publishing scene.
 function* sceneBuildSteps(W,H){
-  const ents=[], shadeTrees=[], futureShadeTrees=[], shrubs=[], lights=[], firepits=[], boulders=[];
+  const ents=[], shadeTrees=[], futureShadeTrees=[], shrubs=[], lights=[], firepits=[], boulders=[], festoons=[];
   const plantRecs=[];
   let count=0;
   for (const k in game.plants){ const p=game.plants[k];
@@ -3659,7 +3662,10 @@ function* sceneBuildSteps(W,H){
       if (++count%64===0) yield;
       if (!pg || pg.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-      ents.push({d:viewDepth(x,y)+0.28, kind:SCENE_K.PERGOLA, bx0:x,bx1:x,by0:y,by1:y, x,y,pg});
+      const rec={d:viewDepth(x,y)+0.28, kind:SCENE_K.PERGOLA, bx0:x,bx1:x,by0:y,by1:y, x,y,pg};
+      ents.push(rec);
+      // a bay of a lit roof: the night pass lights the ground under it and its bulbs
+      if (pergolaLitAt(x,y)){ rec.fest=festoonRunAt(x,y); festoons.push(rec); }
     }
     for (const k in game.waterFeatures||{}){ const wf=game.waterFeatures[k];
       if (++count%64===0) yield;
@@ -3727,6 +3733,8 @@ function* sceneBuildSteps(W,H){
         bx0:hh.x,bx1:hh.x+hh.w-1,by0:hh.y,by1:hh.y+hh.h-1, h:hh});
     }
   }
+  // each uplight learns which tree or shrub it lights (uplightAim)
+  if (lights.length && plantRecs.length) uplightAims(lights,plantRecs);
   yield;
   ents.sort((a,b)=>a.d-b.d);
   yield;
@@ -3747,7 +3755,36 @@ function* sceneBuildSteps(W,H){
       bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
   }
   scene={key:sceneKey(), refs:sceneRefs(),
-    ents, bounds, boundsFor:ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders, stunted};
+    ents, bounds, boundsFor:ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders, festoons, stunted};
+}
+/* An UPLIGHT is aimed at something, and in a garden that something is a tree or
+   a shrub: the one it stands under, or failing that the nearest it could be
+   lighting. A tree counts while the light is inside most of its crown's reach
+   (woodyRadiusTiles, the real spread), a shrub within its spread and a little;
+   of those, the nearest relative to its reach wins and a tree beats a shrub at
+   the same reach. The answer is the plant's SCENE RECORD, so the night pass
+   reads its draw point and its growth exactly as the plant pass does, and it
+   is rebuilt with the scene, which every plant and light edit already does. */
+const UPLIGHT_SEARCH=4;
+function uplightAim(x,y,woody){
+  let best=null, bestS=Infinity;
+  for (let dy=-UPLIGHT_SEARCH;dy<=UPLIGHT_SEARCH;dy++) for (let dx=-UPLIGHT_SEARCH;dx<=UPLIGHT_SEARCH;dx++){
+    const r=woody.get((y+dy)*GW+(x+dx)); if (!r || r.y!==y+dy || r.x!==x+dx) continue;
+    const P=plantDef(r.p.s,r.p.v), tree=isTreeDef(P), d=Math.hypot(dx,dy);
+    const reach=tree ? Math.max(1.6,woodyRadiusTiles(P)*0.8) : Math.max(1.3,woodyRadiusTiles(P)+0.6);
+    if (d>reach) continue;
+    const sc=(d/reach)*(tree?0.8:1);
+    if (sc<bestS){ bestS=sc; best=r; }
+  }
+  return best;
+}
+function uplightAims(lights,plantRecs){
+  const woody=new Map();
+  for (const r of plantRecs) if (isWoodyDef(plantDef(r.p.s,r.p.v))) woody.set(r.y*GW+r.x,r);
+  for (const rec of lights){
+    if (lightType(rec.l&&rec.l.type).glow!=='up') continue;
+    rec.aim=woody.size ? uplightAim(rec.x,rec.y,woody) : null;
+  }
 }
 /* How big a record's plant is drawn. Under the Established preview that is 1.
    Under Today it is plantGrowth, establishment times the seasonal envelope,
@@ -4686,28 +4723,18 @@ function render(t){
   // season light tint (falling snow is a layer of its own over the canvas: snowFrame)
   applySeasonLighting(cx,W,H,amb,cal.season);
   if (game.layerVis.night){
-    applyDuskLighting(cx,W,H,cal.season);
-    /* Culled in SCREEN space and padded by the REACH of the glow -- the trap
-       this file documents twice already. The tile bbox is the bbox of a
-       DIAMOND, so it keeps lights that are off screen and, worse here, DROPS
-       lights whose pool still lands on screen while their own tile does not:
-       a lantern throws 113px and a big fire pit close to 200, so a fixture can
-       be a tile and a half out and still be lighting the corner you are looking
-       at. The baked box is camera-free (setEntScreenBounds), so the frame adds
-       the same two offsets the entity pass adds. */
+    /* Culled in SCREEN space -- the trap this file documents twice already: the
+       tile bbox is the bbox of a DIAMOND, so it keeps lights that are off screen
+       and DROPS lights whose pool still lands on screen while their own tile
+       does not. A fire pit is padded by FIREPIT_GLOW_REACH off its baked box; a
+       fixture's emitters carry their own extent (nightEmitters). */
     const offX=W/2-cam.x, offY=H*0.24-cam.y;
-    const litOn=(e,reach)=>!(e.ox1+offX< -reach || e.ox0+offX>W+reach ||
-                             e.oy1+offY< -reach || e.oy0+offY>H+reach);
-    for (const e of scene.firepits){
-      if (!litOn(e,FIREPIT_GLOW_REACH)) continue;
-      drawFirepitGlow(cx,W,H,e.f,e.x,e.y);
-    }
-    for (const e of scene.lights){
-      // an uplight's beam runs 1.7x its pool UPWARD, so pad by the larger
-      const lt=lightType(e.l&&e.l.type);
-      if (!litOn(e, feetToPx(lt.poolFt)*(lt.glow==='up'?1.8:1.1))) continue;
-      drawLightGlow(cx,W,H,e.l,e.x,e.y);
-    }
+    const night=nightEmitters(W,H,offX,offY);
+    applyDuskLighting(cx,W,H,cal.season,nightLightMap(W,H,cal.season,night));
+    for (const e of night.pits) drawFirepitGlow(cx,W,H,e.f,e.x,e.y);
+    for (const L of night.lights) if (L.vis) drawLightGlowAt(cx,L.sx,L.base,L.l,L.crown);
+    drawFestoonGlow(cx,night.bulbs);
+    drawFireflies(cx,W,H,t,cal,offX,offY);
   }
 
   drawSeasonFade(t);                            // old season dissolves over the new one
@@ -4722,6 +4749,167 @@ function render(t){
   if (gardenOpening && !game.photo) finishGardenOpen();
 }
 
+/* ---------- night: what is lit, and the map of it ----------
+   Night used to be a 26% blue tint with each fixture's glow added over it in
+   screen blend, so a lamp could only ever ADD colour to a scene that was barely
+   darker than day: its pool hardly showed, and an uplight painted a cone of fog
+   in the air. Night is darker now (NIGHT_DARK, world.js), and light is what
+   takes the darkness away: every fixture, fire pit and lit pergola hands over
+   EMITTERS (lightEmitters, firepitEmitters, the festoon bulbs below), the night
+   map is the darkness with each of them erased from it, and that map is laid
+   over the garden in place of the old tint. Where a lamp shines, the garden
+   shows in its own colours; the glow pass then warms it in the lamp's colour.
+
+   The map is drawn at a quarter of the canvas's device size (NIGHT_MAP.DOWN)
+   and stretched: light is soft, so the quarter-size map is the same picture at a
+   sixteenth of the pixels, and a frame lays one blit for it where the tint was
+   one fill. It is kept while nothing it depends on moves: the scene, the camera,
+   the canvas, the season and the garden's clock (an uplight's tree grows), so
+   an idle night garden does not redraw it. */
+const NIGHT_MAP={DOWN:4, cv:null, g:null, key:'', scene:null};
+let nightBlobImg=null;
+function nightBlobImage(){
+  if (nightBlobImg) return nightBlobImg;
+  const n=64, cv=spriteBakeSurface('nightblob',n,n), g=cv.getContext('2d');
+  const gr=g.createRadialGradient(n/2,n/2,0,n/2,n/2,n/2);
+  gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.34,'rgba(255,255,255,0.9)');
+  gr.addColorStop(0.62,'rgba(255,255,255,0.5)'); gr.addColorStop(0.85,'rgba(255,255,255,0.13)');
+  gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=gr; g.fillRect(0,0,n,n);
+  return (nightBlobImg=spriteBakeImage('nightblob',cv));
+}
+// a bay of a lit pergola, camera-free: its ground centre and its bulbs, kept on the record
+function festoonPoints(rec){
+  if (rec._fb) return rec._fb;
+  const cx0=cam.x, cy0=cam.y; cam.x=0; cam.y=0;
+  let c;
+  try{ c=groundCenterRot(rec.x,rec.y,null,0,0); }
+  finally{ cam.x=cx0; cam.y=cy0; }
+  const pts=[];
+  if (rec.fest){
+    const a=pergolaFrameAt(rec.x,rec.y).a, [ax,ay]=isoAxes();
+    const G=festoonGeom(rec.fest,pergolaSpec(rec.pg&&rec.pg.mat),pergolaDrawH(rec.pg));
+    for (const [r,z] of G.bulbs){
+      const wx=a?r:0, wy=a?0:r;              // b=0: the string hangs along the rafter
+      pts.push([c[0]+ax[0]*wx+ay[0]*wy, c[1]+ax[1]*wx+ay[1]*wy-z]);
+    }
+  }
+  return (rec._fb={c,pts});
+}
+const FESTOON_GLOW_R=11, FESTOON_POOL=0.95;
+function nightEmitters(W,H,offX,offY){
+  const blobs=[], lights=[], pits=[], bulbs=[];
+  const onScr=(x,y,rx,ry)=>!(x+rx<0 || x-rx>W || y+ry<0 || y-ry>H);
+  const R=FIREPIT_GLOW_REACH;
+  for (const e of scene.firepits){
+    if (e.ox1+offX< -R || e.ox0+offX>W+R || e.oy1+offY< -R || e.oy0+offY>H+R) continue;
+    pits.push(e);
+    for (const b of firepitEmitters(e.f,e.x,e.y,W,H)) blobs.push(b);
+  }
+  for (const e of scene.lights){
+    const sx=e.px+offX, base=e.py+offY+TILE_H/2;
+    let crown=null;
+    if (e.aim){
+      const a=e.aim, g=sceneEntGrowth(a)*(a.stunt?STUNT_GROWTH:1);
+      crown=woodyCrownAt(plantDef(a.p.s,a.p.v),g,a.px+offX,a.py+offY+TILE_H/2);
+    }
+    const em=lightEmitters(e.l,sx,base,crown);
+    let vis=false;
+    for (const b of em.out) if (onScr(b.x,b.y,b.rx,b.ry)){ vis=true; blobs.push(b); }
+    lights.push({l:e.l,sx,base,crown,vis});
+  }
+  for (const e of scene.festoons){
+    const f=festoonPoints(e), gx=f.c[0]+offX, gy=f.c[1]+offY;
+    const rx=TILE_W*FESTOON_POOL, ry=TILE_H*FESTOON_POOL;
+    if (onScr(gx,gy,rx,ry)) blobs.push({x:gx,y:gy,rx,ry,a:0.62,g:0});
+    for (const p of f.pts){
+      const x=p[0]+offX, y=p[1]+offY;
+      if (!onScr(x,y,FESTOON_GLOW_R*2,FESTOON_GLOW_R*2)) continue;
+      bulbs.push([x,y]);
+      blobs.push({x,y,rx:FESTOON_GLOW_R*1.7,ry:FESTOON_GLOW_R*1.7,a:0.6,g:0});
+    }
+  }
+  return {blobs,lights,pits,bulbs};
+}
+function nightLightMap(W,H,season,night){
+  const m=NIGHT_MAP, dev=cx.canvas;
+  const mw=Math.max(16,Math.ceil(dev.width/m.DOWN)), mh=Math.max(16,Math.ceil(dev.height/m.DOWN));
+  if (!m.cv){ m.cv=document.createElement('canvas'); m.g=m.cv.getContext('2d'); }
+  const stamp=gardenClockStamp();
+  const key=mw+'x'+mh+'|'+W+'x'+H+'|'+cam.x+','+cam.y+'|'+season+'|'+stamp+'|'+night.blobs.length;
+  // NaN !== NaN: a running clock redraws it every frame
+  if (m.scene===scene && m.key===key && stamp===stamp) return m.cv;
+  if (m.cv.width!==mw || m.cv.height!==mh){ m.cv.width=mw; m.cv.height=mh; }
+  const g=m.g, k=mw/W, img=nightBlobImage();
+  g.setTransform(1,0,0,1,0,0);
+  g.globalAlpha=1; g.globalCompositeOperation='copy';
+  g.fillStyle=nightDark(season); g.fillRect(0,0,mw,mh);
+  g.globalCompositeOperation='destination-out';
+  for (const b of night.blobs){
+    g.globalAlpha=b.a;
+    g.drawImage(img,(b.x-b.rx)*k,(b.y-b.ry)*k,b.rx*2*k,b.ry*2*k);
+  }
+  g.globalAlpha=1; g.globalCompositeOperation='source-over';
+  m.key=key; m.scene=scene;
+  return m.cv;
+}
+// a lit festoon bulb, again in screen blend: the sprite's bulb was dimmed with the rest
+function drawFestoonGlow(ctx,bulbs){
+  if (!bulbs.length) return;
+  const img=lightGlowImage(lightTone('warm').glow), r=FESTOON_GLOW_R;
+  ctx.save(); ctx.globalCompositeOperation='screen';
+  ctx.globalAlpha=0.5;
+  for (const [x,y] of bulbs) ctx.drawImage(img,x-r,y-r,r*2,r*2);
+  ctx.globalAlpha=0.95;
+  for (const [x,y] of bulbs) ctx.drawImage(img,x-3,y-3,6,6);
+  ctx.restore();
+}
+/* ---------- fireflies ----------
+   On a summer night, over the planting: a few dozen, each hovering a foot or
+   four above a herbaceous plant (never a tree: fireflies belong to the meadow),
+   each flashing for a third of a second every few seconds with a little rising
+   swoop, dark in between, which is what fireflies do. Placed off the scene's
+   plant records, so they stay on the garden as the camera moves, seeded so a
+   garden has the same ones, and timed off the frame's clock, so they flash at
+   the same rate at any frame rate. The garden already redraws at 30fps when
+   idle (the wind), so they cost no extra frames: a soft dot each, only while
+   flashing. None when less motion is asked for. */
+const FIREFLY={MAX:64, MIN:8, PER_PLANTS:3.5, PERIOD:[2.4,4.8], FLASH:0.36, SWOOP:7,
+  glow:'rgba(206,244,104,', core:'#f4ffc6'};
+let fireflyField={scene:null, flies:[]};
+function fireflyFlies(){
+  if (fireflyField.scene===scene) return fireflyField.flies;
+  const herbs=[];
+  for (const e of scene.ents) if (e.kind===SCENE_K.PLANT && !isWoodyDef(plantDef(e.p.s,e.p.v))) herbs.push(e);
+  const n=herbs.length ? Math.max(FIREFLY.MIN,Math.min(FIREFLY.MAX,Math.round(herbs.length/FIREFLY.PER_PLANTS))) : 0;
+  const rnd=mulberry(0x5f1e5), flies=[];
+  for (let i=0;i<n;i++){
+    const e=herbs[Math.floor(rnd()*herbs.length)];
+    flies.push({e, jx:(rnd()-0.5)*TILE_W*0.9, jy:(rnd()-0.5)*TILE_H*0.9, lift:feetToPx(0.9+rnd()*3.3),
+      ax:5+rnd()*14, ay:3+rnd()*7, wx:0.22+rnd()*0.4, wy:0.3+rnd()*0.5, ph:rnd()*6.283, ph2:rnd()*6.283,
+      per:FIREFLY.PERIOD[0]+rnd()*(FIREFLY.PERIOD[1]-FIREFLY.PERIOD[0]), off:rnd()*10, dir:rnd()<0.5?-1:1});
+  }
+  fireflyField={scene, flies};
+  return flies;
+}
+function drawFireflies(ctx,W,H,t,cal,offX,offY){
+  if (!cal || cal.season!=='Summer' || game.photo || reducedMotion()) return;
+  const flies=fireflyFlies(); if (!flies.length) return;
+  const img=lightGlowImage(FIREFLY.glow), sec=t/1000;
+  ctx.save(); ctx.globalCompositeOperation='screen';
+  for (const f of flies){
+    const fl=(sec+f.off)%f.per;
+    if (fl>FIREFLY.FLASH) continue;
+    const u=fl/FIREFLY.FLASH, b=Math.pow(Math.sin(Math.PI*u),2);
+    const x=f.e.px+offX+f.jx+f.ax*Math.sin(sec*f.wx+f.ph)+f.dir*u*2.5;
+    const y=f.e.py+offY+TILE_H/2+f.jy-f.lift+f.ay*Math.sin(sec*f.wy+f.ph2)-u*u*FIREFLY.SWOOP;
+    if (x<-12 || x>W+12 || y<-12 || y>H+12) continue;
+    ctx.globalAlpha=0.85*b; ctx.drawImage(img,x-10,y-10,20,20);
+    ctx.globalAlpha=b; ctx.fillStyle=FIREFLY.core;
+    ctx.beginPath(); ctx.arc(x,y,1.3,0,7); ctx.fill();
+  }
+  ctx.restore();
+}
 function selDrawRect(cx,W,H,r,fill,stroke){
   for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
     if (x<0||y<0||x>=GW||y>=GH) continue;

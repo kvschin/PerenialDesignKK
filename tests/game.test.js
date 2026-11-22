@@ -22110,7 +22110,7 @@ test('every multi-tile piece sits on its footprint at every rotation', () => {
      step. All three entry points position from one helper now. */
   for (const [name, fn] of [['drawWaterFeature', drawWaterFeature],
                            ['drawPot', drawPot], ['drawSeat', drawSeat],
-                           ['drawFirepit', drawFirepit], ['drawFirepitGlow', drawFirepitGlow],
+                           ['drawFirepit', drawFirepit], ['firepitGlowGeom', firepitGlowGeom],
                            ['drawBoulder', drawBoulder]]) {
     const src = String(fn);
     assert(src.includes('groundCenterRot('), name + ' centres through groundCenterRot');
@@ -24125,8 +24125,255 @@ test('a light is a fixture, a metal and a lamp colour', () => {
      trunk -- which this catalog has two hundred of. */
   assertEqual(lightType('uplight').glow, 'up', 'an uplight washes up, not down');
   assert(LIGHT_TYPES.filter(t2 => t2.glow === 'up').length === 1, 'and it is the only one');
-  const glow = src.slice(src.indexOf('function drawLightGlow'));
-  assert(/typ\.glow==='up'/.test(glow.slice(0, 2000)), 'and the glow pass branches on it');
+  /* The glow and the night map both read lightEmitters, so the branch lives
+     there, and both passes have to go through it. */
+  const em = src.slice(src.indexOf('function lightEmitters'));
+  assert(/typ\.glow==='up'/.test(em.slice(0, 2000)), 'and the emitters branch on it');
+  assert(String(drawLightGlowAt).includes('lightEmitters('), 'the glow pass reads the emitters');
+  assert(String(nightEmitters).includes('lightEmitters('), 'and so does the night map');
+  assert(String(drawFirepitGlow).includes('firepitGlowGeom(') && String(firepitEmitters).includes('firepitGlowGeom('),
+    'a fire pit lights the night map from where its glow is drawn');
+});
+
+/* ---------- lighting: night, the new fixtures, festoons and fireflies ---------- */
+// the extent of everything drawn, read off the path and shape calls
+function extentRecorder(){
+  const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity, fills: [], n: 0 };
+  const pt = (x, y, r) => { r = r || 0; b.n++;
+    b.x0 = Math.min(b.x0, x - r); b.x1 = Math.max(b.x1, x + r); b.y0 = Math.min(b.y0, y - r); b.y1 = Math.max(b.y1, y + r); };
+  const ctx = makeCanvasCtx({
+    moveTo(x, y){ pt(x, y); }, lineTo(x, y){ pt(x, y); },
+    quadraticCurveTo(cx2, cy2, x, y){ pt(cx2, cy2); pt(x, y); },
+    arc(x, y, r){ pt(x, y, r); }, ellipse(x, y, rx, ry){ pt(x - rx, y - ry); pt(x + rx, y + ry); },
+    fillRect(x, y, w, h){ pt(x, y); pt(x + w, y + h); }, strokeRect(x, y, w, h){ pt(x, y); pt(x + w, y + h); },
+    fill(){ b.fills.push(this.fillStyle); },
+  });
+  ctx.b = b;
+  return ctx;
+}
+
+test('three more fixtures: a bollard, a shepherd\'s hook lantern and a garden torch', () => {
+  setup(13, 13);
+  for (const id of ['bollard', 'hook', 'torch']) assertEqual(lightType(id).id, id, `${id} is a fixture`);
+  // the order a picker should read in, at real heights
+  const ht = id => lightHeightFt({ type: id });
+  assert(ht('path') < ht('bollard') && ht('bollard') < ht('lamp'), 'a bollard stands between a path light and a lamp');
+  assert(ht('hook') > 5 && ht('torch') > 5 && ht('hook') < ht('lantern'), 'a hook and a torch stand about head height, under a lamp post');
+
+  /* Every fixture's drawing stays inside the box structDrawBox reserves for a
+     light -- by day and by night (the torch's flame is a night-only part) and
+     under snow -- or the cached sprite clips it, on the cached path only. */
+  const box = structDrawBox({ kind: SCENE_K.LIGHT });
+  for (const t of LIGHT_TYPES) for (const lit of [false, true]) for (const season of ['Summer', 'Winter']) {
+    const ctx = extentRecorder();
+    drawLightArt(ctx, 0, 0, { type: t.id, tone: 'warm' }, lit, season, 1);
+    const b = ctx.b;
+    assert(b.n > 0, `${t.id} draws`);
+    assert(b.x0 >= -box.pad && b.x1 <= box.pad, `${t.id} (${lit ? 'lit' : 'unlit'}, ${season}) stays inside the box's width: ${b.x0.toFixed(1)}..${b.x1.toFixed(1)} of ±${box.pad}`);
+    assert(b.y0 >= -box.up && b.y1 <= box.down, `${t.id} (${lit ? 'lit' : 'unlit'}, ${season}) stays inside its height`);
+  }
+
+  // the hook hangs its lantern to one side, and its light comes from there
+  const hd = lightHeadAt({ type: 'hook' });
+  assert(hd[0] > 10, 'the hook\'s light is out to the side of its post');
+  const em = lightEmitters({ type: 'hook', tone: 'warm' }, 100, 200, null);
+  assert(em.out.some(e => Math.abs(e.x - (100 + hd[0])) < 1e-9 && Math.abs(e.y - 200) < 1e-9), 'and its pool is laid under the lantern, not the post');
+
+  /* A torch BURNS: no lamp colour, by day a wick, by night a flame. */
+  assert(lightIsFlame({ type: 'torch' }) && !lightIsFlame({ type: 'lantern' }), 'only the torch is a flame');
+  assertEqual(lightToneOf({ type: 'torch', tone: 'bright' }), LIGHT_FLAME_TONE, 'whatever tone the draft carries, it burns as fire');
+  assertEqual(lightLabel({ type: 'torch', tone: 'eco' }), 'Garden torch', 'and nothing names a lamp colour for it');
+  const flame = lit => { const c = extentRecorder(); drawLightArt(c, 0, 0, { type: 'torch' }, lit, 'Summer', 1); return c.b.fills.filter(f => f === '#ffc24a').length; };
+  assertEqual(flame(false), 0, 'unlit by day');
+  assert(flame(true) > 0, 'and burning by night');
+  assert(readRepoFile('js/tray.js').includes('if (!lightIsFlame(ld)){'), 'the tray offers no lamp colour for a torch');
+  assertEqual(lightTypeFinishes('torch')[0].id, 'bamboo', 'a torch is bamboo first');
+  assert(LIGHT_TYPES.filter(t => lightTypeFinishes(t.id).some(f => f.id === 'bamboo')).length === 1,
+    'and nothing else is offered in bamboo');
+
+  // two torches in different "tones" are one product on the planting list
+  game.lights['3,3'] = { type: 'torch', tone: 'warm', finish: 'bamboo', t: 1 };
+  game.lights['5,5'] = { type: 'torch', tone: 'bright', finish: 'bamboo', t: 1 };
+  const rows = hardscapeRows().filter(r => r.kind === 'Lighting');
+  assertEqual(rows.length, 1, 'one line for two bamboo torches');
+  assertEqual(rows[0].n, 2, 'counting both');
+  assert(!/light,/.test(rows[0].detail), 'with no lamp colour on its sub-line: ' + rows[0].detail);
+});
+
+test('night is dark, and light is what takes it away', () => {
+  /* Night was a 26% blue tint, so a lamp's pool hardly showed against it. */
+  for (const s of SEASONS) {
+    const a = +nightDark(s).match(/,\s*([\d.]+)\)$/)[1];
+    assert(a >= 0.5, `${s} night is properly dark (${a})`);
+  }
+  /* Every fixture on a post lays a POOL on the ground, at the ground's 2:1 and
+     sized in GROUND feet, under its light. */
+  for (const t of LIGHT_TYPES) {
+    if (t.glow === 'up') continue;
+    const em = lightEmitters({ type: t.id, tone: 'warm' }, 300, 400, null);
+    const hd = lightHeadAt({ type: t.id });
+    const pool = em.out.find(e => Math.abs(e.rx - t.poolFt * GROUND_PX_PER_FT) < 1e-9);
+    assert(pool, `${t.id} lays a pool of its own reach`);
+    assert(Math.abs(pool.ry - pool.rx / 2) < 1e-9, `${t.id}'s pool lies on the ground`);
+    assert(Math.abs(pool.x - (300 + hd[0])) < 1e-9 && Math.abs(pool.y - 400) < TILE_H, `${t.id}'s pool is under its light`);
+    assert(em.out.every(e => e.a > 0 && e.a <= 1 && e.g >= 0 && e.g <= 1), `${t.id}'s strengths are shares`);
+  }
+  /* An uplight lights what it is aimed at, and with nothing to aim at a little
+     way up behind it -- never a cone of light in the air. */
+  const crown = { x: 320, y: 180, rx: 60, ry: 50 };
+  const aimed = lightEmitters({ type: 'uplight', tone: 'warm' }, 300, 400, crown).out;
+  assert(aimed.some(e => Math.abs(e.x - crown.x) < 1 && Math.abs(e.y - crown.y) < crown.ry && e.rx >= crown.rx), 'an aimed uplight lights the crown');
+  const bare = lightEmitters({ type: 'uplight', tone: 'warm' }, 300, 400, null).out;
+  assert(bare.every(e => e.y > 400 - feetToPx(8)), 'unaimed, it washes only a little way up');
+
+  /* The map replaces the tint: drawn, the old flat fill is not laid. */
+  const calls = [];
+  const ctx = makeCanvasCtx({ canvas: { width: 800, height: 600 }, drawImage(img){ calls.push(['img', img]); },
+    fillRect(){ calls.push(['fill', this.fillStyle]); } });
+  const map = { width: 200, height: 150 };
+  applyDuskLighting(ctx, 800, 600, 'Summer', map);
+  assert(calls.some(c => c[0] === 'img' && c[1] === map), 'the night map is laid');
+  assert(!calls.some(c => c[0] === 'fill' && /0\.26\)/.test(String(c[1]))), 'and the old tint is not');
+
+  /* The map is kept while nothing it depends on moves. */
+  setup(13, 13);
+  game.pausedAt = 1;                                 // a paused clock is a fixed instant
+  game.lights['5,5'] = { type: 'lantern', tone: 'warm', t: 1 };
+  buildScene(800, 600);
+  const night = nightEmitters(800, 600, 400, 144);
+  nightLightMap(800, 600, 'Summer', night);
+  let draws = 0;
+  const g0 = NIGHT_MAP.g;
+  NIGHT_MAP.g = makeCanvasCtx({ fillRect(){ draws++; } });
+  try {
+    nightLightMap(800, 600, 'Summer', night);
+    assertEqual(draws, 0, 'an unchanged night is not redrawn');
+    cam.x += 30;
+    nightLightMap(800, 600, 'Summer', nightEmitters(800, 600, 370, 144));
+    assertEqual(draws, 1, 'and a moved camera redraws it');
+  } finally { NIGHT_MAP.g = g0; cam.x -= 30; }
+});
+
+test('an uplight lights the tree or shrub it stands under', () => {
+  setup(21, 21);
+  const tree = PLANT_KEYS.find(k => PLANTS[k].type === 'tree' && PLANTS[k].form !== 'conifer');
+  const shrub = PLANT_KEYS.find(k => PLANTS[k].type === 'shrub');
+  game.woodyAge = 'mature';
+  game.tool = tree; game.toolVar = null;
+  assertEqual(placePlantAt(6, 6), 'plant', 'a tree');
+  game.tool = shrub;
+  assertEqual(placePlantAt(14, 6), 'plant', 'and a shrub');
+  game.lightDraft = { type: 'uplight', tone: 'warm' };
+  placeLightAt(7, 7); placeLightAt(15, 7); placeLightAt(6, 18);
+  game.lightDraft = { type: 'lantern', tone: 'warm' };
+  placeLightAt(8, 6);
+  buildScene(800, 600);
+  const at = (x, y) => scene.lights.find(r => r.x === x && r.y === y);
+  assertEqual(at(7, 7).aim && at(7, 7).aim.p.s, tree, 'under the tree, it lights the tree');
+  assertEqual(at(15, 7).aim && at(15, 7).aim.p.s, shrub, 'beside the shrub, the shrub');
+  assert(!at(6, 18).aim, 'with nothing near, nothing');
+  assert(!at(8, 6).aim, 'and a lamp post is aimed at nothing');
+  // its light lands on the crown, above the trunk
+  const n = nightEmitters(800, 600, 400, 144), up = n.lights.find(L => L.crown && L.l === at(7, 7).l);
+  assert(up && up.crown.y < up.base - feetToPx(3), 'the crown it lights is up in the tree');
+  // and it follows the tree: move the tree away and it is aimed at nothing
+  clearTile('plants', '6,6');
+  buildScene(800, 600);
+  assert(!at(7, 7).aim, 'a felled tree is not lit');
+});
+
+test('festoon string lights hang from a pergola\'s rafters', () => {
+  setup(21, 21);
+  assertEqual(normalizePergolaDraft({ mat: 'timber', height: 8 }).lights, 'none', 'a pergola saved before lights is unlit');
+  assertEqual(pergolaLabelFor({ mat: 'timber', height: 8, lights: 'festoon' }), 'Timber pergola, 8 ft high, with string lights', 'and a lit one says so');
+  game.pergolaDraft = { mat: 'timber', height: 8, lights: 'festoon' };
+  assertEqual(finishPergolaDrag(4, 4, 10, 8), 35, 'a 7 x 5 roof');
+  const reg = pergolaRegionAt(6, 6);
+  assertEqual(reg.lights, 'festoon', 'the roof is lit');
+  const strung = new Set(), seen = [];
+  for (const [x, y] of reg.tiles) {
+    const run = festoonRunAt(x, y); if (!run) continue;
+    strung.add(reg.info.a ? y : x);
+    seen.push({ x, y, run });
+  }
+  const bs = [...strung].sort((p, q) => p - q);
+  assertEqual(bs[0], reg.info.bMin, 'a string at one end of the roof');
+  assertEqual(bs[bs.length - 1], reg.info.bMin + reg.info.lenB - 1, 'and at the other');
+  assert(bs.every((b, i) => !i || b - bs[i - 1] <= FESTOON.EVERY), 'and never more than two rafters apart');
+
+  /* A bay draws only its own piece of a string, so bulbs must not be lost or
+     doubled at a seam, and the wire must meet the next bay's. */
+  const S = pergolaSpec('timber'), top = pergolaDrawH({ height: 8 });
+  const lines = new Map();
+  for (const s of seen) { const k = reg.info.a ? s.y : s.x; if (!lines.has(k)) lines.set(k, []); lines.get(k).push(s); }
+  for (const [, row] of lines) {
+    row.sort((p, q) => p.run[0] - q.run[0]);
+    const L = festoonLine(row[0].run[1]);
+    let bulbs = 0;
+    for (let i = 0; i < row.length; i++) {
+      const G = festoonGeom(row[i].run, S, top);
+      bulbs += G.bulbs.length;
+      if (i) {
+        const prev = festoonGeom(row[i - 1].run, S, top);
+        const a = prev.wire[prev.wire.length - 1], b = G.wire[0];
+        assert(Math.abs(a[1] - b[1]) < 1e-6 && Math.abs((a[0] - 0.5) - (b[0] + 0.5)) < 1e-6, 'the wire meets the next bay');
+      }
+    }
+    assertEqual(bulbs, L.bulbs, 'every bulb on the string is drawn once');
+    const mid = festoonGeom(row[Math.floor(row.length / 2)].run, S, top);
+    assert(mid.wire.some(p => p[1] < top - S.rafterIn * PX_PER_FT / 12 - FESTOON.DROP_IN * PX_PER_FT / 12 - 1), 'and it swags in the middle');
+  }
+
+  /* The string is frame: a lit bay and an unlit one are different sprites. */
+  const rec = { kind: SCENE_K.PERGOLA, x: 6, y: 4, pg: game.pergolas['6,4'] };
+  const litKey = computeStructSpriteSpec(rec).key;
+  game.pergolaDraft = { mat: 'timber', height: 8, lights: 'none' };
+  tapPergolaAt(6, 6);
+  assertEqual(pergolaRegionAt(6, 6).lights, 'none', 'a tap with no lights armed unlights the whole roof');
+  assert(computeStructSpriteSpec({ kind: SCENE_K.PERGOLA, x: 6, y: 4, pg: game.pergolas['6,4'] }).key !== litKey, 'and its sprite is a different picture');
+  game.pergolaDraft = { mat: 'timber', height: 8, lights: 'festoon' };
+  tapPergolaAt(6, 6);
+  assert(Object.values(game.pergolas).every(p => p.lights === 'festoon'), 'and one with festoons armed lights all of it');
+
+  /* Billed by the foot and the bulb. */
+  const row = hardscapeRows().find(r => r.name === 'Festoon string lights');
+  assert(row, 'the planting list orders the string');
+  let ft = 0, bulbs = 0;
+  for (const [, r] of lines) { const L = festoonLine(r[0].run[1]); ft += L.lenIn / 12; bulbs += L.bulbs; }
+  assert(Math.abs(row.n - ft) < 1e-6, 'its length, from the same runs the drawing hangs');
+  assert(row.detail.includes(`${lines.size} runs`) && row.detail.includes(`${bulbs} bulbs`), 'with its runs and bulbs: ' + row.detail);
+
+  // the eyedropper takes the roof's lights, whichever bay it lands on
+  game.tool = 'pick'; game.pergolaDraft = { mat: 'oak', height: 9, lights: 'none' };
+  pickAt(6, 6);
+  assertEqual(game.pergolaDraft.lights, 'festoon', 'the eyedropper picks up the lights');
+});
+
+test('fireflies flash over a summer night\'s planting', () => {
+  setup(21, 21);
+  const forb = PLANT_KEYS.find(k => PLANTS[k].type === 'forb' && PLANTS[k].sun === 'full');
+  const tree = PLANT_KEYS.find(k => PLANTS[k].type === 'tree');
+  game.tool = forb; game.toolVar = null;
+  for (let y = 3; y < 15; y++) for (let x = 3; x < 15; x += 2) placePlantAt(x, y);
+  game.tool = tree; placePlantAt(18, 18);
+  buildScene(800, 600);
+  const flies = fireflyFlies();
+  assert(flies.length >= FIREFLY.MIN && flies.length <= FIREFLY.MAX, `a few dozen at most (${flies.length})`);
+  assert(flies.every(f => f.e.kind === SCENE_K.PLANT && !isWoodyDef(plantDef(f.e.p.s, f.e.p.v))), 'all over the herbaceous planting, none in a tree');
+  assert(fireflyFlies() === flies, 'and the same ones until the planting changes');
+  // a flash is a third of a second in a few: most are dark at any moment
+  let lit = 0, drawn = 0;
+  const ctx = makeCanvasCtx({ drawImage(){ drawn++; } });
+  for (let t = 0; t < 20000; t += 250) { const before = drawn; drawFireflies(ctx, 4000, 4000, t, { season: 'Summer' }, 2000, 1500); if (drawn > before) lit++; }
+  assert(lit > 0, 'they flash');
+  assert(drawn / 80 < flies.length * 0.3, 'and spend most of their time dark');
+  drawn = 0;
+  drawFireflies(ctx, 4000, 4000, 1234, { season: 'Fall' }, 2000, 1500);
+  assertEqual(drawn, 0, 'only in summer');
+  const was = motionPref;
+  try { setMotionPref('reduce'); for (let t = 0; t < 8000; t += 100) drawFireflies(ctx, 4000, 4000, t, { season: 'Summer' }, 2000, 1500); }
+  finally { setMotionPref(was); }
+  assertEqual(drawn, 0, 'and not at all with less motion');
 });
 
 test('a surface says how it is ordered, and one says it is not continuous', () => {

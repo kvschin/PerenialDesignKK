@@ -124,6 +124,40 @@ function gsView(st,x,y){
     default: return [x,y];
   }
 }
+/* Night on the stage, when a demo has lit its lights: the garden's own night
+   (renderer.js nightLightMap) at the stage's scale -- the darkness, with each
+   lit fixture's pool erased from it by the same lightEmitters, then the glow
+   laid again over it. Without it the "lit" beat was lamps glowing faintly on a
+   daylit lawn, which is not what pressing the moon button shows. A scratch
+   canvas of the guide's own: nothing here reads or writes the garden. */
+let gsNightCv=null;
+function gsNight(ctx,st){
+  const lit=(st.props||[]).filter(p=>p.kind==='light' && p.lit);
+  if (!lit.length || typeof ctx.getTransform!=='function') return;
+  const M=ctx.getTransform(); if (!M || !ctx.canvas) return;
+  const cw=ctx.canvas.width, ch=ctx.canvas.height, D=4;
+  if (!gsNightCv) gsNightCv=document.createElement('canvas');
+  const mw=Math.max(8,Math.ceil(cw/D)), mh=Math.max(8,Math.ceil(ch/D));
+  if (gsNightCv.width!==mw || gsNightCv.height!==mh){ gsNightCv.width=mw; gsNightCv.height=mh; }
+  const g=gsNightCv.getContext('2d'); if (!g) return;
+  const at=(x,y)=>[(M.a*x+M.c*y+M.e)/D, (M.b*x+M.d*y+M.f)/D], k=Math.hypot(M.a,M.b)/D;
+  const glows=[];
+  g.setTransform(1,0,0,1,0,0); g.globalAlpha=1; g.globalCompositeOperation='copy';
+  g.fillStyle=nightDark(st.season); g.fillRect(0,0,mw,mh);
+  g.globalCompositeOperation='destination-out';
+  const img=nightBlobImage();
+  for (const p of lit){
+    const [sx,sy]=gsProject(st,p.x,p.y), l={type:p.type,tone:p.tone};
+    glows.push([sx,sy+TILE_H/2,l]);
+    for (const b of lightEmitters(l,sx,sy+TILE_H/2,null).out){
+      const [x,y]=at(b.x,b.y);
+      g.globalAlpha=b.a; g.drawImage(img,x-b.rx*k,y-b.ry*k,b.rx*2*k,b.ry*2*k);
+    }
+  }
+  g.globalAlpha=1; g.globalCompositeOperation='source-over';
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(gsNightCv,0,0,cw,ch); ctx.restore();
+  for (const [sx,base,l] of glows) drawLightGlowAt(ctx,sx,base,l,null);
+}
 /* Screen point of a tile's TOP CORNER, which is what every ground painter
    wants; a plant stands at [sx, sy+TILE_H/2], the tile centre, exactly as
    drawSceneEnt places it. */
@@ -567,7 +601,7 @@ function gsDrawProp(ctx,st,p){
       const [sx,sy]=gsProject(st,p.x,p.y);
       return gsBorrowCamera(st,p.x,p.y,sx,sy,(x,y)=>{
         const l={type:p.type,tone:p.tone};
-        if (p.lit) drawLightGlow(ctx,0,0,l,x,y);
+        // its glow is laid by gsNight, over the night it lights
         drawLightFixture(ctx,0,0,season,l,x,y,!!p.lit);
       });
     }
@@ -1409,6 +1443,7 @@ function gsRender(ctx,st,w,h,sway){
   gsDrawUnderlay(ctx,st,s);
   gsDrawShade(ctx,st);
   gsPaintEntities(ctx,st,sway);
+  gsNight(ctx,st);
   (st.marks||[]).forEach(m=>gsTileMark(ctx,st,m.x,m.y,m.fill,m.stroke));
   if (st.ghost) gsBrushGhost(ctx,st,st.ghost.x,st.ghost.y,st.ghost.size,st.ghost.tone);
   gsDrawRuler(ctx,st,st.ruler);
@@ -3005,9 +3040,11 @@ function guideChapters(){
             'A climber cannot be planted in open ground, and a frame will not take anything but a climber.',
             'Lift the frame and the climber comes with it.']},
       {id:'lighting', demo:'lighting', title:'Lighting',
-       lead:'Path lights, lantern posts and lamps, in a warm, cool or eco tone.',
+       lead:'Path lights, bollards, lamp posts, a lantern on a hook, uplights and torches.',
        how:['Landscape → Lighting. Set them out along a path or a bed edge.',
             'Turn night on with the sun/moon button in the top bar to see them lit.',
+            'An uplight lights the crown of the tree or shrub it stands under.',
+            'String lights hang from a pergola: Hardscape → Pergola → Festoon.',
             'They reach the planting list and the plan, because somebody has to install them.']},
       {id:'site', demo:'site', title:'Draw a building',
        lead:'The house, the shed, the garage — the things a garden has to be designed around.',

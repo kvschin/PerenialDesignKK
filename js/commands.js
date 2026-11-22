@@ -786,7 +786,7 @@ function placePergolaAt(x,y){
   if (!game.pergolas) game.pergolas={};
   const d=normalizePergolaDraft(pergolaDraft()), k=`${x},${y}`;
   const cur=pergolaAt(x,y);
-  if (cur && cur.mat===d.mat && cur.height===d.height) return null;
+  if (cur && cur.mat===d.mat && cur.height===d.height && pergolaLightsId(cur.lights)===d.lights) return null;
   setTile('pergolas',k,Object.assign({},d,{t:Date.now()}));
   return 'pergola';
 }
@@ -829,7 +829,7 @@ function restylePergolaAt(x,y){
   const d=normalizePergolaDraft(pergolaDraft()); let n=0;
   for (const [tx,ty] of reg.tiles){
     const cur=pergolaAt(tx,ty);
-    if (!cur || (cur.mat===d.mat && cur.height===d.height)) continue;
+    if (!cur || (cur.mat===d.mat && cur.height===d.height && pergolaLightsId(cur.lights)===d.lights)) continue;
     setTile('pergolas',`${tx},${ty}`,Object.assign({},d,{t:Date.now()})); n++;
   }
   return n;
@@ -841,7 +841,8 @@ function restylePergolaAt(x,y){
 function tapPergolaAt(x,y){
   if (pergolaAt(x,y)){
     if (restylePergolaAt(x,y)){ const d=pergolaDraft(); hapticFeedback('place');
-      toast(`Changed the pergola to ${pergolaMaterial(d.mat).label.toLowerCase()}, ${fmtFeet(d.height)} high.`); }
+      toast(`Changed the pergola to ${pergolaMaterial(d.mat).label.toLowerCase()}, ${fmtFeet(d.height)} high`+
+        (d.lights==='festoon' ? ', with string lights.' : '.')); }
     else toast('Drag corner to corner to add to it, or erase bays to trim it.');
     return;
   }
@@ -934,7 +935,8 @@ function lightAt(x,y){ const l=game.lights&&game.lights[`${x},${y}`]; return (l&
 function lightDraft(){ return game.lightDraft=normalizeLightDraft(game.lightDraft); }
 function lightLabel(l){
   const d=l||lightDraft();
-  return `${lightTone(d.tone).label} ${lightType(d.type).label}`;
+  // a torch has no lamp colour to name
+  return lightIsFlame(d) ? lightType(d.type).label : `${lightTone(d.tone).label} ${lightType(d.type).label}`;
 }
 /* Garden pets. A pet is pure ornament and the one placeable thing that claims
    NOTHING: no footprint, no shade, no spacing, no line on the plan or the

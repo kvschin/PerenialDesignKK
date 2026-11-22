@@ -1620,6 +1620,12 @@ function pergolaNeighbor(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !!pergolaA
    map) + the plot size, since tiles are indexed y*GW+x. */
 const PERGOLA_OVERHANG = PERGOLA_SPEC.overhangIn/TILE_IN;   // tails past the beams, in tiles
 const PERGOLA_NARROW = 0.28;     // a one-tile-wide run: the two beams sit this far either side of its centre
+/* Festoon string lights hang ACROSS the roof, along a rafter from one edge
+   beam to the other in one deep swag, on every EVERY-th rafter (evenly spaced
+   stops, so both ends of the roof get a string): 3 ft apart, which is how they
+   are hung. A bulb every BULB_IN, the swag SAG of the span and never more than
+   SAG_MAX_IN, hung DROP_IN under the rafter. */
+const FESTOON={EVERY:2, BULB_IN:12, SAG:0.12, SAG_MAX_IN:22, DROP_IN:2};
 let pergolaRegionCache={rev:-1, ref:null, gw:0, gh:0, at:new Map(), list:[]};
 function pergolaRegionKey(p){ return pergolaMatId(p&&p.mat)+'|'+pergolaHeightFor(p&&p.height); }
 // stops along a line of `len` tiles, evenly spaced and never more than maxGap apart
@@ -1635,7 +1641,7 @@ function pergolaRegionInfo(tiles){
   const lenB=(a?y1-y0:x1-x0)+1, lenR=(a?x1-x0:y1-y0)+1;
   const midR=pergolaStops(lenR,PERGOLA_SPAN_TILES); midR.delete(0); midR.delete(lenR-1);
   return {a, x0, y0, x1, y1, bMin:a?y0:x0, rMin:a?x0:y0, lenB, lenR,
-    postB:pergolaStops(lenB,PERGOLA_POST_TILES), midR};
+    postB:pergolaStops(lenB,PERGOLA_POST_TILES), midR, festB:pergolaStops(lenB,FESTOON.EVERY)};
 }
 function pergolaRegions(){
   const c=pergolaRegionCache;
@@ -1658,6 +1664,11 @@ function pergolaRegions(){
       }
     }
     const [mat,ht]=key.split('|'); reg.mat=mat; reg.height=+ht;
+    /* Lit if any of its bays is: a roof laid in two strokes, one with lights
+       armed, is one roof, and half a roof of festoons is nobody's design. */
+    reg.lights='none';
+    for (const [tx,ty] of reg.tiles){ const p=map[`${tx},${ty}`];
+      if (p && p.lights==='festoon'){ reg.lights='festoon'; break; } }
     reg.info=pergolaRegionInfo(reg.tiles);
     reg.has=(xx,yy)=>xx>=0&&yy>=0&&xx<GW&&yy<GH&&at.get(yy*GW+xx)===reg;
     list.push(reg);
@@ -1730,6 +1741,33 @@ function pergolaFrameAt(x,y){
   const R=pergolaRegions(), reg=(x>=0&&y>=0&&x<GW&&y<GH)?R.at.get(y*GW+x):null;
   if (!reg) return pergolaFrameIn((xx,yy)=>xx===x&&yy===y, pergolaRegionInfo([[x,y]]), x, y, pergolaVineAt);
   return pergolaFrameIn(reg.has, reg.info, x, y, pergolaVineAt);
+}
+/* Whether a string hangs from this tile's rafter, and where on the run of roof
+   it crosses: [ri, nR], the tile's place along the rafter line and how many
+   tiles that line has, or null. As plain data, because it joins the frame in
+   the pergola's sprite key (renderer.js): what the bay draws is what it names. */
+function festoonRunIn(has,info,x,y){
+  const a=info.a, bi=(a?y:x)-info.bMin;
+  if (!info.festB || !info.festB.has(bi)) return null;
+  const R=a?[1,0]:[0,1];
+  let back=0, fwd=0;
+  while (has(x-R[0]*(back+1), y-R[1]*(back+1))) back++;
+  while (has(x+R[0]*(fwd+1), y+R[1]*(fwd+1))) fwd++;
+  return [back, back+fwd+1];
+}
+/* One string across a run of nR tiles: where it is tied on (g0..g1, in tiles
+   along the rafter line), its swag, its length along the curve and its bulbs.
+   One definition for the drawing (festoonGeom) and the planting list, which
+   orders it by the foot. The length is the parabola's, span + 8 sag^2 / 3 span. */
+function festoonLine(nR){
+  const narrow=nR===1, g0=narrow?0.5-PERGOLA_NARROW:PERGOLA_OVERHANG, g1=narrow?0.5+PERGOLA_NARROW:nR-PERGOLA_OVERHANG;
+  const span=Math.max(0.05,g1-g0), spanIn=span*TILE_IN, sagIn=Math.min(FESTOON.SAG_MAX_IN,spanIn*FESTOON.SAG);
+  return {g0, g1, span, sagIn, lenIn:spanIn+8*sagIn*sagIn/(3*spanIn), bulbs:Math.max(1,Math.round(spanIn/FESTOON.BULB_IN))};
+}
+function pergolaLitAt(x,y){ const reg=pergolaRegionAt(x,y); return !!(reg && reg.lights==='festoon'); }
+function festoonRunAt(x,y){
+  const reg=pergolaRegionAt(x,y); if (!reg || reg.lights!=='festoon') return null;
+  return festoonRunIn(reg.has, reg.info, x, y);
 }
 // the pergola a tile belongs to, or null
 function pergolaRegionAt(x,y){
@@ -4339,12 +4377,23 @@ function duskWashSurfaces(cw,ch,winter){
     vg:radialSurface(cw,ch,(k,w,h)=>duskVignetteGradient(k,w,h))};
   return duskSurf;
 }
-function applyDuskLighting(ctx,W,H,season){
+/* How dark night is, where no light reaches. It was a 26% blue tint, which
+   read as an overcast afternoon: a lamp's pool barely showed, so lighting a
+   garden had nothing to light. This is the colour the night light map is filled
+   with (renderer.js nightLightMap) before each fixture erases its pool from it,
+   so it is the darkness the lights are seen against. Winter is a shade lighter
+   and bluer for moonlit snow. The flat tint is still what is laid when there is
+   no map to lay (the guidebook's stage). */
+const NIGHT_DARK={Spring:'rgba(8,13,32,0.62)', Summer:'rgba(7,12,30,0.64)',
+  Fall:'rgba(9,12,28,0.64)', Winter:'rgba(14,22,44,0.56)'};
+function nightDark(season){ return NIGHT_DARK[season]||NIGHT_DARK.Summer; }
+function applyDuskLighting(ctx,W,H,season,lightMap){
   const winter=season==='Winter';
   if (SEASON_WASH.mode==='live'){
     ctx.save();
-    ctx.fillStyle=winter?'rgba(20,28,46,0.30)':'rgba(18,25,42,0.26)';
-    ctx.fillRect(0,0,W,H);
+    if (lightMap) ctx.drawImage(lightMap,0,0,W,H);
+    else { ctx.fillStyle=winter?'rgba(20,28,46,0.30)':'rgba(18,25,42,0.26)';
+      ctx.fillRect(0,0,W,H); }
     ctx.globalCompositeOperation='screen';
     let g=ctx.createRadialGradient(W*0.74,H*0.16,0,W*0.74,H*0.16,H*0.86);
     g.addColorStop(0,winter?'rgba(178,202,232,0.18)':'rgba(156,178,220,0.14)');
@@ -4364,8 +4413,9 @@ function applyDuskLighting(ctx,W,H,season){
   }
   const cw=ctx.canvas.width, ch=ctx.canvas.height, g=duskGradients(ctx,cw,ch,winter);
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
-  ctx.fillStyle=winter?'rgba(20,28,46,0.30)':'rgba(18,25,42,0.26)';
-  ctx.fillRect(0,0,cw,ch);
+  if (lightMap) ctx.drawImage(lightMap,0,0,cw,ch);
+  else { ctx.fillStyle=winter?'rgba(20,28,46,0.30)':'rgba(18,25,42,0.26)';
+    ctx.fillRect(0,0,cw,ch); }
   const surf=SEASON_WASH.mode==='surface' ? duskWashSurfaces(cw,ch,winter) : null;
   ctx.globalCompositeOperation='screen';
   if (surf) ctx.drawImage(surf.moon,0,0,cw,ch);

@@ -558,10 +558,12 @@ function drawOrnamentChip(tc,d,w,h,capK){
    shows posts, beams and rafters where the canvas would put them. It used to
    be three hand-drawn sticks: two posts and a beam, which read as a doorway. */
 const PERGOLA_CHIP_CACHE=new Map();
-function drawPergolaChip(tc,d,w,h){
+function drawPergolaChip(tc,d,w,h,lit){
   if (!tc) return;
   d=normalizePergolaDraft(d);
-  const key=JSON.stringify(d)+'|'+w+'x'+h;
+  // lit, like a light's chip, while the garden is at night: a festoon is lit then
+  lit=!!(lit===undefined ? game.layerVis && game.layerVis.night : lit);
+  const key=JSON.stringify(d)+'|'+w+'x'+h+'|'+(lit?1:0);
   let bmp=PERGOLA_CHIP_CACHE.get(key);
   if (!bmp){
     if (PERGOLA_CHIP_CACHE.size>64) PERGOLA_CHIP_CACHE.clear();
@@ -573,7 +575,7 @@ function drawPergolaChip(tc,d,w,h){
       const e=pergolaArtExtent({mat:d.mat,height:PERGOLA_HEIGHTS[PERGOLA_HEIGHTS.length-1]});
       const k=Math.min((w-2)/(e.x1-e.x0),(h-2)/(e.y1-e.y0));
       c.save(); c.translate(w/2-(e.x0+e.x1)/2*k,h-1-e.y1*k); c.scale(k,k);
-      drawPergolaArt(c,0,0,d,'Summer',ISO_AXES_FLAT);
+      drawPergolaArt(c,0,0,d,'Summer',ISO_AXES_FLAT,undefined,undefined,lit);
       c.restore();
     }
     PERGOLA_CHIP_CACHE.set(key,bmp);
@@ -1038,7 +1040,8 @@ function pickAt(x,y){
     toast(`Picked ${fenceLabel(f)}.`);
   } else if (pgk){
     game.fillMode=false; game.trayCat='structures'; game.drill='pergola';
-    game.pergolaDraft=normalizePergolaDraft(pgk);
+    // the lights belong to the whole roof (pergolaRegions), so ask the roof
+    game.pergolaDraft=normalizePergolaDraft(Object.assign({},pgk,{lights:pergolaLitAt(x,y)?'festoon':'none'}));
     setTool('pergola', null); buildToolTray();
     toast(`Picked ${pergolaLabel(pgk)}.`);
   } else if (l){
@@ -1973,7 +1976,7 @@ const TOOL_SEARCH={
            hay:'fire pit firepit fire ring fire bowl hardscape structure round square rectangle 24 36 48 patio '+
                'stacked stone brick block concrete steel metal corten stainless cast iron copper'},
   pergola:{label:'Pergola',kind:'fill',drill:'pergola',
-           hay:'pergola arbor arbour overhead roof shade structure rafters beams posts patio hardscape climber'},
+           hay:'pergola arbor arbour overhead roof shade structure rafters beams posts patio hardscape climber festoon string lights bistro lights fairy lights café lights'},
   support:{label:'Support / Trellis',kind:'fill',drill:'support',
            hay:'support trellis obelisk tuteur arch arbor climber vine frame vertical hardscape structures willow timber metal'},
   waterfeature:{label:'Water Feature',kind:'fill',drill:'waterfeature',
@@ -1983,7 +1986,7 @@ const TOOL_SEARCH={
   seat:   {label:'Seating',kind:'fill',drill:'seat',
            hay:'seat seating bench chair table stool dining bistro picnic adirondack lounger sun lounger sit hardscape furniture teak weathered white painted green forest black metal stone concrete'},
   light:  {label:'Lighting',kind:'dropper',
-           hay:'lighting lights path light lantern post outdoor lamp eco warm bright night'},
+           hay:'lighting lights path light lantern post outdoor lamp eco warm bright night bollard shepherd hook torch tiki flame uplight step'},
   pot:    {label:'Container',kind:'fill',
            hay:'pot pots container containers planter urn trough terracotta glazed cast stone timber galvanised patio courtyard balcony terrace decor colour color charcoal black white cream blue green teal cobalt copper corten'},
   ornament:{label:'Garden Ornament',kind:'fill',
@@ -4339,6 +4342,7 @@ function buildToolTrayInner(){
       b.dataset.k='pergola';
       if (patch.mat!==undefined) b.dataset.pergolaMat=patch.mat;
       if (patch.height!==undefined) b.dataset.pergolaHeight=String(patch.height);
+      if (patch.lights!==undefined) b.dataset.pergolaLights=patch.lights;
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       miniPergola(c.getContext('2d'),d);
       const sp=document.createElement('span'); sp.textContent=label;
@@ -4353,6 +4357,11 @@ function buildToolTrayInner(){
       // to the top of the rafters, in the reader's units
       PERGOLA_HEIGHTS.forEach(h=>toolBtn(fmtFeet(h), gd.height===h, {height:h},
         fmtFeet(h)+(h===7?' — a walk-under arbour':h===9?' — room for a wisteria to hang':' — the standard')));
+      /* String lights belong to the roof: a tap on a pergola with these armed
+         lights or unlights all of it (restylePergolaAt). Turn on Night to see them lit. */
+      sep('Lights');
+      PERGOLA_LIGHTS.forEach(L=>toolBtn(L.short, gd.lights===L.id, {lights:L.id},
+        L.id==='festoon' ? 'Festoon string lights, hung across the rafters' : 'No string lights'));
     }
   }
   if (cat.tools.includes('support')){
@@ -4568,8 +4577,11 @@ function buildToolTrayInner(){
     sep('Finish');
     lightTypeFinishes(ld.type).forEach(f=>toolBtn(f.short||f.label,
       game.tool==='light'&&ld.finish===f.id, {finish:f.id}, f.label));
-    sep('Light');
-    LIGHT_TONES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.tone===t2.id, {tone:t2.id}, t2.label));
+    // a torch burns: there is no lamp colour to choose
+    if (!lightIsFlame(ld)){
+      sep('Light');
+      LIGHT_TONES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.tone===t2.id, {tone:t2.id}, t2.label));
+    }
   }
   if (cat.tools.includes('pot')){
     /* Contextual like the Ground tab: the vessels are always up and the size

@@ -3496,19 +3496,24 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     every other fixture lays a POOL on the ground, and the thing that actually
     makes a garden at night is a can aimed up the trunk of a specimen tree —
     which this catalog has two hundred of. `glow:'up'` is the branch in
-    `drawLightGlow`: a clipped wedge opening upward with a bloom where it lands,
-    rather than the two radials the pooling fixtures fill. Drawn as a pool it
-    would have been a shorter path light, which is the whole reading the fixture
-    exists to avoid. A STEP light joined it — a louvred bar that shows no lamp,
-    because what you see of one is the wash it lays down. STRING lights are
-    deliberately absent: they are a RUN, which is the pergola's idiom (§12f), not
-    this one.
-    The night glow pass also culls in SCREEN space now, padded by the glow's
-    REACH. It tested the tile bbox, which is the bbox of a DIAMOND — the trap
-    this file documents twice — and that both kept lights that were off screen
-    and DROPPED lights whose pool still landed on it: a lantern throws 113px and
-    a big fire pit close to 200, so a fixture can be a tile and a half out and
-    still be lighting the corner you are looking at.
+    `lightEmitters`: it lights the CROWN of the tree or shrub the scene aims it
+    at (§11g), never a pool. Drawn as a pool it would have been a shorter path
+    light, which is the whole reading the fixture exists to avoid. A STEP light
+    joined it — a louvred bar that shows no lamp, because what you see of one is
+    the wash it lays down.
+    **Three more joined in 0.9.148**: a BOLLARD (a filled column, `postIn` its
+    diameter, a band of louvres under a lid, a pool all round), a SHEPHERD'S HOOK
+    LANTERN (`hangIn`, `lanIn`: the crook arcs over and the lantern hangs to one
+    side, so its light is not over its post -- `lightHeadAt` is the one answer to
+    where a fixture's light comes from, which the art, the glow and the pool all
+    read) and a GARDEN TORCH (`flame:true`: unlit by day, a wick; by night
+    `drawTorchFlame`, laid again in screen blend by the glow pass as the fire pit
+    is). A torch has no lamp colour: `lightToneOf` hands back
+    `LIGHT_FLAME_TONE` whatever its draft says, the tray offers no tone row for
+    it, `lightLabel` names none, and the planting list does not split two torches
+    on one. `bamboo` is the one finish that is not a metal, and only the torch is
+    made in it. STRING lights are a RUN, which is the pergola's idiom, and that is
+    where they went: festoons hang from a pergola's rafters (§12f).
     **One panel painter, no per-style branches.** `FENCE_STYLES` rows name an
     `infill` recipe the way a plant names its `form` — `bar`, `picket`,
     `privacy`, `slat`, `rail`, `mesh`, `chain`, `masonry`, `woven`, `screen` —
@@ -3755,6 +3760,48 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `isLawnTile` defines lawn so the two cannot disagree. The sheet's heading is
     **Surfaces & hardscape**, which it has needed since edging and retaining
     wall joined it in Wave 5.
+
+11g. **Night lighting** (`NIGHT_DARK`/`nightDark`, world.js; `lightEmitters`,
+    `woodyCrownAt`, `lightGlowImage`, `firepitEmitters`, draw.js;
+    `NIGHT_MAP`/`nightLightMap`, `nightEmitters`, `uplightAims`, `drawFestoonGlow`,
+    `FIREFLY`/`drawFireflies`, renderer.js; 0.9.148). Night was a 26% blue tint
+    with each fixture's glow added over it in screen blend, so a lamp could only
+    ADD colour to a scene barely darker than day: pools hardly showed, and the
+    uplight painted a cone of fog in the air. Night is now dark (about 0.62 of a
+    navy, a little lighter and bluer over winter snow), and LIGHT is what takes
+    the darkness away. Every fixture, fire pit and lit pergola bay hands over
+    EMITTERS, ellipses in screen px with two strengths: `a`, how much of the night
+    it lifts, and `g`, how strongly it tints in the lamp's colour. The NIGHT MAP is
+    the darkness with each emitter ERASED from it (`destination-out` blits of one
+    soft white dot), laid over the garden in place of the old tint
+    (`applyDuskLighting`'s `lightMap`); then `drawLightGlowAt` tints the same
+    emitters, so the colour can never land somewhere the light does not. A pooling
+    fixture lays an ellipse at the ground's 2:1, sized in GROUND feet
+    (`GROUND_PX_PER_FT`, not the built-height `PX_PER_FT`), plus the air round its
+    head. Cost: the map is drawn at a quarter of the canvas's device size and
+    stretched (light is soft, so it is the same picture at a sixteenth of the
+    pixels), and it is KEPT while the scene, camera, canvas, season and garden
+    clock stand still, so an idle night redraws nothing; the glow is one baked dot
+    per colour (`lightGlowImage`, an ImageBitmap) where it was two radial gradients
+    built per light per frame. Measured on the demo garden with 12 lights and a
+    fire pit, headless Chrome (software raster): night 8.8ms still / 9.3 panning
+    against the release's 8.6 / 9.2, i.e. noise; `ff-accel-check.cjs` on a lit
+    garden stayed accelerated (one run flagged a single spiked frame while holding
+    165fps; the repeat stayed clean, and so did the release).
+    **An uplight is AIMED**: `uplightAims` (scene build) hands each uplight the
+    scene record of the woody plant it stands under -- a tree while the light is
+    inside 0.8 of its real spread, a shrub within its spread and a little, the
+    nearest relative to its reach, a tree beating a shrub -- and the night pass
+    lights that plant's crown (`woodyCrownAt`: drawPlant's own height and width
+    floors) and the trunk below it. A rebuilt scene re-aims, so moving or felling
+    the tree moves the light with it. Unaimed, it washes a little way up behind it.
+    **Fireflies** flash over a SUMMER night's herbaceous planting (never a tree):
+    up to 64, seeded off the scene's plant records so they stay on the garden as
+    the camera moves, each flashing a third of a second every few with a rising
+    swoop, timed off the frame clock. They cost no frames of their own: the garden
+    already redraws at 30fps when idle. None under less motion. The GUIDEBOOK's
+    lighting demo lays the same night on its stage when its lights come on
+    (`gsNight`, a scratch canvas of its own, reading no game state).
 
 12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
     `game.actX`/`actY` names — the last one a tap or the E key addressed),
@@ -4947,6 +4994,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     roof, named by material and height with its footprint and post count on the
     sub-line ("10.5 x 13.5 ft, 4 posts"); it was billed by the foot like a fence
     while it was one, which quoted a 10 ft square pergola as 74 ft of something.
+    **Festoon string lights** (`PERGOLA_LIGHTS`, draft `lights`; `FESTOON`,
+    `festoonRunIn`/`festoonRunAt`/`festoonLine`, world.js; `festoonGeom`,
+    draw.js; 0.9.148) are a property of the ROOF: `pergolaRegions` gives each
+    region `lights`, lit if ANY bay is, because half a roof of festoons is
+    nobody's design and a roof laid in two strokes is one roof. A string hangs
+    across the span on every `FESTOON.EVERY`-th rafter (evenly spaced stops,
+    `info.festB`, so both ends of the roof get one), from edge beam to edge beam
+    in one parabolic swag, a bulb every foot. A bay draws only its own piece of a
+    string, and the bulbs sit at fixed places along the WHOLE run, so none is
+    lost or doubled at a seam (a test sums them); the run (`[ri,nR]`) joins the
+    frame in the sprite key, and `lit` reaches `drawPergola` so a bulb is a warm
+    lamp at night and clear glass by day. A tap with the pergola armed lights or
+    unlights the whole roof (restyle compares `lights` too); the eyedropper takes
+    the roof's lights, not the bay's. The planting list orders the string by the
+    foot along the curve, in runs, with its bulb count (one line, "Festoon string
+    lights"), off `festoonLine`, the definition the drawing reads.
     The plan sheet draws it the way an overhead structure is drawn: the roof's
     edge dashed, rafters fine, beams heavier, posts solid. Measured:
     `measureStructBoxes` 0 escaping, `verifyStructureSprites({rot:true})`

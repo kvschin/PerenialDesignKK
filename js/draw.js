@@ -13201,11 +13201,33 @@ function drawGate(ctx,W,H,f,st,x,y,h,run,seed,extra){
    tile's own b/r frame and projected through the camera's axes, so the frame
    turns with the view. Inside the bay the posts, braces and beams paint far
    to near and the rafters go last, because they sit on top of everything. */
-function drawPergola(ctx,W,H,season,pg,x,y){
+function drawPergola(ctx,W,H,season,pg,x,y,lit){
   const [cx,cy]=groundCenterRot(x,y,null,W,H);
-  drawPergolaBay(ctx,cx,cy,isoAxes(),pergolaFrameAt(x,y),pg,season);
+  drawPergolaBay(ctx,cx,cy,isoAxes(),pergolaFrameAt(x,y),pg,season,festoonRunAt(x,y),lit);
 }
-function drawPergolaBay(ctx,cx,cy,axes,fr,pg,season){
+/* One festoon string's piece over one bay, in the bay's own frame: r across
+   the tile (the rafter's direction) and z up, in screen px. The string runs the
+   whole rafter line from edge beam to edge beam (g0..g1 along the line, in
+   tiles) in one parabolic swag -- near enough a catenary at this sag -- and a
+   bay draws only the part over itself, so neighbouring bays meet. Bulbs sit at
+   fixed places along the WHOLE line, so they do not bunch at a tile seam. */
+function festoonGeom(fest,S,top){
+  const [ri,nR]=fest, zIn=PX_PER_FT/12, L=festoonLine(nR);
+  const g0=L.g0, g1=L.g1, span=L.span, sag=L.sagIn*zIn;
+  const z0=top-S.rafterIn*zIn-FESTOON.DROP_IN*zIn;
+  const zAt=g=>{ const t=(g-g0)/span; return z0-sag*4*t*(1-t); };
+  const lo=Math.max(ri,g0), hi=Math.min(ri+1,g1), wire=[], bulbs=[];
+  if (hi<=lo) return {wire,bulbs};
+  const n=Math.max(2,Math.ceil((hi-lo)/0.12));
+  for (let i=0;i<=n;i++){ const g=lo+(hi-lo)*i/n; wire.push([g-ri-0.5,zAt(g)]); }
+  const nb=L.bulbs, d=span/nb;
+  for (let k=0;k<nb;k++){
+    const g=g0+d*(k+0.5);
+    if (g>=lo && g<hi) bulbs.push([g-ri-0.5,zAt(g)-FESTOON.DROP_IN*zIn]);
+  }
+  return {wire,bulbs};
+}
+function drawPergolaBay(ctx,cx,cy,axes,fr,pg,season,fest,lit){
   if (!fr) return;
   const m=pergolaMaterial(pg&&pg.mat), S=pergolaSpec(pg&&pg.mat), a=fr.a;
   const [ax,ay]=axes, zIn=PX_PER_FT/12, tIn=1/TILE_IN;
@@ -13276,6 +13298,29 @@ function drawPergolaBay(ctx,cx,cy,axes,fr,pg,season){
      edge beams by PERGOLA_OVERHANG. */
   const [c0,c1]=fr.raf;
   bar(false,c0?-0.5:-0.5-J,c1?0.5:0.5+J,0,S.rafterWIn/2*tIn,raftZ0,top,c0,c1);
+  /* FESTOON lights, under the rafter they hang from: a dark wire, and on it a
+     bulb on a short drop every foot. Lit, a bulb is a warm lamp with a hot
+     core; by day it is clear glass. The night glow and the night map put each
+     one's light round it (renderer.js, nightEmitters). */
+  if (fest){
+    const G=festoonGeom(fest,S,top);
+    if (G.wire.length){
+      ctx.strokeStyle='rgba(34,30,27,0.88)'; ctx.lineWidth=0.9; ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.beginPath();
+      G.wire.forEach(([r,z],i)=>{ const p=P(0,r,z); if (i) ctx.lineTo(p[0],p[1]); else ctx.moveTo(p[0],p[1]); });
+      ctx.stroke();
+    }
+    const br=1.35*zIn;
+    for (const [r,z] of G.bulbs){
+      const p=P(0,r,z);
+      ctx.strokeStyle='rgba(34,30,27,0.88)'; ctx.lineWidth=0.8;
+      ctx.beginPath(); ctx.moveTo(p[0],p[1]-FESTOON.DROP_IN*zIn); ctx.lineTo(p[0],p[1]-br); ctx.stroke();
+      ctx.fillStyle=lit?'#ffcf7a':'rgba(232,228,214,0.92)';
+      ctx.beginPath(); ctx.arc(p[0],p[1],br,0,7); ctx.fill();
+      ctx.fillStyle=lit?'#fff6d6':'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(p[0]-br*0.3,p[1]-br*0.3,br*(lit?0.55:0.35),0,7); ctx.fill();
+    }
+  }
   ctx.restore();
 }
 /* A whole small pergola at a ground point, through drawPergolaBay and the same
@@ -13284,18 +13329,20 @@ function drawPergolaBay(ctx,cx,cy,axes,fr,pg,season){
    which positions itself with screenOf and would land hundreds of pixels off a
    48x44 canvas -- the miniWater seam, exactly. Bays paint far to near. */
 const PERGOLA_ART_SIZE={lenB:5, lenR:4};
-function drawPergolaArt(ctx,cx,cy,pg,season,axes,lenB,lenR){
+function drawPergolaArt(ctx,cx,cy,pg,season,axes,lenB,lenR,lit){
   lenB=lenB||PERGOLA_ART_SIZE.lenB; lenR=lenR||PERGOLA_ART_SIZE.lenR;
   axes=axes||ISO_AXES_FLAT;
   const tiles=[];
   for (let r=0;r<lenR;r++) for (let b=0;b<lenB;b++) tiles.push([b,r]);
   const info=pergolaRegionInfo(tiles), has=(x,y)=>x>=0&&y>=0&&x<lenB&&y<lenR;
+  const festoon=!!(pg && pg.lights==='festoon');
   const [ax,ay]=axes, ox=(lenB-1)/2, oy=(lenR-1)/2;
   const at=(x,y)=>[cx+ax[0]*(x-ox)+ay[0]*(y-oy), cy+ax[1]*(x-ox)+ay[1]*(y-oy)];
   tiles.sort((p,q)=>at(p[0],p[1])[1]-at(q[0],q[1])[1]);
   for (const [x,y] of tiles){
     const [sx,sy]=at(x,y);
-    drawPergolaBay(ctx,sx,sy,axes,pergolaFrameIn(has,info,x,y),pg,season);
+    drawPergolaBay(ctx,sx,sy,axes,pergolaFrameIn(has,info,x,y),pg,season,
+      festoon?festoonRunIn(has,info,x,y):null,lit);
   }
 }
 // how far drawPergolaArt reaches from its ground point, for fitting a chip
@@ -13309,22 +13356,119 @@ function pergolaArtExtent(pg,lenB,lenR,axes){
   }
   return {x0,x1,y0,y1};
 }
+/* Where a fixture's light comes from, as [dx,dy] from its ground point, in
+   screen px at scale 1. Over the post for most of them; a shepherd's hook hangs
+   its lantern hangIn to one side, a torch's light is its flame over the
+   canister, and a bollard's is the band under its cap. drawLightArt draws the
+   head there and drawLightGlow lights it, from this one answer. */
+function lightHeadAt(l,scale){
+  scale=scale||1;
+  const typ=lightType(l&&l.type), inH=n=>feetToPx(n/12)*scale, h=feetToPx(typ.ft)*scale;
+  if (typ.kind==='hook') return [inH(typ.hangIn), -(h-inH(2)-inH(typ.lanIn)*0.56)];
+  if (typ.kind==='torch') return [0, -(h+inH(4.5)+inH(3))];
+  if (typ.kind==='bollard') return [0, -(h+inH(typ.headIn)*0.46)];
+  return [0,-h];
+}
+/* A torch's flame: two teardrops, the outer orange and the inner gold, leaning
+   a little with the air. `bright` lays it again in screen blend for the night
+   pass, which dims the sprite's own flame with everything else. */
+function drawTorchFlame(ctx,x,y,fh,bright){
+  const w=fh*0.30, lean=fh*0.10;
+  const drop=(k,col,a)=>{
+    const ww=w*k, hh=fh*k;
+    ctx.globalAlpha=a; ctx.fillStyle=col;
+    ctx.beginPath(); ctx.moveTo(x-ww,y-hh*0.18);
+    ctx.quadraticCurveTo(x-ww*0.9,y-hh*0.62,x+lean*k,y-hh);
+    ctx.quadraticCurveTo(x+ww*1.05,y-hh*0.55,x+ww,y-hh*0.18);
+    ctx.quadraticCurveTo(x+ww*0.7,y+hh*0.06,x,y+hh*0.06);
+    ctx.quadraticCurveTo(x-ww*0.7,y+hh*0.06,x-ww,y-hh*0.18);
+    ctx.closePath(); ctx.fill();
+  };
+  ctx.save();
+  drop(1,bright?'#ff7a26':'#f07a2a',bright?0.85:0.95);
+  drop(0.62,'#ffc24a',bright?0.9:0.95);
+  drop(0.32,'#fff2b8',bright?0.85:0.9);
+  ctx.restore();
+}
 function drawLightArt(ctx,cx,base,l,lit,season,scale){
   scale=scale||1;
-  const typ=lightType(l&&l.type), tone=lightTone(l&&l.tone), fin=lightColors(l);
+  const typ=lightType(l&&l.type), tone=lightToneOf(l), fin=lightColors(l);
   const inH=n=>feetToPx(n/12)*scale;
   const h=feetToPx(typ.ft)*scale, top=base-h;
   const metal=fin.body, metalHi=fin.hi;
   const hw=inH(typ.headWIn)/2, hh=inH(typ.headIn);
   const lw=n=>Math.max(0.7,inH(n));
-  let capY=top-hh;                       // the snow lands on whatever the head's top is
+  let capY=top-hh, capX=cx;              // the snow lands on whatever the head's top is
   ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
-  drawSoftShadow(ctx,cx,base+2*scale,hw*1.55,hw*0.6,0.18);
-  ctx.strokeStyle='rgba(0,0,0,0.22)'; ctx.lineWidth=lw(typ.postIn*1.8);
-  ctx.beginPath(); ctx.moveTo(cx,base); ctx.lineTo(cx,top); ctx.stroke();
-  ctx.strokeStyle=metal; ctx.lineWidth=lw(typ.postIn);
-  ctx.beginPath(); ctx.moveTo(cx,base); ctx.lineTo(cx,top); ctx.stroke();
-  if (typ.kind==='path'){
+  drawSoftShadow(ctx,cx,base+2*scale,Math.max(hw,inH(typ.postIn)*0.6)*1.55,Math.max(hw,inH(typ.postIn)*0.6)*0.6,0.18);
+  if (typ.kind!=='bollard'){
+    ctx.strokeStyle='rgba(0,0,0,0.22)'; ctx.lineWidth=lw(typ.postIn*1.8);
+    ctx.beginPath(); ctx.moveTo(cx,base); ctx.lineTo(cx,top); ctx.stroke();
+    ctx.strokeStyle=metal; ctx.lineWidth=lw(typ.postIn);
+    ctx.beginPath(); ctx.moveTo(cx,base); ctx.lineTo(cx,top); ctx.stroke();
+  }
+  if (typ.kind==='bollard'){
+    /* A COLUMN, so it is filled rather than stroked: postIn is its diameter.
+       The lit side faces left (the light every structure here uses), the band
+       of louvres sits under a flat cap, and a lid ellipse gives it its round. */
+    const bw=inH(typ.postIn)/2, headTop=top-hh, ry=bw*0.42;
+    ctx.fillStyle=shade(metal,-18);
+    ctx.fillRect(cx-bw,headTop,bw*2,base-headTop);
+    ctx.fillStyle=metal; ctx.fillRect(cx-bw,headTop,bw*1.15,base-headTop);
+    ctx.beginPath(); ctx.ellipse(cx,base,bw,ry,0,0,Math.PI); ctx.fillStyle=shade(metal,-18); ctx.fill();
+    // the band: glass behind louvres
+    const bandY=headTop+hh*0.22, bandH=hh*0.5;
+    ctx.fillStyle=lit?tone.col:'#8c877a';
+    ctx.fillRect(cx-bw*0.9,bandY,bw*1.8,bandH);
+    ctx.strokeStyle=metal; ctx.lineWidth=lw(0.9); ctx.lineCap='butt';
+    for (const f of [0.34,0.67]){
+      ctx.beginPath(); ctx.moveTo(cx-bw*0.9,bandY+bandH*f); ctx.lineTo(cx+bw*0.9,bandY+bandH*f); ctx.stroke(); }
+    // the cap: a lid a hair wider than the column
+    ctx.fillStyle=metalHi;
+    ctx.beginPath(); ctx.ellipse(cx,headTop,bw*1.06,ry,0,0,7); ctx.fill();
+    capY=headTop-ry*0.4;
+  } else if (typ.kind==='hook'){
+    /* The crook arcs up and over from the post's top and the lantern hangs off
+       its end on a short chain. The lantern's centre is lightHeadAt's answer. */
+    const R=inH(typ.hangIn)/2, ex=cx+2*R, lanH=inH(typ.lanIn), lanW=hw*2;
+    ctx.strokeStyle=metal; ctx.lineWidth=lw(typ.postIn*0.8);
+    ctx.beginPath(); ctx.arc(cx+R,top,R,Math.PI,0); ctx.stroke();
+    // a scroll where the crook ends, as a forged hook has
+    ctx.lineWidth=lw(typ.postIn*0.5);
+    ctx.beginPath(); ctx.arc(ex-R*0.22,top,R*0.22,0,Math.PI*0.9); ctx.stroke();
+    const lTop=top+inH(2);
+    ctx.strokeStyle=metalHi; ctx.lineWidth=lw(0.5);
+    ctx.beginPath(); ctx.moveTo(ex,top); ctx.lineTo(ex,lTop); ctx.stroke();
+    // the lantern: a peaked roof, a glazed box, a base plate
+    const roofB=lTop+lanH*0.24, boxB=lTop+lanH*0.88;
+    ctx.fillStyle=metal;
+    ctx.beginPath(); ctx.moveTo(ex,lTop); ctx.lineTo(ex+lanW*0.62,roofB); ctx.lineTo(ex-lanW*0.62,roofB); ctx.closePath(); ctx.fill();
+    ctx.fillRect(ex-lanW/2,roofB,lanW,boxB-roofB);
+    ctx.fillStyle=lit?tone.col:'#6f6a5e';
+    ctx.fillRect(ex-lanW*0.34,roofB+lanH*0.06,lanW*0.68,boxB-roofB-lanH*0.12);
+    ctx.fillStyle=metal; ctx.fillRect(ex-lanW*0.58,boxB,lanW*1.16,lanH*0.12);
+    capY=lTop+lanH*0.08; capX=ex;
+  } else if (typ.kind==='torch'){
+    /* A canister on a pole. Bamboo shows its nodes; the canister is metal
+       whatever the pole is. By day it is unlit -- a wick -- and by night it
+       burns, which is drawTorchFlame. */
+    if (fin.id==='bamboo'){
+      ctx.strokeStyle=metalHi; ctx.lineWidth=lw(0.7); ctx.lineCap='butt';
+      const pw=inH(typ.postIn)*0.6;
+      for (let z=0.22;z<0.95;z+=0.24){
+        const y=base-h*z; ctx.beginPath(); ctx.moveTo(cx-pw,y); ctx.lineTo(cx+pw,y); ctx.stroke(); }
+    }
+    const canH=inH(4.5), can=fin.id==='bamboo'?'#3c3631':metal, canHi=fin.id==='bamboo'?'#6b625a':metalHi;
+    ctx.fillStyle=can;
+    ctx.beginPath(); ctx.moveTo(cx-hw*0.62,top); ctx.lineTo(cx+hw*0.62,top);
+    ctx.lineTo(cx+hw,top-canH); ctx.lineTo(cx-hw,top-canH); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=canHi; ctx.lineWidth=lw(0.8); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(cx-hw,top-canH); ctx.lineTo(cx+hw,top-canH); ctx.stroke();
+    ctx.strokeStyle='#2a2522'; ctx.lineWidth=lw(0.6);
+    ctx.beginPath(); ctx.moveTo(cx,top-canH); ctx.lineTo(cx+inH(0.3),top-canH-inH(1.2)); ctx.stroke();
+    if (lit) drawTorchFlame(ctx,cx,top-canH-inH(0.4),inH(6.5),false);
+    capY=top-canH;
+  } else if (typ.kind==='path'){
     // a downturned shade with the lamp under its lip
     ctx.fillStyle=metal;
     ctx.beginPath(); ctx.moveTo(cx-hw,top); ctx.lineTo(cx+hw,top);
@@ -13388,9 +13532,10 @@ function drawLightArt(ctx,cx,base,l,lit,season,scale){
     capY=top-hh*0.62;
   }
   if (season && AMBIENCE[season] && AMBIENCE[season].snow){
-    ctx.strokeStyle='rgba(240,244,250,0.72)'; ctx.lineWidth=lw(1.8);
+    ctx.strokeStyle='rgba(240,244,250,0.72)'; ctx.lineWidth=lw(1.8); ctx.lineCap='round';
     // ON the cap, not above it: capY is the drawing's own ceiling
-    ctx.beginPath(); ctx.moveTo(cx-hw*0.92,capY); ctx.lineTo(cx+hw*0.92,capY); ctx.stroke();
+    const sw=typ.kind==='bollard'?inH(typ.postIn)/2:hw;
+    ctx.beginPath(); ctx.moveTo(capX-sw*0.92,capY); ctx.lineTo(capX+sw*0.92,capY); ctx.stroke();
   }
   ctx.restore();
 }
@@ -13398,51 +13543,101 @@ function drawLightFixture(ctx,W,H,season,l,x,y,lit){
   const [sx,sy]=screenOf(x,y,W,H);
   drawLightArt(ctx,sx,sy+TILE_H/2,l,lit,season,1);
 }
-/* The light a fixture throws at night. Two shapes, because two fixtures do two
-   different jobs: everything on a post lays a POOL on the ground, and an uplight
-   washes UP a trunk. Drawing the uplight as a pool would have made it a shorter
-   path light, which is the one reading the fixture exists to avoid. */
-function drawLightGlow(ctx,W,H,l,x,y){
-  const typ=lightType(l.type), tone=lightTone(l.tone);
-  const [sx,sy]=screenOf(x,y,W,H), base=sy+TILE_H/2, head=base-lightDrawH(l);
-  const r=feetToPx(typ.poolFt);
+/* ---------- the light a fixture throws at night ----------
+   A fixture's light is a list of EMITTERS, each an ellipse in screen px with two
+   strengths: `a`, how much of the night it lifts (the night map erases that much
+   darkness there, renderer.js nightLightMap), and `g`, how strongly it tints what
+   it lights in the lamp's colour (drawLightGlowAt, screen blend). One list for
+   both passes, so the colour can never land somewhere the light does not.
+
+   Two shapes, because two fixtures do two different jobs. Everything on a post
+   lays a POOL on the ground -- an ellipse at the ground's own 2:1, sized in
+   GROUND feet (GROUND_PX_PER_FT, which is not the built-height PX_PER_FT) -- and
+   lights the air round its head. An UPLIGHT lights what it is aimed at: handed
+   the crown of the tree or shrub it stands under (`crown`, the scene's
+   uplightAim), it lights that crown and the trunk below it; with nothing to aim
+   at it washes a little way up whatever is behind it. It used to paint a wedge of
+   light in the air, which read as a cone of fog rather than a lit tree. */
+const GROUND_PX_PER_FT = TILE_W/((TILE_IN/12)*Math.SQRT2);
+function lightEmitters(l,sx,base,crown){
+  const typ=lightType(l&&l.type), tone=lightToneOf(l), hd=lightHeadAt(l);
+  const hx=sx+hd[0], hy=base+hd[1], R=typ.poolFt*GROUND_PX_PER_FT, out=[];
+  const put=(x,y,rx,ry,a,g)=>out.push({x,y,rx,ry,a,g});
+  if (typ.glow==='up'){
+    put(sx,base,R*0.30,R*0.15,0.7,0.28);                 // the spill round the can
+    if (crown){
+      // the crown, lit from below: brightest low in it, where the beam lands
+      put(crown.x,crown.y+crown.ry*0.18,crown.rx*1.05,crown.ry*1.08,0.9,0.30);
+      // and the trunk between, a narrow wash
+      const top=crown.y+crown.ry*0.5, mid=(hy+top)/2, half=Math.max(4,(hy-top)/2+4);
+      if (hy>top) put((sx+crown.x)/2,mid,Math.max(7,crown.rx*0.16),half,0.6,0.22);
+    } else {
+      // nothing to aim at: a wash up whatever stands behind it
+      put(sx,hy-R*0.55,R*0.36,R*0.62,0.62,0.24);
+    }
+  } else {
+    const low=typ.kind==='path'||typ.kind==='step';
+    put(hx,base+(typ.kind==='step'?TILE_H*0.1:0),R,R*0.5,0.94,0.36);
+    // the air round the head, which is what lights a plant beside a tall fixture
+    const hr=low ? feetToPx(0.7) : Math.min(R*0.5,feetToPx(typ.flame?2.6:2.2));
+    put(hx,hy,hr,hr,low?0.6:0.78,typ.flame?0.6:0.55);
+  }
+  return {tone, out, head:[hx,hy]};
+}
+/* Where a woody plant's crown is drawn, as an ellipse round its middle, for an
+   uplight to light. The proportions are drawPlant's own: a tree's drawn height
+   and width both follow its 0.12 sapling floor, a shrub's the 0.25 floor. A
+   conifer is a tall cone, a palm a crown at the top of a trunk. */
+function woodyCrownAt(P,growth,x,y){
+  if (!P) return null;
+  if (isTreeDef(P)){
+    const k=0.12+0.88*growth, H=plantVisualH(P)*k, cw=(woodyVisualCw(P)||60)*k;
+    if (P.form==='palm') return {x, y:y-H*0.84, rx:cw*0.42, ry:H*0.16};
+    if (P.form==='conifer') return {x, y:y-H*0.46, rx:cw*0.36, ry:H*0.42};
+    return {x, y:y-H*0.64, rx:cw*0.44, ry:H*0.31};
+  }
+  const H=plantVisualH(P)*(0.25+0.75*growth), cw=(woodyVisualCw(P)||40)*(0.3+0.7*growth);
+  return {x, y:y-H*0.5, rx:Math.max(cw*0.5,H*0.4), ry:H*0.52};
+}
+/* One soft dot per colour, made once through the sprite caches' own surface so
+   it is an ImageBitmap where that matters (a small canvas blitted into the
+   garden is re-uploaded every frame in Firefox: renderer.js,
+   spriteBitmapsSupported). It replaced two radial gradients built per light per
+   frame, and the radial is the fill Firefox cannot do on the GPU. */
+const LIGHT_GLOW_IMG={};
+function lightGlowImage(prefix){
+  if (LIGHT_GLOW_IMG[prefix]) return LIGHT_GLOW_IMG[prefix];
+  const n=64, cv=spriteBakeSurface('glow',n,n), g=cv.getContext('2d');
+  const gr=g.createRadialGradient(n/2,n/2,0,n/2,n/2,n/2);
+  gr.addColorStop(0,prefix+'1)'); gr.addColorStop(0.22,prefix+'0.72)');
+  gr.addColorStop(0.48,prefix+'0.32)'); gr.addColorStop(0.74,prefix+'0.09)');
+  gr.addColorStop(1,prefix+'0)');
+  g.fillStyle=gr; g.fillRect(0,0,n,n);
+  return (LIGHT_GLOW_IMG[prefix]=spriteBakeImage('glow',cv));
+}
+function drawLightGlow(ctx,W,H,l,x,y,crown){
+  const [sx,sy]=screenOf(x,y,W,H);
+  drawLightGlowAt(ctx,sx,sy+TILE_H/2,l,crown);
+}
+function drawLightGlowAt(ctx,sx,base,l,crown){
+  const typ=lightType(l&&l.type), em=lightEmitters(l,sx,base,crown);
+  const img=lightGlowImage(em.tone.glow);
   ctx.save();
   ctx.globalCompositeOperation='screen';
-  if (typ.glow==='up'){
-    /* A wedge opening upward, fading out over its length -- the beam -- with a
-       soft bloom where it lands. It is clipped to the wedge so the gradient
-       cannot square off against its own fillRect. */
-    const reach=r*1.7, spread=r*0.62;
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(sx-r*0.10,head); ctx.lineTo(sx+r*0.10,head);
-    ctx.lineTo(sx+spread,head-reach); ctx.lineTo(sx-spread,head-reach);
-    ctx.closePath(); ctx.clip();
-    let gb=ctx.createLinearGradient(sx,head,sx,head-reach);
-    gb.addColorStop(0,tone.glow+'0.46)');
-    gb.addColorStop(0.45,tone.glow+'0.16)');
-    gb.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=gb; ctx.fillRect(sx-spread,head-reach,spread*2,reach);
-    ctx.restore();
-    let gh=ctx.createRadialGradient(sx,head-reach*0.55,0,sx,head-reach*0.55,r*0.9);
-    gh.addColorStop(0,tone.glow+'0.20)');
-    gh.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=gh; ctx.fillRect(sx-r,head-reach*0.55-r,r*2,r*2);
-  } else {
-    let g=ctx.createRadialGradient(sx,head,0,sx,head,r);
-    g.addColorStop(0,tone.glow+'0.58)');
-    g.addColorStop(0.35,tone.glow+'0.22)');
-    g.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=g; ctx.fillRect(sx-r,head-r,r*2,r*2);
-    g=ctx.createRadialGradient(sx,base,0,sx,base,r*0.72);
-    g.addColorStop(0,tone.glow+'0.18)');
-    g.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=g; ctx.fillRect(sx-r,base-r*0.72,r*2,r*1.45);
+  for (const e of em.out){
+    ctx.globalAlpha=e.g;
+    ctx.drawImage(img,e.x-e.rx,e.y-e.ry,e.rx*2,e.ry*2);
   }
+  ctx.globalAlpha=1;
+  // a flame was dimmed with everything else: lay it again, as the fire pit does
+  if (typ.flame) drawTorchFlame(ctx,sx,base-feetToPx(typ.ft)-feetToPx(4.9/12),feetToPx(6.5/12),true);
   ctx.restore();
+  if (typ.flame) return;
   ctx.save();
-  ctx.fillStyle=tone.col;
-  ctx.beginPath(); ctx.arc(sx,head,typ.kind==='path'||typ.kind==='step'?2.5:3.5,0,7); ctx.fill();
+  ctx.fillStyle=em.tone.col;
+  ctx.beginPath();
+  ctx.arc(em.head[0],em.head[1],typ.kind==='path'||typ.kind==='step'||typ.kind==='spot'?2.2:3.2,0,7);
+  ctx.fill();
   ctx.restore();
 }
 function polyPath(ctx,pts){
@@ -15879,14 +16074,24 @@ function drawWaterFeatureArt(ctx,cx,cy,wf,season,axes,seed,inWater){
    blend. Centred on the FIRE rather than the footprint, because a fire bowl
    holds its fire 16 in off the ground. The radius is capped under
    FIREPIT_GLOW_REACH (renderer.js), which is what the night cull pads by. */
-function drawFirepitGlow(ctx,W,H,f,x,y){
+// where a fire is and how far it throws: one answer for the glow and the night map
+function firepitGlowGeom(f,x,y,W,H){
   const d=normalizeFirepitDraft(f);
   const [cx,cy]=groundCenterRot(x,y,firepitTileSize(d),W,H);
   const [ax,ay]=turnAxes(isoAxes(),d.face);
   const P=fpProjector(cx,cy,ax,ay), lay=firepitFireLayout(d,tileSeed(x,y));
   const fire=P(0,0,lay.top), sy=fire[1]-lay.F*FP_Z*0.3;
   const rPit=Math.max(lay.g.hu,lay.g.hv)*Math.SQRT2*TILE_W/2/TILE_IN;
-  const r=Math.max(64,Math.min(180,rPit*2.1));
+  return {cx,cy,P,lay,fire,sy,r:Math.max(64,Math.min(180,rPit*2.1))};
+}
+// what a fire lights, in lightEmitters' shape: the air round it and the ground
+function firepitEmitters(f,x,y,W,H){
+  const {cx,cy,fire,sy,r}=firepitGlowGeom(f,x,y,W,H);
+  return [{x:fire[0],y:sy,rx:r*0.6,ry:r*0.6,a:0.85,g:0},
+          {x:cx,y:cy,rx:r*1.05,ry:r*0.52,a:0.9,g:0}];
+}
+function drawFirepitGlow(ctx,W,H,f,x,y){
+  const {cx,cy,P,lay,fire,sy,r}=firepitGlowGeom(f,x,y,W,H);
   ctx.save();
   ctx.globalCompositeOperation='screen';
   let gr=ctx.createRadialGradient(fire[0],sy,0,fire[0],sy,r);

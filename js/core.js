@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.147';
+const APP_VERSION = '0.9.148';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1322,16 +1322,25 @@ function pergolaMatId(id){ return pergolaMaterial(id).id; }
 function pergolaHeightFor(h){
   const want=+h; return PERGOLA_HEIGHTS.includes(want)?want:8;
 }
+/* Festoon string lights, as a property of the ROOF: they are hung from its
+   rafters, so a pergola is lit or it is not. 'none' is what every pergola saved
+   before lights existed comes back as. */
+const PERGOLA_LIGHTS=[
+  {id:'none',    label:'No lights',              short:'None'},
+  {id:'festoon', label:'Festoon string lights',  short:'Festoon'},
+];
+function pergolaLightsId(id){ return PERGOLA_LIGHTS.some(l=>l.id===id) ? id : 'none'; }
 function normalizePergolaDraft(d){
   d=d||{};
-  return {mat:pergolaMatId(d.mat), height:pergolaHeightFor(d.height)};
+  return {mat:pergolaMatId(d.mat), height:pergolaHeightFor(d.height), lights:pergolaLightsId(d.lights)};
 }
 // drawn height of the TOP of the rafters above the tile, in screen px -- fenceDrawH's sibling
 function pergolaDrawH(p){ return pergolaHeightFor(p&&p.height)*PX_PER_FT; }
 // "Timber pergola, 8 ft high" -- through fmtFeet, so it follows the units preference
 function pergolaLabelFor(p){
   const d=normalizePergolaDraft(p);
-  return `${pergolaMaterial(d.mat).label} pergola, ${fmtFeet(d.height)} high`;
+  return `${pergolaMaterial(d.mat).label} pergola, ${fmtFeet(d.height)} high`+
+    (d.lights==='festoon'?', with string lights':'');
 }
 const LIGHT_TYPES = [
   {id:'path', label:'Path light', short:'Path', kind:'path',
@@ -1351,6 +1360,27 @@ const LIGHT_TYPES = [
   {id:'step', label:'Step light', short:'Step', kind:'step',
    ft:0.35, postIn:1,   headIn:3,  headWIn:8,  poolFt:1.9,
    finishes:['steel','black','bronze','graphite','white']},
+  /* A BOLLARD: a solid column with a lit band under its cap. The modern path
+     fixture, and unlike a path light it throws light all round, so its pool is
+     wider than a path light's for a fixture about twice the height. Its post IS
+     its body, which is why postIn is the column's diameter. */
+  {id:'bollard', label:'Bollard', short:'Bollard', kind:'bollard',
+   ft:2.3, postIn:6,   headIn:8,  headWIn:7,  poolFt:3.4,
+   finishes:['black','graphite','steel','bronze','white']},
+  /* A lantern hung from a SHEPHERD'S HOOK: the cottage garden's lamp post. The
+     post rises to `ft`, the crook arcs up headIn over it and out hangIn to one
+     side, and the lantern hangs below the crook's end, so the light is NOT over
+     the post: lightHeadAt says where it is, and the pool is laid under it. */
+  {id:'hook', label:"Shepherd's hook lantern", short:'Hook', kind:'hook',
+   ft:5.2, postIn:1.4, headIn:4.5, headWIn:5, poolFt:4.2, hangIn:9, lanIn:8,
+   finishes:['black','bronze','copper','graphite']},
+  /* A GARDEN TORCH burns, so it has no lamp colour: `flame` gives it the fire's
+     own light in place of a tone, and the tray offers no tone for it. By day it
+     is unlit, a canister and a wick; headIn holds the canister AND the night
+     flame above it, because the box has to. */
+  {id:'torch', label:'Garden torch', short:'Torch', kind:'torch', flame:true,
+   ft:4.6, postIn:1.6, headIn:11, headWIn:4.5, poolFt:4,
+   finishes:['bamboo','black','bronze','copper']},
 ];
 /* The metal, as a third axis -- exactly as POT_FINISHES, SEAT_FINISHES and
    WATER_FINISHES are: the material a fixture is made of is not a different
@@ -1364,6 +1394,8 @@ const LIGHT_FINISHES = [
   {id:'steel',    label:'Brushed Steel', short:'Steel',  body:'#79808a', hi:'#b6bdc4'},
   {id:'copper',   label:'Aged Copper', short:'Copper',   body:'#6b5237', hi:'#ab7a4d'},
   {id:'white',    label:'Matt White',  short:'White',    body:'#cfcbc1', hi:'#f0ede6'},
+  // a torch's pole; the one finish that is not a metal, and only the torch is made in it
+  {id:'bamboo',   label:'Bamboo',      short:'Bamboo',   body:'#9c7c48', hi:'#d2b77e'},
 ];
 const LIGHT_TONES = [
   {id:'eco', label:'Eco friendly', short:'Eco', col:'#b9d483', glow:'rgba(190,224,130,'},
@@ -1400,6 +1432,12 @@ function normalizeLightDraft(d){
 function lightDrawH(l){ return lightType(l&&l.type).ft*PX_PER_FT; }
 // overall height in real feet, post plus head: what a tray chip fits itself to
 function lightHeightFt(l){ const t=lightType(l&&l.type); return t.ft+t.headIn/12; }
+// a torch: no lamp colour to choose, and none to name on the planting list
+function lightIsFlame(l){ return !!lightType(l&&l.type).flame; }
+/* The light a flame throws, in LIGHT_TONES' shape so the glow and the night
+   map read it like any tone. Orange rather than the warm lamp's amber. */
+const LIGHT_FLAME_TONE={id:'flame', label:'Flame', short:'Flame', col:'#ffb35c', glow:'rgba(255,146,62,'};
+function lightToneOf(l){ return lightIsFlame(l) ? LIGHT_FLAME_TONE : lightTone(l&&l.tone); }
 /* ---------- fire pits ----------
    A fire pit used to be three ellipses stacked two pixels apart — a flat grey
    ring with a hole in it, the last hardscape object still drawn as a DIAGRAM in

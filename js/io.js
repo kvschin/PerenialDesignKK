@@ -1282,7 +1282,8 @@ function hardscapeRows(){
     const d=normalizeSupportDraft(sp); bump(props, d.style+'|'+d.mat); }
   for (const k in game.lights||{}){ const l=game.lights[k]; if (!l||l.removed) continue;
     // the FINISH splits the line the way a pot's colour does: it is what you buy
-    const d=normalizeLightDraft(l); bump(lamps, d.type+'|'+d.tone+'|'+d.finish); }
+    // a torch has no lamp colour, so two torches never split on one
+    const d=normalizeLightDraft(l); bump(lamps, d.type+'|'+(lightIsFlame(d)?'':d.tone)+'|'+d.finish); }
 
   for (const id in pots){ const [st,sz,fi]=id.split('|');
     add('Container', `${potSizeDef(sz).label} ${potVesselName({style:st,size:sz,finish:fi})}`, pots[id], pots[id]); }
@@ -1305,7 +1306,22 @@ function hardscapeRows(){
        colour is a setup choice rather than a different product, so it rides the
        sub-line with the height. */
     add('Lighting', `${lightFinish(type,finish).label} ${lightType(type).label}`, lamps[id], lamps[id],
-      `${lightTone(tone).label} light, ${fmtLengthIn(lightHeightFt({type})*12)} tall`); }
+      (tone ? `${lightTone(tone).label} light, ` : '')+`${fmtLengthIn(lightHeightFt({type})*12)} tall`); }
+  /* Festoon string lights are bought by the length and the bulb, so they are
+     billed as one line: how much string, in how many runs (one per lit rafter,
+     edge beam to edge beam), and how many bulbs. festoonLine is the one
+     definition of a run, which the drawing also reads. */
+  let fFt=0, fRuns=0, fBulbs=0;
+  for (const reg of pergolaRegions().list){
+    if (reg.lights!=='festoon') continue;
+    for (const [x,y] of reg.tiles){
+      const run=festoonRunIn(reg.has,reg.info,x,y);
+      if (!run || run[0]!==0) continue;          // count each run once, at its first tile
+      const L=festoonLine(run[1]); fFt+=L.lenIn/12; fRuns++; fBulbs+=L.bulbs;
+    }
+  }
+  if (fRuns) add('Lighting', 'Festoon string lights', fmtFeet(fFt,1), fFt,
+    `${fRuns} run${fRuns===1?'':'s'} across the rafters, ${fBulbs} bulbs`);
 
   return rows.sort((p2,q2)=>p2.kind===q2.kind ? q2.n-p2.n : (p2.kind<q2.kind?-1:1));
 }
