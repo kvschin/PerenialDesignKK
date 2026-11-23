@@ -943,7 +943,7 @@ function gsDrawChromeRow(ctx,box,ch,left,top){
   ctx.translate(left,top); ctx.scale(k,k);
   const x=0, y=0, r=9;
   /* A TRAIL reads left to right with chevrons and only its last step armed —
-     "Landscape > Hardscape > Fence" — because that is a path through the
+     "Landscape > Structures > Fence" — because that is a path through the
      catalog rather than a set of alternatives. A plain row is the segmented
      control it looks like: Draw / Drift / Matrix, where every option is a
      peer. Same painter, because they are the same pill. */
@@ -2004,7 +2004,7 @@ grade:{ loop:12000, rest:0.92,
 /* ----- hardscape and decor ----- */
 
 fence:{ loop:10500, rest:0.92,
-  where:{path:['Landscape','Hardscape','Fence']},
+  where:{path:['Landscape','Structures','Fence']},
   build(){ const st=guideStage({cols:9,rows:7});
     gsFill(st,'lawn','fescue',0,0,8,6);
     gsFill(st,'bed','mulch',0,3,8,5);
@@ -2028,7 +2028,7 @@ fence:{ loop:10500, rest:0.92,
   }},
 
 containers:{ loop:10000, rest:0.92,
-  where:{path:['Landscape','Decor','Pot']},
+  where:{path:['Landscape','Furnishings','Container']},
   build(){ const st=guideStage({cols:5,rows:4});
     gsFill(st,'path','paver',0,0,4,3);
     gsFill(st,'lawn','fescue',0,3,4,3);
@@ -2059,7 +2059,7 @@ containers:{ loop:10000, rest:0.92,
   }},
 
 seating:{ loop:10000, rest:0.94,
-  where:{path:['Landscape','Hardscape','Seating']},
+  where:{path:['Landscape','Furnishings','Seating']},
   build(){ const st=guideStage({cols:9,rows:7});
     gsFill(st,'lawn','fescue',0,0,8,6);
     gsFill(st,'path','slate',2,3,6,4);
@@ -2084,7 +2084,7 @@ seating:{ loop:10000, rest:0.94,
   }},
 
 focal:{ loop:10500, rest:0.94,
-  where:{path:['Landscape','Hardscape','Fire pit']},
+  where:{path:['Landscape','Features','Fire pit']},
   build(){ const st=guideStage({cols:9,rows:8});
     gsFill(st,'lawn','fescue',0,0,8,7);
     gsFill(st,'path','lime',4,0,4,7);
@@ -2106,7 +2106,7 @@ focal:{ loop:10500, rest:0.94,
   }},
 
 climbers:{ loop:10500, rest:0.94,
-  where:{path:['Landscape','Hardscape','Support']},
+  where:{path:['Landscape','Structures','Support']},
   build(){ const st=guideStage({cols:8,rows:7});
     gsFill(st,'bed','mulch',0,2,7,5);
     gsFill(st,'lawn','fescue',0,6,7,6);
@@ -2134,7 +2134,7 @@ climbers:{ loop:10500, rest:0.94,
   }},
 
 decor:{ loop:8500, rest:0.9,
-  where:{path:['Landscape','Decor','Pet']},
+  where:{path:['Landscape','Furnishings','Pet']},
   build(){ const st=guideStage({cols:7,rows:6});
     gsFill(st,'lawn','fescue',0,0,6,5);
     gsFill(st,'bed','mulch',0,0,6,1);
@@ -2428,7 +2428,7 @@ undo:{ loop:9500, rest:0.9,
   }},
 
 lighting:{ loop:10000, rest:0.9,
-  where:{path:['Landscape','Lighting','Path light']},
+  where:{path:['Landscape','Furnishings','Lighting']},
   build(){ const st=guideStage({cols:9,rows:7});
     gsFill(st,'lawn','fescue',0,0,8,6);
     gsFill(st,'path','warm',0,3,8,3);
@@ -2993,7 +2993,7 @@ function guideChapters(){
        lead:'Pond, river and lake are not three tints. Each shelves away from its bank at its own rate.',
        how:['Paint it like any other material; the depth comes from how far a tile is from dry land.',
             'Water plants go in the shallows. Everything else refuses water.',
-            'For a birdbath or a bubbling urn, look under Hardscape instead — those are objects, not areas.']},
+            'For a birdbath or a bubbling urn, look under Features instead — those are objects, not areas.']},
       {id:'edging', demo:'edging', title:'Edging',
        lead:'The strip that holds a bed back from the lawn: steel, corten, brick, setts, fieldstone, timber, willow or a cut spade edge.',
        how:['Lay the bed, then tap it with Edging: one tap edges the whole bed.',
@@ -3026,12 +3026,12 @@ function guideChapters(){
             'Lifting the pot takes its planting with it.']},
       {id:'seating', demo:'seating', title:'Seating',
        lead:'Benches, chairs, a bistro set, a dining table, a lounger — each claiming the ground it really occupies.',
-       how:['Seating lives on the Hardscape tab and drags out in a row along a wall or a path.',
+       how:['Seating lives on the Furnishings tab and drags out in a row along a wall or a path.',
             'Turn faces a piece toward whatever you want to look at.',
             'Tables come without chairs on purpose, so you can seat three people or turn one chair to the view.']},
       {id:'focal', demo:'focal', title:'Fire pits, water features, boulders',
        lead:'The things a path leads to.',
-       how:['Each opens its own page on the Hardscape tab; Back returns to the list.',
+       how:['Each opens its own page on the Features tab; Back returns to the list.',
             'They reserve their whole footprint and refuse each other’s ground.',
             'All three reach the planting list and the plan — somebody has to buy and install them.']},
       {id:'climbers', demo:'climbers', title:'Supports and climbers',
@@ -3041,10 +3041,10 @@ function guideChapters(){
             'Lift the frame and the climber comes with it.']},
       {id:'lighting', demo:'lighting', title:'Lighting',
        lead:'Path lights, bollards, lamp posts, a lantern on a hook, uplights and torches.',
-       how:['Landscape → Lighting. Set them out along a path or a bed edge.',
+       how:['Landscape → Furnishings → Lighting. Set them out along a path or a bed edge.',
             'Turn night on with the sun/moon button in the top bar to see them lit.',
             'An uplight lights the crown of the tree or shrub it stands under.',
-            'String lights hang from a pergola: Hardscape → Pergola → Festoon.',
+            'String lights hang from a pergola: Structures → Pergola → Festoon.',
             'They reach the planting list and the plan, because somebody has to install them.']},
       {id:'site', demo:'site', title:'Draw a building',
        lead:'The house, the shed, the garage — the things a garden has to be designed around.',
@@ -3054,7 +3054,7 @@ function guideChapters(){
             'Edit footprint adds or removes tiles later; a footprint stays one unbroken shape.']},
       {id:'decor', demo:'decor', title:'The cat and the dog',
        lead:'Pure ornament, and the only placeable thing that claims no ground at all.',
-       how:['Decor tab. Pick the animal, then its coat, markings and socks.',
+       how:['Furnishings → Pet. Pick the animal, then its coat, markings and socks.',
             'A pet may sit in the middle of a drift; adding one can never change what the design will take.',
             'Tap to place — there is deliberately no drag, because nobody wants twenty-four identical cats.',
             'It never appears on the planting list or the plan. Those are documents somebody builds from.']},

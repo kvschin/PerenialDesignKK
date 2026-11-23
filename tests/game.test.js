@@ -7299,22 +7299,23 @@ test('draw tool restores the last plant or material after other tools', () => {
 
 test('draw tool restores build brushes and their catalog panels', () => {
   setup(13, 13);
-  game.trayCat = 'structures';
+  game.trayCat = 'features';
   game.drill = 'firepit';
   setTool('firepit', null);
   setTool('select', null);
   armPlantToolFromRail(false);
-  assertEqual(game.tool, 'firepit', 'structure brush restored');
-  assertEqual(game.trayCat, 'structures', 'structure catalog restored');
-  assertEqual(game.drill, 'firepit', 'structure sub-panel restored');
+  assertEqual(game.tool, 'firepit', 'feature brush restored');
+  assertEqual(game.trayCat, 'features', 'feature catalog restored');
+  assertEqual(game.drill, 'firepit', 'feature sub-panel restored');
 
-  game.trayCat = 'lighting';
-  game.drill = null;
+  game.trayCat = 'furnishings';
+  game.drill = 'light';
   setTool('light', null);
   setTool('shovel', null);
   armPlantToolFromRail(false);
   assertEqual(game.tool, 'light', 'lighting brush restored');
-  assertEqual(game.trayCat, 'lighting', 'lighting catalog restored');
+  assertEqual(game.trayCat, 'furnishings', 'furnishings catalog restored');
+  assertEqual(game.drill, 'light', 'onto the lighting page');
 });
 
 test('draw tool restores brush catalog page and keeps armed brush while browsing', () => {
@@ -9982,43 +9983,119 @@ test('the Grade tab says what each tool does, and opens the armed one\'s options
   } finally { [game.tool, game.trayCat, game.drill, game.terraceDraft, game.wallDraft] = saved; }
 });
 
-test('Hardscape opens on four things to place in one tap, then a card per tool', () => {
+/* Structures, Features and Furnishings (0.9.153) replaced Hardscape, Lighting
+   and Decor, which filed a birdbath and a bird feeder, or a boulder and a stone
+   sphere, on different tabs, and gave one tool a tab to itself. */
+test('the landscape tabs group what stands, what you look at and what you use', () => {
+  setup(21, 21);
+  const tab = id => TRAY_CATS.find(c => c.id === id);
+  assertEqual(TRAY_GROUPS.find(g => g.id === 'build').cats.join(), 'house,landscape,leveling,structures,features,furnishings',
+    'six tabs, site and ground first');
+  assertEqual(tab('structures').tools.join(), 'fence,pergola,support', 'what stands');
+  assertEqual(tab('features').tools.join(), 'waterfeature,firepit,boulder,ornament', 'what you look at');
+  assertEqual(tab('furnishings').tools.join(), 'seat,pot,light,pet', 'what you use');
+  assert(!tab('lighting') && !tab('decor'), 'and no tab with one tool, or the leftovers');
+  // every landscape tool is on exactly one tab
+  const all = TRAY_GROUPS.find(g => g.id === 'build').cats.flatMap(id => tab(id).tools);
+  assertEqual(new Set(all).size, all.length, 'no tool on two tabs');
+  for (const old of ['hardscape', 'decor'])
+    assert(landscapeSearchItems(old).some(i => i.tool === 'seat') && landscapeSearchItems(old).some(i => i.tool === 'pot'),
+      `the old name "${old}" still finds what was on it`);
+});
+
+/* The Site tab is laid out as Grade is (0.9.153): a row per thing a site is set
+   up with, saying what it is for and what it is set to, and the next footprint's
+   choices opening under Draw footprint. It was bare chips ("North 0°", "Name:
+   House") over status and colour rows that were always up. */
+test('the Site tab is a row per tool, with the footprint choices under Draw footprint', () => {
   setup(21, 21);
   const tray = document.getElementById('toolTray');
-  const saved = [game.tool, game.trayCat, game.drill, game.fenceDraft, game.seatDraft, game.firepitDraft];
-  const page = () => { game.trayCat = 'structures'; game.traySearch = ''; game.drill = null; tray.children.length = 0; buildToolTray(true); return tray.children; };
+  const page = () => { game.trayCat = 'house'; game.traySearch = ''; game.drill = null; tray.children.length = 0; buildToolTray(true); return tray.children; };
+  const saved = [game.tool, game.trayCat, game.buildingStyleDraft, game.siteNorthDeg];
   try {
     setTool('hand', null);
     let kids = page();
-    const cards = kids.filter(c => /\blh-card\b/.test(c.className));
-    assertEqual(cards.map(c => c.dataset.k).sort().join(), TRAY_CATS.find(c => c.id === 'structures').tools.slice().sort().join(),
-      'a card for every Hardscape tool, and no tool without one');
-    assert(cards.every(c => /\bhas-sub\b/.test(c.className)), 'each marked as opening a page');
-    assert(cards.every(c => c.children[2].textContent.length > 12 && c.children[3].textContent.length > 3), 'each says what it is and what it is set to');
-    assertEqual(cards.find(c => c.dataset.k === 'fence').children[3].textContent, fenceLabel(), 'in the words the brush bar uses');
-    const picks = kids.find(c => c.className === 'lg-picks');
-    assertEqual(picks.children.map(p => p.children[1].textContent).join(), HARDSCAPE_PICKS.map(p => p.label).join(), 'the quick picks, in their own row');
-    assert(HARDSCAPE_PICKS.every(p => HARDSCAPE_CARDS.some(c => c.k === p.k)), 'every pick is a tool that has a card');
-    assert(picks.children.every(p => p.getAttribute('aria-pressed') === 'false'), 'none armed on arrival');
+    const rows = kids.filter(c => /\blt-row\b/.test(c.className));
+    assertEqual(rows.map(r => r.dataset.k).join(), 'site-photo,site-north,building,building-edit', 'four rows, in the order a site is set up');
+    assert(rows.every(r => r.children[1].children[1].textContent.length > 20), 'each saying what it is for');
+    assertEqual(rows.filter(r => r.hasAttribute('aria-pressed')).map(r => r.dataset.k).join(), 'building,building-edit',
+      'the two tools are pressed buttons; the photo and north are actions');
+    assertEqual(kids.filter(c => c.dataset && (c.dataset.siteStatus || c.dataset.siteFill || c.dataset.siteEdge)).length, 0,
+      'and nothing about the next footprint until it is being drawn');
+    game.siteNorthDeg = 30; kids = page();
+    assertEqual(kids.find(c => c.dataset.k === 'site-north').children[1].children[2].textContent, '30° clockwise from the top of the plot', 'north says where it lies');
 
-    picks.children[0].onclick();
+    rows.find(r => r.dataset.k === 'building').onclick();
+    assertEqual(game.tool, 'building', 'Draw footprint arms the tool');
+    kids = page();
+    const at = kids.findIndex(c => c.dataset.k === 'building' && /\blt-row\b/.test(c.className));
+    const edit = kids.findIndex(c => c.dataset.k === 'building-edit');
+    const opts = kids.slice(at + 1, edit);
+    assertEqual(opts.filter(c => c.dataset.siteStatus).length, 2, 'Existing and Proposed open under it');
+    assertEqual(opts.filter(c => c.dataset.siteFill).length, ROOF_COLS.length, 'every area colour');
+    assertEqual(opts.filter(c => c.dataset.siteEdge).length, WALL_COLS.length, 'every edge colour');
+    assert(opts.some(c => c.dataset.siteName), 'and the name');
+    opts.find(c => c.dataset.siteStatus === 'proposed').onclick();
+    assertEqual(buildingStyleDraft().status, 'proposed', 'a status chip sets the next footprint');
+    assertEqual(game.tool, 'building', 'and keeps drawing');
+    kids = page();
+    // (refreshTray's own marking needs a selector engine the sandbox lacks: checked in a browser)
+    const isSel = c => c.className.split(' ').includes('sel');
+    assert(isSel(kids.find(c => c.dataset.siteStatus === 'proposed')) &&
+      !isSel(kids.find(c => c.dataset.siteStatus === 'existing')), 'the one in hand is marked, not the other');
+    assert(/^Proposed/.test(kids.find(c => c.dataset.k === 'building' && /\blt-row\b/.test(c.className)).children[1].children[2].textContent),
+      'the row says what the next one will be');
+  } finally { [game.tool, game.trayCat, game.buildingStyleDraft, game.siteNorthDeg] = saved; }
+});
+
+test('each of those tabs opens on quick picks, then a card per tool', () => {
+  setup(21, 21);
+  const tray = document.getElementById('toolTray');
+  const saved = [game.tool, game.trayCat, game.drill, game.fenceDraft, game.seatDraft, game.firepitDraft, game.potDraft, game.lightDraft, game.ornamentDraft];
+  const page = id => { game.trayCat = id; game.traySearch = ''; game.drill = null; tray.children.length = 0; buildToolTray(true); return tray.children; };
+  try {
+    for (const id of ['structures', 'features', 'furnishings']){
+      setTool('hand', null);
+      const cat = TRAY_CATS.find(c => c.id === id), kids = page(id);
+      assert(cat.cards, id + ' is a card tab');
+      const cards = kids.filter(c => /\blh-card\b/.test(c.className));
+      assertEqual(cards.map(c => c.dataset.k).join(), cat.tools.join(), `a card for every ${id} tool, in the tab's order`);
+      assert(cards.every(c => /\bhas-sub\b/.test(c.className)), 'each marked as opening a page');
+      assert(cards.every(c => c.children[2].textContent.length > 12 && c.children[3].textContent.length > 3), 'each says what it is and what it is set to');
+      const picks = kids.find(c => c.className === 'lg-picks');
+      assertEqual(picks.children.map(p => p.children[1].textContent).join(),
+        TOOL_PICKS.filter(p => cat.tools.includes(p.k)).map(p => p.label).join(), `${id}'s quick picks, in their own row`);
+      assert(picks.children.every(p => p.getAttribute('aria-pressed') === 'false'), 'none armed on arrival');
+      assert(kids.some(c => c.textContent === `All ${cat.label.toLowerCase()}`), 'and a heading over the cards');
+      for (const card of cards){
+        page(id); card.onclick();
+        assertEqual(game.tool + ':' + game.drill, card.dataset.k + ':' + card.dataset.k, 'a card arms the tool and opens its own page');
+        tray.children.length = 0; buildToolTray(true);
+        assert(tray.children.some(c => /\btool-back\b/.test(c.className || '') && c.title === `Back to ${cat.label}`),
+          `${card.dataset.k}'s page has its Back, to ${cat.label}`);
+        assert(!tray.children.some(c => /\blh-card\b/.test(c.className || '')), 'and no cards');
+        assert(tray.children.filter(c => c.dataset && c.dataset.k === card.dataset.k && /\btool\b/.test(c.className)).length > 1,
+          'it is that tool\'s own page');
+        for (const other of cat.tools.filter(k => k !== card.dataset.k))
+          assert(!tray.children.some(c => c.dataset && c.dataset.k === other), `and nothing of ${other} on it`);
+      }
+    }
+    assert(TOOL_PICKS.every(p => TOOL_CARDS.some(c => c.k === p.k)), 'every pick is a tool that has a card');
+    assert(TOOL_CARDS.every(c => TOOL_DRAFTS[c.k]), 'and every card a draft');
+
+    page('structures').find(c => c.className === 'lg-picks').children[0].onclick();
     assertEqual(game.tool, 'fence', 'a pick arms its tool');
     assertEqual(fenceDraft().style + ':' + fenceDraft().height, 'privacy:6', 'set as the pick says');
     assertEqual(game.drill, null, 'and stays on this page: there is nothing more to choose');
-    assert(hardscapePickOn(0) && !hardscapePickOn(1), 'the pick knows it is the one in hand');
+    assert(toolPickOn(0) && !toolPickOn(1), 'the pick knows it is the one in hand');
     game.fenceDraft = normalizeFenceDraft({ style: 'privacy', height: 4, gate: false });
-    assert(!hardscapePickOn(0), 'and that a shorter cedar fence is not it');
-    armHardscapePick(2);
+    assert(!toolPickOn(0), 'and that a shorter cedar fence is not it');
+    const bench = TOOL_PICKS.findIndex(p => p.k === 'seat');
+    armToolPick(bench);
     game.seatDraft = normalizeSeatDraft(Object.assign({}, seatDraft(), { face: 1 }));
-    assert(hardscapePickOn(2), 'a bench turned a quarter is still that bench');
-    HARDSCAPE_PICKS.forEach((p, i) => { armHardscapePick(i); assert(hardscapePickOn(i), 'every pick is a draft its tool really accepts: ' + p.label); });
-
-    cards.find(c => c.dataset.k === 'boulder').onclick();
-    assertEqual(game.tool + ':' + game.drill, 'boulder:boulder', 'a card arms the tool and opens its own page');
-    tray.children.length = 0; buildToolTray(true);
-    assert(tray.children.some(c => /\btool-back\b/.test(c.className || '')) && !tray.children.some(c => /\blh-card\b/.test(c.className || '')),
-      'which is the page it always had, with its Back');
-  } finally { [game.tool, game.trayCat, game.drill, game.fenceDraft, game.seatDraft, game.firepitDraft] = saved; }
+    assert(toolPickOn(bench), 'a bench turned a quarter is still that bench');
+    TOOL_PICKS.forEach((p, i) => { armToolPick(i); assert(toolPickOn(i), 'every pick is a draft its tool really accepts: ' + p.label); });
+  } finally { [game.tool, game.trayCat, game.drill, game.fenceDraft, game.seatDraft, game.firepitDraft, game.potDraft, game.lightDraft, game.ornamentDraft] = saved; }
   const css = readRepoFile('styles.css'), at = css.indexOf('The Landscape library\'s opening pages (0.9.116)'), block = css.slice(at);
   assert(at > 0, 'their rules are a block of their own');
   assert(/\.lh-card\{[^}]*grid-column:span 2/.test(block), 'a card is two cells of the tray\'s grid, so two to a row on a phone');
@@ -10026,27 +10103,27 @@ test('Hardscape opens on four things to place in one tap, then a card per tool',
   assert(/\.lg-chip canvas,\.lh-card canvas,\.lt-row canvas\{forced-color-adjust:none\}/.test(block), 'and the pictures survive forced colours');
 });
 
-/* Seating is a Hardscape tool like the others: one summary button that opens
+/* Seating is a card-tab tool like the others: one summary button that opens
    its own page. It used to be the one section laid out flat — nine chips under
    a heading, below the fence/fire pit/boulder summary buttons — which read as a
    different kind of thing, and needed a guard so those nine chips did not hang
    off the bottom of every other tool's sub-page. */
-test('seating opens its own Hardscape page, like every tool beside it', () => {
+test('seating opens its own Furnishings page, like every tool beside it', () => {
   setup(21, 21);
   const tray = document.getElementById('toolTray');
   // the sandbox's innerHTML is inert (docs/test-sandbox.md), so clear by hand
   const page = (drill) => {
-    game.trayCat = 'structures'; game.traySearch = ''; game.drill = drill || null;
+    game.trayCat = 'furnishings'; game.traySearch = ''; game.drill = drill || null;
     tray.children.length = 0;
     buildToolTray();
     return tray.children.filter(c => c.dataset && c.dataset.k === 'seat');
   };
   const top = page(null);
   assertEqual(top.length, 1, 'the top level offers ONE seating button, not every seat');
-  assert(/\bhas-sub\b/.test(top[0].className), 'and it is marked as opening a page, like Fence and Fire Pit');
-  assertEqual(page('fence').length, 0, 'the fence page is only fence');
-  assertEqual(page('firepit').length, 0, 'the fire pit page is only fire pit');
-  assertEqual(page('boulder').length, 0, 'the boulder page is only boulder');
+  assert(/\bhas-sub\b/.test(top[0].className), 'and it is marked as opening a page, like Container and Lighting');
+  assertEqual(page('pot').length, 0, 'the container page is only containers');
+  assertEqual(page('light').length, 0, 'the lighting page is only lighting');
+  assertEqual(page('pet').length, 0, 'the pet page is only pets');
 
   game.seatDraft = { type: 'chair', finish: 'teak', face: 0 };
   const own = page('seat');
@@ -10118,7 +10195,7 @@ test('a seat is drawn inside its own extent, from a ground point', () => {
       `${t.id}/${fin}/f${face}: drawn ${[b.x0, b.x1, b.y0, b.y1].map(Math.round)} inside ${[e.x0, e.x1, e.y0, e.y1].map(Math.round)}`);
   }
   const tray = readRepoFile('js/tray.js');
-  const page = tray.slice(tray.indexOf("if (cat.tools.includes('seat')){"), tray.indexOf("if (cat.tools.includes('pet')){"));
+  const page = tray.slice(tray.indexOf("if (cat.tools.includes('seat')){"), tray.indexOf("if (cat.tools.includes('pet')"));
   assert(page.length > 200, 'found the seating page source');
   assert(/drawSeatChip\(/.test(page) && !/drawSeatArt\(/.test(page),
     'every seating chip is fitted through drawSeatChip, never scaled by hand');
@@ -10194,7 +10271,7 @@ test('seating paints its solids in depth order from every side', () => {
     assert(order.indexOf(r) < order.indexOf(s), `rail ${r} is painted before slat ${s}`);
 });
 
-/* Every Hardscape pick has to land on the page that shows what it picked. Fire
+/* Every landscape pick has to land on the page that shows what it picked. Fire
    pit and boulder always set their sub-page; fence did not, so eyedropping a
    fence with another sub-page open left you looking at that other tool, with
    nothing on screen about the material you just picked. It also filed the fence
@@ -10203,6 +10280,7 @@ test('seating paints its solids in depth order from every side', () => {
 test('the eyedropper lands on the page that shows what it picked', () => {
   setup(21, 21);
   game.trayCat = 'structures';
+  /* and on the tab that holds it, whichever is open (openToolPage) */
 
   game.fenceDraft = { style: 'brick', height: 6, gate: false };
   game.tool = 'fence'; applyToolAt(10, 10);
@@ -10221,13 +10299,23 @@ test('the eyedropper lands on the page that shows what it picked', () => {
   game.tool = 'firepit'; applyToolAt(5, 5);
   game.drill = 'fence';
   pickAt(5, 5);
-  assertEqual(game.drill, 'firepit', 'the fire pit opens its own page');
+  assertEqual(game.trayCat + ':' + game.drill, 'features:firepit', 'the fire pit opens its own page, on Features');
 
   game.boulderDraft = { type: 'round1' };
   game.tool = 'boulder'; applyToolAt(15, 15);
   game.drill = 'fence';
   pickAt(15, 15);
-  assertEqual(game.drill, 'boulder', 'and so does the boulder');
+  assertEqual(game.trayCat + ':' + game.drill, 'features:boulder', 'and so does the boulder');
+  // the pieces that had no page of their own now land on one
+  game.tool = 'pot'; game.potDraft = { style: 'glazed', size: 'p18' }; applyToolAt(3, 15);
+  game.tool = 'light'; game.lightDraft = { type: 'bollard' }; applyToolAt(3, 3);
+  game.tool = 'ornament'; game.ornamentDraft = { kind: 'sundial' }; applyToolAt(17, 3);
+  game.tool = 'pet'; game.petDraft = { species: 'dog' }; applyToolAt(12, 17);
+  for (const [x, y, k, tab] of [[3, 15, 'pot', 'furnishings'], [3, 3, 'light', 'furnishings'], [17, 3, 'ornament', 'features'], [12, 17, 'pet', 'furnishings']]){
+    game.drill = 'fence'; game.trayCat = 'structures';
+    pickAt(x, y);
+    assertEqual(game.tool + ':' + game.trayCat + ':' + game.drill, k + ':' + tab + ':' + k, k + ' lands on its own page');
+  }
 });
 
 /* brushTrayCatForTool and toolFitsBrushTray answer "which tab is this tool
@@ -10245,8 +10333,8 @@ test('every tray tool is routed to the tab it actually lives on', () => {
     assertEqual(brushTrayCatForTool(k), c.id, `${k} is browsed on ${c.id}`);
     assert(toolFitsBrushTray(k, c.id), `${k} fits the ${c.id} tab`);
   }));
-  assert(!toolFitsBrushTray('pot', 'structures'), 'a pot is not Hardscape');
-  assert(!toolFitsBrushTray('seat', 'decor'), 'a seat is not Decor');
+  assert(!toolFitsBrushTray('pot', 'structures'), 'a pot is not a structure');
+  assert(!toolFitsBrushTray('seat', 'features'), 'a seat is not a feature');
   assert(!toolFitsBrushTray('wall', 'landscape'), 'a wall is Grade, not Ground');
 
   /* The symptom it was found by: the rail restores the last brush, and used the
@@ -10258,8 +10346,9 @@ test('every tray tool is routed to the tab it actually lives on', () => {
     armPlantToolFromRail(false);
     return { tool: game.tool, cat: game.trayCat };
   };
-  assertEqual(rail('decor', 'pot').cat, 'decor', 'a pot comes back to Decor, not the grasses');
-  assertEqual(rail('structures', 'seat').cat, 'structures', 'a seat comes back to Hardscape');
+  assertEqual(rail('furnishings', 'pot').cat, 'furnishings', 'a pot comes back to Furnishings, not the grasses');
+  assertEqual(rail('furnishings', 'seat').cat, 'furnishings', 'a seat comes back to Furnishings');
+  assertEqual(rail('features', 'ornament').cat, 'features', 'an ornament comes back to Features');
   assertEqual(rail('leveling', 'wall').cat, 'leveling', 'a wall comes back to Grade');
   const grass = PLANT_KEYS.find(k => PLANTS[k].type === 'grass');
   assertEqual(rail(plantCategoryFor(grass), grass).cat, plantCategoryFor(grass),
@@ -11150,7 +11239,7 @@ test('the fire pit page offers what the chosen style is made in', () => {
   setup(21, 21);
   const tray = document.getElementById('toolTray');
   const chips = (draft) => {
-    game.firepitDraft = draft; game.trayCat = 'structures'; game.traySearch = ''; game.drill = 'firepit';
+    game.firepitDraft = draft; game.trayCat = 'features'; game.traySearch = ''; game.drill = 'firepit';
     game.tool = 'firepit';
     tray.children.length = 0;
     buildToolTray(true);
@@ -11432,7 +11521,7 @@ test('a boulder is billed by stone and size, with what it weighs', () => {
 test('the boulder page offers every form, its sizes, its stones and a turn', () => {
   setup(21, 21);
   const tray = document.getElementById('toolTray');
-  game.trayCat = 'structures'; game.traySearch = ''; game.drill = 'boulder';
+  game.trayCat = 'features'; game.traySearch = ''; game.drill = 'boulder';
   game.boulderDraft = { type: 'ledge32', stone: 'slate', face: 0 };
   game.tool = 'boulder';
   tray.children.length = 0;
@@ -12093,7 +12182,7 @@ test('eyedropper samples a plant, bulb, hardscape, light, or material onto the b
 
   game.tool = 'pick'; pickAt(8, 8);
   assertEqual(game.tool, 'light', 'picked the light structure');
-  assertEqual(game.trayCat, 'lighting', 'switched to Lighting');
+  assertEqual(game.trayCat + ':' + game.drill, 'furnishings:light', 'switched to the lighting page on Furnishings');
   assertEqual(game.lightDraft.type, 'lamp', 'copied light fixture');
   assertEqual(game.lightDraft.tone, 'bright', 'copied light tone');
 
@@ -26592,11 +26681,11 @@ test('an ornament erases as landscape, is eyedropped, and moves, turns and copie
   setup(15, 15);
   armOrnament('nestbox', 'sage', 1);
   applyToolAt(4, 4);
-  // eyedropper: the piece, its finish and its facing come back as the brush, on the Decor tab
+  // eyedropper: the piece, its finish and its facing come back as the brush, on its page on Features
   game.tool = 'pick'; game.ornamentDraft = normalizeOrnamentDraft({ kind: 'sphere' });
   pickAt(4, 4);
   assertEqual(game.tool, 'ornament', 'Pick arms the ornament tool');
-  assertEqual(game.trayCat, 'decor', 'on the tab it lives on');
+  assertEqual(game.trayCat + ':' + game.drill, 'features:ornament', 'on its page, on the tab it lives on');
   assertEqual(game.ornamentDraft.kind, 'nestbox', 'as the piece picked');
   assertEqual(game.ornamentDraft.finish, 'sage', 'in its finish');
 
@@ -26729,13 +26818,13 @@ test('an ornament sprite is keyed on the piece, so two of a kind share one', () 
   assert(/case SCENE_K\.ORNAMENT/.test(String(drawSceneEnt)), 'drawSceneEnt routes it through the structure cache');
 });
 
-test('ornaments are on the Decor tab, armed by chips drawn through the garden painter', () => {
-  const decor = TRAY_CATS.find(c => c.id === 'decor');
-  assert(decor.tools.includes('ornament'), 'the Decor tab lists the tool');
-  assertEqual(brushTrayCatForTool('ornament'), 'decor', 'and the rail restores it there');
+test('ornaments are on the Features tab, armed by chips drawn through the garden painter', () => {
+  const tab = TRAY_CATS.find(c => c.id === 'features');
+  assert(tab.tools.includes('ornament'), 'the Features tab lists the tool');
+  assertEqual(brushTrayCatForTool('ornament'), 'features', 'and the rail restores it there');
   assert(TOOLS.ornament && TOOLS.ornament.placement && TOOLS.ornament.apply, 'the tool places through applyToolAt');
   const tray = readRepoFile('js/tray.js');
-  const page = tray.slice(tray.indexOf("if (cat.tools.includes('ornament')){"), tray.indexOf('/* Seating collapses'));
+  const page = tray.slice(tray.indexOf("if (cat.tools.includes('ornament')"), tray.indexOf('/* Seating collapses'));
   assert(page.length > 200, 'found the ornament page source');
   assert(/drawOrnamentChip\(/.test(page) && !/drawOrnamentArt\(/.test(page), 'every chip is fitted through drawOrnamentChip');
   assert(/ORNAMENT_GROUPS/.test(page), 'listed under their group headings');

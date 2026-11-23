@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.152';
+const APP_VERSION = '0.9.153';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1972,7 +1972,7 @@ function supportLabelFor(d){
    Sizes are real inches, like seating and containers, and the footprint follows
    the fire-pit pattern: origin tile plus a claimed rectangle. A fire pit is the
    closest sibling in every way (a built focal point with a real footprint and
-   its own tray sub-page), which is why these sit beside each other on Hardscape.
+   its own tray sub-page), which is why these sit beside each other on Features.
 
    `form` names the drawing branch the way a plant names its `form` and a fence
    names its `infill`; `water` names how the water reads — still, welling up

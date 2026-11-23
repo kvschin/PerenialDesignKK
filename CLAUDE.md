@@ -4207,7 +4207,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and schemes-adjacent plumbing come for free; `LAYER_CACHES` classifies it
     `{scene:1}` — one sprite in the depth pass, no ground bake, no shade map.
     `PET_SPECIES`/`PET_COATS`/`PET_MARKS`/`PET_PAWS` + `normalizePetDraft`
-    (core.js) are the data; `game.petDraft` is what the **Decor** tray arms.
+    (core.js) are the data; `game.petDraft` is what the **Furnishings** tab's Pet page arms.
     That tray is **contextual like the Ground tab**: Cat/Dog are always up and
     the coat, marking and sock rows only unfold once a pet is armed, the same
     shape as picking Bed and getting bed materials. Every chip previews the real
@@ -5355,15 +5355,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     cobalt lantern; `ornamentFinishFor` snaps), a footprint by the seat's
     rounding (everything 1x1 but the large sphere and the compost bay, 2x2), a
     `face` that a quarter turn swaps, and `turns` naming the pieces a Turn chip
-    changes. One tool, `ornament`, on the **Decor** tab between containers and
-    pets, in the pots' idiom: every piece always up under its group's heading,
+    changes. One tool, `ornament`, with a card and a page of its own on the
+    **Features** tab (0.9.153; it was laid out flat on Decor), in the pots' idiom: every piece on that page under its group's heading,
     the Finish and Facing rows unfolding once one is armed. Placement is the
     seat's: lawn, a bed or paving, never water and never a planting, through
     `solidBlockerAt` both ways (`SOLID_PLACERS` in the F08 test carries it); the
     one rule of its own is the roof -- `ORNAMENT_ROOF_IN` (72 in), so the 88 in
     feeder pole is refused under a pergola and a pergola over it
     (`pergolaBlockerAt` 'tall'), in a selection move too. Erase (Landscape),
-    Pick (to the Decor tab), selection move/turn/copy/paste (one row in
+    Pick (to its page on Features), selection move/turn/copy/paste (one row in
     `SEL_LAYERS` and `SEL_FOOTPRINTS`), the sweep report, saves and the import
     validator all come through the tables those already read.
     **The painter is the seat's** (§12b): every part laid out in the piece's own
@@ -6165,8 +6165,21 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     plant categories are Grasses, Sedges, Sun Perennials,
     Shade Perennials, Bulbs, Water Plants, Climbers (§12e), Shrubs, and Trees;
     Landscape categories
-    are Site, Ground, Grade, Hardscape, Lighting and Decor — **Site first** (0.9.29): a
+    are Site, Ground, Grade, Structures, Features and Furnishings — **Site first** (0.9.29): a
     design starts from the site, and it was last in the strip, scrolled out of view.
+    **What stands, what you look at, what you use** (0.9.153): Structures (fence,
+    pergola, support), Features (water feature, fire pit, boulder, ornament) and
+    Furnishings (seating, container, lighting, pet) replaced Hardscape, Lighting
+    and Decor, which filed a birdbath and a bird feeder, or a boulder and a stone
+    sphere, on different tabs and gave one tool a tab of its own. A tab's `hay` in
+    `TRAY_CATS` keeps the old names findable ("hardscape", "decor"). The tab is
+    never saved (`game.trayCat` is runtime), so nothing migrates. **The Site tab
+    is laid out as Grade is**: a row per thing a site is set up with (Site photo,
+    North, Draw footprint, Edit footprint), each saying what it is for and what
+    it is set to, and the next footprint's name, status and colours opening
+    under Draw footprint once it is armed; it was a row of bare chips over status
+    and colour rows that were always up. Its chips carry `data-site-status`,
+    `-fill` and `-edge`, so `refreshTray` marks the one in hand.
     The strip follows `TRAY_CATS` order, not `TRAY_GROUPS`. `#toolTray` is the primary
     scroller so the header, discovery controls, and footer stay visible; below
     `max-height:700px` the control stack becomes a scroller too, because
@@ -6310,7 +6323,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     manager rather than falling back to their base species. The
     planted tile stores `v`; tool state is `game.tool` + `game.toolVar`.
     **A Landscape tab opens on what its tools are and what they lay** (0.9.116;
-    `renderGroundShelves`, `renderGradeTools`, `renderHardscapeHome`,
+    `renderGroundShelves`, `renderGradeTools`, `renderCardTabHome`,
     `hardscapeArt`, tray.js; `.lg-*`, `.lt-row`, `.lh-card`). Ground, Grade
     and Hardscape each opened on five to seven small icons over an empty panel:
     measured, Ground used 58% of it and Grade and Hardscape 35%, on a phone and
@@ -6344,7 +6357,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and a click arms that row, and a row added to a table is searchable without
     touching the search. Tools no tab lists (Edit footprint) sit in
     `SEARCH_EXTRA_TOOLS`. A multi-word query matches its words anywhere in a
-    row ("corten fire"). A test walks every row of every table. The Hardscape tab draws fences and
+    row ("corten fire"). A test walks every row of every table. The Structures tab draws fences and
     gates from `game.fenceDraft` at 3/4/5/6/8 ft in twelve materials —
     Black Aluminum, Wood Picket, Cedar Privacy, Horizontal Slat, Split Rail,
     Vinyl, Chainlink, Garden Wire, Brick, Stone Wall, Woven Hurdle and Bamboo
@@ -6409,22 +6422,25 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and reflecting basin, each in the finishes that piece is really made in,
     behind their own drill-in beside the fire pit.
     Fire pits, boulders and water features erase as Landscape, move/rotate/copy
-    in selections, and eyedrop with Pick. The **Decor** tab holds **containers** (§12b), **garden
-    ornaments** (§12j) and **garden pets** (§12a), and Hardscape adds **seating** — bench 4/6 ft, Adirondack chair,
+    in selections, and eyedrop with Pick. The **Furnishings** tab holds **seating**, **containers** (§12b),
+    lighting and **garden pets** (§12a); **garden ornaments** (§12j) are on Features. Seating is bench 4/6 ft, Adirondack chair,
     dining chair, stool, bistro table, dining table, picnic table and sun
     lounger, each in the finishes it is really made in (`SEAT_TYPES` /
     `SEAT_FINISHES`, §12b), each claiming its real footprint.
-    **Every Hardscape tool is one idiom**: fence, pergola, support (§12e), fire
-    pit, water feature, boulder and seating each have a CARD on the tab's
-    opening page (0.9.116, `HARDSCAPE_CARDS`: the tool's own draft drawn by the
+    **Every tool on a card tab is one idiom** (`cards:true` in `TRAY_CATS`:
+    Structures, Features and Furnishings): each has a CARD on the tab's
+    opening page (0.9.116 for Hardscape, every card tab since 0.9.153;
+    `TOOL_CARDS`, `renderCardTabHome`, with each tool's draft, normaliser and
+    label in `TOOL_DRAFTS`: the tool's own draft drawn by the
     painter the garden uses for it, on a lawn-green plate that is the same in
     both themes, since a black aluminium fence on loam is invisible; a line
     saying what it is; and what it is set to, in the brush bar's words). Over
-    them are four things people place most (`HARDSCAPE_PICKS`, `armHardscapePick`,
-    `hardscapePickOn`: a cedar fence, a stone wall, a teak bench, a brick fire
-    pit), each armed in one tap with nothing further to choose; a pick is the
-    one in hand whichever way it is turned. The seven per-tool top-level
-    buttons went. A card
+    them are the things people place most on that tab (`TOOL_PICKS`, `armToolPick`,
+    `toolPickOn`: a cedar fence, a stone wall and a pergola; a birdbath, a brick
+    fire pit and a sphere; a teak bench, a terracotta pot and a path light), each
+    armed in one tap with nothing further to choose; a pick is the one in hand
+    whichever way it is turned. Lighting, containers, ornaments and pets were
+    laid out flat on their tabs and now have a page each like the rest. A card
     hands the whole tray over to the tool's own options behind `game.drill` (one
     shared `backBtn` serves them all — it was three byte-identical closures and
     the fourth was what prompted extracting it). Seating was the exception until
@@ -6433,9 +6449,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and needed a `!game.drill` guard to keep those chips off every other tool's
     sub-page. Its page is Seating / Finish (only the armed piece's) / Facing,
     every chip the piece itself through `drawSeatChip`.
-    **Every Hardscape branch of `pickAt` therefore has to name its own
+    **Every landscape-piece branch of `pickAt` therefore has to name its own
     destination**, because the eyedropper is the one route that arms these tools
-    from outside the tray: each sets `game.drill` to its own sub-page, because
+    from outside the tray: each calls `openToolPage(k)`, which sets the tab that
+    holds the tool and `game.drill` to its own sub-page, because
     that is where the picked material, height, shape, size or finish is a
     visible selected chip. Fence used to set nothing and inherit whatever page was open,
     so eyedropping a brick fence while the Fire Pit page was up left you looking
