@@ -515,16 +515,20 @@ const DRAG_DONE={
   lawn:      n=>lawnMowArmed() ? `Mowed ${n} tile${n>1?'s':''}.`
     : `Laid ${n} tile${n>1?'s':''} of ${lawnLabelFor(game.lawnStyle).toLowerCase()}.`,
   elevation: n=>`Adjusted ${n} elevation tile${n>1?'s':''}.`,
-  fence:     n=>`Placed ${n} ${fenceLabel().toLowerCase()} tile${n>1?'s':''}.`,
-  gate:      n=>`Placed ${n} ${fenceLabel().toLowerCase()} tile${n>1?'s':''}.`,
-  light:     n=>`Placed ${n} ${lightLabel().toLowerCase()}${n>1?'s':''}.`,
-  firepit:   n=>`Placed ${n} ${firepitLabel().toLowerCase()}${n>1?'s':''}.`,
-  waterfeature: n=>`Placed ${n} ${waterFeatureLabel().toLowerCase()}${n>1?'s':''}.`,
-  support:   n=>`Placed ${n} ${supportLabel().toLowerCase()}${n>1?'s':''}.`,
-  boulder:   n=>`Placed ${n} boulder${n>1?'s':''} - ${boulderLabel()}.`,
-  pot:       n=>`Placed ${n} container${n>1?'s':''} - ${potLabel()}.`,
-  seat:      n=>`Placed ${n} seat${n>1?'s':''} - ${seatLabel()}.`,
-  ornament:  n=>`Placed ${n} ornament${n>1?'s':''} - ${ornamentLabel()}.`,
+  /* A fence is laid as a run, so it is reported as one ("18 ft of 6 ft cedar
+     privacy fence"), and every counted piece the same way: how many, then which.
+     They were three shapes, and the labels that start with a size read "Placed 2
+     36 in round brick fire pits". */
+  fence:     n=>`Placed ${fmtFeet(n*TILE_IN/12,1)} of ${fenceLabel()}.`,
+  gate:      n=>`Placed ${fmtFeet(n*TILE_IN/12,1)} of ${fenceLabel()}.`,
+  light:     n=>`Placed ${n} light${n>1?'s':''}: ${lowerFirst(lightLabel())}.`,
+  firepit:   n=>`Placed ${n} fire pit${n>1?'s':''}: ${firepitLabel()}.`,
+  waterfeature: n=>`Placed ${n} water feature${n>1?'s':''}: ${lowerFirst(waterFeatureLabel())}.`,
+  support:   n=>`Placed ${n} climbing frame${n>1?'s':''}: ${lowerFirst(supportLabel())}.`,
+  boulder:   n=>`Placed ${n} boulder${n>1?'s':''}: ${lowerFirst(boulderLabel())}.`,
+  pot:       n=>`Placed ${n} container${n>1?'s':''}: ${potLabel()}.`,
+  seat:      n=>`Placed ${n} seat${n>1?'s':''}: ${lowerFirst(seatLabel())}.`,
+  ornament:  n=>`Placed ${n} ornament${n>1?'s':''}: ${lowerFirst(ornamentLabel())}.`,
   // a drag edges each bed it crosses once, so the count is of beds, not tiles
   edging:    n=>edgingDraft()==='none' ? `Lifted the edging off ${n} bed${n>1?'s':''}.`
     : `${edgingLabel()} laid round ${n} bed${n>1?'s':''}.`,

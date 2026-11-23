@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.148';
+const APP_VERSION = '0.9.149';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -225,19 +225,19 @@ const ELEV_RISER_IN = ELEV_STEP/PX_PER_FT*12;
    tile stands 9 in in from the wall, and a thicker top would put it on the wall. */
 const WALL_STYLES = [
   {id:'none',     label:'Bare earth',      short:'None',     face:null},
-  {id:'drystone', label:'Dry-stone Wall',  short:'Dry stone',face:'rubble',  courseIn:6,  tone:'#918d83', line:'rgba(48,44,38,0.34)',
+  {id:'drystone', label:'Dry-stone wall',  short:'Dry stone',face:'rubble',  courseIn:6,  tone:'#918d83', line:'rgba(48,44,38,0.34)',
     cap:'slabs',   topIn:8,  capIn:3,   overIn:1,   copeIn:15, capTone:'#a09b8f', cope:'capstones'},
-  {id:'stone',    label:'Mortared Stone',  short:'Stone',    face:'coursed', courseIn:7,  tone:'#9d998e', line:'rgba(52,48,42,0.30)',
+  {id:'stone',    label:'Mortared stone',  short:'Stone',    face:'coursed', courseIn:7,  tone:'#9d998e', line:'rgba(52,48,42,0.30)',
     cap:'coping',  topIn:7,  capIn:2,   overIn:1,   copeIn:24, capTone:'#aeaa9f', cope:'stone coping'},
   {id:'brick',    label:'Brick',           short:'Brick',    face:'brick',   courseIn:3,  tone:'#a35c43', line:'rgba(60,32,24,0.34)',
     cap:'rowlock', topIn:8,  capIn:3.6, overIn:0.5, copeIn:2.6, capTone:'#9a5640', cope:'brick-on-edge cap'},
-  {id:'sleeper',  label:'Timber Sleeper',  short:'Sleeper',  face:'sleeper', courseIn:9,  tone:'#7f6343', line:'rgba(40,28,16,0.40)',
+  {id:'sleeper',  label:'Timber sleeper',  short:'Sleeper',  face:'sleeper', courseIn:9,  tone:'#7f6343', line:'rgba(40,28,16,0.40)',
     cap:'timber',  topIn:7,  capIn:1,   overIn:0,   copeIn:96, capTone:'#8d7150'},
-  {id:'gabion',   label:'Gabion Basket',   short:'Gabion',   face:'gabion',  courseIn:12, tone:'#8d8e86', line:'rgba(38,40,36,0.46)',
+  {id:'gabion',   label:'Gabion basket',   short:'Gabion',   face:'gabion',  courseIn:12, tone:'#8d8e86', line:'rgba(38,40,36,0.46)',
     cap:'cage',    topIn:10, capIn:0.5, overIn:0,   copeIn:6,  capTone:'#96968e'},
-  {id:'concrete', label:'Poured Concrete', short:'Concrete', face:'smooth',  courseIn:24, tone:'#aaa79e', line:'rgba(60,58,52,0.20)',
+  {id:'concrete', label:'Poured concrete', short:'Concrete', face:'smooth',  courseIn:24, tone:'#aaa79e', line:'rgba(60,58,52,0.20)',
     cap:'flat',    topIn:6,  capIn:2,   overIn:0,   copeIn:120,capTone:'#b8b5ac'},
-  {id:'corten',   label:'Corten Steel',    short:'Corten',   face:'plate',   courseIn:36, tone:'#8d5134', line:'rgba(56,28,16,0.34)',
+  {id:'corten',   label:'Corten steel',    short:'Corten',   face:'plate',   courseIn:36, tone:'#8d5134', line:'rgba(56,28,16,0.34)',
     cap:'lip',     topIn:1.5,capIn:2,   overIn:0.4, copeIn:48, capTone:'#7c4429'},
 ];
 function wallStyle(id){ return WALL_STYLES.find(w=>w.id===id)||WALL_STYLES[0]; }
@@ -703,6 +703,14 @@ function trimNum(n,dp){
   const s=(+n||0).toFixed(Math.max(0,dp|0));
   return dp>0 ? s.replace(/\.?0+$/,'') : s;
 }
+/* Labels in the landscape tables are SENTENCE case ("Cedar privacy", "Stone
+   water basin"), so a label goes into the middle of a sentence by lowering its
+   first letter alone, and starts one by raising it: "6 ft cedar privacy fence
+   placed." A row whose noun is proper says so in its own `noun` ("Adirondack
+   chair"). These two used to be `.toLowerCase()` on Title Case labels, which is
+   how a planting list and a toast came to spell the same bench two ways. */
+function cap(s){ s=String(s==null?'':s); return s ? s[0].toUpperCase()+s.slice(1) : s; }
+function lowerFirst(s){ s=String(s==null?'':s); return s ? s[0].toLowerCase()+s.slice(1) : s; }
 
 /* THE length formatter. Everything that has a distance in inches goes through
    here — it replaced four near-identical functions (the plant card's
@@ -1069,24 +1077,24 @@ function waterPlanFill(t){ return waterStyle(t&&t.c).plan; }
    height in inches — display only, and the reason a lawn and a meadow are one
    tool rather than two. */
 const LAWN_STYLES = [
-  {id:'mown',   label:'Mown Lawn',        short:'Mown',   texture:null, none:true, cut:2.5,
+  {id:'mown',   label:'Mown lawn',        short:'Mown',   texture:null, none:true, cut:2.5,
    plan:'#d7e2c0'},
-  {id:'fescue', label:'No-Mow Fescue',    short:'No-mow', texture:'tussock', cut:8,
+  {id:'fescue', label:'No-mow fescue',    short:'No-mow', texture:'tussock', cut:8,
    tint:'#8fa563', mix:0.30, plan:'#cbdcae',
    tones:['#5c7040','#7d9455','#9aae6f','#6d8449']},
-  {id:'meadow', label:'Long Meadow',      short:'Meadow', texture:'meadow', cut:24,
+  {id:'meadow', label:'Long meadow',      short:'Meadow', texture:'meadow', cut:24,
    tint:'#a8a468', mix:0.42, plan:'#ccc99a',
    tones:['#6b7442','#93975a','#b6b47c','#7f8b4c']},
-  {id:'flower', label:'Wildflower Meadow',short:'Flower', texture:'flowermeadow', cut:20,
+  {id:'flower', label:'Wildflower meadow',short:'Flower', texture:'flowermeadow', cut:20,
    tint:'#a3a76a', mix:0.38, plan:'#d2cf9f',
    tones:['#6b7442','#8f9557','#b2b178','#7a8749']},
-  {id:'clover', label:'Clover Lawn',      short:'Clover', texture:'clover', cut:4,
+  {id:'clover', label:'Clover lawn',      short:'Clover', texture:'clover', cut:4,
    tint:'#6f9a55', mix:0.34, follow:0.35, plan:'#c3dcae',
    tones:['#41603a','#5d7f47','#7c9c5c','#94ad6a']},
-  {id:'thyme',  label:'Thyme Lawn',       short:'Thyme',  texture:'tapestry', cut:3,
+  {id:'thyme',  label:'Thyme lawn',       short:'Thyme',  texture:'tapestry', cut:3,
    tint:'#7d8f6a', mix:0.44, follow:0.30, plan:'#c8cfb2',
    tones:['#4a5a44','#6a7a58','#8a9670','#9b7f9a']},
-  {id:'moss',   label:'Moss Lawn',        short:'Moss',   texture:'moss', cut:1,
+  {id:'moss',   label:'Moss lawn',        short:'Moss',   texture:'moss', cut:1,
    tint:'#4f7346', mix:0.58, follow:0.15, plan:'#b6cdaa',
    tones:['#33512f','#456b3c','#5a824c','#6f9459']},
   /* STEPPING STONES, and they are a LAWN rather than a path on purpose: what
@@ -1100,12 +1108,12 @@ const LAWN_STYLES = [
      `noEdge` is the one thing it does need. A region strokes its outline, and
      a line drawn round a field of stepping stones marks a boundary where
      nothing changes -- the grass is the same grass on both sides of it. */
-  {id:'stepstone', label:'Stepping Stones', short:'Stones', texture:'stepstone', cut:2.5,
+  {id:'stepstone', label:'Stepping stones', short:'Stones', texture:'stepstone', cut:2.5,
    tint:'#8fa36a', mix:0.10, noEdge:true, plan:'#cfd6c2',
    tones:['#5f5f58','#8b8a80','#a5a49a','#76756c']},
   // The one surface that does not follow the season: a fixed fill, and a grain
   // that is deliberately too even. That evenness IS the tell.
-  {id:'turf',   label:'Artificial Turf',  short:'Turf',   texture:'synthetic', cut:1.5,
+  {id:'turf',   label:'Artificial turf',  short:'Turf',   texture:'synthetic', cut:1.5,
    fill:'#5a8a4e', plan:'#a8c9a0',
    tones:['#456f3d','#578646','#699a54','#4e7a44']},
 ];
@@ -1165,30 +1173,30 @@ function lawnMaterial(c){ const L=lawnStyle(c); return L.texture ? L : null; }
 const EDGING_GROUPS = [['strip','Strips & cut edges'],['laid','Brick, stone & concrete'],['wood','Timber & willow']];
 const EDGING_STYLES = [
   {id:'none',   label:'No edging',      short:'None',   group:'strip', w:0},
-  {id:'spade',  label:'Cut Spade Edge', short:'Spade',  group:'strip', w:4.2, kind:'cut', col:'#3f3222'},
-  {id:'steel',  label:'Steel Edging',   short:'Steel',  group:'strip', w:2.2, kind:'strip', rise:1.2,
+  {id:'spade',  label:'Cut spade edge', short:'Spade',  group:'strip', w:4.2, kind:'cut', col:'#3f3222'},
+  {id:'steel',  label:'Steel edging',   short:'Steel',  group:'strip', w:2.2, kind:'strip', rise:1.2,
    col:'#3a3b36', top:'#7c7e76', face:'#26271f'},
-  {id:'alu',    label:'Aluminium Edge', short:'Alu',    group:'strip', w:2.0, kind:'strip', rise:1.2,
+  {id:'alu',    label:'Aluminium edging', short:'Alu',    group:'strip', w:2.0, kind:'strip', rise:1.2,
    col:'#a7adae', top:'#e2e6e5', face:'#6f7577'},
-  {id:'corten', label:'Corten Strip',   short:'Corten', group:'strip', w:2.4, kind:'strip', rise:3,
+  {id:'corten', label:'Corten strip',   short:'Corten', group:'strip', w:2.4, kind:'strip', rise:3,
    col:'#8d4c2c', top:'#c77a4c', face:'#5a2e18'},
-  {id:'concrete', label:'Concrete Mow Strip', short:'Concrete', group:'laid', w:14, kind:'units', unitIn:48,
+  {id:'concrete', label:'Concrete mow strip', short:'Concrete', group:'laid', w:14, kind:'units', unitIn:48,
    col:'#bdb7aa', tones:['#c3bdb0','#b9b3a6','#bfb9ac'], joint:'#8a8478'},
-  {id:'brick',  label:'Brick Soldier',  short:'Brick',  group:'laid', w:8.5, kind:'units', rise:1, unitIn:2.6,
+  {id:'brick',  label:'Brick soldier course',  short:'Brick',  group:'laid', w:8.5, kind:'units', rise:1, unitIn:2.6,
    col:'#a35c43', tones:['#a65a40','#b76b4c','#924f39','#ad6248'], joint:'#cdbfa8', face:'#6c3a29'},
-  {id:'sawtooth', label:'Brick Sawtooth', short:'Sawtooth', group:'laid', w:5, kind:'teeth', rise:3.4, unitIn:4.4,
+  {id:'sawtooth', label:'Brick sawtooth', short:'Sawtooth', group:'laid', w:5, kind:'teeth', rise:3.4, unitIn:4.4,
    col:'#a65a40', tones:['#a65a40','#b76b4c','#924f39'], face:'#6c3a29'},
-  {id:'ropetop', label:'Rope-top Tile', short:'Rope-top', group:'laid', w:3.6, kind:'strip', rise:5, rope:true, unitIn:12,
+  {id:'ropetop', label:'Rope-top tile', short:'Rope-top', group:'laid', w:3.6, kind:'strip', rise:5, rope:true, unitIn:12,
    col:'#b86948', top:'#d68a64', face:'#8a4a30'},
-  {id:'setts',  label:'Stone Setts',    short:'Setts',  group:'laid', w:9.4, kind:'units', rise:0.6, unitIn:4.2,
+  {id:'setts',  label:'Stone setts',    short:'Setts',  group:'laid', w:9.4, kind:'units', rise:0.6, unitIn:4.2,
    col:'#96928a', tones:['#9e998f','#8a867d','#aaa599','#918c82'], joint:'#5c5952', face:'#605d56'},
-  {id:'stone',  label:'Fieldstone Edge', short:'Fieldstone', group:'laid', w:14, kind:'stones', rise:3.5, unitIn:5.6,
+  {id:'stone',  label:'Fieldstone edge', short:'Fieldstone', group:'laid', w:14, kind:'stones', rise:3.5, unitIn:5.6,
    col:'#9b9588', tones:['#a59f92','#8f897c','#b3ac9d','#81796c'], face:'#5b564d'},
-  {id:'timber', label:'Timber Board',   short:'Timber', group:'wood', w:3.6, kind:'strip', rise:2, unitIn:96,
+  {id:'timber', label:'Timber board',   short:'Timber', group:'wood', w:3.6, kind:'strip', rise:2, unitIn:96,
    col:'#7f6243', top:'#b0906a', face:'#54402b'},
-  {id:'logroll', label:'Log Roll',      short:'Log roll', group:'wood', w:7, kind:'logs', rise:4, unitIn:3,
+  {id:'logroll', label:'Log roll',      short:'Log roll', group:'wood', w:7, kind:'logs', rise:4, unitIn:3,
    col:'#7d5d3c', top:'#c8a97c', face:'#55402a'},
-  {id:'willow', label:'Woven Willow',   short:'Willow', group:'wood', w:4, kind:'weave', rise:6, unitIn:12,
+  {id:'willow', label:'Woven willow',   short:'Willow', group:'wood', w:4, kind:'weave', rise:6, unitIn:12,
    col:'#8c7556', top:'#b39b74', face:'#5e4c36'},
 ];
 function edgingStyle(id){ return EDGING_STYLES.find(e=>e.id===id)||EDGING_STYLES[0]; }
@@ -1206,29 +1214,29 @@ function isElevationTool(t){ return ELEV_TOOLS.includes(t); }
    spans it is really built at — a split rail fence is not 8 ft tall and a
    privacy fence is not 3 ft. Omit `heights` to allow all of FENCE_HEIGHTS. */
 const FENCE_STYLES = [
-  {id:'black', label:'Black Aluminum', short:'Black', infill:'bar', cap:'spear',
+  {id:'black', label:'Black aluminium', short:'Black', infill:'bar', cap:'spear',
    header:'lintel', post:'#1e1d1b', rail:'#2f312f', fill:'#151514', heights:[3,4,5,6]},
-  {id:'wood', label:'Wood Picket', short:'Picket', infill:'picket', cap:'point',
+  {id:'wood', label:'Wood picket', short:'Picket', infill:'picket', cap:'point',
    post:'#7b5636', rail:'#9a7148', fill:'#6a4529', heights:[3,4,5]},
-  {id:'privacy', label:'Cedar Privacy', short:'Privacy', infill:'privacy', cap:'flat',
+  {id:'privacy', label:'Cedar privacy', short:'Privacy', infill:'privacy', cap:'flat',
    post:'#6b4a2f', rail:'#8a6440', fill:'#9d7247', heights:[5,6,8]},
-  {id:'slat', label:'Horizontal Slat', short:'Slat', infill:'slat', cap:'flat',
+  {id:'slat', label:'Horizontal slat', short:'Slat', infill:'slat', cap:'flat',
    post:'#4a423a', rail:'#7d6b55', fill:'#6a5b49', heights:[4,5,6,8]},
-  {id:'rail', label:'Split Rail', short:'Split rail', infill:'rail', cap:'flat',
+  {id:'rail', label:'Split rail', short:'Split rail', infill:'rail', cap:'flat',
    post:'#8a7355', rail:'#9c8465', fill:'#7d674c', heights:[3,4]},
   {id:'vinyl', label:'Vinyl', short:'Vinyl', infill:'picket', cap:'ball',
    post:'#eee8dc', rail:'#f8f3e8', fill:'#d8d0c2', heights:[3,4,5,6]},
   {id:'chainlink', label:'Chainlink', short:'Chainlink', infill:'chain', cap:'flat',
    header:'lintel', gateLeaf:'chain', post:'#68757a', rail:'#aab5b5', fill:'#d5dddd'},
-  {id:'mesh', label:'Garden Wire', short:'Wire', infill:'mesh', cap:'flat',
+  {id:'mesh', label:'Garden wire', short:'Wire', infill:'mesh', cap:'flat',
    header:'lintel', post:'#6b5a44', rail:'#8a7a62', fill:'#b9bfb8'},
-  {id:'brick', label:'Brick', short:'Brick', infill:'masonry', cap:'coping', coursed:true,
+  {id:'brick', label:'Brick wall', short:'Brick', infill:'masonry', cap:'coping', coursed:true,
    gateLeaf:'bar', post:'#8f4e3a', rail:'#a85f45', fill:'#6f382d', heights:[3,4,5,6]},
-  {id:'stone', label:'Stone Wall', short:'Stone', infill:'masonry', cap:'coping', coursed:false,
+  {id:'stone', label:'Stone wall', short:'Stone', infill:'masonry', cap:'coping', coursed:false,
    gateLeaf:'bar', post:'#8d8a80', rail:'#9d9a90', fill:'#7c7a72', heights:[3,4,5,6]},
-  {id:'woven', label:'Woven Hurdle', short:'Hurdle', infill:'woven', cap:'flat',
+  {id:'woven', label:'Woven hurdle', short:'Hurdle', infill:'woven', cap:'flat',
    post:'#8a7550', rail:'#a08a5f', fill:'#b39a6b', heights:[3,4,5]},
-  {id:'screen', label:'Bamboo Screen', short:'Bamboo', infill:'screen', cap:'flat',
+  {id:'screen', label:'Bamboo screen', short:'Bamboo', infill:'screen', cap:'flat',
    post:'#7a6a4a', rail:'#8f7c56', fill:'#c2a86a', heights:[4,5,6,8]},
 ];
 /* 3 ft low boundary, 4 ft the common yard/pool minimum, 5 ft semi-privacy (and
@@ -1312,8 +1320,8 @@ const PERGOLA_SPEC = {postIn:6, beamIn:9, beamWIn:3.5, rafterIn:7, rafterWIn:2, 
 const PERGOLA_MATERIALS = [
   {id:'timber', label:'Timber',      short:'Timber', post:'#8a6a44', beam:'#9c7b52', hi:'#c2a074', brace:true},
   {id:'oak',    label:'Oak',         short:'Oak',    post:'#6f5432', beam:'#82653f', hi:'#a3845a', brace:true},
-  {id:'white',  label:'Painted White',short:'White', post:'#ded9cf', beam:'#efebe2', hi:'#ffffff', brace:true},
-  {id:'black',  label:'Black Metal', short:'Black',  post:'#2b2b2f', beam:'#3a3a40', hi:'#6a6a74', brace:false,
+  {id:'white',  label:'Painted white',short:'White', post:'#ded9cf', beam:'#efebe2', hi:'#ffffff', brace:true},
+  {id:'black',  label:'Black metal', short:'Black',  post:'#2b2b2f', beam:'#3a3a40', hi:'#6a6a74', brace:false,
    spec:{postIn:4, beamIn:7, beamWIn:2.5, rafterIn:5, rafterWIn:1.5}},
 ];
 function pergolaSpec(mat){ return Object.assign({},PERGOLA_SPEC,pergolaMaterial(mat).spec||{}); }
@@ -1389,18 +1397,19 @@ const LIGHT_TYPES = [
    ("change the palette in data, not in code"). */
 const LIGHT_FINISHES = [
   {id:'graphite', label:'Graphite',    short:'Graphite', body:'#3f4038', hi:'#6c6958'},
-  {id:'black',    label:'Black Metal', short:'Black',    body:'#26262a', hi:'#4f4f58'},
+  {id:'black',    label:'Black metal', short:'Black',    body:'#26262a', hi:'#4f4f58'},
   {id:'bronze',   label:'Bronze',      short:'Bronze',   body:'#3f3128', hi:'#7a6049'},
-  {id:'steel',    label:'Brushed Steel', short:'Steel',  body:'#79808a', hi:'#b6bdc4'},
-  {id:'copper',   label:'Aged Copper', short:'Copper',   body:'#6b5237', hi:'#ab7a4d'},
-  {id:'white',    label:'Matt White',  short:'White',    body:'#cfcbc1', hi:'#f0ede6'},
+  {id:'steel',    label:'Brushed steel', short:'Steel',  body:'#79808a', hi:'#b6bdc4'},
+  {id:'copper',   label:'Aged copper', short:'Copper',   body:'#6b5237', hi:'#ab7a4d'},
+  {id:'white',    label:'Matt white',  short:'White',    body:'#cfcbc1', hi:'#f0ede6'},
   // a torch's pole; the one finish that is not a metal, and only the torch is made in it
   {id:'bamboo',   label:'Bamboo',      short:'Bamboo',   body:'#9c7c48', hi:'#d2b77e'},
 ];
 const LIGHT_TONES = [
-  {id:'eco', label:'Eco friendly', short:'Eco', col:'#b9d483', glow:'rgba(190,224,130,'},
-  {id:'warm', label:'Warm', short:'Warm', col:'#ffd28a', glow:'rgba(255,194,112,'},
-  {id:'bright', label:'Bright', short:'Bright', col:'#f1f7ff', glow:'rgba(218,234,255,'},
+  {id:'eco', label:'Amber', short:'Amber', col:'#ffbd66', glow:'rgba(255,170,72,',
+   tip:'Amber: the wildlife-friendly colour, which draws far fewer insects'},
+  {id:'warm', label:'Warm white', short:'Warm', col:'#ffd28a', glow:'rgba(255,194,112,'},
+  {id:'bright', label:'Cool white', short:'Cool', col:'#f1f7ff', glow:'rgba(218,234,255,'},
 ];
 function lightType(id){ return LIGHT_TYPES.find(l=>l.id===id)||LIGHT_TYPES[0]; }
 function lightTone(id){ return LIGHT_TONES.find(l=>l.id===id)||LIGHT_TONES[1]; }
@@ -1472,14 +1481,14 @@ const FIREPIT_SIZES = [
 /* `name` is how the material reads in a sentence, with the finish in `{f}`:
    "tumbled brick", "corten steel", "copper". */
 const FIREPIT_STYLES = [
-  {id:'stone', label:'Stacked Stone',  short:'Stone', form:'masonry', course:'stone', name:'{f}',
+  {id:'stone', label:'Stacked stone',  short:'Stone', form:'masonry', course:'stone', name:'{f}',
    wallIn:15, thickIn:7,    capIn:2.5,   capOverIn:1.25, courseIn:3.8,   unitIn:10, jointIn:0.5,   bedIn:3,
    finishes:['fieldstone','limestone','bluestone','sandstone']},
   {id:'brick', label:'Brick',          short:'Brick', form:'masonry', course:'brick', name:'{f} brick',
    wallIn:14, thickIn:7.5,  capIn:3.625, capOverIn:1,    courseIn:2.625, unitIn:8,  jointIn:0.375, bedIn:3,
    capUnitIn:2.25,       // a rowlock cap: bricks on edge, radiating, ends out
    finishes:['red','tumbled','buff','charcoal','whitewash']},
-  {id:'block', label:'Concrete Block', short:'Block', form:'masonry', course:'block', name:'{f} block',
+  {id:'block', label:'Concrete block', short:'Block', form:'masonry', course:'block', name:'{f} block',
    wallIn:15, thickIn:7,    capIn:3,     capOverIn:1,    courseIn:4,     unitIn:12, jointIn:0.25,  bedIn:3,
    finishes:['grey','tan','charcoal']},
   {id:'steel', label:'Steel',          short:'Steel', form:'ring',    name:'{f} steel',
@@ -1488,7 +1497,7 @@ const FIREPIT_STYLES = [
   /* A bowl on a stand is sold up to about 40 in; wider than that it is a
      concrete bowl standing on the ground, and a 48 in wok on 4 in legs is what
      drawing one on legs produced. */
-  {id:'bowl',  label:'Fire Bowl',      short:'Bowl',  form:'bowl',    name:'{f}', shapes:['round'],
+  {id:'bowl',  label:'Fire bowl',      short:'Bowl',  form:'bowl',    name:'{f}', shapes:['round'],
    sizes:['round24','round36'],
    wallIn:16, thickIn:1.5,  bowlIn:0.28, // the bowl is this fraction of its width deep
    finishes:['castiron','copper','corten']},
@@ -1513,7 +1522,7 @@ const FIREPIT_FINISHES = [
   {id:'black',      label:'Black',       metal:true, tone:'#34322f', hi:'#6e6a64', dark:'#191816'},
   {id:'corten',     label:'Corten',      metal:true, tone:'#8b4b2c', hi:'#b9713f', dark:'#57301c', rust:true},
   {id:'stainless',  label:'Stainless',   metal:true, tone:'#a0a6ab', hi:'#eef1f3', dark:'#646a6f'},
-  {id:'castiron',   label:'Cast Iron',   metal:true, tone:'#2d2b29', hi:'#5f5b56', dark:'#151413'},
+  {id:'castiron',   label:'Cast iron',   metal:true, tone:'#2d2b29', hi:'#5f5b56', dark:'#151413'},
   {id:'copper',     label:'Copper',      metal:true, tone:'#a35f37', hi:'#e8a56d', dark:'#6a3a1f', hammered:true},
 ];
 function firepitStyle(id){ return FIREPIT_STYLES.find(s=>s.id===id)||FIREPIT_STYLES[0]; }
@@ -1874,15 +1883,15 @@ function boulderTakeoffText(d,n){
 const SUPPORT_STYLES = [
   {id:'obelisk', label:'Obelisk',       short:'Obelisk', form:'obelisk', wIn:22, dIn:22, ft:7,
    materials:['timber','black','willow']},
-  {id:'trellis', label:'Trellis Panel', short:'Trellis', form:'panel',   wIn:34, dIn:4,  ft:6, face:true,
+  {id:'trellis', label:'Trellis panel', short:'Trellis', form:'panel',   wIn:34, dIn:4,  ft:6, face:true,
    materials:['timber','black','willow']},
-  {id:'arch',    label:'Garden Arch',   short:'Arch',    form:'arch',    wIn:46, dIn:20, ft:8, face:true,
+  {id:'arch',    label:'Garden arch',   short:'Arch',    form:'arch',    wIn:46, dIn:20, ft:8, face:true,
    materials:['black','timber','willow']},
 ];
 const SUPPORT_MATERIALS = [
   {id:'timber', label:'Timber',      wood:'#8a6a44', dark:'#5f4526', light:'#a8865c'},
-  {id:'black',  label:'Black Metal', wood:'#2c2c30', dark:'#191919', light:'#4a4a50'},
-  {id:'willow', label:'Woven Willow',wood:'#a58b5c', dark:'#7a6339', light:'#c0a878'},
+  {id:'black',  label:'Black metal', wood:'#2c2c30', dark:'#191919', light:'#4a4a50'},
+  {id:'willow', label:'Woven willow',wood:'#a58b5c', dark:'#7a6339', light:'#c0a878'},
 ];
 function supportStyle(id){ return SUPPORT_STYLES.find(s=>s.id===id)||SUPPORT_STYLES[0]; }
 function supportStyleId(id){ return supportStyle(id).id; }
@@ -1935,19 +1944,19 @@ function supportLabelFor(d){
 const WATER_FEATURES = [
   {id:'birdbath',  label:'Birdbath',            short:'Birdbath',  form:'pedestal',
    wIn:26, dIn:26, hIn:34, water:'still',   finishes:['stone','slate','bronze']},
-  {id:'urn',       label:'Bubbling Urn',        short:'Urn',       form:'urn',
+  {id:'urn',       label:'Bubbling urn',        short:'Urn',       form:'urn',
    wIn:26, dIn:26, hIn:32, water:'welling', bed:true, finishes:['stone','corten','glazed']},
-  {id:'millstone', label:'Bubbling Millstone',  short:'Millstone', form:'millstone',
+  {id:'millstone', label:'Bubbling millstone',  short:'Millstone', form:'millstone',
    wIn:34, dIn:34, hIn:9,  water:'welling', bed:true, finishes:['stone','slate']},
-  {id:'tiered',    label:'Tiered Fountain',     short:'Tiered',    form:'tiered',
+  {id:'tiered',    label:'Tiered fountain',     short:'Tiered',    form:'tiered',
    wIn:40, dIn:40, hIn:62, water:'falling', finishes:['stone','slate','bronze']},
-  {id:'tsukubai',  label:'Stone Water Basin',   short:'Stone basin', form:'tsukubai',
+  {id:'tsukubai',  label:'Stone water basin',   short:'Stone basin', form:'tsukubai',
    wIn:22, dIn:22, hIn:15, water:'still',   finishes:['stone','slate']},
-  {id:'spout',     label:'Wall Spout & Trough', short:'Wall spout', form:'spout',
+  {id:'spout',     label:'Wall spout & trough', short:'Wall spout', form:'spout',
    wIn:38, dIn:16, hIn:54, water:'falling', finishes:['corten','stone','bronze']},
-  {id:'tank',      label:'Stock Tank Pool',     short:'Stock tank', form:'tank',
+  {id:'tank',      label:'Stock tank pool',     short:'Stock tank', form:'tank',
    wIn:70, dIn:70, hIn:24, water:'still',   finishes:['galv','corten']},
-  {id:'pool',      label:'Reflecting Basin',    short:'Basin pool', form:'basin',
+  {id:'pool',      label:'Reflecting basin',    short:'Basin pool', form:'basin',
    wIn:72, dIn:36, hIn:15, water:'still',   finishes:['stone','corten','slate']},
 ];
 /* Finish is an axis of its own, like a seat's, because the same basin really is
@@ -1956,11 +1965,11 @@ const WATER_FEATURES = [
    so a form may name the ones it is made in, exactly as a pot style names the
    sizes it comes in. */
 const WATER_FINISHES = [
-  {id:'stone',  label:'Cast Stone',  body:'#9a9489', rim:'#b3ada1', dark:'#6f6a61'},
+  {id:'stone',  label:'Cast stone',  body:'#9a9489', rim:'#b3ada1', dark:'#6f6a61'},
   {id:'slate',  label:'Slate',       body:'#6b7276', rim:'#868d91', dark:'#474d51'},
   {id:'corten', label:'Corten',      body:'#8d5134', rim:'#a86840', dark:'#5f341f'},
   {id:'bronze', label:'Bronze',      body:'#6e5a36', rim:'#8d7748', dark:'#463823'},
-  {id:'glazed', label:'Glazed Blue', body:'#3f6f86', rim:'#5b8ba2', dark:'#28495a'},
+  {id:'glazed', label:'Glazed blue', body:'#3f6f86', rim:'#5b8ba2', dark:'#28495a'},
   {id:'galv',   label:'Galvanised',  body:'#8e949a', rim:'#aab0b6', dark:'#666c72'},
 ];
 function waterFeature(id){ return WATER_FEATURES.find(w=>w.id===id)||WATER_FEATURES[0]; }
@@ -2021,56 +2030,61 @@ const ORNAMENT_GROUPS = [
   {id:'working',  label:'Working garden', desc:'Water and compost, where they are used'},
 ];
 const ORNAMENTS = [
-  {id:'sphere',   group:'focal', label:'Stone Sphere',     short:'Sphere',     form:'sphere',
+  {id:'sphere',   group:'focal', family:'sphere', label:'Stone sphere',     short:'Sphere',     form:'sphere',
    wIn:18, dIn:18, hIn:18, name:'{f} sphere',            finishes:['granite','concrete','corten']},
-  {id:'sphere30', group:'focal', label:'Large Sphere',     short:'Large sphere', form:'sphere',
+  {id:'sphere30', group:'focal', family:'sphere', label:'Large sphere',     short:'Large sphere', form:'sphere',
    wIn:30, dIn:30, hIn:30, name:'Large {f} sphere',      finishes:['granite','concrete','corten']},
-  {id:'armillary',group:'focal', label:'Armillary Sphere', short:'Armillary',  form:'armillary',
+  {id:'armillary',group:'focal', label:'Armillary sphere', short:'Armillary',  form:'armillary',
    wIn:18, dIn:18, hIn:48, name:'{f} armillary sphere',  finishes:['verdigris','bronze','iron'], turns:true},
   {id:'sundial',  group:'focal', label:'Sundial',          short:'Sundial',    form:'sundial',
    wIn:16, dIn:16, hIn:35, name:'{f} sundial',           finishes:['concrete','granite'], turns:true},
-  {id:'gazing',   group:'focal', label:'Gazing Ball',      short:'Gazing ball',form:'gazing',
+  {id:'gazing',   group:'focal', label:'Gazing ball',      short:'Gazing ball',form:'gazing',
    wIn:12, dIn:12, hIn:32, name:'{f} gazing ball',       finishes:['silver','cobalt','emerald']},
-  {id:'lantern',  group:'focal', label:'Stone Lantern',    short:'Lantern',    form:'lantern',
+  {id:'lantern',  group:'focal', label:'Stone lantern',    short:'Lantern',    form:'lantern',
    wIn:21, dIn:21, hIn:52, name:'Stone lantern, {f}',     finishes:['granite','concrete'], turns:true},
-  {id:'feeder',   group:'wildlife', label:'Bird Feeder Pole', short:'Feeder',  form:'feeder',
+  {id:'feeder',   group:'wildlife', label:'Bird feeder pole', short:'Feeder',  form:'feeder',
    wIn:18, dIn:8,  hIn:88, name:'Bird feeder pole, {f}', finishes:['green','copper','steel'], turns:true, chipTop:0.42},
-  {id:'nestbox',  group:'wildlife', label:'Nest Box on Post', short:'Nest box', form:'nestbox',
+  {id:'nestbox',  group:'wildlife', label:'Nest box on a post', short:'Nest box', form:'nestbox',
    wIn:10, dIn:12, hIn:68, name:'{f} nest box on a post',finishes:['cedar','sage','weathered'], turns:true, chipTop:0.45},
-  {id:'bughotel', group:'wildlife', label:'Insect Hotel',  short:'Bee hotel',  form:'hotel',
+  {id:'bughotel', group:'wildlife', label:'Insect hotel',  short:'Bee hotel',  form:'hotel',
    wIn:24, dIn:11, hIn:50, name:'{f} insect hotel',      finishes:['larch','cedar'], turns:true},
-  {id:'rainbarrel',group:'working', label:'Rain Barrel',   short:'Rain barrel',form:'barrel',
+  {id:'rainbarrel',group:'working', label:'Rain barrel',   short:'Rain barrel',form:'barrel',
    wIn:24, dIn:24, hIn:48, name:'{f} rain barrel',       finishes:['oak','green','slate','terracotta'], turns:true, gal:55},
-  {id:'compost',  group:'working', label:'Compost Bay',    short:'Compost',    form:'compost',
+  {id:'compost',  group:'working', label:'Compost bay',    short:'Compost',    form:'compost',
    wIn:36, dIn:36, hIn:36, name:'{f} compost bay',       finishes:['pine','cedar'], cuYd:1},
 ];
 /* `mat` is how a finish is DRAWN -- stone takes speckle, metal a sheen on what
    faces up, glass a reflection, wood grain -- the seat finishes' convention. */
 const ORNAMENT_FINISHES = [
   {id:'granite',  label:'Granite',      mat:'stone', body:'#8e8a83'},
-  {id:'concrete', label:'Cast Stone',   mat:'stone', body:'#aaa498'},
+  {id:'concrete', label:'Cast stone',   mat:'stone', body:'#aaa498'},
   {id:'corten',   label:'Corten',       mat:'metal', body:'#8f5233'},
   {id:'verdigris',label:'Verdigris',    mat:'metal', body:'#5e8c7a'},
   {id:'bronze',   label:'Bronze',       mat:'metal', body:'#76603a'},
-  {id:'iron',     label:'Black Iron',   mat:'metal', body:'#34332f'},
+  {id:'iron',     label:'Black iron',   mat:'metal', body:'#34332f'},
   {id:'silver',   label:'Silver',       mat:'glass', body:'#a9b6bd'},
   {id:'cobalt',   label:'Cobalt',       mat:'glass', body:'#2c4d97'},
   {id:'emerald',  label:'Emerald',      mat:'glass', body:'#25744c'},
   {id:'green',    label:'Green',        mat:'paint', body:'#3f6a3a'},
   {id:'copper',   label:'Copper',       mat:'metal', body:'#a8673a'},
-  {id:'steel',    label:'Brushed Steel',mat:'metal', body:'#9aa0a4'},
+  {id:'steel',    label:'Brushed steel',mat:'metal', body:'#9aa0a4'},
   {id:'cedar',    label:'Cedar',        mat:'wood',  body:'#9b6444'},
-  {id:'sage',     label:'Sage Painted', mat:'paint', body:'#7f9378'},
+  {id:'sage',     label:'Painted sage', mat:'paint', body:'#7f9378'},
   {id:'weathered',label:'Weathered',    mat:'wood',  body:'#8b867d'},
   {id:'larch',    label:'Larch',        mat:'wood',  body:'#b0834f'},
   {id:'pine',     label:'Pine',         mat:'wood',  body:'#bea173'},
   {id:'oak',      label:'Oak',          mat:'wood',  body:'#83583a'},
-  {id:'slate',    label:'Slate Grey',   mat:'paint', body:'#5b6166'},
+  {id:'slate',    label:'Slate grey',   mat:'paint', body:'#5b6166'},
   {id:'terracotta',label:'Terracotta',  mat:'paint', body:'#a65f3e'},
 ];
 function ornamentGroup(id){ return ORNAMENT_GROUPS.find(g=>g.id===id)||ORNAMENT_GROUPS[0]; }
 function ornamentKind(id){ return ORNAMENTS.find(o=>o.id===id)||ORNAMENTS[0]; }
 function ornamentKindId(id){ return ornamentKind(id).id; }
+// the pieces sold in more than one size (the stone spheres), offered as one with a Size row
+function ornamentFamily(id){
+  const o=ornamentKind(id);
+  return o.family ? ORNAMENTS.filter(x=>x.family===o.family) : [o];
+}
 function ornamentFinish(id){ return ORNAMENT_FINISHES.find(f=>f.id===id)||ORNAMENT_FINISHES[0]; }
 // the finishes a piece is really made in, in ITS order (waterFeatureFinishes)
 function ornamentFinishes(id){
@@ -2100,7 +2114,8 @@ function ornamentTileSize(d){
 const L_PER_GAL=3.78541;
 function ornamentTakeoffText(d,n){
   const o=ornamentKind(normalizeOrnamentDraft(d).kind);
-  if (o.form==='sphere') return `${fmtLengthIn(o.wIn)} across`;
+  // a sphere is sold by its diameter in inches: "30 in", never "2.5 ft"
+  if (o.form==='sphere') return `${fmtLengthIn(o.wIn,{ftAt:Infinity})} across`;
   if (o.gal) return `holds ${metricUnits()?Math.round(o.gal*L_PER_GAL/5)*5+' L':o.gal+' US gal'}, ${fmtLengthIn(o.hIn)} tall on its stand`;
   if (o.cuYd) return `${fmtLengthIn(o.wIn)} square, holds about ${fmtVolumeCuYd(o.cuYd)}`;
   return `${fmtLengthIn(o.hIn)} tall`;
@@ -2176,17 +2191,17 @@ function normalizePetDraft(d){
 const POT_STYLES = [
   {id:'terracotta', label:'Terracotta',   short:'Terracotta', form:'taper',  body:'#b4633f', rim:'#c97a53', soil:'#4a3a2a',
     natural:'Terracotta', finishes:['aged','whitewash','charcoal','sage']},
-  {id:'glazed',     label:'Glazed Blue',  short:'Glazed',     form:'belly',  body:'#3f6f86', rim:'#54889e', soil:'#4a3a2a',
+  {id:'glazed',     label:'Glazed blue',  short:'Glazed',     form:'belly',  body:'#3f6f86', rim:'#54889e', soil:'#4a3a2a',
     natural:'Blue', finishes:['green','teal','cobalt','oxblood','honey','cream','charcoal']},
-  {id:'concrete',   label:'Cast Stone',   short:'Stone',      form:'square', body:'#9a9789', rim:'#aeab9d', soil:'#4a3a2a',
+  {id:'concrete',   label:'Cast stone',   short:'Stone',      form:'square', body:'#9a9789', rim:'#aeab9d', soil:'#4a3a2a',
     natural:'Grey', finishes:['charcoal','buff','slate','sage']},
-  {id:'timber',     label:'Timber Box',   short:'Timber',     form:'crate',  body:'#7d6142', rim:'#96774f', soil:'#4a3a2a',
+  {id:'timber',     label:'Timber box',   short:'Timber',     form:'crate',  body:'#7d6142', rim:'#96774f', soil:'#4a3a2a',
     natural:'Oak', finishes:['driftwood','forest','black','slate']},
   {id:'metal',      label:'Galvanised',   short:'Metal',      form:'tub',    body:'#8e949a', rim:'#a9afb5', soil:'#4a3a2a',
     natural:'Zinc', finishes:['black','copper','corten','forest']},
-  {id:'urn',        label:'Classical Urn',short:'Urn',        form:'urn',    body:'#8b8478', rim:'#a09889', soil:'#4a3a2a',
+  {id:'urn',        label:'Classical urn',short:'Urn',        form:'urn',    body:'#8b8478', rim:'#a09889', soil:'#4a3a2a',
     natural:'Stone', finishes:['lead','verdigris','whitewash','charcoal']},
-  {id:'trough',     label:'Long Trough',  short:'Trough',     form:'trough', body:'#8a8175', rim:'#9d9488', soil:'#4a3a2a',
+  {id:'trough',     label:'Long trough',  short:'Trough',     form:'trough', body:'#8a8175', rim:'#9d9488', soil:'#4a3a2a',
     natural:'Stone', sizes:['trough36','trough54'], finishes:['charcoal','corten','driftwood','sage']},
 ];
 /* ---------- pot colour ----------
@@ -2230,17 +2245,22 @@ const POT_FINISHES = [
    inches, so a big pot overhangs its own tile the way a shrub's canopy does,
    which is honest and keeps placement a one-tile question. The troughs are
    genuinely long, so they take a real multi-tile footprint like a fire pit. */
+/* No `label`: a size is said through potSizeText, in the reader's units. The
+   rows carried '18 in' as a string, so a metric planting list ordered an
+   "18 in terracotta" beside a "91 cm" fire pit. */
 const POT_SIZES = [
-  {id:'p10', label:'10 in', wIn:10, hIn:9,  round:true},
-  {id:'p14', label:'14 in', wIn:14, hIn:13, round:true},
-  {id:'p18', label:'18 in', wIn:18, hIn:16, round:true},
-  {id:'p24', label:'24 in', wIn:24, hIn:21, round:true},
-  {id:'p30', label:'30 in', wIn:30, hIn:26, round:true},
-  {id:'trough36', label:'36 in', wIn:36, hIn:16, round:false},
-  {id:'trough54', label:'54 in', wIn:54, hIn:16, round:false},
+  {id:'p10', wIn:10, hIn:9,  round:true},
+  {id:'p14', wIn:14, hIn:13, round:true},
+  {id:'p18', wIn:18, hIn:16, round:true},
+  {id:'p24', wIn:24, hIn:21, round:true},
+  {id:'p30', wIn:30, hIn:26, round:true},
+  {id:'trough36', wIn:36, hIn:16, round:false},
+  {id:'trough54', wIn:54, hIn:16, round:false},
 ];
 function potStyle(id){ return POT_STYLES.find(p=>p.id===id)||POT_STYLES[0]; }
 function potSizeDef(id){ return POT_SIZES.find(p=>p.id===id)||POT_SIZES[2]; }
+// a pot is sold by the inch, never by the foot: "30 in", not "2.5 ft"
+function potSizeText(sz){ return fmtLengthIn((sz&&sz.wIn)||potSizeDef().wIn,{ftAt:Infinity}); }
 // the sizes a vessel is really made in — a trough is not a 10in pot
 function potStyleSizes(id){
   const st=potStyle(id);
@@ -2295,7 +2315,7 @@ function potVesselName(d){
 }
 function potLabelFor(d){
   d=normalizePotDraft(d);
-  return `${potSizeDef(d.size).label} ${potVesselName(d).toLowerCase()}`;
+  return `${potSizeText(potSizeDef(d.size))} ${potVesselName(d).toLowerCase()}`;
 }
 
 /* ---------- seating ----------
@@ -2317,7 +2337,7 @@ const SEAT_FINISHES = [
   {id:'weathered',label:'Weathered', mat:'wood',  tones:['#a8a396','#9c978a','#b0ab9e','#a19c8f'], grain:'rgba(58,55,48,0.22)', hw:'#3c3a37'},
   {id:'painted',  label:'White',     mat:'paint', tones:['#ebe6da','#e6e1d4'], hw:'#3c3a37'},
   {id:'forest',   label:'Forest',    mat:'paint', tones:['#415d49','#3d5845'], hw:'#2e302e'},
-  {id:'black',    label:'Black',     mat:'metal', tones:['#393a3e'], hw:'#2a2b2e'},
+  {id:'black',    label:'Black metal', mat:'metal', tones:['#393a3e'], hw:'#2a2b2e'},
   {id:'stone',    label:'Stone',     mat:'stone', tones:['#a6a295','#9d998c','#aeaa9d'], hw:'#3c3a37'},
 ];
 /* Tables come WITHOUT chairs and chairs are placed individually. Bundling
@@ -2330,23 +2350,23 @@ const SEAT_FINISHES = [
    pit's rule (§12g): nobody makes a stone Adirondack or a cast-stone lounger,
    and a stone bench is exactly as real as a teak one. */
 const SEAT_TYPES = [
-  {id:'bench4',  label:'Garden Bench 4 ft', short:'Bench 4ft', form:'bench',  wIn:48, dIn:22, hIn:34,
+  {id:'bench4',  label:'Garden bench',     short:'Bench',     family:'bench', form:'bench',  wIn:48, dIn:22, hIn:34,
    finishes:['teak','weathered','painted','forest','black','stone']},
-  {id:'bench6',  label:'Garden Bench 6 ft', short:'Bench 6ft', form:'bench',  wIn:72, dIn:22, hIn:34,
+  {id:'bench6',  label:'Garden bench',     short:'Bench',     family:'bench', form:'bench',  wIn:72, dIn:22, hIn:34,
    finishes:['teak','weathered','painted','forest','black','stone']},
-  {id:'chair',   label:'Adirondack Chair',  short:'Adirondack',form:'adirondack', wIn:32, dIn:34, hIn:38,
+  {id:'chair',   label:'Adirondack chair',  noun:'Adirondack chair', short:'Adirondack',form:'adirondack', wIn:32, dIn:34, hIn:38,
    finishes:['teak','weathered','painted','forest','black']},
-  {id:'dchair',  label:'Dining Chair',      short:'Chair',     form:'chair',  wIn:20, dIn:20, hIn:35,
+  {id:'dchair',  label:'Dining chair',      short:'Chair',     form:'chair',  wIn:20, dIn:20, hIn:35,
    finishes:['teak','weathered','painted','forest','black']},
-  {id:'stool',   label:'Garden Stool',      short:'Stool',     form:'stool',  wIn:16, dIn:16, hIn:18,
+  {id:'stool',   label:'Garden stool',      short:'Stool',     form:'stool',  wIn:16, dIn:16, hIn:18,
    finishes:['teak','weathered','painted','black','stone']},
-  {id:'bistro',  label:'Bistro Table',      short:'Bistro',    form:'bistro', wIn:26, dIn:26, hIn:30,
+  {id:'bistro',  label:'Bistro table',      short:'Bistro',    form:'bistro', wIn:26, dIn:26, hIn:30,
    finishes:['teak','painted','forest','black','stone']},
-  {id:'dining',  label:'Dining Table',      short:'Dining',    form:'dining', wIn:72, dIn:36, hIn:30,
+  {id:'dining',  label:'Dining table',      short:'Dining',    form:'dining', wIn:72, dIn:36, hIn:30,
    finishes:['teak','weathered','painted','black','stone']},
-  {id:'picnic',  label:'Picnic Table',      short:'Picnic',    form:'picnic', wIn:60, dIn:60, hIn:30,
+  {id:'picnic',  label:'Picnic table',      short:'Picnic',    form:'picnic', wIn:60, dIn:60, hIn:30,
    finishes:['teak','weathered','painted','forest','stone']},
-  {id:'lounger', label:'Sun Lounger',       short:'Lounger',   form:'lounger',wIn:26, dIn:76, hIn:36,
+  {id:'lounger', label:'Sun lounger',       short:'Lounger',   form:'lounger',wIn:26, dIn:76, hIn:36,
    finishes:['teak','weathered','painted','black']},
 ];
 function seatType(id){ return SEAT_TYPES.find(s=>s.id===id)||SEAT_TYPES[0]; }
@@ -2375,9 +2395,26 @@ function normalizeSeatDraft(d){
   const type=seatType(d.type).id;
   return {type, finish:seatFinishFor(type,d.finish), face:normalizeFacing(d.face)};
 }
+/* Pieces that come in more than one size share a `family` (the two garden
+   benches) and the tray offers them as one piece with a Size row. Their size is
+   said in the reader's units here, never typed into the label: the rows used to
+   read 'Garden Bench 4 ft' in a metric garden too. */
+function seatFamily(typeId){
+  const t=seatType(typeId);
+  return t.family ? SEAT_TYPES.filter(s=>s.family===t.family) : [t];
+}
+function seatSizeText(t){ return fmtFeet(t.wIn/12); }
+// "4 ft garden bench", "Adirondack chair": a size first where there is a choice of one
+function seatTypeName(typeId){
+  const t=seatType(typeId), noun=t.noun||lowerFirst(t.label);
+  return seatFamily(t.id).length>1 ? `${seatSizeText(t)} ${noun}` : noun;
+}
+// "4 ft teak garden bench", "Black metal dining chair"
 function seatLabelFor(d){
   d=normalizeSeatDraft(d);
-  return `${seatFinish(d.finish).label} ${seatType(d.type).label.toLowerCase()}`;
+  const t=seatType(d.type), fin=seatFinish(d.finish).label;
+  return seatFamily(t.id).length>1 ? `${seatSizeText(t)} ${lowerFirst(fin)} ${t.noun||lowerFirst(t.label)}`
+    : cap(`${fin} ${t.noun||lowerFirst(t.label)}`);
 }
 
 /* The Oudolf palette — PLANTS and PLANT_KEYS — lives in plants.js,

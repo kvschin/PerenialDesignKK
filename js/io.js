@@ -1229,7 +1229,8 @@ function hardscapeRows(){
   const fenceFt=fenceRunFeet();
   for (const id in fenceFt){
     const [st,h]=id.split('|');
-    add('Fence', `${fenceStyle(st).label}, ${fmtFeet(+h)} high`, fmtFeet(fenceFt[id]), fenceFt[id]);
+    // named as the toast and the tray name it: one label builder for one fence
+    add('Fence', cap(fenceLabel({style:st,height:+h})), fmtFeet(fenceFt[id]), fenceFt[id]);
   }
   /* A pergola is a thing you BUY, by its size -- "a 10 x 12 timber pergola" is
      how a kit or a carpenter's quote is written -- so it is counted, one per
@@ -1286,11 +1287,11 @@ function hardscapeRows(){
     const d=normalizeLightDraft(l); bump(lamps, d.type+'|'+(lightIsFlame(d)?'':d.tone)+'|'+d.finish); }
 
   for (const id in pots){ const [st,sz,fi]=id.split('|');
-    add('Container', `${potSizeDef(sz).label} ${potVesselName({style:st,size:sz,finish:fi})}`, pots[id], pots[id]); }
+    add('Container', cap(potLabelFor({style:st,size:sz,finish:fi})), pots[id], pots[id]); }
   for (const id in seats){ const [ty,fi]=id.split('|');
-    add('Seating', `${seatFinish(fi).label} ${seatType(ty).label}`, seats[id], seats[id]); }
+    add('Seating', cap(seatLabelFor({type:ty,finish:fi})), seats[id], seats[id]); }
   for (const id in waters){ const [fo,fi]=id.split('|');
-    add('Water feature', `${waterFinish(fi).label} ${waterFeature(fo).label}`, waters[id], waters[id]); }
+    add('Water feature', waterFeatureLabelFor({form:fo,finish:fi}), waters[id], waters[id]); }
   for (const id in orns){ const [kind,finish]=id.split('|'), d={kind,finish};
     add('Ornament', ornamentLabelFor(d), orns[id], orns[id], ornamentTakeoffText(d,orns[id])); }
   for (const id in pits){ const [style,finish,shape,size]=id.split('|'), d={style,finish,shape,size};
@@ -1305,7 +1306,7 @@ function hardscapeRows(){
     /* The NAME is the fixture you order -- its metal and its model. The lamp
        colour is a setup choice rather than a different product, so it rides the
        sub-line with the height. */
-    add('Lighting', `${lightFinish(type,finish).label} ${lightType(type).label}`, lamps[id], lamps[id],
+    add('Lighting', `${lightFinish(type,finish).label} ${lowerFirst(lightType(type).label)}`, lamps[id], lamps[id],
       (tone ? `${lightTone(tone).label} light, ` : '')+`${fmtLengthIn(lightHeightFt({type})*12)} tall`); }
   /* Festoon string lights are bought by the length and the bulb, so they are
      billed as one line: how much string, in how many runs (one per lit rafter,

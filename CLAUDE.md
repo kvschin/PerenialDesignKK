@@ -5243,6 +5243,29 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (F11). A grade-level `{h:0,w}` record keeps its wall while a lower neighbour
     remains, is erasable by the record rather than its height, and
     `tidyGradeWallsAround` drops it once the hollow it faced is gone (F14, F15).
+    **Every solid placer's check is `footprintBlocker`** (commands.js, 0.9.149),
+    which returns WHY as well as whether (`off`, `building`, `water`, `shore`,
+    `solid` naming the piece in the way, `roof`, `plant`, `strand`), and
+    `blockerText` says it; `canPlaceX` is `!xBlocker`. Each placer had its own copy
+    of the same five checks and its own vague refusal ("No room for that here").
+    A pet keeps off solids through `solidBlockerAt` too, a gate opening excepted:
+    its own list missed pots, seats and climbing frames, so a cat went in a pot.
+    **A tap restyles a piece from ANY of its tiles** (`SOLID_TAP`, `tapSolidTool`):
+    the record lives on one corner tile, which at some rotations is the far one,
+    and a tap elsewhere on a bench with a new finish armed was refused. A lawn tap
+    asks `terrainBlockedByPlant`, the rule placeTerrainAt applies, so it lays lawn
+    over a planting as a drag does and says "Long meadow laid", not "Soil bed dug".
+    **Landscape labels are sentence case and carry no units** (the audit of
+    0.9.149): "Cedar privacy", "Stone water basin"; a proper noun goes in `noun`
+    ("Adirondack chair"). Sizes are said through the formatters (`fenceLabel`,
+    `potSizeText`, `seatSizeText`), never typed into a label ('Garden Bench 4 ft',
+    `6'`, '18 in' all printed imperial in a metric garden). Composite names go
+    `lowerFirst(label)` into a sentence and `cap()` to start one (both core.js); the
+    planting list uses the same label builders as the toasts. A piece sold in two
+    sizes is one chip with a Size row (`family` on SEAT_TYPES and ORNAMENTS). Every
+    Hardscape and Decor page orders its rows what it is, material or finish, size,
+    facing; built things say "Material", bought objects "Finish". The app's copy is
+    British ("colour", "aluminium"): keep the landscape tables to it.
 12j. **Garden ornaments** (`ORNAMENTS`/`ORNAMENT_FINISHES`/`ORNAMENT_GROUPS`,
     core.js; `ornamentBuild`/`drawOrnamentArt`/`ornPaintBall`, draw.js;
     `placeOrnamentAt`, commands.js; `drawOrnamentChip`, tray.js;

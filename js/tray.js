@@ -219,7 +219,8 @@ function setTool(k,v){
   game.toolMenu=null;
   if (k!=='select') resetSelectionState(); // leaving select drops its marquee
   if (k!==game.tool || (v||null)!==(game.toolVar||null)) hidePlantCard();   // moving on from what it described
-  if (k==='fence'||k==='light'||k==='firepit'||k==='boulder'||k==='house'||k==='building'||k==='shovel'||k==='hand'||k==='select'||k==='ruler'||k==='pick') game.fillMode=false;
+  // asked of the tool, not a list of them: the list had none of the pieces added since it was written
+  if (!toolMeta(k).paints) game.fillMode=false;
   game.tool=k; game.toolVar=v||null;
   rememberBrushTool();
   refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor(); updateActiveToolStatus();
@@ -1966,34 +1967,34 @@ const TOOL_SEARCH={
   raise:  {label:'Raise',kind:'layers',hay:'raise elevation grade berm terrace hill leveling'},
   lower:  {label:'Lower',kind:'layers',hay:'lower elevation grade swale basin depression leveling'},
   level:  {label:'Level',kind:'layers',hay:'level elevation grade flatten reset leveling'},
-  terrace:{label:'Terrace / Raised Bed',kind:'layers',
+  terrace:{label:'Terrace / raised bed',kind:'layers',
            hay:'terrace raised bed planter retaining wall sunken patio hollow step level change sleeper timber brick stone dry stone gabion corten concrete bank grade leveling'},
-  wall:   {label:'Retaining Wall',kind:'layers',
+  wall:   {label:'Retaining wall',kind:'layers',
            hay:'wall retaining wall terrace bank sleeper gabion drystone dry stone facing grade leveling'},
   fence:  {label:'Fence / Gate',kind:'layers',drill:'fence',
            hay:'fence gate door arbor screen privacy deer hardscape structures black aluminum wood vinyl chainlink brick stone 4 foot 6 foot'},
-  firepit:{label:'Fire Pit',kind:'fill',drill:'firepit',
+  firepit:{label:'Fire pit',kind:'fill',drill:'firepit',
            hay:'fire pit firepit fire ring fire bowl hardscape structure round square rectangle 24 36 48 patio '+
                'stacked stone brick block concrete steel metal corten stainless cast iron copper'},
   pergola:{label:'Pergola',kind:'fill',drill:'pergola',
            hay:'pergola arbor arbour overhead roof shade structure rafters beams posts patio hardscape climber festoon string lights bistro lights fairy lights café lights'},
   support:{label:'Support / Trellis',kind:'fill',drill:'support',
            hay:'support trellis obelisk tuteur arch arbor climber vine frame vertical hardscape structures willow timber metal'},
-  waterfeature:{label:'Water Feature',kind:'fill',drill:'waterfeature',
+  waterfeature:{label:'Water feature',kind:'fill',drill:'waterfeature',
            hay:'water feature fountain birdbath bird bath bubbler bubbling urn millstone tiered tsukubai stone basin wall spout trough stock tank reflecting pool rill hardscape focal point'},
   boulder:{label:'Boulder',kind:'fill',drill:'boulder',
            hay:'boulder rock stone rocks hardscape rockery outcrop round rounded small medium large rectangular oblong long angular ledge slab sitting standing stone monolith grouping cluster basalt columns dressed block granite limestone sandstone slate fieldstone moss rock river rock'},
   seat:   {label:'Seating',kind:'fill',drill:'seat',
            hay:'seat seating bench chair table stool dining bistro picnic adirondack lounger sun lounger sit hardscape furniture teak weathered white painted green forest black metal stone concrete'},
   light:  {label:'Lighting',kind:'dropper',
-           hay:'lighting lights path light lantern post outdoor lamp eco warm bright night bollard shepherd hook torch tiki flame uplight step'},
+           hay:'lighting lights path light lantern post outdoor lamp eco amber wildlife warm white cool bright night bollard shepherd hook torch tiki flame uplight step'},
   pot:    {label:'Container',kind:'fill',
            hay:'pot pots container containers planter urn trough terracotta glazed cast stone timber galvanised patio courtyard balcony terrace decor colour color charcoal black white cream blue green teal cobalt copper corten'},
-  ornament:{label:'Garden Ornament',kind:'fill',
+  ornament:{label:'Garden ornament',kind:'fill',
            hay:'ornament ornaments decor sculpture statue focal point sphere ball orb armillary sundial gazing ball stone lantern japanese toro wildlife bird feeder birdhouse nest box bee hotel insect hotel bug hotel pollinator rain barrel water butt compost bin bay'},
-  pet:    {label:'Garden Pet',kind:'fill',
+  pet:    {label:'Garden pet',kind:'fill',
            hay:'pet pets cat dog animal ornament decor coat marking socks paws'},
-  building:{label:'Building Footprint',kind:'building',
+  building:{label:'Building footprint',kind:'building',
            hay:'building footprint house site exterior outline existing proposed shed garage area edge'},
   house:  {label:'House',kind:'brush',hay:'house home building wall roof size color site'}
 };
@@ -2046,7 +2047,9 @@ const SEARCH_OPTION_SOURCES=[
    on:(d,r)=>boulderType(d.type).form===r.id,
    label:r=>r.label+' boulder', extra:r=>searchFinishLabels(BOULDER_STONES,r.stones)+' rock stone',
    icon:(tc,d)=>drawBoulderChip(tc,d,48,44)},
+  // "4 ft garden bench": the two benches share a label and differ by their size
   {tool:'seat', rows:()=>SEAT_TYPES,  draft:'seatDraft', field:'type', norm:d=>normalizeSeatDraft(d),
+   label:r=>cap(seatTypeName(r.id)),
    extra:r=>searchFinishLabels(SEAT_FINISHES,r.finishes), icon:(tc,d)=>drawSeatChip(tc,d,48,44)},
   {tool:'light',rows:()=>LIGHT_TYPES, draft:'lightDraft',field:'type', norm:d=>normalizeLightDraft(d),
    extra:r=>searchFinishLabels(LIGHT_FINISHES,r.finishes)},
@@ -3918,7 +3921,8 @@ function renderGradeTools(tray,cat){
 
 /* Hardscape: what people place most, armed in one tap, then a card per tool. */
 const HARDSCAPE_CARDS=[
-  {k:'fence',       name:'Fence',        desc:'Fences, walls and gates, 3 to 8 ft'},
+  // a function where it carries a size, so it follows the units preference
+  {k:'fence',       name:'Fence',        desc:()=>`Fences, walls and gates, ${fmtFeet(FENCE_HEIGHTS[0])} to ${fmtFeet(FENCE_HEIGHTS[FENCE_HEIGHTS.length-1])}`},
   {k:'seat',        name:'Seating',      desc:'Benches, chairs, tables and loungers'},
   {k:'pergola',     name:'Pergola',      desc:'A roof over a patio, for climbers'},
   {k:'firepit',     name:'Fire pit',     desc:'Stone, brick, steel or a fire bowl'},
@@ -4006,7 +4010,7 @@ function renderHardscapeHome(tray,cat){
   HARDSCAPE_CARDS.filter(t=>cat.tools.includes(t.k)).forEach(t=>{
     const on=game.tool===t.k, label=hardscapeLabel(t.k), b=trayEl('button','lh-card has-sub'+(on?' sel':'')); b.type='button'; b.dataset.k=t.k;
     const title=trayEl('span','lh-t'); title.append(trayEl('b',null,t.name),uiIcon('chevron-right'));
-    b.append(hardscapeArt(t.k,150,62),title,trayEl('small',null,t.desc),trayEl('em',null,label));
+    b.append(hardscapeArt(t.k,150,62),title,trayEl('small',null,typeof t.desc==='function'?t.desc():t.desc),trayEl('em',null,label));
     b.title=`${t.name}: ${label}. Open to choose.`;
     b.onclick=()=>{ setTool(t.k,null); game.drill=t.k; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
     tray.appendChild(b);
@@ -4253,18 +4257,21 @@ function buildToolTrayInner(){
         setTool('fence',null); rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
       tray.appendChild(b); return b;
     };
+    /* What it is, what it is made of, how big: the order every Hardscape page
+       keeps. The fence asked its height before its material, the other way round
+       from the pergola, the fire pit and the rest. */
     if (game.drill==='fence'){
       backBtn();
       sep('Place');
       toolBtn('Fence', game.tool==='fence'&&!fd.gate, {gate:false}, 'Draw connected fence tiles');
       toolBtn('Gate', game.tool==='fence'&&!!fd.gate, {gate:true}, 'Draw walkable fence doors / gates');
+      sep('Material');
+      FENCE_STYLES.forEach(st=>toolBtn(st.short||st.label, fd.style===st.id, {style:st.id},
+        `${st.label} — built at ${fenceStyleHeights(st.id).map(h=>fmtFeet(h)).join(', ')}`));
       sep('Height');
       // only the spans this material is really built at (see FENCE_STYLES.heights)
       fenceStyleHeights(fd.style).forEach(h=>
-        toolBtn(`${h} ft`, fd.height===h, {height:h}, `${h} foot tall ${fenceStyle(fd.style).label.toLowerCase()}`));
-      sep('Material');
-      FENCE_STYLES.forEach(st=>toolBtn(st.short||st.label, fd.style===st.id, {style:st.id},
-        `${st.label} — built at ${fenceStyleHeights(st.id).map(h=>h+' ft').join(', ')}`));
+        toolBtn(fmtFeet(h), fd.height===h, {height:h}, cap(fenceLabel(Object.assign({},fd,{height:h,gate:false})))));
     }
   }
   if (cat.tools.includes('firepit')){
@@ -4406,7 +4413,7 @@ function buildToolTrayInner(){
       backBtn();
       sep('Support');
       SUPPORT_STYLES.forEach(s=>toolBtn(s.short||s.label, sd.style===s.id, {style:s.id},
-        `${s.label} — ${s.ft} ft for a climber`));
+        `${s.label} — ${fmtFeet(s.ft)} for a climber`));
       sep('Material');
       supportMaterials(sd.style).forEach(m=>toolBtn(m.label, sd.mat===m.id, {mat:m.id}, m.label));
       if (supportStyle(sd.style).face){
@@ -4472,7 +4479,7 @@ function buildToolTrayInner(){
       backBtn();
       sep('Water feature');
       WATER_FEATURES.forEach(w=>toolBtn(w.short||w.label, wd.form===w.id, {form:w.id},
-        `${w.label} — ${w.hIn} in tall`));
+        `${w.label} — ${fmtLengthIn(w.hIn)} tall`));
       sep('Finish');
       waterFeatureFinishes(wd.form).forEach(f=>toolBtn(f.label, wd.finish===f.id, {finish:f.id}, f.label));
       // only the two rectilinear pieces read differently when turned
@@ -4514,16 +4521,17 @@ function buildToolTrayInner(){
       sep('Form');
       BOULDER_FORMS.forEach(f=>toolBtn(f.label, spec.form===f.id, {form:f.id},
         `${f.label}: ${f.stones.map(id=>boulderStone(id).label.toLowerCase()).join(', ')}`, {boulderForm:f.id}));
-      sep('Size');
-      boulderFormTypes(spec.form).forEach(t=>toolBtn(boulderSizeChip(t), bd.type===t.id, {type:t.id},
-        `${boulderLabelFor(Object.assign({},bd,{type:t.id}))}, about ${fmtWeightLb(boulderWeightLb(Object.assign({},bd,{type:t.id})))}`,
-        {boulderType:t.id}));
+      // the stone, then the size: what it is made of before how big, as every page orders it
       const stones=boulderTypeStones(bd.type);
       if (stones.length>1){
         sep('Stone');
         stones.forEach(st=>toolBtn(st.label, bd.stone===st.id, {stone:st.id},
           boulderLabelFor(Object.assign({},bd,{stone:st.id})), {boulderStone:st.id}));
       }
+      sep('Size');
+      boulderFormTypes(spec.form).forEach(t=>toolBtn(boulderSizeChip(t), bd.type===t.id, {type:t.id},
+        `${boulderLabelFor(Object.assign({},bd,{type:t.id}))}, about ${fmtWeightLb(boulderWeightLb(Object.assign({},bd,{type:t.id})))}`,
+        {boulderType:t.id}));
       // a stone has a better side: turning it is how you choose which one shows
       sep('Facing');
       toolBtn('Turn', false, {face:(bd.face+1)%4}, 'Turn it a quarter, to show another side of the stone', {boulderTurn:'1'});
@@ -4580,7 +4588,7 @@ function buildToolTrayInner(){
     // a torch burns: there is no lamp colour to choose
     if (!lightIsFlame(ld)){
       sep('Light');
-      LIGHT_TONES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.tone===t2.id, {tone:t2.id}, t2.label));
+      LIGHT_TONES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.tone===t2.id, {tone:t2.id}, t2.tip||t2.label));
     }
   }
   if (cat.tools.includes('pot')){
@@ -4618,16 +4626,17 @@ function buildToolTrayInner(){
     POT_STYLES.forEach(st=>toolBtn(st.short||st.label, armed&&cd.style===st.id, {style:st.id},
       `${st.label} — plant it anywhere, including paving`));
     if (armed){
-      sep('Size');
-      potStyleSizes(cd.style).forEach(sz=>toolBtn(sz.label, cd.size===sz.id, {size:sz.id},
-        `${sz.label} across, ${sz.hIn} in tall`));
       /* Only the colours this vessel is really made in, its own natural finish
          first — the water feature's rule (§12d), and the reason a terracotta
          pot is not offered in cobalt. Every chip paints the real thing, so the
-         swatch IS the colour rather than a label for it. */
-      sep('Colour');
+         swatch IS the colour rather than a label for it. "Finish", as every
+         bought piece calls it, and before the size, as every page orders it. */
+      sep('Finish');
       potStyleFinishes(cd.style).forEach(f=>toolBtn(f.label, cd.finish===f.id, {finish:f.id},
         `${f.label} ${(potStyle(cd.style).short||'').toLowerCase()}`.trim()));
+      sep('Size');
+      potStyleSizes(cd.style).forEach(sz=>toolBtn(potSizeText(sz), cd.size===sz.id, {size:sz.id},
+        `${potSizeText(sz)} across, ${fmtLengthIn(sz.hIn)} tall`));
       // only a trough has a long axis to point
       if (potTileSize(cd).w!==potTileSize(cd).h){
         sep('Facing');
@@ -4662,10 +4671,18 @@ function buildToolTrayInner(){
       tray.appendChild(b); return b;
     };
     { const head=trayEl('div','lg-head'); head.append(trayEl('b',null,'Ornaments'),trayEl('span',null,'Something to plant toward, and things for the birds and bees')); tray.appendChild(head); }
+    /* One chip per piece: the two stone spheres are one sphere with a Size row,
+       as the benches are. A family chip keeps the size in hand if it is already
+       a sphere, else takes the first. */
+    const curFam=ornamentKind(od.kind).family;
     for (const g of ORNAMENT_GROUPS){
       sep(g.label);
-      ORNAMENTS.filter(o=>o.group===g.id).forEach(o=>toolBtn(o.short||o.label, armed&&od.kind===o.id, {kind:o.id},
-        `${o.label}, ${fmtLengthIn(o.hIn)} tall`, {ornamentKind:o.id}));
+      ORNAMENTS.filter((o,i)=>o.group===g.id && (!o.family || ORNAMENTS.findIndex(x=>x.family===o.family)===i)).forEach(o=>{
+        const mine=!!o.family && o.family===curFam, kind=mine?od.kind:o.id;
+        toolBtn(o.family?cap(o.family):(o.short||o.label), armed&&od.kind===kind, {kind},
+          o.family ? `${cap(o.family)}, ${ornamentFamily(o.id).map(x=>fmtLengthIn(x.wIn,{ftAt:Infinity})).join(' or ')} across`
+            : `${o.label}, ${fmtLengthIn(o.hIn)} tall`, {ornamentKind:kind});
+      });
     }
     if (armed){
       const fins=ornamentFinishes(od.kind);
@@ -4673,6 +4690,12 @@ function buildToolTrayInner(){
         sep('Finish');
         fins.forEach(f=>toolBtn(f.label, od.finish===f.id, {finish:f.id},
           ornamentLabelFor({kind:od.kind,finish:f.id}), {ornamentFinish:f.id}));
+      }
+      const fam=ornamentFamily(od.kind);
+      if (fam.length>1){
+        sep('Size');
+        fam.forEach(o=>toolBtn(fmtLengthIn(o.wIn,{ftAt:Infinity}), od.kind===o.id, {kind:o.id},
+          `${ornamentLabelFor({kind:o.id,finish:od.finish})}, ${fmtLengthIn(o.wIn,{ftAt:Infinity})} across`, {ornamentKind:o.id}));
       }
       // only a piece with a front reads differently turned (`turns`)
       if (ornamentKind(od.kind).turns){
@@ -4711,14 +4734,26 @@ function buildToolTrayInner(){
     if (game.drill==='seat'){
       backBtn();
       sep('Seating');
-      SEAT_TYPES.forEach(t=>toolBtn(t.short||t.label, sd.type===t.id, {type:t.id},
-        `${t.label} — ${fmtLengthIn(t.wIn)} wide`));
+      /* One chip per piece: the 4 ft and 6 ft benches are ONE bench with a Size
+         row below, as a pot or a fire pit has. A family chip keeps the size in
+         hand if it is already a bench, else takes the first. */
+      const fam=seatFamily(sd.type);
+      SEAT_TYPES.filter((t,i)=>!t.family || SEAT_TYPES.findIndex(s=>s.family===t.family)===i).forEach(t=>{
+        const mine=t.family && t.family===seatType(sd.type).family;
+        toolBtn(t.short||t.label, mine||sd.type===t.id, {type:mine?sd.type:t.id},
+          t.family ? `${t.label} — ${seatFamily(t.id).map(s=>seatSizeText(s)).join(' or ')} long`
+            : `${t.label} — ${fmtLengthIn(t.wIn)} wide`);
+      });
       /* Only the finishes this piece is really made in, in its own order — the
          fire pit's rule. A stone bench is a slab on plinths; nobody makes a stone
          Adirondack. */
       sep('Finish');
       seatTypeFinishes(sd.type).forEach(f=>toolBtn(f.label, sd.finish===f.id, {finish:f.id},
         cap(seatLabelFor({type:sd.type,finish:f.id}))));
+      if (fam.length>1){
+        sep('Size');
+        fam.forEach(t=>toolBtn(seatSizeText(t), sd.type===t.id, {type:t.id}, cap(seatLabelFor({type:t.id,finish:sd.finish}))));
+      }
       /* One Turn chip rather than four compass chips: the preview shows the
          result, so tapping until it points the right way needs no legend, and
          the plot has no fixed "north" on screen once the view is rotated. */
@@ -4825,7 +4860,8 @@ function buildToolTrayInner(){
     edit.dataset.k='building-edit'; edit.title='Add to, trim, or rename a placed footprint';
     // The name a new footprint gets. A garden has sheds and garages, not just
     // houses, and the model has carried `label` all along with no way to set it.
-    const nameBtn=toolBtn(bd.label||'Unnamed',false,tc=>{
+    // "Name: House", not "House": by itself the name read as a House tool
+    const nameBtn=toolBtn(`Name: ${bd.label||'none'}`,false,tc=>{
       tc.strokeStyle=uiInk('--icon-ink-soft'); tc.lineWidth=1.5;
       footprintPath(tc); tc.stroke();
       tc.fillStyle=uiInk('--icon-ink'); tc.font='700 11px IBM Plex Sans, sans-serif'; tc.textAlign='center';
@@ -4846,12 +4882,12 @@ function buildToolTrayInner(){
       }));
     // "Area"/"Edge", not "Roof"/"Wall": a footprint has no roof, and what these
     // two actually control is the shape's fill and the thin rim around it.
-    sep('Area color');
+    sep('Area colour');
     ROOF_COLS.forEach(([n,c2])=>toolBtn(n,bd.fill===c2,
       tc=>miniFootprint(tc,Object.assign({},bd,{status:'existing',fill:c2})),()=>{
         game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{fill:c2})); setTool('building',null); buildToolTray();
       }));
-    sep('Edge color');
+    sep('Edge colour');
     WALL_COLS.forEach(([n,c2])=>toolBtn(n,bd.edge===c2,
       tc=>miniFootprint(tc,Object.assign({},bd,{status:'existing',edge:c2}),true),()=>{
         game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{edge:c2})); setTool('building',null); buildToolTray();
@@ -4859,7 +4895,6 @@ function buildToolTrayInner(){
   }
   finishToolTrayRender();
 }
-function cap(s){ return s[0].toUpperCase()+s.slice(1); }
 function applyTraySearch(){ // hide tray buttons that don't match the query
   const q=(game.traySearch||'').toLowerCase().trim();
   document.querySelectorAll('#toolTray .tool').forEach(b=>{
@@ -4942,6 +4977,35 @@ function refreshTray(){
       : el.dataset.ornamentFinish
       ? game.tool==='ornament' && ornamentDraft().finish===el.dataset.ornamentFinish
       : el.dataset.ornamentTurn
+      ? false
+      /* Every Hardscape and Decor page names the axis a chip sets, so a refresh
+         without a rebuild marks the armed one. These five had no branch and fell
+         to the tool test below, which lit EVERY chip on their pages at once. */
+      : el.dataset.seatType
+      ? game.tool==='seat' && seatDraft().type===el.dataset.seatType
+      : el.dataset.seatFinish
+      ? game.tool==='seat' && seatDraft().finish===el.dataset.seatFinish
+      : el.dataset.potStyle
+      ? game.tool==='pot' && potDraft().style===el.dataset.potStyle
+      : el.dataset.potSize
+      ? game.tool==='pot' && potDraft().size===el.dataset.potSize
+      : el.dataset.potFinish!==undefined
+      ? game.tool==='pot' && potDraft().finish===el.dataset.potFinish
+      : el.dataset.supportStyle
+      ? game.tool==='support' && supportDraft().style===el.dataset.supportStyle
+      : el.dataset.supportMat
+      ? game.tool==='support' && supportDraft().mat===el.dataset.supportMat
+      : el.dataset.waterForm
+      ? game.tool==='waterfeature' && waterFeatureDraft().form===el.dataset.waterForm
+      : el.dataset.waterFinish
+      ? game.tool==='waterfeature' && waterFeatureDraft().finish===el.dataset.waterFinish
+      : el.dataset.pergolaMat
+      ? game.tool==='pergola' && pergolaDraft().mat===el.dataset.pergolaMat
+      : el.dataset.pergolaHeight
+      ? game.tool==='pergola' && String(pergolaDraft().height)===el.dataset.pergolaHeight
+      : el.dataset.pergolaLights
+      ? game.tool==='pergola' && pergolaDraft().lights===el.dataset.pergolaLights
+      : (el.dataset.seatFace||el.dataset.potFace||el.dataset.supportFace||el.dataset.waterFace)
       ? false
       : el.dataset.petSpecies
       ? game.tool==='pet' && petDraft().species===el.dataset.petSpecies

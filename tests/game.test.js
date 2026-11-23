@@ -9347,7 +9347,7 @@ test('a pot comes in the colours that vessel is really made in', () => {
   assertEqual(normalizePotDraft({ style: 'glazed', size: 'p24' }).finish, '',
     'a pot saved before colours existed has the natural one');
   // the name follows, and only when there is something to say
-  assertEqual(potVesselName({ style: 'glazed', size: 'p24', finish: '' }), 'Glazed Blue',
+  assertEqual(potVesselName({ style: 'glazed', size: 'p24', finish: '' }), 'Glazed blue',
     'the natural finish keeps the vessel’s own name');
   assertEqual(potVesselName({ style: 'glazed', size: 'p24', finish: 'cobalt' }), 'Cobalt glazed',
     'and a colour names itself in front of the shape');
@@ -9357,7 +9357,7 @@ test('a pot comes in the colours that vessel is really made in', () => {
   setTile('pots', '6,4', { style: 'glazed', size: 'p24', finish: 'cobalt', face: 0, t: 1 });
   const rows = hardscapeRows().filter(r => r.kind === 'Container');
   assertEqual(rows.length, 2, 'two colours of one vessel are two things to buy');
-  assert(rows.some(r => /Cobalt/.test(r.name)), 'and the list says which is which');
+  assert(rows.some(r => /cobalt/i.test(r.name)), 'and the list says which is which');
 });
 
 test('seating claims a real footprint and keeps plants out of it', () => {
@@ -9608,7 +9608,7 @@ test('a tap edges the whole bed, and another tap changes all of it', () => {
   const ft = edgingRunFeet().steel;
   assert(ft > 0 && Math.abs(ft - edgingRegionAt(4, 4).sides * TILE_IN / 12) < 1e-9,
     `the bill is the bed's lawn edge (${ft})`);
-  assertEqual(edgingTapText(true, 6, 5), `Steel Edging laid round the bed: ${fmtFeet(ft)}.`,
+  assertEqual(edgingTapText(true, 6, 5), `Steel edging laid round the bed: ${fmtFeet(ft)}.`,
     'the toast names the material and the length');
 
   game.edgingDraft = 'brick';
@@ -9700,7 +9700,7 @@ test('a drag edges each bed it crosses once, and counts beds', () => {
   assertEqual(drag.count, 2, 'two beds crossed, two edged');
   assertEqual(edgingAt(3, 7), 'setts', 'the first bed all the way round');
   assertEqual(edgingAt(14, 5), 'setts', 'and the second');
-  assertEqual(DRAG_DONE.edging(2), 'Stone Setts laid round 2 beds.', 'the toast counts beds, not tiles');
+  assertEqual(DRAG_DONE.edging(2), 'Stone setts laid round 2 beds.', 'the toast counts beds, not tiles');
   assertEqual(toolBrushSize(), 1, 'the tool has no disc: it acts on a bed');
   assert(!toolMeta('edging').paints, 'and Fill has nothing to add to it');
 });
@@ -10043,7 +10043,10 @@ test('seating opens its own Hardscape page, like every tool beside it', () => {
 
   game.seatDraft = { type: 'chair', finish: 'teak', face: 0 };
   const own = page('seat');
-  assertEqual(own.filter(c => c.dataset.seatType).length, SEAT_TYPES.length, 'its own page offers every piece');
+  // a piece sold in two sizes (the bench) is one chip, with a Size row once it is armed
+  const pieces = SEAT_TYPES.filter((t, i) => !t.family || SEAT_TYPES.findIndex(s => s.family === t.family) === i).length;
+  assert(pieces < SEAT_TYPES.length, 'the two benches are one piece');
+  assertEqual(own.filter(c => c.dataset.seatType).length, pieces, 'its own page offers every piece, a bench once');
   assertEqual(own.filter(c => c.dataset.seatFinish).map(c => c.dataset.seatFinish).join(','),
     seatType('chair').finishes.join(','), 'and only the finishes the armed piece is made in, in its order');
   assertEqual(own.filter(c => c.dataset.seatFace).length, 1, 'and one Turn chip');
@@ -10506,7 +10509,7 @@ test('a Wall tap faces a whole terrace, from its top', () => {
   assertEqual(applyToolAt(6, 5), 'wall', 'a tap in the middle of the top takes');
   for (let x = 4; x <= 8; x++) for (let y = 4; y <= 6; y++)
     assertEqual(wallStyleAt(x, y), 'drystone', `${x},${y} is faced with the rest`);
-  assertEqual(wallTapText(true), `Dry-stone Wall round the terrace: ${fmtFeet(16 * TILE_IN / 12)}.`,
+  assertEqual(wallTapText(true), `Dry-stone wall round the terrace: ${fmtFeet(16 * TILE_IN / 12)}.`,
     'the toast names the wall and the 16 tile sides it covers');
   assertEqual(applyToolAt(4, 4), null, 'a second tap in the same material changes nothing');
   assert(/already faced in dry-stone wall/.test(wallTapText(false)), 'and says so');
@@ -10789,7 +10792,7 @@ test('a wall is billed by its face area, its coping by the foot', () => {
   for (let x = 16; x <= 19; x++) for (let y = 6; y <= 8; y++) setTerraceTile(x, y, { h: 3, w: 'sleeper' });
   wallRunCache.sig = null;
   const rows = withUnits('imperial', () => hardscapeRows().filter(r => r.kind === 'Retaining wall'));
-  const brick = rows.find(r => /Brick/.test(r.name)), sleeper = rows.find(r => /Sleeper/.test(r.name));
+  const brick = rows.find(r => /Brick/.test(r.name)), sleeper = rows.find(r => /sleeper/i.test(r.name));
   // a 4x3 terrace: 14 tile edges, 21 ft round, 3 levels of 5.14 in
   const hi = 3 * ELEV_RISER_IN;
   assert(Math.abs(brick.n - 21 * hi / 12) < 0.05, `brick: 21 ft x ${hi.toFixed(1)} in of face (${brick.n.toFixed(2)})`);
@@ -21545,19 +21548,19 @@ test('the planting list bills turf, including the mown lawn that has no record',
 
   const rows = lawnRows();
   assertEqual(rows.length, 1, 'a garden that is all grass reports one lawn row');
-  assertEqual(rows[0].name, 'Mown Lawn');
+  assertEqual(rows[0].name, 'Mown lawn');
   assertEqual(rows[0].count, area(400),
     'covering the whole plot — mown lawn is an absence, so it is counted by walking the plot');
 
   for (let y = 0; y < 5; y++) for (let x = 0; x < 20; x++)
     setTile('terrain', `${x},${y}`, { k: 'lawn', c: 'meadow', t: 1 });
   const by = {}; lawnRows().forEach(r => by[r.name] = r.count);
-  assertEqual(by['Long Meadow'], area(100), 'the meadow is billed at its own area');
-  assertEqual(by['Mown Lawn'], area(300), 'and comes out of the mown lawn');
+  assertEqual(by['Long meadow'], area(100), 'the meadow is billed at its own area');
+  assertEqual(by['Mown lawn'], area(300), 'and comes out of the mown lawn');
 
   for (let y = 10; y < 15; y++) for (let x = 0; x < 20; x++)
     setTile('terrain', `${x},${y}`, { k: 'bed', c: 'soil', t: 1 });
-  assertEqual(lawnRows().find(r => r.name === 'Mown Lawn').count, area(200),
+  assertEqual(lawnRows().find(r => r.name === 'Mown lawn').count, area(200),
     'and so does a bed — turf area is what is left, which is how a gardener counts it');
 });
 
@@ -21790,10 +21793,10 @@ test('water features reach both client documents', () => {
 
   const rows = hardscapeRows().filter(r => r.kind === 'Water feature');
   assertEqual(rows.length, 2, 'two kinds of piece, two lines');
-  const bath = rows.find(r => /Birdbath/.test(r.name));
+  const bath = rows.find(r => /birdbath/i.test(r.name));
   assertEqual(bath.count, 2, 'identical pieces are counted, not listed twice');
-  assert(/Cast Stone/.test(bath.name), 'the finish is named — it is what you order');
-  assert(rows.some(r => r.name === 'Galvanised Stock Tank Pool'), 'and so is the tank');
+  assert(/Cast stone/.test(bath.name), 'the finish is named — it is what you order');
+  assert(rows.some(r => r.name === 'Galvanised stock tank pool'), 'and so is the tank');
 
   /* Unlike a garden pet, these are on the plan: somebody buys them and somebody
      installs them, which is the same reason containers and seating are. */
@@ -23945,7 +23948,7 @@ test('the materials list bills the hardscape, not just the soft parts', () => {
      stand in a doorway. */
   assertEqual(of('Fence').length, 1, 'one fence line');
   assertEqual(fenceRunFeet()['privacy|6'], 15 * ft, 'fence footage skips the gate tiles');
-  assert(of('Fence')[0].name.includes('Cedar Privacy'), 'the line names the material');
+  assert(of('Fence')[0].name.includes('cedar privacy'), 'the line names the material');
 
   /* A contiguous run of gate tiles is ONE opening — counting tiles would sell
      three gates to somebody who drew one. */
@@ -23988,7 +23991,7 @@ test('every placed fixture reaches the materials list', () => {
 
   const rows = hardscapeRows(), one = (kind) => rows.filter(r => r.kind === kind);
   assertEqual(one('Lighting').length, 2, 'two fixture types, two lines');
-  assertEqual(one('Lighting').find(r => r.name.includes('Path')).count, 2,
+  assertEqual(one('Lighting').find(r => r.name.includes('path light')).count, 2,
     'both path lights on one line');
   assertEqual(one('Fire pit').length, 1, 'the fire pit is billed');
   assertEqual(one('Boulder')[0].count, 1, 'and the boulder');
@@ -24051,7 +24054,7 @@ test('the CSV carries the hardscape too', () => {
      chosen is a normal state, and this used to refuse to export one at all. */
   assert(csv !== null, 'a garden with no plants still exports');
   assert(/"Item","Type","Quantity","Notes"/.test(csv), 'the hardscape section has its own header');
-  assert(/Cedar Privacy/.test(csv) && /Warm gravel/.test(csv), 'and carries the fence and the paving');
+  assert(/cedar privacy/i.test(csv) && /Warm gravel/.test(csv), 'and carries the fence and the paving');
 });
 
 test('a hollow shows its cut face, and can be walled', () => {
@@ -26732,4 +26735,147 @@ test('ornaments are on the Decor tab, armed by chips drawn through the garden pa
   const hits = searchOptionItems().filter(i => i.tool === 'ornament');
   assertEqual(hits.length, ORNAMENTS.length, 'every piece is searchable');
   assert(hits.some(i => /bee hotel|insect hotel/i.test(i.hay || i.label)), 'including the insect hotel by name');
+});
+
+/* ---------- the landscaping audit (0.9.149) ---------- */
+function saidBy(fn){
+  const real = toast, said = [];
+  toast = m => { said.push(m); };
+  try { fn(); } finally { toast = real; }
+  return said;
+}
+function tapWith(tool, x, y){ game.tool = tool; game.actX = x; game.actY = y; return saidBy(() => actHere()); }
+
+test('a lawn tap says lawn, and lays it over a planting as a drag does', () => {
+  setup(15, 15);
+  game.lawnStyle = 'meadow';
+  const said = tapWith('lawn', 4, 4);
+  assertEqual(terrainAt(4, 4).c, 'meadow', 'the meadow is laid');
+  assertEqual(said[0], 'Long meadow laid.', 'and the toast says so, not "Soil bed dug"');
+  assertEqual(tapWith('lawn', 4, 4)[0], 'Already long meadow.', 'a second tap says it is already there, not "Already a bed"');
+  // a planted tile: the drag always laid lawn here; the tap refused it
+  setTile('plants', '7,7', { s: 'bluestem', d: 0, t: 1 });
+  const over = tapWith('lawn', 7, 7);
+  assertEqual(terrainAt(7, 7) && terrainAt(7, 7).k, 'lawn', 'lawn goes down under the planting');
+  assert(!/Lift the plant/.test(over.join(' ')), 'without "Lift the plant first": ' + over.join(' | '));
+  assert(terrainBlockedByPlant('path', game.plants['7,7']), 'a path still waits for the plant to be lifted');
+  game.lawnStyle = 'mown';
+  assertEqual(tapWith('lawn', 4, 4)[0], 'Mown back to plain lawn.', 'mowing says it mowed');
+  assertEqual(tapWith('lawn', 4, 4)[0], 'Already mown lawn.', 'and mown ground is already mown');
+});
+
+test('a tap on any tile of a piece restyles that piece', () => {
+  setup(20, 20);
+  game.seatDraft = { type: 'bench6', finish: 'teak', face: 0 };
+  tapWith('seat', 5, 10);
+  const size = seatTileSize(game.seatDraft);
+  assert(size.w * size.h > 1, 'a 6 ft bench claims more than one tile');
+  game.seatDraft = { type: 'bench6', finish: 'black', face: 0 };
+  const said = tapWith('seat', 5 + size.w - 1, 10 + size.h - 1);   // its far tile, not its origin
+  assertEqual(seatAt(5, 10).finish, 'black', 'the bench takes the new finish: ' + said.join(' | '));
+  assertEqual(Object.keys(game.seats).filter(k => !game.seats[k].removed).length, 1, 'and is still one bench');
+  // the same piece again is "already there", not a demand for a clear patch
+  assert(/already there/.test(tapWith('seat', 5 + size.w - 1, 10)[0]), 'a repeat says it is already there');
+  // the same for a fire pit
+  game.firepitDraft = { style: 'brick', finish: 'red', shape: 'round', size: 'round48', face: 0 };
+  tapWith('firepit', 12, 3);
+  game.firepitDraft = { style: 'brick', finish: 'charcoal', shape: 'round', size: 'round48', face: 0 };
+  const fs = firepitTileSize(game.firepitDraft);
+  tapWith('firepit', 12 + fs.w - 1, 3 + fs.h - 1);
+  assertEqual(firepitAt(12, 3).finish, 'charcoal', 'a fire pit restyles from its far tile too');
+});
+
+test('a refused placement says what is in the way', () => {
+  setup(20, 20);
+  game.potDraft = { style: 'terracotta', size: 'p18' };
+  tapWith('pot', 4, 4);
+  game.seatDraft = { type: 'stool', finish: 'teak', face: 0 };
+  assert(/A pot is already standing there/.test(tapWith('seat', 4, 4)[0]), 'a stool on a pot names the pot');
+  setTile('terrain', '8,8', { k: 'water', c: 'pond', t: 1 });
+  game.boulderDraft = { type: 'round1', stone: 'granite' };
+  assert(/needs dry ground/.test(tapWith('boulder', 8, 8)[0]), 'a boulder in a pond is told it needs dry ground');
+  setTile('plants', '12,12', { s: 'bluestem', d: 0, t: 1 });
+  game.lightDraft = { type: 'path', tone: 'warm' };
+  assert(/Lift the planting first/.test(tapWith('light', 12, 12)[0]), 'a light on a plant says to lift it');
+  // every placer and its refusal agree, because both read footprintBlocker
+  for (const [kind, can, why] of [['seat', canPlaceSeat, seatBlocker], ['boulder', canPlaceBoulder, boulderBlocker],
+    ['firepit', canPlaceFirepit, firepitBlocker], ['support', canPlaceSupport, supportBlocker],
+    ['waterFeature', canPlaceWaterFeature, waterFeatureBlocker], ['pot', canPlacePot, potBlocker]])
+    for (const [x, y] of [[4, 4], [8, 8], [12, 12], [16, 2], [19, 19]])
+      assertEqual(can(x, y, null), !why(x, y, null), `${kind} at ${x},${y}: the check and its reason agree`);
+});
+
+test('a pet keeps off every solid piece but may sit in a gate', () => {
+  setup(15, 15);
+  game.potDraft = { style: 'terracotta', size: 'p18' }; placePotAt(3, 3);
+  game.seatDraft = { type: 'stool', finish: 'teak', face: 0 }; placeSeatAt(6, 3);
+  game.supportDraft = { style: 'obelisk', mat: 'timber', face: 0 }; placeSupportAt(9, 3);
+  assert(!canPlacePet(3, 3), 'not in a pot');
+  assert(!canPlacePet(6, 3), 'not on a seat');
+  assert(!canPlacePet(9, 3), 'not inside a climbing frame');
+  setTile('fences', '3,9', { style: 'wood', height: 4, gate: true, t: 1 });
+  setTile('fences', '4,9', { style: 'wood', height: 4, gate: false, t: 1 });
+  assert(canPlacePet(3, 9), 'but in a gate opening');
+  assert(!canPlacePet(4, 9), 'and not in the fence beside it');
+});
+
+test('every landscape label speaks the units preference', () => {
+  const metric = withUnits('metric', () => [
+    fenceLabel({ style: 'privacy', height: 6 }),
+    potLabelFor({ style: 'terracotta', size: 'p18' }),
+    seatLabelFor({ type: 'bench4', finish: 'teak' }),
+    seatTypeName('bench6'),
+    potFitWarning(plantDef('bigbluestem'), { size: 'p10' }) || 'none'
+  ]);
+  metric.forEach(s => assert(!/\bft\b|\bin\b|'/.test(s), 'no imperial unit in metric: ' + s));
+  const imperial = withUnits('imperial', () => [fenceLabel({ style: 'privacy', height: 6 }),
+    seatLabelFor({ type: 'bench4', finish: 'teak' })]);
+  assertEqual(imperial[0], '6 ft cedar privacy fence', 'the fence says its height in feet, not with a foot mark');
+  assertEqual(imperial[1], '4 ft teak garden bench', 'the bench says its size first, like a pot or a fire pit');
+  assert(POT_SIZES.every(s => s.label === undefined), 'a pot size carries no typed-in unit');
+  assert(SEAT_TYPES.every(t => !/\d/.test(t.label)), 'nor does a seat');
+});
+
+test('the landscape tables are labelled in sentence case', () => {
+  const tables = { WALL_STYLES, LAWN_STYLES, EDGING_STYLES, FENCE_STYLES, PERGOLA_MATERIALS, LIGHT_TYPES, LIGHT_FINISHES,
+    FIREPIT_STYLES, SUPPORT_STYLES, SUPPORT_MATERIALS, WATER_FEATURES, WATER_FINISHES, ORNAMENTS, ORNAMENT_FINISHES,
+    POT_STYLES, SEAT_TYPES, SEAT_FINISHES, PATH_COLORS, BED_STYLES };
+  // a proper noun keeps its capital
+  const proper = /^(Adirondack)$/;
+  for (const name in tables) for (const r of tables[name]){
+    const words = String(r.label).split(/\s+/).slice(1);
+    words.forEach(w => assert(!/^[A-Z]/.test(w) || proper.test(w), `${name} ${r.id}: "${r.label}" is sentence case`));
+  }
+  assert(!FENCE_STYLES.some(f => /Aluminum/.test(f.label)), 'aluminium is spelt the way the rest of the app spells it');
+});
+
+test('light colours are named for what they are, and amber is amber', () => {
+  const eco = lightTone('eco');
+  assertEqual(eco.label, 'Amber', 'the old "Eco friendly" is amber, the wildlife-friendly colour');
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(eco.col.slice(i, i + 2), 16));
+  assert(r > g && g > b && r - b > 100, 'and it is drawn amber, not green: ' + eco.col);
+  assertEqual(lightTone('warm').label, 'Warm white');
+  assertEqual(lightTone('bright').label, 'Cool white');
+  assertEqual(lightLabel({ type: 'path', tone: 'warm' }), 'Warm white path light', 'a light names its colour and fixture');
+});
+
+test('arming any tool that does not paint turns Fill off', () => {
+  setup(10, 10);
+  for (const k of ['pot', 'seat', 'ornament', 'support', 'waterfeature', 'pergola', 'edging', 'wall', 'pet', 'fence']){
+    setTool('bed'); game.fillMode = true;
+    setTool(k);
+    assert(!game.fillMode, `${k} leaves Fill off, as the fence and the fire pit always did`);
+  }
+  setTool('bed'); game.fillMode = true; setTool('path');
+  assert(game.fillMode, 'a painting tool keeps it');
+});
+
+test('a bench and a sphere come in sizes, on one chip with a Size row', () => {
+  assertEqual(seatFamily('bench4').map(t => t.id).join(','), 'bench4,bench6', 'the benches are one family');
+  assertEqual(seatFamily('chair').length, 1, 'a chair is on its own');
+  assertEqual(ornamentFamily('sphere').map(o => o.id).join(','), 'sphere,sphere30', 'so are the spheres');
+  assertEqual(cap(seatTypeName('bench6')), '6 ft garden bench', 'the search names the bench by its size');
+  // the two benches are told apart in search, where they used to share a label
+  const hits = searchOptionItems().filter(i => i.tool === 'seat').map(i => i.label);
+  assertEqual(new Set(hits).size, hits.length, 'no two seating results share a name: ' + hits.join(', '));
 });

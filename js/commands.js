@@ -185,6 +185,46 @@ function inspectPlantAt(x,y){
   if (hit && layerShown('woody')){ showPlantCard(hit.p,hit.x,hit.y); tourNote('identify'); return true; }
   return false;
 }
+/* A tap with a solid piece armed. Everything on this list now does two things
+   the same way. A tap on ANY tile of a piece the tool places restyles THAT
+   piece: its record lives on one corner tile and nothing on screen says which
+   (at some rotations it is the far one), so a tap on the second tile of a bench
+   with a new finish armed was refused as "needs a clear, dry patch" -- while a
+   pergola, a terrace and an edged bed restyled from any tile. And a refusal
+   says why (footprintBlocker), where each piece had its own vague sentence.
+   `at` finds the piece of this kind under a tile, `blocker` explains a refusal
+   at the tile the placer was handed, `noun` names the armed piece. */
+const SOLID_TAP={
+  fence:       {blocker:(x,y)=>fenceBlocker(x,y), noun:()=>fenceDraft().gate?'gate':'fence',
+                done:()=>`${cap(fenceLabel())} placed.`},
+  light:       {blocker:(x,y)=>lightBlocker(x,y), noun:()=>lowerFirst(lightType(lightDraft().type).label),
+                done:()=>`${cap(lightLabel())} placed.`},
+  support:     {at:(x,y)=>structureSupportAt(x,y), blocker:(x,y,k)=>supportBlocker(x,y,k),
+                noun:()=>lowerFirst(supportStyle(supportDraft().style).label),
+                done:()=>`${cap(supportLabel())} placed. Plant a climber on it.`},
+  waterfeature:{at:(x,y)=>waterFeatureAt(x,y), blocker:(x,y,k)=>waterFeatureBlocker(x,y,k),
+                noun:()=>lowerFirst(waterFeature(waterFeatureDraft().form).label),
+                done:()=>`${cap(waterFeatureLabel())} placed.`},
+  ornament:    {at:(x,y)=>ornamentAt(x,y), blocker:(x,y,k)=>ornamentBlocker(x,y,k),
+                noun:()=>lowerFirst(ornamentKind(ornamentDraft().kind).label),
+                done:()=>`${ornamentLabel()} placed.`},
+  firepit:     {at:(x,y)=>firepitAt(x,y), blocker:(x,y,k)=>firepitBlocker(x,y,k),
+                noun:()=>firepitNoun(firepitDraft()), done:()=>`${cap(firepitLabel())} placed.`},
+  boulder:     {at:(x,y)=>boulderAt(x,y), blocker:(x,y,k)=>boulderBlocker(x,y,k),
+                noun:()=>'stone', done:()=>`${cap(boulderLabel())} placed.`},
+  pot:         {at:(x,y)=>potAt(x,y), blocker:(x,y,k)=>potBlocker(x,y,k),
+                noun:()=>{ const s=potTileSize(potDraft()); return s.w*s.h>1?'trough':'pot'; },
+                done:()=>`${cap(potLabel())} set down — now plant it.`},
+  seat:        {at:(x,y)=>seatAt(x,y), blocker:(x,y,k)=>seatBlocker(x,y,k),
+                noun:()=>{ const t=seatType(seatDraft().type); return t.noun||lowerFirst(t.label); },
+                done:()=>`${cap(seatLabel())} placed.`},
+};
+function tapSolidTool(spec,x,y,opts){
+  const here=spec.at ? spec.at(x,y) : null;
+  const tx=here ? here.x : x, ty=here ? here.y : y;
+  if (applyToolAt(tx,ty,opts)){ hapticFeedback('place'); toast(spec.done()); return; }
+  rejectPlacement(blockerText(spec.blocker(tx,ty,`${tx},${ty}`),spec.noun()));
+}
 function actHere(opts){
   const x=Math.round(game.actX), y=Math.round(game.actY), k=`${x},${y}`;
   if (isPlacementTool(game.tool)){
@@ -208,49 +248,8 @@ function actHere(opts){
       : 'Tap ground touching a footprint to extend it.');
     return;
   }
-  if (game.tool==='fence'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${fenceLabel()} placed.`); }
-    else rejectPlacement('Fence needs clear dry ground.');
-    return;
-  }
-  if (game.tool==='light'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${lightLabel()} placed.`); }
-    else rejectPlacement('Lighting needs a clear dry tile.');
-    return;
-  }
-  if (game.tool==='support'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${supportLabel()} placed. Plant a climber on it.`); }
-    else toast(pergolaAt(x,y) ? 'The pergola is already something to climb — plant the climber on it.' : 'No room for that here.');
-    return;
-  }
+  if (SOLID_TAP[game.tool]){ tapSolidTool(SOLID_TAP[game.tool],x,y,opts); return; }
   if (game.tool==='pergola'){ tapPergolaAt(x,y); return; }
-  if (game.tool==='waterfeature'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${waterFeatureLabel()} placed.`); }
-    else toast('No room for that here.');
-    return;
-  }
-  if (game.tool==='ornament'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${ornamentLabel()} placed.`); }
-    else rejectPlacement(ornamentRefusalText(x,y));
-    return;
-  }
-  if (game.tool==='firepit'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${firepitLabel()} placed.`); }
-    else rejectPlacement(pergolaAt(x,y) ? PERGOLA_BLOCKER_TEXT.firepit : 'Fire pit needs clear dry ground.');
-    return;
-  }
-  if (game.tool==='boulder'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${boulderLabel()} placed.`); }
-    else rejectPlacement('Boulder needs clear dry ground.');
-    return;
-  }
   if (game.tool==='edging'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(edgingTapText(true,x,y)); }
@@ -264,18 +263,6 @@ function actHere(opts){
     return;
   }
   if (game.tool==='terrace'){ tapTerraceAt(x,y); return; }
-  if (game.tool==='pot'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${potLabel()} set down — now plant it.`); }
-    else rejectPlacement(potAt(x,y)?'A pot is already standing there.':'A pot needs a clear, dry tile — paving is fine.');
-    return;
-  }
-  if (game.tool==='seat'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${seatLabel()} placed.`); }
-    else rejectPlacement('Seating needs a clear, dry patch that size.');
-    return;
-  }
   if (game.tool==='pet'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`A ${petLabel()} settles in.`); }
@@ -287,7 +274,9 @@ function actHere(opts){
     if (stampBrushAt(x,y)){
       hapticFeedback('place');
       const after=elevationAt(x,y);
-      toast(game.tool==='level' ? 'Leveled ground.' : `Elevation ${after>before?'raised':'lowered'} to ${after}.`);
+      // in inches, as Terrace says a height: "Elevation raised to 3" was a count of 5 in steps
+      toast(game.tool==='level' || after===0 ? 'Back to grade.'
+        : `Ground ${after>before?'raised':'lowered'} to ${terraceInches(after)} ${after>0?'above':'below'} grade.`);
     } else {
       rejectPlacement(game.tool==='raise' ? 'Already at the highest elevation.'
         : game.tool==='lower' ? 'Already at the lowest elevation.'
@@ -327,7 +316,9 @@ function actHere(opts){
     return;
   }
   if (toolMeta(game.tool).material){
-    if (hasPlant){ toast('Lift the plant first.'); return; }
+    // the rule placeTerrainAt applies: lawn may go over a planting, water round a marginal
+    if (hasPlant && terrainBlockedByPlant(game.tool,existing)){
+      toast(game.tool==='lawn' ? 'A floating plant is there: lawn would strand it.' : 'Lift the plant first.'); return; }
     if (hasBulb && game.tool==='water'){ toast('Dig the bulb first.'); return; }
     if (game.tool==='water' && fenceAt(x,y)){ toast('Move the fence before making water.'); return; }
     if (game.tool==='water' && lightAt(x,y)){ toast('Move the light before making water.'); return; }
@@ -340,13 +331,24 @@ function actHere(opts){
     if (boulderAt(x,y)){ toast('Move the boulder before changing the ground.'); return; }
     const wasSame=terr===game.tool;
     const r=stampBrushAt(x,y,opts);
+    /* Lawn has its own words. It fell through to the bed's, so laying a meadow
+       said "Soil bed dug. Ready for planting." and an unchanged one "Already a
+       bed." Mowing lifts a record, so its "already" is a tile with none. */
+    const lawnName=lowerFirst(lawnLabelFor(game.lawnStyle));
     if (r){
       hapticFeedback('place');
-      toast(game.tool==='path'
+      toast(game.tool==='lawn'
+        ? (lawnMowArmed() ? 'Mown back to plain lawn.' : `${cap(lawnName)} ${wasSame?'applied':'laid'}.`)
+        : game.tool==='path'
         ? (wasSame?`${pathColor(game.pathColor).label} path applied.`:`${pathColor(game.pathColor).label} path laid.`)
         : game.tool==='water'
         ? (wasSame?`${waterStyle(game.waterStyle).label} water applied.`:`${waterStyle(game.waterStyle).label} water laid.`)
         : (wasSame?`${bedStyle(game.bedStyle).label} bed applied.`:`${bedStyle(game.bedStyle).label} bed dug. Ready for planting.`));
+      return;
+    }
+    if (game.tool==='lawn'){
+      rejectPlacement(lawnMowArmed() && !terrObj ? 'Already mown lawn.'
+        : terr==='lawn' ? `Already ${lawnName}.` : 'Needs clear ground.');
       return;
     }
     rejectPlacement(terr===game.tool
@@ -537,6 +539,20 @@ function stampBrushAt(x,y,opts){
    instead of writing one, the paint-drag counts the tiles it lifted rather
    than the ones it covered, and the readout says "mown". */
 function lawnMowArmed(){ return game.tool==='lawn' && lawnIsNone(game.lawnStyle); }
+/* Whether the planting on a tile stops this ground material going down there.
+   ONE answer for placeTerrainAt and for a tap (actHere): the tap used to refuse
+   every planted tile with "Lift the plant first" while a drag laid lawn over the
+   same plants, which it is meant to.
+   A marginal is the one planting a pond can be dug around, since it grows in the
+   water as readily as beside it. And a lily is the one planting a lawn can NOT
+   be laid over: it floats, so turfing its tile would strand it on grass. */
+function terrainBlockedByPlant(tool,ex){
+  if (!ex || ex.removed) return false;
+  const def=PLANTS[ex.s] ? plantDef(ex.s,ex.v) : null;
+  if (tool==='lawn') return !!(def && def.type==='water' && !isMarginalDef(def));
+  if (tool==='water') return !standsInWaterDef(def);
+  return true;
+}
 // path/bed/water/lawn: lay or repaint a ground material on a tile
 function placeTerrainAt(x,y){
   const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
@@ -551,12 +567,7 @@ function placeTerrainAt(x,y){
      A shrub's SPREAD is open ground like any other since 0.9.61 — a path along
      a shrub border runs under its skirt, which is what pruning is for — and a
      shrub's own tile takes lawn exactly as a tree's trunk tile does. */
-  const exDef=ex && !ex.removed && PLANTS[ex.s] ? plantDef(ex.s,ex.v) : null;
-  /* A marginal is the one planting a pond can be dug around, since it grows in
-     the water as readily as beside it. And a lily is the one planting a lawn can
-     NOT be laid over: it floats, so turfing its tile would strand it on grass. */
-  if (ex && !ex.removed && game.tool!=='lawn' && !(game.tool==='water' && standsInWaterDef(exDef))) return null;
-  if (game.tool==='lawn' && exDef && exDef.type==='water' && !isMarginalDef(exDef)) return null;
+  if (terrainBlockedByPlant(game.tool,ex)) return null;
   if (game.tool==='water' && fenceAt(x,y)) return null;
   if (game.tool==='water' && lightAt(x,y)) return null;
   if (game.tool==='water' && petAt(x,y)) return null;
@@ -741,9 +752,14 @@ function stampDrift(cx0,cy0,n,opts){
 }
 /* ---------- fence / structure placement ---------- */
 function fenceDraft(){ return game.fenceDraft=normalizeFenceDraft(game.fenceDraft); }
+/* "6 ft cedar privacy fence", "1.2 m brick wall gate": the height through
+   fmtFeet like every other built height. It wrote a foot mark (6') whatever the
+   units preference said. A material already named as a wall or a screen is not
+   also called a fence. */
 function fenceLabel(f){
-  const d=f||fenceDraft();
-  return `${d.height}' ${fenceStyle(d.style).label}${d.gate?' gate':' fence'}`;
+  const d=normalizeFenceDraft(f||fenceDraft()), st=fenceStyle(d.style);
+  const noun=d.gate ? ' gate' : /\b(wall|screen)$/i.test(st.label) ? '' : ' fence';
+  return `${fmtFeet(d.height)} ${lowerFirst(st.label)}${noun}`;
 }
 /* ---------- pergolas ----------
    A pergola is a ROOF over ground you go on using, so what stands under it is
@@ -895,13 +911,56 @@ function solidBlockerAt(x,y,kind,ignoreKey){
   if ((o=ornamentAt(x,y)) && other('ornament',o.key)) return 'ornament';
   return null;
 }
-function canPlaceFence(x,y){
-  if (!onPlot(x,y)) return false;
-  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  if (solidBlockerAt(x,y,'fence',`${x},${y}`) || pergolaAt(x,y)) return false;
-  const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
-  return !(p&&!p.removed) && !(b&&!b.removed);
+/* WHY a solid piece will not stand on these tiles, or null if it will. Every
+   placer of a solid thing asks this, so the rules are checked in one order and
+   a refusal can say which one it was: each placer had its own copy of the same
+   five checks and a refusal of its own wording -- "Fence needs clear dry
+   ground", "No room for that here", "Seating needs a clear, dry patch" -- for
+   what was usually a pot or a plant in the way. Only ornaments said which.
+   `opt.water` lets a piece stand in water (a water feature, wholly in or out:
+   the caller checks the shore); `opt.roof` refuses a pergola overhead and names
+   the piece for the message (a fence, a fire pit, a climbing frame, the tall
+   feeder pole); `opt.plantOk(x,y)` excuses a tile's planting (the pot's own,
+   while it is restyled). */
+function footprintBlocker(tiles,kind,ignoreKey,opt){
+  opt=opt||{};
+  for (const [x,y] of tiles){
+    if (x<0||y<0||x>=GW||y>=GH||!onPlot(x,y)) return {why:'off'};
+    if (siteStructureAt(x,y) || isDoor(x,y)) return {why:'building'};
+    if (!opt.water && tileTerrain(x,y)==='water') return {why:'water'};
+    const s=solidBlockerAt(x,y,kind,ignoreKey); if (s) return {why:'solid', what:s};
+    if (opt.roof && pergolaAt(x,y)) return {why:'roof', roof:opt.roof};
+    const k=`${x},${y}`, pl=game.plants[k], bl=game.bulbs[k];
+    if (((pl&&!pl.removed)||(bl&&!bl.removed)) && !(opt.plantOk && opt.plantOk(x,y))) return {why:'plant'};
+  }
+  return null;
 }
+const SOLID_NOUN={fence:'fence', light:'light', firepit:'fire pit', waterFeature:'water feature',
+  support:'climbing frame', boulder:'boulder', pot:'pot', seat:'seat', ornament:'ornament'};
+const PERGOLA_ROOF_TEXT={
+  fence:'A pergola is overhead. Run the fence round it, not under its roof.',
+  firepit:PERGOLA_BLOCKER_TEXT.firepit,
+  support:'The pergola is already something to climb — plant the climber on it.',
+  tall:PERGOLA_BLOCKER_TEXT.tall,
+};
+const aOrAn=w=>(/^[aeiou]/i.test(w)?'An ':'A ')+w;
+/* What a refusal says, from footprintBlocker's answer. `noun` is the piece being
+   placed ("garden bench", "birdbath"). A null answer on a refused placement means
+   the very same piece is already standing there. */
+function blockerText(b,noun){
+  if (!b) return `That ${noun} is already there.`;
+  if (b.why==='off') return `Keep the ${noun} on the plot.`;
+  if (b.why==='building') return 'A building is in the way.';
+  if (b.why==='water') return `The ${noun} needs dry ground.`;
+  if (b.why==='shore') return `Stand the ${noun} wholly in the water or wholly out of it.`;
+  if (b.why==='solid') return `${aOrAn(SOLID_NOUN[b.what]||'something')} is already standing there.`;
+  if (b.why==='roof') return PERGOLA_ROOF_TEXT[b.roof]||'A pergola is overhead.';
+  if (b.why==='plant') return `Lift the planting first: the ${noun} needs its own ground.`;
+  if (b.why==='strand') return `A smaller ${noun} would leave its planting outside it.`;
+  return 'Something is in the way.';
+}
+function fenceBlocker(x,y){ return footprintBlocker([[x,y]],'fence',`${x},${y}`,{roof:'fence'}); }
+function canPlaceFence(x,y){ return !fenceBlocker(x,y); }
 function placeFenceAt(x,y){
   if (!canPlaceFence(x,y)) return null;
   const d=normalizeFenceDraft(fenceDraft()), k=`${x},${y}`, now=Date.now();
@@ -911,14 +970,9 @@ function placeFenceAt(x,y){
   setTile('fences',k,next);
   return next.gate?'gate':'fence';
 }
-function canPlaceLight(x,y){
-  if (!onPlot(x,y)) return false;
-  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  // under a pergola is fine: it is overhead
-  if (solidBlockerAt(x,y,'light',`${x},${y}`)) return false;
-  const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
-  return !(p&&!p.removed) && !(b&&!b.removed);
-}
+// under a pergola is fine: it is overhead
+function lightBlocker(x,y){ return footprintBlocker([[x,y]],'light',`${x},${y}`); }
+function canPlaceLight(x,y){ return !lightBlocker(x,y); }
 function placeLightAt(x,y){
   if (!canPlaceLight(x,y)) return null;
   const d=normalizeLightDraft(lightDraft()), k=`${x},${y}`, now=Date.now();
@@ -935,8 +989,8 @@ function lightAt(x,y){ const l=game.lights&&game.lights[`${x},${y}`]; return (l&
 function lightDraft(){ return game.lightDraft=normalizeLightDraft(game.lightDraft); }
 function lightLabel(l){
   const d=l||lightDraft();
-  // a torch has no lamp colour to name
-  return lightIsFlame(d) ? lightType(d.type).label : `${lightTone(d.tone).label} ${lightType(d.type).label}`;
+  // a torch has no lamp colour to name; "Warm white path light", "Amber bollard"
+  return lightIsFlame(d) ? lightType(d.type).label : `${lightTone(d.tone).label} ${lowerFirst(lightType(d.type).label)}`;
 }
 /* Garden pets. A pet is pure ornament and the one placeable thing that claims
    NOTHING: no footprint, no shade, no spacing, no line on the plan or the
@@ -947,10 +1001,15 @@ function lightLabel(l){
    It refuses a solid fence run but is happy in a gate opening, hence
    `fenceBlocks` rather than `fenceAt`, and it may curl up under a shrub or in
    the middle of a drift. */
+/* Off every solid, asked through solidBlockerAt like every other placer: this
+   kept its own list, which had no pots, seats or climbing frames on it, so a cat
+   could be set down inside a pot or through a bench. A gate opening is the one
+   solid tile a pet may sit in (fenceBlocks, not fenceAt). */
 function canPlacePet(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  return !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && !waterFeatureAt(x,y) && !ornamentAt(x,y);
+  const s=solidBlockerAt(x,y,'pet',null);
+  return !s || (s==='fence' && !fenceBlocks(x,y));
 }
 function placePetAt(x,y){
   if (!canPlacePet(x,y)) return null;
@@ -1025,35 +1084,30 @@ function potFootprint(x,y,p){
 function potCentreMaxTiles(){
   return Math.max(...POT_SIZES.map(s=>(Math.max(1,Math.round(s.wIn/TILE_IN))-1)/2));
 }
-function canPlacePot(x,y,ignoreKey){
-  const d=potDraft(), sz=potTileSize(d);
-  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
-  for (const [xx,yy] of potFootprint(x,y,d)){
-    if (!onPlot(xx,yy)) return false;
-    // paving is FINE — that is the whole point. Water and structures are not.
-    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (solidBlockerAt(xx,yy,'pot',ignoreKey)) return false;
-    // an in-ground plant already here would be standing in the pot by accident;
-    // the planting of the very pot being restyled is not in-ground (F13)
-    const p=potAt(xx,yy); if (p && p.key===ignoreKey) continue;
-    const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
-    if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
-  }
+function potBlocker(x,y,ignoreKey){
+  const d=potDraft();
+  /* Paving is FINE — that is the whole point. Water and structures are not.
+     An in-ground plant already here would be standing in the pot by accident;
+     the planting of the very pot being restyled is not in-ground (F13). */
+  const b=footprintBlocker(potFootprint(x,y,d),'pot',ignoreKey,
+    {plantOk:(xx,yy)=>{ const p=potAt(xx,yy); return !!(p && p.key===ignoreKey); }});
+  if (b) return b;
   /* A restyle that SHRINKS a trough must not strand its planting outside the
      new vessel, where it would silently become an in-ground plant breaking the
      spacing it was exempt from — refuse rather than lift it. */
   const old=ignoreKey&&game.pots&&game.pots[ignoreKey];
   if (old && !old.removed){
     const [ox,oy]=ignoreKey.split(',').map(Number);
-    const keep=new Set(potFootprint(x,y,d).map(([a,b])=>`${a},${b}`));
+    const keep=new Set(potFootprint(x,y,d).map(([a,b2])=>`${a},${b2}`));
     for (const [xx,yy] of potFootprint(ox,oy,old)){
       const k=`${xx},${yy}`; if (keep.has(k)) continue;
       const pl=game.plants[k], bl=game.bulbs[k];
-      if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
+      if ((pl&&!pl.removed)||(bl&&!bl.removed)) return {why:'strand'};
     }
   }
-  return true;
+  return null;
 }
+function canPlacePot(x,y,ignoreKey){ return !potBlocker(x,y,ignoreKey); }
 function placePotAt(x,y){
   if (!game.pots) game.pots={};
   const d=normalizePotDraft(potDraft()), k=`${x},${y}`;
@@ -1082,10 +1136,10 @@ function clearPotAndPlanting(pot){
    A 6 ft miscanthus in a 12in pot is a real mistake worth naming. */
 function potFitWarning(def,pot){
   if (!def || !pot) return '';
-  const dia=potSizeDef(pot.size).wIn, tall=def.heightIn||def.h||0;
+  const sz=potSizeDef(pot.size), dia=sz.wIn, tall=def.heightIn||def.h||0;
   if (isTreeDef(def)) return '';
-  if (tall>=dia*3.5) return `${def.name} wants a bigger pot than ${dia} in.`;
-  if (isShrubDef(def) && (def.spread||0)>dia*2.2) return `${def.name} will outgrow a ${dia} in pot.`;
+  if (tall>=dia*3.5) return `${def.name} wants a bigger pot than ${potSizeText(sz)}.`;
+  if (isShrubDef(def) && (def.spread||0)>dia*2.2) return `${def.name} will outgrow a ${potSizeText(sz)} pot.`;
   return '';
 }
 
@@ -1475,18 +1529,8 @@ function seatFootprint(x,y,s){
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
   return tiles;
 }
-function canPlaceSeat(x,y,ignoreKey){
-  const d=seatDraft(), sz=seatTileSize(d);
-  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
-  for (const [xx,yy] of seatFootprint(x,y,d)){
-    if (!onPlot(xx,yy)) return false;
-    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (solidBlockerAt(xx,yy,'seat',ignoreKey)) return false;
-    const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
-    if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
-  }
-  return true;
-}
+function seatBlocker(x,y,ignoreKey){ return footprintBlocker(seatFootprint(x,y,seatDraft()),'seat',ignoreKey); }
+function canPlaceSeat(x,y,ignoreKey){ return !seatBlocker(x,y,ignoreKey); }
 function placeSeatAt(x,y){
   if (!game.seats) game.seats={};
   const d=normalizeSeatDraft(seatDraft()), k=`${x},${y}`;
@@ -1514,29 +1558,13 @@ function ornamentFootprint(x,y,o){
 }
 // why the armed piece will not stand here, or null if it will
 function ornamentBlocker(x,y,ignoreKey){
-  const d=ornamentDraft(), sz=ornamentTileSize(d);
-  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return 'off';
-  for (const [xx,yy] of ornamentFootprint(x,y,d)){
-    if (!onPlot(xx,yy)) return 'off';
-    if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return 'building';
-    if (tileTerrain(xx,yy)==='water') return 'water';
-    if (solidBlockerAt(xx,yy,'ornament',ignoreKey)) return 'solid';
-    if (ornamentTooTallForRoof(d) && pergolaAt(xx,yy)) return 'roof';
-    const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
-    if ((pl&&!pl.removed)||(bl&&!bl.removed)) return 'plant';
-  }
-  return null;
+  const d=ornamentDraft();
+  return footprintBlocker(ornamentFootprint(x,y,d),'ornament',ignoreKey,
+    ornamentTooTallForRoof(d) ? {roof:'tall'} : null);
 }
 function canPlaceOrnament(x,y,ignoreKey){ return !ornamentBlocker(x,y,ignoreKey); }
 function ornamentRefusalText(x,y){
-  const why=ornamentBlocker(x,y,`${x},${y}`), what=ornamentKind(ornamentDraft().kind).label.toLowerCase();
-  return !why ? `That ${what} is already there.`
-    : why==='plant' ? `Lift the planting first: the ${what} needs its own ground.`
-    : why==='water' ? `The ${what} needs dry ground.`
-    : why==='roof' ? PERGOLA_BLOCKER_TEXT.tall
-    : why==='off' ? `Keep the ${what} on the plot.`
-    : why==='building' ? 'A building is in the way.'
-    : 'Something is already standing there.';
+  return blockerText(ornamentBlocker(x,y,`${x},${y}`), lowerFirst(ornamentKind(ornamentDraft().kind).label));
 }
 function placeOrnamentAt(x,y){
   if (!game.ornaments) game.ornaments={};
@@ -1565,20 +1593,11 @@ function firepitFootprint(x,y,f){
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
   return tiles;
 }
-function canPlaceFirepit(x,y,ignoreKey){
-  const d=firepitDraft(), sz=firepitTileSize(d);
-  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
-  for (const [xx,yy] of firepitFootprint(x,y,d)){
-    if (!onPlot(xx,yy)) return false;
-    const k=`${xx},${yy}`;
-    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    // no fire under a pergola: the other half of pergolaBlockerAt
-    if (solidBlockerAt(xx,yy,'firepit',ignoreKey) || pergolaAt(xx,yy)) return false;
-    const p=game.plants[k], b=game.bulbs[k];
-    if ((p&&!p.removed) || (b&&!b.removed)) return false;
-  }
-  return true;
+// no fire under a pergola: the other half of pergolaBlockerAt
+function firepitBlocker(x,y,ignoreKey){
+  return footprintBlocker(firepitFootprint(x,y,firepitDraft()),'firepit',ignoreKey,{roof:'firepit'});
 }
+function canPlaceFirepit(x,y,ignoreKey){ return !firepitBlocker(x,y,ignoreKey); }
 function placeFirepitAt(x,y){
   if (!game.firepits) game.firepits={};
   const d=normalizeFirepitDraft(firepitDraft()), k=`${x},${y}`;
@@ -1591,12 +1610,8 @@ function placeFirepitAt(x,y){
 }
 /* ---------- water features ----------
    The fire pit's shape exactly: an origin tile, a claimed rectangle, and a
-   placement that refuses everything already standing on it. It also refuses
-   water TERRAIN, which is worth saying out loud because a fountain standing in
-   a pond is a real and lovely thing and this deliberately does not do it — the
-   drawing would have to know it was in water (no plinth, ripples against the
-   rim rather than a shadow on grass), and half of that in a first cut is worse
-   than a clean refusal. */
+   placement that refuses everything already standing on it. Unlike the fire pit
+   it may stand IN water, wholly in or wholly out (see waterFeatureBlocker). */
 function waterFeatureDraft(){ return game.waterFeatureDraft=normalizeWaterFeatureDraft(game.waterFeatureDraft); }
 function waterFeatureLabel(w){ return waterFeatureLabelFor(w||waterFeatureDraft()); }
 function waterFeatureAt(x,y){ return footprintAt('waterFeatures',waterFeatureTileSize,x,y); }
@@ -1605,9 +1620,8 @@ function waterFeatureFootprint(x,y,w){
   for (let dy=0;dy<sz.h;dy++) for (let dx=0;dx<sz.w;dx++) tiles.push([x+dx,y+dy]);
   return tiles;
 }
-function canPlaceWaterFeature(x,y,ignoreKey){
-  const d=waterFeatureDraft(), sz=waterFeatureTileSize(d);
-  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
+function waterFeatureBlocker(x,y,ignoreKey){
+  const d=waterFeatureDraft();
   /* A fountain standing IN a pond is a real and lovely thing, and this used to
      refuse it outright -- the reason given being that the drawing would have to
      know it was in water (no plinth, ripples against the rim rather than a
@@ -1617,17 +1631,10 @@ function canPlaceWaterFeature(x,y,ignoreKey){
      refusal was really protecting against, and no amount of drawing fixes it. */
   const tiles=waterFeatureFootprint(x,y,d);
   const wet=tiles.filter(([xx,yy])=>tileTerrain(xx,yy)==='water').length;
-  if (wet && wet!==tiles.length) return false;
-  for (const [xx,yy] of tiles){
-    if (!onPlot(xx,yy)) return false;
-    const k=`${xx},${yy}`;
-    if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return false;
-    if (solidBlockerAt(xx,yy,'waterFeature',ignoreKey)) return false;
-    const p=game.plants[k], b=game.bulbs[k];
-    if ((p&&!p.removed) || (b&&!b.removed)) return false;
-  }
-  return true;
+  if (wet && wet!==tiles.length) return {why:'shore'};
+  return footprintBlocker(tiles,'waterFeature',ignoreKey,{water:true});
 }
+function canPlaceWaterFeature(x,y,ignoreKey){ return !waterFeatureBlocker(x,y,ignoreKey); }
 function placeWaterFeatureAt(x,y){
   if (!game.waterFeatures) game.waterFeatures={};
   const d=normalizeWaterFeatureDraft(waterFeatureDraft()), k=`${x},${y}`;
@@ -1693,21 +1700,12 @@ function supportFootprint(x,y,s){
   for (let dy=0;dy<sz.h;dy++) for (let dx=0;dx<sz.w;dx++) tiles.push([x+dx,y+dy]);
   return tiles;
 }
-function canPlaceSupport(x,y,ignoreKey){
-  const d=supportDraft(), sz=supportTileSize(d);
-  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
-  for (const [xx,yy] of supportFootprint(x,y,d)){
-    if (!onPlot(xx,yy)) return false;
-    const k=`${xx},${yy}`;
-    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (solidBlockerAt(xx,yy,'support',ignoreKey)) return false;
-    if (pergolaAt(xx,yy)) return false;      // its posts are the climbing frame there
-    // as a pot does: the structure goes down first, then the climber goes on it
-    const p=game.plants[k], b=game.bulbs[k];
-    if ((p&&!p.removed) || (b&&!b.removed)) return false;
-  }
-  return true;
+/* Under a pergola its posts are the climbing frame already. As a pot does, it
+   refuses a planting: the structure goes down first, then the climber goes on it. */
+function supportBlocker(x,y,ignoreKey){
+  return footprintBlocker(supportFootprint(x,y,supportDraft()),'support',ignoreKey,{roof:'support'});
 }
+function canPlaceSupport(x,y,ignoreKey){ return !supportBlocker(x,y,ignoreKey); }
 function placeSupportAt(x,y){
   if (!game.supports) game.supports={};
   const d=normalizeSupportDraft(supportDraft()), k=`${x},${y}`;
@@ -1725,19 +1723,8 @@ function boulderFootprint(x,y,b){
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
   return tiles;
 }
-function canPlaceBoulder(x,y,ignoreKey){
-  const d=boulderDraft(), sz=boulderTileSize(d);
-  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
-  for (const [xx,yy] of boulderFootprint(x,y,d)){
-    if (!onPlot(xx,yy)) return false;
-    const k=`${xx},${yy}`;
-    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (solidBlockerAt(xx,yy,'boulder',ignoreKey)) return false;
-    const p=game.plants[k], b=game.bulbs[k];
-    if ((p&&!p.removed) || (b&&!b.removed)) return false;
-  }
-  return true;
-}
+function boulderBlocker(x,y,ignoreKey){ return footprintBlocker(boulderFootprint(x,y,boulderDraft()),'boulder',ignoreKey); }
+function canPlaceBoulder(x,y,ignoreKey){ return !boulderBlocker(x,y,ignoreKey); }
 function placeBoulderAt(x,y){
   if (!game.boulders) game.boulders={};
   const d=normalizeBoulderDraft(boulderDraft()), k=`${x},${y}`;
