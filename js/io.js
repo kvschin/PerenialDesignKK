@@ -900,7 +900,7 @@ function gardenFileProblem(env){
         if (!P || (ref.v && (!P.cv || !Object.prototype.hasOwnProperty.call(P.cv,ref.v))))
           return 'This garden contains a plant or variety this version cannot read. Update Pocket Prairie before importing it.';
       } else if (layer==='terrain'){
-        if (!isTerrainKind(p.k) || !string(p,'c') || !string(p,'e')) return 'This garden contains invalid ground material data.';
+        if (!isTerrainKind(p.k) || !string(p,'c') || !string(p,'e') || !string(p,'x')) return 'This garden contains invalid ground material data.';
       } else if (layer==='elevation'){
         if (!Number.isInteger(p.h) || p.h<ELEV_MIN || p.h>ELEV_MAX || !string(p,'w') ||
             (p.s!==undefined && !(Number.isInteger(p.s) && p.s>=1 && p.s<=4))) return 'This garden contains invalid elevation data.';
@@ -1371,7 +1371,11 @@ function hardscapeRows(){
   }
   for (const id in bedSqIn){
     const area=bedSqIn[id]/144;
-    add('Bed', bedStyle(id).label, fmtAreaSqFt(area), area, volumeNote(area,BED_DEPTH_IN));
+    /* A bog is dug out and lined, then filled with soil (BOG_DEPTH_IN), so what
+       it is ordered by is that soil, not a mulch over the top. */
+    add('Bed', bedStyle(id).label, fmtAreaSqFt(area), area, bedStyle(id).wet
+      ? `${fmtVolumeFit(mulchYards(area,BOG_DEPTH_IN))} of soil to fill it ${fmtLengthIn(BOG_DEPTH_IN)} deep, over a liner`
+      : volumeNote(area,BED_DEPTH_IN));
   }
   /* The soil to fill raised beds (0.9.152; raisedBedSoil, world.js), one line
      because it comes in one delivery: from the ground to the underside of the
@@ -1390,9 +1394,38 @@ function hardscapeRows(){
       `${soil.beds>1?`${soil.beds} beds, `:''}${fmtAreaSqFt(soil.sqFt)}${soil.walled?' inside the walls':''}, `+
       `${deep} deep under ${top}`+(count!==bag && soil.cuYd<2 ? ` (${bag})` : ''));
   }
+  // a formal pool's coping is ordered by the foot, round every pool
+  let copeFt=0;
+  for (const L of poolOutlines()) for (let i=0;i<L.pts.length;i++){
+    const a=L.pts[i], b=L.pts[(i+1)%L.pts.length]; copeFt+=Math.hypot(b[0]-a[0],b[1]-a[1])*TILE_IN/12; }
   for (const id in waterSqIn){
     const area=waterSqIn[id]/144;
-    add('Water', waterStyle(id).label, fmtAreaSqFt(area), area, 'surface area');
+    add('Water', waterStyle(id).label, fmtAreaSqFt(area), area, waterStyle(id).crisp && copeFt
+      ? `${fmtFeet(copeFt,1)} of ${lowerFirst(POOL_COPING.label)}, ${fmtLengthIn(POOL_COPING.topIn)} wide`
+      : 'surface area');
+  }
+  /* Crossings (0.9.154): stepping stones by the stone, a bridge by the bridge
+     with its deck's size, the length running the way it spans and including
+     where it lands on the banks. */
+  const cross={};
+  for (const reg of crossingRegions().list){
+    const c=cross[reg.type]||(cross[reg.type]={n:0,stones:0,sizes:[]});
+    if (reg.type==='stepping'){ c.stones+=reg.tiles.length; continue; }
+    c.n++;
+    const ax=reg.axis==='x', dry=(a,b)=>onPlot(a,b) && tileTerrain(a,b)!=='water';
+    let land=0;
+    for (const [x,y] of reg.tiles){
+      if (ax){ if (!reg.has.has((x-1)+','+y) && dry(x-1,y)) land+=1; if (!reg.has.has((x+1)+','+y) && dry(x+1,y)) land+=1; }
+      else { if (!reg.has.has(x+','+(y-1)) && dry(x,y-1)) land+=1; if (!reg.has.has(x+','+(y+1)) && dry(x,y+1)) land+=1; }
+    }
+    const across=ax?reg.y1-reg.y0+1:reg.x1-reg.x0+1, along=(ax?reg.x1-reg.x0+1:reg.y1-reg.y0+1)+CROSSING_LAND*land/Math.max(1,across);
+    c.sizes.push(`${fmtFeet(across*TILE_IN/12,1)} wide, ${fmtFeet(along*TILE_IN/12,1)} long`);
+  }
+  for (const id in cross){
+    const c=cross[id];
+    if (id==='stepping') add('Crossing', crossingLabelFor(id), `${c.stones} stone${c.stones>1?'s':''}`, c.stones,
+      `about ${fmtLengthIn(13)} across, set in the water`);
+    else add('Crossing', crossingLabelFor(id), `${c.n} bridge${c.n>1?'s':''}`, c.n, c.sizes.join('; '));
   }
 
   /* ---- runs ---- */
@@ -3148,6 +3181,49 @@ function drawPlanGround(ctx,g,site){
     const o=game.ornaments[k]; if (!o||o.removed) continue;
     const [x,y]=k.split(',').map(Number);
     drawPlanOrnament(ctx,X(x),Y(y),cell,normalizeOrnamentDraft(o));
+  }
+  /* A formal pool's coping, a foot of stone inside its outline, drawn as a
+     band with the pool's edge the heavy line (0.9.154). */
+  for (const L of poolOutlines()){
+    const {mit}=wallCapMiters(L.pts,1,true), t=POOL_COPING.topIn/TILE_IN;
+    const face=L.pts.map(([gx,gy])=>[X(gx),Y(gy)]), back=L.pts.map(([gx,gy],i)=>[X(gx+mit[i][0]*t),Y(gy+mit[i][1]*t)]);
+    const line=ps=>{ ctx.moveTo(ps[0][0],ps[0][1]); for (let i=1;i<ps.length;i++) ctx.lineTo(ps[i][0],ps[i][1]); ctx.closePath(); };
+    ctx.fillStyle=mixHex(POOL_COPING.capTone,'#f4efe3',0.4); ctx.beginPath(); line(face); line(back); ctx.fill('evenodd');
+    ctx.strokeStyle='#4a423a'; ctx.lineWidth=1.4; ctx.beginPath(); line(face); ctx.stroke();
+    ctx.strokeStyle='rgba(74,66,58,0.6)'; ctx.lineWidth=0.8; ctx.beginPath(); line(back); ctx.stroke();
+  }
+  /* Crossings: a deck in its own colour with its boards or slab joints across
+     the span, as the garden draws it, and a stepping stone in its own outline. */
+  { const dry=(a,b)=>onPlot(a,b) && tileTerrain(a,b)!=='water';
+    for (const reg of crossingRegions().list){
+      const ct=crossingType(reg.type);
+      ctx.fillStyle=ct.plan; ctx.strokeStyle='#4a423a';
+      if (reg.type==='stepping'){
+        for (const [x,y] of reg.tiles){
+          const {cx,cy,rad}=steppingStoneShape(x,y);
+          ctx.beginPath();
+          rad.forEach((r,i)=>{ const a=i/rad.length*6.2832, px=X(cx+Math.cos(a)*r), py=Y(cy+Math.sin(a)*r); i?ctx.lineTo(px,py):ctx.moveTo(px,py); });
+          ctx.closePath(); ctx.fill(); ctx.lineWidth=0.8; ctx.stroke();
+        }
+        continue;
+      }
+      const has=(a,b)=>reg.has.has(a+','+b), u=ct.unitIn/TILE_IN, ax=reg.axis==='x';
+      for (const [x,y] of reg.tiles){
+        const {rect,outer}=crossingDeckRect(x,y,reg.axis,has,dry), [gx0,gx1,gy0,gy1]=rect;
+        ctx.fillRect(X(gx0),Y(gy0),X(gx1)-X(gx0),Y(gy1)-Y(gy0));
+        ctx.lineWidth=0.4; ctx.strokeStyle='rgba(74,66,58,0.55)'; ctx.beginPath();
+        const a0=ax?gx0:gy0, a1=ax?gx1:gy1;
+        for (let k=Math.floor(a0/u)+1;k*u<a1;k++){
+          if (ax){ ctx.moveTo(X(k*u),Y(gy0)); ctx.lineTo(X(k*u),Y(gy1)); } else { ctx.moveTo(X(gx0),Y(k*u)); ctx.lineTo(X(gx1),Y(k*u)); } }
+        ctx.stroke();
+        ctx.lineWidth=1.1; ctx.strokeStyle='#4a423a'; ctx.beginPath();
+        if (outer[0]){ ctx.moveTo(X(gx0),Y(gy0)); ctx.lineTo(X(gx0),Y(gy1)); }
+        if (outer[1]){ ctx.moveTo(X(gx1),Y(gy0)); ctx.lineTo(X(gx1),Y(gy1)); }
+        if (outer[2]){ ctx.moveTo(X(gx0),Y(gy0)); ctx.lineTo(X(gx1),Y(gy0)); }
+        if (outer[3]){ ctx.moveTo(X(gx0),Y(gy1)); ctx.lineTo(X(gx1),Y(gy1)); }
+        ctx.stroke();
+      }
+    }
   }
   /* Formal gardens keep crisp per-tile cells on the sheet, so their edging is
      per-tile too. The organic branch above strokes the smoothed arcs instead. */

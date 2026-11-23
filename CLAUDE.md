@@ -3345,6 +3345,55 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Note `mixHex` parses HEX ONLY, so feeding it its own `rgb(...)` output
     yields NaN channels that clamp to black — that is what made the first frozen
     lake solid black. `mixCol` goes through `colorParts` and takes either form.
+11b2. **Formal pools, bogs and crossings** (0.9.154). The audit's water gap:
+    a pond, a river and a lake were all a garden could hold, nothing could be
+    built over water, and a path painted over a pond replaced it.
+    **A formal pool** is a fourth `WATER_STYLES` row (`formal`): `reach` 1, so
+    it is deep to its edge rather than shelving; `crisp`, so every edge of it is
+    HARD in `terrainUnitEdges` whatever `game.edgeStyle` says, and so is a
+    neighbour's edge facing it (`crispAt`), or a path round it bled half a tile
+    over its stone; its own surface recipe (`texture:'formal'`, a dark mirror
+    with now and then a band of sky, none of a pond's reeds); and a stone
+    COPING round its traced outline (`poolOutlines`, `paintPoolCopings`,
+    renderer.js), laid by `drawWallCap` with `POOL_COPING` a foot wide INSIDE
+    the pool's tiles. The outline is traced with the pool on its right, so the
+    stone goes on side +1. On the far sides, where you look into it, the pool's
+    own wall shows down to the water 3 in below (`POOL_WATER_DROP_IN`). The list
+    bills the coping by the foot; the plan draws it as a band.
+    **A bog** is a `BED_STYLES` row (`bog`, group `wet`, `wet:true`): planted
+    like any bed, dark peat with moss and a little standing water
+    (`texture:'bog'`). `marginalOutOfReach` counts it as wet (`wetBedAt`), so a
+    marginal planted in one is not told to find water, and the toast that does
+    tell it now names the bog. Its line on the list is the soil for a lined bog,
+    `BOG_DEPTH_IN` (18) deep, not a mulch.
+    **A crossing** (`CROSSING_TYPES`: stepping stones, a stone slab bridge, a
+    timber plank bridge, and a none row) is laid ON water as `x` on the tile's
+    terrain record, by the `crossing` tool on its own Ground shelf, so the water
+    stays water underneath and undo, saves, selections, copy and import carry it
+    for nothing. `placeTerrainAt`'s `keep` drops `x` when the tile stops being
+    water; repainting the water style keeps it. Nothing is planted on a crossing
+    and no solid piece stands on one (`footprintBlocker`, reason `crossing`);
+    Erase lifts the crossing before it takes the water. A plank or slab bridge is
+    a DECK: `crossingRegions` (world.js, on `terrainRev`) floods tiles of one
+    kind into decks and gives each the axis it SPANS, the long way of its box or,
+    square, toward the land at its ends. `crossingDeckRect` is one tile of it:
+    its inner sides joined to the next tile, its ends LANDING `CROSSING_LAND`
+    (0.42) of a tile onto the bank. `drawCrossingDeck` draws its shadow, its
+    thickness on the sides that face the camera, and boards or slabs across the
+    span laid out on the WORLD lattice (a board every `unitIn`), so a deck drawn
+    tile by tile is one run of boards, each toned off its own index. A stepping
+    stone is one irregular stone a tile (`steppingStoneShape`, shared with the
+    plan) with a ripple ring. Both are drawn in the ground bake, in a pass of
+    their own after the terrain (`paintCrossings`, back to front), and that is
+    why there are NO HANDRAILS: a rail baked under the planting would have every
+    plant behind it drawn over it. **A deck's look is its whole deck's**, so a
+    terrain edit beside one repaints every tile of the decks it touches, before
+    and after (`noteCrossingDamage`, from `markLayerCacheChanged` and from undo's
+    `applySnapshotGround`): adding a column to a square deck turns its every
+    board. Measured: an eighth column on a 7x7 deck left 4,045 pixels stale
+    (303 badly) without it, and 214 slightly (antialiasing) with it, against a
+    full bake. The list orders stepping stones by the stone and a bridge by its
+    deck's width and length; the plan draws each deck with its boards.
 11c. **The season wash** (`SEASON_WASH` / `seasonWashGradients` /
     `seasonSkyBake` / `drawSeasonSky` / `applySeasonLighting`, world.js) — the
     sky ramp + sun + haze before the frame and the tint + beam + vignette after
@@ -6329,7 +6378,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     measured, Ground used 58% of it and Grade and Hardscape 35%, on a phone and
     the dock alike. What a tool does was a tooltip, which a finger never sees,
     and every material was an arm-then-scroll away. **Ground is a shelf per
-    tool** (Lawn, Path, Bed, Water, Edging; §11f, §11a, §11e): its name, a line
+    tool** (Lawn, Path, Bed, Water, Crossing, Edging; §11f, §11a, §11b2, §11e): its name, a line
     saying what it is for, and its surfaces face up at 72x42 through
     `drawMaterialIcon`. A shut shelf shows the surface in hand, then the common
     ones (`GROUND_SHELVES[].pop`, `groundShelfFace`), then "All 20", which opens

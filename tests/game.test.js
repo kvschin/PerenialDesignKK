@@ -1705,7 +1705,7 @@ test('a marginal out of reach of water is planted and advised, never refused', (
   assert(!/wet/.test(near),'nothing to say on the bank: '+near);
   assertEqual(plantPlacementToastKind(def,12,10,'12,10',null,null),null,'and no amber');
   const far=plantPlacedMessage(def,13,10,'13,10',null,false,null);
-  assert(/stays wet/.test(far)&&/bog or a rain garden/.test(far),'beyond it the toast says what the plant needs: '+far);
+  assert(/stays wet/.test(far)&&far.includes('make this a bog (Ground, Bed, Bog) or a rain garden'),'beyond it the toast says what the plant needs: '+far);
   assertEqual(plantPlacementToastKind(def,13,10,'13,10',null,null),'warn','and in amber');
   assertEqual(placementPolicy('marginalDry').mode,'soft','the rule is advice');
   // a gesture says it once
@@ -9811,7 +9811,7 @@ test('the Ground tab is a shelf per tool, with its surfaces face up', () => {
     landscapeShelfOpen = null; setTool('hand', null); game.pathColor = 'warm'; game.bedStyle = 'soil';
     let kids = page();
     const heads = kids.filter(c => c.className === 'lg-head');
-    assertEqual(heads.map(h => h.children[0].textContent).join(), 'Lawn,Path,Bed,Water,Edging', 'a shelf for each Ground tool, in the tab\'s order');
+    assertEqual(heads.map(h => h.children[0].textContent).join(), 'Lawn,Path,Bed,Water,Crossing,Edging', 'a shelf for each Ground tool, in the tab\'s order');
     assert(heads.every(h => h.children[1].textContent.length > 12), 'each says what the tool is for, where a finger can read it');
     assertEqual(of(kids, 'path').map(c => c.dataset.pathColor).join(), 'warm,bluestone,brick', 'a shut shelf shows the surface in hand, then the common ones');
     assertEqual(of(kids, 'water').length, WATER_STYLES.length, 'a short table is simply all there');
@@ -27340,4 +27340,189 @@ test('the selection estimate fills raised beds under the mulch depth it is set t
   assert(Math.abs(at2.soilCuYd - raisedBedSoil(null, 2).cuYd) < 1e-9, 'the same sum as the list');
   assert(at4.soilCuYd < at2.soilCuYd, 'deeper mulch, less soil under it');
   assert(Math.abs(at2.bedAreaSqFt - raisedBedSoil().sqFt) < 1e-9, 'its bed area is inside the walls');
+});
+
+/* ---- water additions (0.9.154): a formal pool, a bog, crossings ---- */
+function paintArea(tool, style, x0, y0, x1, y1){
+  game.tool = tool;
+  if (tool === 'water') game.waterStyle = style; if (tool === 'bed') game.bedStyle = style; if (tool === 'path') game.pathColor = style;
+  for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) placeTerrainAt(x, y);
+}
+function layCrossing(type, tiles){ game.crossingDraft = type; game.tool = 'crossing'; return tiles.map(([x, y]) => placeCrossingAt(x, y)); }
+const loopIsHard = L => L.closed ? L.hard : L.arcs.every(a => a.hard);
+
+test('a formal pool is square in an organic garden, and so is what meets it', () => {
+  setup(21, 21);
+  game.edgeStyle = 'organic';
+  paintArea('path', 'bluestone', 3, 3, 13, 11);
+  paintArea('water', 'formal', 5, 5, 10, 8);
+  const regions = buildTerrainRegions();
+  const pool = regions.find(r => r.kind === 'water' && r.c === 'formal');
+  assert(pool && pool.loops.length === 1, 'one pool');
+  assert(pool.loops.every(loopIsHard), 'every edge of it is a tile line, not a curve');
+  const patio = regions.find(r => r.kind === 'path');
+  assertEqual(patio.loops.length, 2, 'the patio is a ring round it');
+  assert(patio.loops.some(loopIsHard) && !patio.loops.every(loopIsHard),
+    'its edge against the pool stays on the line, and its edge against the lawn still curves');
+  // a pond is still a pond
+  paintArea('water', 'pond', 15, 3, 19, 7);
+  assert(!buildTerrainRegions().find(r => r.kind === 'water' && r.c === 'pond').loops.every(loopIsHard), 'a pond still curves');
+  assertEqual(waterStyle('formal').reach, 1, 'and a pool is deep to its edge rather than shelving');
+});
+
+test("a formal pool's coping goes round it, and the list bills it by the foot", () => {
+  setup(21, 21);
+  paintArea('water', 'formal', 5, 5, 10, 8);
+  const loops = poolOutlines();
+  assertEqual(loops.length, 1, 'one outline');
+  const L = loops[0];
+  let edge = 0; for (let i = 0; i < L.pts.length; i++){ const a = L.pts[i], b = L.pts[(i + 1) % L.pts.length]; edge += Math.hypot(b[0] - a[0], b[1] - a[1]); }
+  assertEqual(edge, 20, 'round its whole outline, 6 by 4 tiles');
+  // drawn by the wall-top painter, a foot inside the pool's tiles
+  const calls = [], real = drawWallCap;
+  drawWallCap = function(ctx, pts, sgn, closed, st){ calls.push({ pts, sgn, closed, st }); };
+  try { paintPoolCopings(document.createElement('canvas').getContext('2d'), 800, 600, AMBIENCE.Summer, 400, null); }
+  finally { drawWallCap = real; }
+  assertEqual(calls.length, 1, 'one coping');
+  assert(calls[0].closed && calls[0].sgn === 1 && calls[0].st === POOL_COPING, 'closed, laid on the pool side, in stone');
+  const { mit } = wallCapMiters(L.pts, 1, true), p = L.pts[0], q = [p[0] + mit[0][0] * 0.3, p[1] + mit[0][1] * 0.3];
+  assertEqual(tileTerrain(Math.floor(q[0]), Math.floor(q[1])), 'water', 'the side it is laid on is the water');
+  const row = withUnits('imperial', () => hardscapeRows().find(r => r.name === 'Formal pool'));
+  assertEqual(row.detail, '30 ft of stone coping, 12 in wide', 'the list: its coping by the foot');
+  assertEqual(withUnits('imperial', () => hardscapeRows().find(r => r.name === 'Pond')), undefined, 'and nothing else');
+});
+
+test('a bog is a wet bed: a marginal is at home in it, and the list quotes its soil', () => {
+  setup(21, 21);
+  assertEqual(bedStyle('bog').group, 'wet', 'a group of its own');
+  assert(BED_GROUPS.some(g => g[0] === 'wet'), 'with its heading');
+  paintArea('bed', 'bog', 4, 4, 6, 5);
+  assert(wetBedAt(4, 4) && !wetBedAt(10, 10), 'it is wet ground');
+  const marginal = PLANT_KEYS.find(k => isMarginalDef(PLANTS[k]));
+  assert(!marginalOutOfReach(plantDef(marginal), 5, 5), 'a marginal in a bog wants for nothing');
+  paintArea('bed', 'soil', 12, 12, 13, 13);
+  assert(marginalOutOfReach(plantDef(marginal), 12, 12), 'in an ordinary bed it is still told it needs water');
+  game.tool = marginal; game.toolVar = null;
+  assert(placePlantAt(5, 4) && game.plants['5,4'] && game.plants['5,4'].s === marginal, 'and it plants in the bog');
+  const row = withUnits('imperial', () => hardscapeRows().find(r => r.name === 'Bog'));
+  assertEqual(row.detail, '0.8 cu yd of soil to fill it 18 in deep, over a liner', 'the soil to fill a lined bog, not a mulch');
+  // its texture has its own recipe, and stands water in it
+  const ctx = document.createElement('canvas').getContext('2d');
+  let fills = 0; const realFill = ctx.fill; ctx.fill = function(){ fills++; return realFill && realFill.apply(this, arguments); };
+  drawMaterialGrain(ctx, 100, 100, bedStyle('bog'), '#34311f', mulberry(5), 4, 4, AMBIENCE.Summer);
+  assert(fills >= 4, 'peat, moss and water: ' + fills + ' fills');
+});
+
+test('a crossing is laid only on open water, and lifted without draining it', () => {
+  setup(21, 21);
+  paintArea('water', 'pond', 4, 4, 12, 10);
+  assertEqual(layCrossing('stepping', [[6, 6]])[0], 'crossing', 'laid on water');
+  assertEqual(crossingAt(6, 6), 'stepping', 'and it is there');
+  assertEqual(terrainAt(6, 6).k + ':' + terrainAt(6, 6).c, 'water:pond', 'on the water, which is still the water');
+  assertEqual(layCrossing('stepping', [[15, 15]])[0], null, 'not on dry ground');
+  game.crossingDraft = 'stepping';
+  assertEqual(crossingTapText(false, 15, 15), 'A crossing goes over water. Paint the water first.', 'and says why');
+  game.tool = 'water_lily' in PLANTS ? 'water_lily' : PLANT_KEYS.find(k => PLANTS[k].type === 'water' && !PLANTS[k].marginal);
+  game.toolVar = null; placePlantAt(8, 8);
+  assertEqual(layCrossing('slab', [[8, 8]])[0], null, 'nor over a planting');
+  game.tool = PLANT_KEYS.find(k => PLANTS[k].type === 'water' && !PLANTS[k].marginal);
+  assertEqual(placePlantAt(6, 6), null, 'and nothing is planted on a crossing');
+  assertEqual(blockerText(footprintBlocker([[6, 6]], 'waterFeature', '6,6', { water: true }), 'birdbath'),
+    'Stepping stones cross the water there.', 'a water feature does not stand on one either');
+  layCrossing('slab', [[10, 9]]);
+  assertEqual(blockerText(footprintBlocker([[10, 9]], 'waterFeature', '10,9', { water: true }), 'birdbath'),
+    'A stone slab bridge crosses the water there.', 'and says which');
+  // a new water style keeps it; any other surface takes it with the water
+  game.tool = 'water'; game.waterStyle = 'formal'; placeTerrainAt(6, 6);
+  assertEqual(crossingAt(6, 6), 'stepping', 'repainting the water keeps the crossing');
+  game.tool = 'path'; game.pathColor = 'bluestone'; placeTerrainAt(6, 6);
+  assertEqual(terrainAt(6, 6).x, undefined, 'a path laid over it takes the crossing with the water');
+  // the none row lifts it, the water stays
+  layCrossing('plank', [[9, 6]]);
+  assertEqual(layCrossing('none', [[9, 6]])[0], 'crossing', 'the none row lifts it');
+  assert(!crossingAt(9, 6) && tileTerrain(9, 6) === 'water', 'and the water is still there');
+});
+
+test('Erase lifts a crossing first, and the water on a second pass', () => {
+  setup(21, 21);
+  paintArea('water', 'pond', 4, 4, 12, 10);
+  layCrossing('plank', [[6, 6], [6, 7]]);
+  game.eraseMode = 'all'; game.brushSize = 1;
+  const counts = {};
+  eraseBrush(6, 6, counts);
+  assertEqual(counts.crossings, 1, 'one crossing tile lifted');
+  assert(!crossingAt(6, 6) && tileTerrain(6, 6) === 'water', 'the pond stays');
+  eraseBrush(6, 6, counts);
+  assertEqual(tileTerrain(6, 6), null, 'and the next pass takes the water');
+});
+
+test('a deck spans the long way, lands on the bank, and comes back on undo', () => {
+  setup(21, 21);
+  paintArea('water', 'river', 2, 8, 18, 10);
+  layCrossing('plank', [[6, 8], [6, 9], [6, 10], [7, 8], [7, 9], [7, 10]]);
+  const reg = crossingRegions().at.get('6,8');
+  assertEqual(reg.axis, 'y', 'a deck three long and two wide spans the river');
+  assertEqual(reg.tiles.length, 6, 'one deck');
+  const has = (a, b) => reg.has.has(a + ',' + b), dry = (a, b) => tileTerrain(a, b) !== 'water';
+  const d = crossingDeckRect(6, 8, 'y', has, dry);
+  assert(Math.abs(d.rect[2] - (8 - CROSSING_LAND)) < 1e-9, 'it lands on the bank at its end');
+  assertEqual(d.outer.join(), 'true,false,true,false', 'its outer sides are its edge and its end');
+  // a square deck spans toward the land
+  setup(21, 21);
+  paintArea('water', 'pond', 4, 4, 14, 14);
+  game.tool = 'path'; game.pathColor = 'bluestone';
+  for (let x = 6; x <= 8; x++) placeTerrainAt(x, 3);           // a bank north of it, by the pond's edge
+  layCrossing('slab', [[6, 4], [7, 4], [8, 4], [6, 5], [7, 5], [8, 5], [6, 6], [7, 6], [8, 6]]);
+  assertEqual(crossingRegions().at.get('7,5').axis, 'y', 'a square deck spans toward the bank it lands on');
+  // undo
+  beginUndo();
+  layCrossing('none', [[7, 5]]);
+  commitUndo();
+  assert(!crossingAt(7, 5), 'lifted');
+  doUndo();
+  assertEqual(crossingAt(7, 5), 'slab', 'and undo puts it back');
+});
+
+test('the planting list orders stepping stones by the stone and a bridge by its size', () => {
+  setup(21, 21);
+  paintArea('water', 'river', 2, 8, 18, 10);
+  layCrossing('plank', [[6, 8], [6, 9], [6, 10], [7, 8], [7, 9], [7, 10]]);
+  layCrossing('stepping', [[12, 8], [13, 9], [12, 10]]);
+  const rows = withUnits('imperial', () => hardscapeRows().filter(r => r.kind === 'Crossing'));
+  const plank = rows.find(r => r.name === 'Timber plank bridge'), step = rows.find(r => r.name === 'Stepping stones');
+  assertEqual(plank.count, '1 bridge', 'a bridge');
+  assertEqual(plank.detail, '3 ft wide, 5.8 ft long', 'two tiles wide, three long and landing on both banks');
+  assertEqual(step.count, '3 stones', 'three stones');
+});
+
+test('a crossing travels in a selection, a save and an import', () => {
+  setup(21, 21);
+  paintArea('water', 'pond', 4, 4, 12, 10);
+  layCrossing('stepping', [[6, 6]]);
+  const items = selectionPayload({ x0: 5, y0: 5, x1: 7, y1: 7 });
+  assert(items.some(c => c.terr && c.terr.x === 'stepping'), 'a selection carries it on the water it is laid on');
+  const env = { pocketPrairie: 1, v: 1, world: buildSaveBlob() };
+  assertEqual(gardenFileProblem(env), null, 'a save with a crossing is a valid garden');
+  assertEqual(env.world.terrain['6,6'].x, 'stepping', 'carrying it');
+  env.world.terrain['6,6'].x = 7;
+  assert(gardenFileProblem(env), 'and a crossing that is not a name is refused');
+});
+
+test('the Ground tab has a Crossing shelf, and the search finds a bridge', () => {
+  setup(21, 21);
+  assertEqual(TRAY_CATS.find(c => c.id === 'landscape').tools.join(), 'lawn,path,bed,water,crossing,edging', 'after Water');
+  const tray = document.getElementById('toolTray');
+  game.trayCat = 'landscape'; game.traySearch = ''; game.drill = null; tray.children.length = 0; setTool('hand', null); buildToolTray(true);
+  const chips = tray.children.filter(c => c.dataset && c.dataset.k === 'crossing');
+  assertEqual(chips.map(c => c.dataset.crossing).sort().join(), CROSSING_TYPES.map(c => c.id).sort().join(), 'every kind, and the none row');
+  chips.find(c => c.dataset.crossing === 'plank').onclick();
+  assertEqual(game.tool + ':' + crossingDraft(), 'crossing:plank', 'a chip arms it');
+  assert(landscapeSearchItems('bridge').some(i => i.tool === 'crossing' && i.option === 'slab'), 'a slab bridge by "bridge"');
+  assert(landscapeSearchItems('stepping stones').some(i => i.tool === 'crossing' && i.option === 'stepping'), 'stepping stones over water');
+  assert(landscapeSearchItems('formal pool').some(i => i.tool === 'water' && i.option === 'formal'), 'and the pool');
+  assert(landscapeSearchItems('bog').some(i => i.tool === 'bed' && i.option === 'bog'), 'and the bog');
+  // the eyedropper takes the crossing, not the water under it
+  paintArea('water', 'pond', 4, 4, 8, 8); layCrossing('slab', [[5, 5]]);
+  game.tool = 'pick'; pickAt(5, 5);
+  assertEqual(game.tool + ':' + crossingDraft(), 'crossing:slab', 'Pick arms the crossing');
 });

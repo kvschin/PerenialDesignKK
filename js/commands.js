@@ -87,13 +87,14 @@ function pulseCrowding(crowd,placedKey){
 const MARGINAL_REACH_TILES=2;
 function marginalOutOfReach(def,x,y){
   if (!isMarginalDef(def) || potAt(x,y)) return false;
+  if (wetBedAt(x,y)) return false;                  // a bog is the wet ground it wants (0.9.154)
   for (let dy=-MARGINAL_REACH_TILES;dy<=MARGINAL_REACH_TILES;dy++)
     for (let dx=-MARGINAL_REACH_TILES;dx<=MARGINAL_REACH_TILES;dx++)
       if (tileTerrain(x+dx,y+dy)==='water') return false;
   return true;
 }
 function marginalDryText(){
-  return `it wants ground that stays wet, and there is no water within ${fmtFeet(MARGINAL_REACH_TILES*TILE_IN/12)}, so plan on a bog or a rain garden here`;
+  return `it wants ground that stays wet, and there is no water within ${fmtFeet(MARGINAL_REACH_TILES*TILE_IN/12)}, so make this a bog (Ground, Bed, Bog) or a rain garden`;
 }
 function plantPlacedMessage(def,x,y,k,shadeWarn,water,crowd){
   const base=water ? `Planted ${def.name} in the water.`
@@ -256,6 +257,12 @@ function actHere(opts){
     else rejectPlacement(edgingTapText(false,x,y));
     return;
   }
+  if (game.tool==='crossing'){
+    const r=applyToolAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(crossingTapText(true,x,y)); }
+    else rejectPlacement(crossingTapText(false,x,y));
+    return;
+  }
   if (game.tool==='wall'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(wallTapText(true)); }
@@ -296,6 +303,7 @@ function actHere(opts){
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
     if (counts.bulbs) parts.push(`${counts.bulbs} bulb${counts.bulbs>1?'s':''}`);
     if (counts.terr) parts.push(`${counts.terr} terrain tile${counts.terr>1?'s':''}`);
+    if (counts.crossings) parts.push(`a crossing from ${counts.crossings} tile${counts.crossings>1?'s':''}`);
     if (counts.elev) parts.push(`${counts.elev} elevation tile${counts.elev>1?'s':''}`);
     if (counts.fence) parts.push(`${counts.fence} fence${counts.fence>1?'s':''}`);
     if (counts.light) parts.push(`${counts.light} light${counts.light>1?'s':''}`);
@@ -592,6 +600,7 @@ function placeTerrainAt(x,y){
      not bill and the renderer draws anyway. */
   const keep=v=>{
     const rec=Object.assign({},terrObj,v,{t:Date.now()});
+    if (rec.k!=='water') delete rec.x;              // a crossing is laid over water, and goes with it
     if (edgingStyleId(rec.e)==='none'){ const e=edgingInheritedAt(x,y,rec.k,rec.c); if (e) rec.e=e; else delete rec.e; }
     return rec;
   };
@@ -682,6 +691,7 @@ function placePlantAt(x,y,opts){
   if (boulderAt(x,y)) return null;
   if (seatAt(x,y)) return null;
   if (ornamentAt(x,y)) return null;
+  if (crossingAt(x,y)) return null;                // a stepping stone or a deck is no place to plant
   if (pot && isTreeDef(def)) return null;          // a tree needs open ground
   const np={s:game.tool,d:woodyPlantedDay(def,game.woodyAge),t:Date.now()};   // woody: age-at-placement (T10)
   if (game.toolVar) np.v=game.toolVar;
@@ -929,6 +939,7 @@ function footprintBlocker(tiles,kind,ignoreKey,opt){
     if (x<0||y<0||x>=GW||y>=GH||!onPlot(x,y)) return {why:'off'};
     if (siteStructureAt(x,y) || isDoor(x,y)) return {why:'building'};
     if (!opt.water && tileTerrain(x,y)==='water') return {why:'water'};
+    if (crossingAt(x,y)) return {why:'crossing', what:crossingAt(x,y)};
     const s=solidBlockerAt(x,y,kind,ignoreKey); if (s) return {why:'solid', what:s};
     if (opt.roof && pergolaAt(x,y)) return {why:'roof', roof:opt.roof};
     const k=`${x},${y}`, pl=game.plants[k], bl=game.bulbs[k];
@@ -953,6 +964,8 @@ function blockerText(b,noun){
   if (b.why==='off') return `Keep the ${noun} on the plot.`;
   if (b.why==='building') return 'A building is in the way.';
   if (b.why==='water') return `The ${noun} needs dry ground.`;
+  if (b.why==='crossing') return b.what==='stepping' ? 'Stepping stones cross the water there.'
+    : `${aOrAn(lowerFirst(crossingLabelFor(b.what)))} crosses the water there.`;
   if (b.why==='shore') return `Stand the ${noun} wholly in the water or wholly out of it.`;
   if (b.why==='solid') return `${aOrAn(SOLID_NOUN[b.what]||'something')} is already standing there.`;
   if (b.why==='roof') return PERGOLA_ROOF_TEXT[b.roof]||'A pergola is overhead.';
@@ -1153,6 +1166,44 @@ function potFitWarning(def,pot){
    material round a whole region, kept showing the old one until the last tile
    was found. `lastEdging` is what the tap's toast reports. */
 function edgingDraft(){ return game.edgingDraft=edgingStyleId(game.edgingDraft); }
+/* ---------- crossings (0.9.154) ----------
+   Laid on water, a tile at a time, by tap or by drag; the 'none' row lifts one.
+   It stays on the water record (`x`), so the pond is untouched under it. */
+function crossingDraft(){ return game.crossingDraft=crossingTypeId(game.crossingDraft); }
+function crossingLabel(){ return crossingLabelFor(crossingDraft()); }
+// why a crossing will not go here, or null
+function crossingBlocker(x,y){
+  if (!onPlot(x,y)) return 'off';
+  if (tileTerrain(x,y)!=='water') return 'dry';
+  const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
+  if ((p&&!p.removed)||(b&&!b.removed)) return 'plant';
+  if (solidBlockerAt(x,y)) return 'solid';
+  return null;
+}
+function placeCrossingAt(x,y){
+  const t=terrainAt(x,y), d=crossingDraft(), k=`${x},${y}`;
+  if (!t || t.k!=='water') return null;
+  const cur=crossingAt(x,y)||'none';
+  if (d==='none'){
+    if (cur==='none') return null;
+    const rec=Object.assign({},t,{t:Date.now()}); delete rec.x;
+    setTile('terrain',k,rec); return 'crossing';
+  }
+  if (cur===d || crossingBlocker(x,y)) return null;
+  setTile('terrain',k,Object.assign({},t,{x:d,t:Date.now()}));
+  return 'crossing';
+}
+function crossingTapText(ok,x,y){
+  const d=crossingDraft();
+  if (ok) return d==='none' ? 'Crossing lifted. The water is still there.' : `${crossingLabel()} laid.`;
+  if (d==='none') return 'No crossing there to lift.';
+  if (crossingAt(x,y)===d) return `Already ${lowerFirst(crossingLabel())}.`;
+  const why=crossingBlocker(x,y);
+  if (why==='dry') return 'A crossing goes over water. Paint the water first.';
+  if (why==='plant') return 'Lift the planting first: a crossing needs open water.';
+  if (why==='solid') return 'Something already stands in the water there.';
+  return 'No crossing there.';
+}
 function edgingLabel(id){ return edgingLabelFor(id||edgingDraft()); }
 let lastEdging=null;
 function edgingRegionNoun(kind){ return kind==='path'?'path':kind==='water'?'water':kind==='lawn'?'lawn':'bed'; }
@@ -2385,7 +2436,12 @@ function eraseBrush(cx,cy,counts){
     const b=game.bulbs[k];
     if (bulbOK && b && !b.removed){
       clearTile('bulbs',k); counts.bulbs++; }
-    if (terrOK && tileTerrain(x,y)){
+    /* A crossing first, the water under it on a second pass: erasing a bridge
+       should not drain the pond it crosses. */
+    if (terrOK && crossingAt(x,y)){
+      const rec=Object.assign({},game.terrain[k],{t:Date.now()}); delete rec.x;
+      setTile('terrain',k,rec); counts.crossings=(counts.crossings||0)+1; }
+    else if (terrOK && tileTerrain(x,y)){
       clearTile('terrain',k); counts.terr++; }
     /* The RECORD, not the height: a grade-level wall {h:0,w} reads elevation 0
        and could not be erased. And lifting a hollow tidies the rim walls that
@@ -3390,6 +3446,7 @@ function applySnapshotGround(before){
   // stand — this is the planting undo, and it is the common case.
   if (!tiles.size) return 0;
   for (const k of tiles) markGroundChanged({terrain:true, tile:k});
+  noteCrossingDamage([...tiles]);       // a deck's look is its whole deck's (0.9.154)
   if (levels.size) groundDamageBroad=true;
   return tiles.size;
 }

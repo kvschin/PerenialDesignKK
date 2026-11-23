@@ -120,6 +120,151 @@ function isLawnTile(x,y){
   return !k || k==='lawn';
 }
 /* How much of a tile's edging DRAWS: the number of its four sides facing lawn. */
+/* A crossing laid over the water on this tile (CROSSING_TYPES), or null. */
+function crossingAt(x,y){
+  const t=game.terrain && game.terrain[`${x},${y}`];
+  if (!t || t.removed || t.k!=='water' || !t.x) return null;
+  const id=crossingTypeId(t.x);
+  return id==='none' ? null : id;
+}
+// ground kept wet: a bog bed (BED_STYLES' `wet`)
+function wetBedAt(x,y){
+  const t=game.terrain && game.terrain[`${x},${y}`];
+  return !!(t && !t.removed && t.k==='bed' && bedStyle(t.c).wet);
+}
+/* Each DECK (tiles of one crossing kind, 4-connected) and which world axis it
+   SPANS: the long way of its bounding box, or where that is square, the way its
+   ends meet land. Kept on terrainRev, which every terrain edit moves. */
+let crossingRegionCache={key:'', ref:null, at:new Map(), list:[]};
+function crossingRegions(){
+  const key=game.terrainRev+'|'+GW+'x'+GH;
+  if (crossingRegionCache.key===key && crossingRegionCache.ref===game.terrain) return crossingRegionCache;
+  const at=new Map(), list=[], seen=new Set();
+  for (const k in game.terrain||{}){
+    if (seen.has(k)) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), type=crossingAt(x,y);
+    if (!type) continue;
+    const tiles=[], stack=[[x,y]]; seen.add(k);
+    let x0=x,x1=x,y0=y,y1=y;
+    while (stack.length){
+      const [cx,cy]=stack.pop(); tiles.push([cx,cy]);
+      if (cx<x0) x0=cx; if (cx>x1) x1=cx; if (cy<y0) y0=cy; if (cy>y1) y1=cy;
+      for (const [dx,dy] of ELEV_DIRS){
+        const nx=cx+dx, ny=cy+dy, nk=nx+','+ny;
+        if (!seen.has(nk) && crossingAt(nx,ny)===type){ seen.add(nk); stack.push([nx,ny]); }
+      }
+    }
+    const w=x1-x0+1, h=y1-y0+1, has=new Set(tiles.map(t=>t[0]+','+t[1]));
+    let axis=w>h?'x':h>w?'y':null;
+    if (!axis){
+      // a square deck spans the way its ends land: count dry ground off each pair of sides
+      const dry=(a,b)=>tileTerrain(a,b)!=='water';
+      let ex=0, ey=0;
+      for (const [tx,ty] of tiles){
+        if (!has.has((tx-1)+','+ty) && dry(tx-1,ty)) ex++; if (!has.has((tx+1)+','+ty) && dry(tx+1,ty)) ex++;
+        if (!has.has(tx+','+(ty-1)) && dry(tx,ty-1)) ey++; if (!has.has(tx+','+(ty+1)) && dry(tx,ty+1)) ey++;
+      }
+      axis=ey>ex?'y':'x';
+    }
+    const reg={type, tiles, has, axis, x0, x1, y0, y1};
+    list.push(reg); for (const t of tiles) at.set(t[0]+','+t[1],reg);
+  }
+  crossingRegionCache={key, ref:game.terrain, at, list};
+  return crossingRegionCache;
+}
+/* ---------- crossings over water (0.9.154) ----------
+   Drawn in the ground bake through a projector, proj(gx,gy,zIn) in tile-corner
+   coordinates and inches up, so the garden and a tray chip go through one
+   painter, as a wall's top does. A DECK is a rectangle in those coordinates:
+   rect [gx0,gx1,gy0,gy1], outer the sides [-x,+x,-y,+y] that are its edge (an
+   inner side joins the next tile of one deck), axis the way it spans. Boards
+   or slabs run ACROSS the span, laid out on the world lattice (a board every
+   unitIn along it), so a deck drawn tile by tile is one continuous run of
+   boards, each its own tone off its own index. */
+const CROSSING_LAND=0.42;             // how far a deck lands onto the bank, in tiles
+function drawCrossingDeck(ctx,rect,outer,ct,axis,proj,seed,snow){
+  const gx0=rect[0], gx1=rect[1], gy0=rect[2], gy1=rect[3], top=ct.riseIn, bot=Math.max(0,ct.riseIn-ct.deckIn);
+  const P=proj;
+  const quad=(a,b,c,d)=>{ ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); ctx.closePath(); };
+  const tone=snow?mixHex(ct.tone,'#e9eef3',0.7):ct.tone;
+  // its shadow on the water, a little down and right of it
+  { const a=P(gx0,gy0,0), b=P(gx1,gy0,0), c=P(gx1,gy1,0), d=P(gx0,gy1,0);
+    ctx.fillStyle='rgba(14,26,28,0.24)'; ctx.beginPath();
+    quad([a[0]+2.5,a[1]+2],[b[0]+2.5,b[1]+2],[c[0]+2.5,c[1]+2],[d[0]+2.5,d[1]+2]); ctx.fill(); }
+  // its edges, where they face the camera: a side is the deck's thickness
+  const sides=[[gx0,gy1,gx0,gy0,-1,0],[gx1,gy0,gx1,gy1,1,0],[gx0,gy0,gx1,gy0,0,-1],[gx1,gy1,gx0,gy1,0,1]];
+  const facing=i=>{ const sd=sides[i], mx=(sd[0]+sd[2])/2, my=(sd[1]+sd[3])/2;
+    return outer[i] && P(mx+sd[4]*0.2,my+sd[5]*0.2,0)[1] > P(mx,my,0)[1]+1e-6; };
+  ctx.fillStyle=ct.lo; ctx.beginPath();
+  for (let i=0;i<4;i++) if (facing(i)){ const sd=sides[i];
+    quad(P(sd[0],sd[1],top),P(sd[2],sd[3],top),P(sd[2],sd[3],bot),P(sd[0],sd[1],bot)); }
+  ctx.fill();
+  // the top, then a board or a slab at a time across the span
+  ctx.fillStyle=tone; ctx.beginPath(); quad(P(gx0,gy0,top),P(gx1,gy0,top),P(gx1,gy1,top),P(gx0,gy1,top)); ctx.fill();
+  const u=ct.unitIn/TILE_IN, ax=axis==='x';
+  const a0=ax?gx0:gy0, a1=ax?gx1:gy1, c0=ax?gy0:gx0, c1=ax?gy1:gx1;
+  const at=(f,c)=>ax ? P(f,c,top) : P(c,f,top);
+  if (!snow){
+    const tones=[shade(ct.tone,-8),shade(ct.tone,7)];
+    for (let k=Math.floor(a0/u);k*u<a1;k++){
+      const f0=Math.max(a0,k*u), f1=Math.min(a1,(k+1)*u);
+      if (f1<=f0) continue;
+      const pick=(((k*2654435761)^seed)>>>0)%5;
+      if (pick<2){ ctx.fillStyle=tones[pick]; ctx.beginPath(); quad(at(f0,c0),at(f1,c0),at(f1,c1),at(f0,c1)); ctx.fill(); }
+    }
+    ctx.strokeStyle=shade(ct.lo,-12); ctx.lineWidth=ct.id==='plank'?0.7:0.9; ctx.beginPath();
+    for (let k=Math.floor(a0/u)+1;k*u<a1;k++){ const p=at(k*u,c0), q=at(k*u,c1); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); }
+    ctx.stroke();
+  }
+  // light on the edges that face the camera
+  ctx.strokeStyle=snow?'rgba(255,255,255,0.5)':'rgba(255,248,232,0.30)'; ctx.lineWidth=1; ctx.beginPath();
+  for (let i=0;i<4;i++) if (facing(i)){ const sd=sides[i], p=P(sd[0],sd[1],top), q=P(sd[2],sd[3],top);
+    ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); }
+  ctx.stroke();
+}
+/* One stepping stone, on tile (x,y): a flat irregular stone a little proud of
+   the water, its own shadow, and a ring of ripple round it. Seeded off the
+   tile, so a stone keeps its shape. */
+// its outline in tile coordinates, the one the plan draws too
+function steppingStoneShape(x,y){
+  const r=mulberry(tileSeed(x,y)^0x57e9),
+    cx=x+0.5+(r()-0.5)*0.18, cy=y+0.5+(r()-0.5)*0.18, R=0.34+r()*0.05, rad=[];
+  for (let i=0;i<9;i++) rad.push(R*(0.84+r()*0.26));
+  return {cx,cy,rad};
+}
+function drawSteppingStoneOnWater(ctx,x,y,ct,proj,snow){
+  const {cx,cy,rad}=steppingStoneShape(x,y), N=rad.length;
+  const ring=(z,k,dx,dy)=>{ ctx.beginPath();
+    for (let i=0;i<N;i++){ const a=i/N*6.2832, q=proj(cx+Math.cos(a)*rad[i]*k,cy+Math.sin(a)*rad[i]*k,z);
+      if (i) ctx.lineTo(q[0]+dx,q[1]+dy); else ctx.moveTo(q[0]+dx,q[1]+dy); }
+    ctx.closePath(); };
+  // the ripple it sets in the water, then its shadow
+  if (!snow){ ctx.strokeStyle='rgba(226,242,244,0.22)'; ctx.lineWidth=0.9; ring(0,1.28,0,0); ctx.stroke(); }
+  ctx.fillStyle='rgba(14,26,28,0.26)'; ring(0,1.02,2.2,1.6); ctx.fill();
+  ctx.fillStyle=ct.lo; ring(0,1,0,0); ctx.fill();                     // its side, between the water and its top
+  ctx.fillStyle=snow?mixHex(ct.tone,'#eef2f6',0.75):ct.tone; ring(ct.riseIn,1,0,0); ctx.fill();
+  if (!snow){ ctx.fillStyle=ct.hi; ctx.globalAlpha=0.55; ring(ct.riseIn,0.62,-1.2,-0.8); ctx.fill(); ctx.globalAlpha=1; }
+}
+/* One tile of a crossing. has(x,y) says whether a neighbour is the same deck
+   and dry(x,y) whether it is land, so a deck's end lands on a bank. */
+// the rectangle one tile of a deck covers, landings and seams included, and its outer sides
+function crossingDeckRect(x,y,axis,has,dry){
+  let gx0=x, gx1=x+1, gy0=y, gy1=y+1;
+  const hx0=has(x-1,y), hx1=has(x+1,y), hy0=has(x,y-1), hy1=has(x,y+1);
+  // the deck lands on the bank at each end of its span, never at its sides
+  if (axis==='x'){ if (!hx0 && dry(x-1,y)) gx0-=CROSSING_LAND; if (!hx1 && dry(x+1,y)) gx1+=CROSSING_LAND; }
+  else { if (!hy0 && dry(x,y-1)) gy0-=CROSSING_LAND; if (!hy1 && dry(x,y+1)) gy1+=CROSSING_LAND; }
+  // an inner side reaches a hair into the next tile, so two tiles of one deck show no seam
+  const J=0.02;
+  if (hx0) gx0-=J; if (hx1) gx1+=J; if (hy0) gy0-=J; if (hy1) gy1+=J;
+  return {rect:[gx0,gx1,gy0,gy1], outer:[!hx0,!hx1,!hy0,!hy1]};
+}
+function drawCrossingTile(ctx,x,y,type,axis,proj,has,dry,snow,seed){
+  const ct=crossingType(type);
+  if (type==='stepping'){ drawSteppingStoneOnWater(ctx,x,y,ct,proj,snow); return; }
+  const d=crossingDeckRect(x,y,axis,has,dry);
+  drawCrossingDeck(ctx,d.rect,d.outer,ct,axis,proj,seed||0,snow);
+}
 function edgingSidesAt(x,y){
   let n=0;
   for (const [dx,dy] of ELEV_DIRS) if (isLawnTile(x+dx,y+dy)) n++;
@@ -321,6 +466,7 @@ const game = {
   wallDraft:'drystone',                              // material the wall brush paints onto a terrace face
   terraceDraft:{h:3,w:'drystone',top:'bed'},        // the height, facing and top the next terrace is built with
   edgingDraft:'steel',                               // material the edging brush paints onto a bed or path edge
+  crossingDraft:'stepping',                          // what the Crossing tool lays over water (CROSSING_TYPES)
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
@@ -553,6 +699,25 @@ function markLayerCacheChanged(layer,key){
   // (see the ground-damage note above).
   if (c.trace) markGroundChanged({terrain:true, tile: layer==='terrain'?key:undefined});
   else if (c.ground) markGroundChanged();
+  if (layer==='terrain' && key!=null) noteCrossingDamage(key);
+}
+/* A crossing's look depends on its whole DECK (which way it spans, where its
+   ends land), so an edit beside one repaints every tile of the decks it touches,
+   before and after: the cache still holds the decks as they were until it is
+   asked again, so reading it first and then asking gives both. `keys` is one
+   tile or a list (an undo restores many at once, in place, and calls this with
+   all of them). A garden with no crossing pays one Map lookup and returns. */
+function noteCrossingDamage(keys){
+  if (!Array.isArray(keys)) keys=[keys];
+  const before=crossingRegionCache.at;
+  if (!before.size && !keys.some(k=>{ const r=game.terrain&&game.terrain[k]; return r && r.x; })) return;
+  const near=k=>{ const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    return [k,(x+1)+','+y,(x-1)+','+y,x+','+(y+1),x+','+(y-1)]; };
+  const regs=new Set(), own=new Set(keys);
+  for (const k of keys) for (const n of near(k)){ const r=before.get(n); if (r) regs.add(r); }
+  const now=crossingRegions().at;
+  for (const k of keys) for (const n of near(k)){ const r=now.get(n); if (r) regs.add(r); }
+  for (const r of regs) for (const [tx,ty] of r.tiles){ const t=tx+','+ty; if (!own.has(t)) markGroundChanged({terrain:true, tile:t}); }
 }
 function setTile(layer,key,val){ game[layer][key]=val; markModelChanged(); markLayerCacheChanged(layer,key); }
 function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; markModelChanged(); markLayerCacheChanged(layer,key); }
@@ -3858,6 +4023,30 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     }
     grainGrit(ctx,T[0],0,0,1,0,2);
     grainGrit(ctx,T[3],LIT.x*0.5,LIT.y*0.5,0.8,1,2);
+  } else if (tex==='bog'){
+    /* A bog: dark wet peat, cushions of sphagnum moss and here and there a
+       little standing water with the sky in it. The water is what says WET; a
+       bog without it is just dark soil. Pebbles for the cushions, grit for the
+       peat, and a pebble of water with a glint line over it.  (~20us) */
+    for (let i=0;i<22;i++){
+      const rx=0.9+rs()*1.4; grainSite(sx,cy,rx,rx*0.6,rs); grainPush(rx,rx*0.6,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[0],0,0,1,0,2);
+    grainGrit(ctx,T[1],0,0,1,1,2);
+    grainReset();
+    for (let i=0;i<7;i++){
+      const rx=1.8+rs()*2.4; grainSite(sx,cy,rx,rx*0.55,rs); grainPush(rx,rx*0.55,(rs()*CHIP_SIL)|0);
+    }
+    grainPebble(ctx,T[2],0,0,1,0,2);
+    grainPebble(ctx,T[3],LIT.x*0.4,LIT.y*0.4,0.7,1,2);
+    if (rs()<0.6){
+      grainReset();
+      const rx=2.6+rs()*2.6; grainSite(sx,cy,rx,rx*0.5,rs); grainPush(rx,rx*0.5,(rs()*CHIP_SIL)|0);
+      const px=_gpx, py=_gpy;
+      grainPebble(ctx,'#4f666b',0,0,1);
+      ctx.strokeStyle='rgba(214,232,236,0.42)'; ctx.lineWidth=0.7; ctx.beginPath();
+      ctx.moveTo(px-rx*0.5,py-rx*0.08); ctx.lineTo(px+rx*0.35,py-rx*0.2); ctx.stroke();
+    }
   } else if (tex==='stepstone'){
     /* ONE slab per tile, because a tile is 18 inches and that IS about the
        spacing a stepping stone is set at -- so painting a line of tiles lays a
@@ -4190,6 +4379,17 @@ function drawWaterTexture(ctx,sx,sy,x,y,tile,amb,inRegion,depthHint){
       ctx.strokeStyle='rgba(255,255,255,0.26)'; ctx.lineWidth=1; ctx.beginPath();
       for (let i=0;i<3;i++){ const L=2+rr()*2.5; grainSite(sx,cy,4,3,rr);
         ctx.moveTo(_gpx-fy*L,_gpy+fx*L); ctx.lineTo(_gpx+fy*L,_gpy-fx*L); }
+      ctx.stroke();
+    }
+  } else if (tex==='formal'){
+    /* A formal pool: built sides and no shallows, so nothing grows at its
+       margin and the surface is a dark mirror. All it shows is the sky in it, a
+       faint light band now and then, running the same way across the pool so
+       the tiles read as one sheet of water. */
+    if (rr()<0.34){
+      ctx.strokeStyle='rgba(214,232,238,0.10)'; ctx.lineWidth=1.6; ctx.beginPath();
+      const L=10+rr()*12; grainSite(sx,cy,L*0.5,3,rr);
+      ctx.moveTo(_gpx-L,_gpy+L*0.22); ctx.lineTo(_gpx+L,_gpy-L*0.22);
       ctx.stroke();
     }
   } else if (tex==='lake'){

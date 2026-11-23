@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.153';
+const APP_VERSION = '0.9.154';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -967,9 +967,13 @@ function pathPlanFill(t){ return pathColor(t&&t.c).plan; }
    the planting list quotes, and it is the depth selectionEstimate has always
    defaulted to for mulch. */
 const BED_DEPTH_IN = 3;
+/* A bog garden is dug and lined (a liner pricked for slow drainage) and filled
+   with soil about this deep, which is what its line on the planting list quotes
+   instead of a mulch (RHS: 30-45 cm). */
+const BOG_DEPTH_IN = 18;
 /* `snow` is how far snow buries the bed's colour: soil vanishes, an organic
    mulch mostly does, stone keeps showing (default 0.52). */
-const BED_GROUPS = [['mulch','Soil & mulch'],['stone','Gravel & stone']];
+const BED_GROUPS = [['mulch','Soil & mulch'],['stone','Gravel & stone'],['wet','Wet ground']];
 const BED_STYLES = [
   // soil follows the season (fill:null -> AMBIENCE.soil), so its grains are
   // derived from whatever that is rather than pinned to one brown
@@ -1010,6 +1014,13 @@ const BED_STYLES = [
   // Raked gravel: pale granite gravel combed into lines, the Japanese dry garden.
   {id:'raked', label:'Raked gravel', short:'Raked', group:'stone', fill:'#c9c5bb', plan:'#ebe8e1', texture:'raked',
    tones:['#a19c91','#d4d0c6','#e3e0d8','#b7b2a7']},
+  /* A BOG (0.9.154): ground kept wet, for the marginals that want their roots
+     in water without standing in it and the bog perennials beside them. A bed
+     like any other and planted like one, but wet: marginalOutOfReach counts it
+     as water's edge, and the planting list quotes the soil for a lined bog
+     (BOG_DEPTH_IN) instead of a mulch. Dark peat, moss and standing water. */
+  {id:'bog', label:'Bog', short:'Bog', group:'wet', fill:'#34311f', plan:'#b2b58c', texture:'bog',
+   tones:['#1f1b12','#4a4430','#6b7a37','#93a24f'], snow:0.7, wet:true},
 ];
 function bedStyle(id){ return BED_STYLES.find(c=>c.id===id)||BED_STYLES[0]; }
 function bedStyleId(id){ return bedStyle(id).id; }
@@ -1033,9 +1044,40 @@ const WATER_STYLES = [
    texture:'river', reach:4},
   {id:'lake', label:'Lake', fill:'#4c7c96', deep:'#22506f', edge:'#789cae', plan:'#8fb7cf',
    texture:'lake', reach:12},
+  /* A FORMAL POOL (0.9.154): built sides, so it is deep to its edge rather than
+     shelving from a bank (reach 1); square-cornered whatever the garden's edge
+     style (`crisp`: every edge of it is HARD in terrainUnitEdges, and a
+     neighbour's edge facing it too); finished with a stone coping round its
+     outline (POOL_COPING, drawn by drawWallCap, paintPoolCopings); and still to
+     its margin, with none of a pond's reeds. */
+  {id:'formal', label:'Formal pool', fill:'#3d6876', deep:'#2b4f5c', edge:'#9db7b6', plan:'#9ec3cc',
+   texture:'formal', reach:1, crisp:true},
 ];
 function waterStyle(id){ return WATER_STYLES.find(c=>c.id===id)||WATER_STYLES[0]; }
 function waterStyleId(id){ return waterStyle(id).id; }
+// the coping of a formal pool, in WALL_STYLES' terms so drawWallCap can lay it
+const POOL_COPING={id:'coping', label:'Stone coping', cap:'coping', topIn:12, capIn:1.5, overIn:0, copeIn:24,
+  capTone:'#c3bdb0', tone:'#a7a194', cope:'stone coping'};
+/* CROSSINGS (0.9.154): a way over water. It is laid ON a water tile, as `x` on
+   that tile's terrain record, so the water stays water underneath and undo, a
+   save, a selection and Erase carry it with the tile; the 'none' row lifts it.
+   A plank or slab bridge is a DECK: tiles of one kind side by side are one
+   deck, its boards or slabs run across the way it spans (crossingRegions), and
+   it lands a little way onto the bank at each end. A stepping stone is one
+   stone a tile, the spacing a stepping stone is set at, as in a lawn. No
+   handrails: the ground is baked under the planting, so a rail would have the
+   plants behind it drawn over it. `riseIn` is how far the top stands above the
+   water, `deckIn` the thickness that shows at its edge, `unitIn` a board's or
+   a slab's width along the span. */
+const CROSSING_TYPES=[
+  {id:'none',    label:'No crossing',         short:'None'},
+  {id:'stepping',label:'Stepping stones',     short:'Stepping',tone:'#aaa498', lo:'#7a756a', hi:'#c9c3b6', plan:'#cfc9bb', riseIn:2},
+  {id:'slab',    label:'Stone slab bridge',   short:'Slab',    tone:'#9e998e', lo:'#6c685f', hi:'#bdb8ac', plan:'#c9c4b8', riseIn:5, deckIn:6, unitIn:36},
+  {id:'plank',   label:'Timber plank bridge', short:'Plank',   tone:'#8c6a46', lo:'#5c4430', hi:'#ad885d', plan:'#d1b38f', riseIn:9, deckIn:6, unitIn:5.5},
+];
+function crossingType(id){ return CROSSING_TYPES.find(c=>c.id===id)||CROSSING_TYPES[0]; }
+function crossingTypeId(id){ return crossingType(id).id; }
+function crossingLabelFor(id){ return crossingType(id).label; }
 /* Which material is laid ON which, when two of them meet. A path is laid over a
    bed — you cut a path THROUGH planting, the bed does not stop and restart — so
    a path outranks a bed, and a bed outranks the water it runs down to.

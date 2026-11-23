@@ -529,6 +529,8 @@ const DRAG_DONE={
   pot:       n=>`Placed ${n} container${n>1?'s':''}: ${potLabel()}.`,
   seat:      n=>`Placed ${n} seat${n>1?'s':''}: ${lowerFirst(seatLabel())}.`,
   ornament:  n=>`Placed ${n} ornament${n>1?'s':''}: ${lowerFirst(ornamentLabel())}.`,
+  crossing:  n=>crossingDraft()==='none' ? `Lifted the crossing off ${n} tile${n>1?'s':''}.`
+    : `Laid ${n} tile${n>1?'s':''} of ${lowerFirst(crossingLabel())}.`,
   // a drag edges each bed it crosses once, so the count is of beds, not tiles
   edging:    n=>edgingDraft()==='none' ? `Lifted the edging off ${n} bed${n>1?'s':''}.`
     : `${edgingLabel()} laid round ${n} bed${n>1?'s':''}.`,
@@ -688,7 +690,7 @@ cnv.addEventListener('wheel',e=>{
    its planting and that does count — which is most of why this hid. */
 const SWEEP_NOUNS=[
   ['plants','plant'], ['bulbs','bulb'],
-  ['terr','terrain tile'], ['elev','elevation tile'],
+  ['terr','terrain tile'], ['crossings','crossing tile'], ['elev','elevation tile'],
   ['fence','fence'], ['light','light'],
   ['firepit','fire pit'], ['boulder','boulder'], ['waterFeature','water feature'],
   ['support','support'],

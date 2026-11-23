@@ -425,7 +425,85 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex,rect){
     paintGroundTile(ctx,x,y,W,H,amb,showLand,organic);
   }
   if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect);
+  if (showLand){ paintPoolCopings(ctx,W,H,amb,ex,rect); paintCrossings(ctx,W,H,amb,ex,rect); }
   if (showLand) paintWallRuns(ctx,W,H,amb,ex,rect);
+}
+/* ---------- formal pools and crossings (0.9.154) ----------
+   A formal pool's coping is laid along its traced outline by drawWallCap, the
+   painter of a wall's top, a foot wide and inside the pool's own tiles, so the
+   water area is its tiles less the stone. The outline is traced with the pool
+   on its right, so the side to lay the stone on is always +1. Under the stone
+   on the far sides, where you look into the pool, its wall shows down to the
+   water, a few inches below the coping. Both are kept on terrainRev. */
+let poolOutlineCache={key:'', ref:null, loops:[]};
+function poolOutlines(){
+  const key=game.terrainRev+'|'+GW+'x'+GH;
+  if (poolOutlineCache.key===key && poolOutlineCache.ref===game.terrain) return poolOutlineCache.loops;
+  const loops=[], seen=new Set();
+  const isPool=(x,y)=>{ const t=terrainAt(x,y); return !!(t && t.k==='water' && waterStyle(t.c).crisp); };
+  for (const k in game.terrain||{}){
+    if (seen.has(k)) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (!isPool(x,y)) continue;
+    const h=elevationAt(x,y)||0, set=new Set(), stack=[[x,y]]; seen.add(k);
+    while (stack.length){
+      const [cx,cy]=stack.pop(); set.add(cx+','+cy);
+      for (const [dx,dy] of ELEV_DIRS){
+        const nx=cx+dx, ny=cy+dy, nk=nx+','+ny;
+        if (!seen.has(nk) && isPool(nx,ny) && (elevationAt(nx,ny)||0)===h){ seen.add(nk); stack.push([nx,ny]); }
+      }
+    }
+    for (const pts of traceOutlines(set)){
+      let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+      for (const [px,py] of pts){ if (px<x0) x0=px; if (px>x1) x1=px; if (py<y0) y0=py; if (py>y1) y1=py; }
+      loops.push({pts, h, seed:tileSeed(pts[0][0],pts[0][1]), x0,x1,y0,y1});
+    }
+  }
+  poolOutlineCache={key, ref:game.terrain, loops};
+  return loops;
+}
+const POOL_WATER_DROP_IN=3;           // how far the water stands below the coping
+function paintPoolCopings(ctx,W,H,amb,ex,rect){
+  const loops=poolOutlines(); if (!loops.length) return;
+  const vx0=rect?rect[0]:-ex, vx1=rect?rect[2]:W+ex, vy0=rect?rect[1]:-ex, vy1=rect?rect[3]:H+ex;
+  for (const L of loops){
+    const lift=L.h*ELEV_STEP, proj=wallCapProj(W,H,lift);
+    const a=proj(L.x0,L.y0,0), b=proj(L.x1,L.y0,0), c=proj(L.x1,L.y1,0), d=proj(L.x0,L.y1,0);
+    const mx0=Math.min(a[0],b[0],c[0],d[0]), mx1=Math.max(a[0],b[0],c[0],d[0]);
+    const my0=Math.min(a[1],b[1],c[1],d[1])-TILE_H, my1=Math.max(a[1],b[1],c[1],d[1])+TILE_H;
+    if (mx1<vx0||mx0>vx1||my1<vy0||my0>vy1) continue;
+    const pts=L.pts, n=pts.length, {mit,segN}=wallCapMiters(pts,1,true), tI=POOL_COPING.topIn/TILE_IN;
+    // the pool's own wall, under the stone on the sides you look into it from
+    ctx.fillStyle=amb.snow?'#7f8c90':'#3e4a48'; ctx.beginPath();
+    for (let i=0;i<n;i++){ const j=(i+1)%n, A=pts[i], B=pts[j];
+      const mxp=(A[0]+B[0])/2, myp=(A[1]+B[1])/2;
+      if (proj(mxp-segN[i][0]*0.25,myp-segN[i][1]*0.25,0)[1] > proj(mxp,myp,0)[1]+1e-6) continue;   // a near side: hidden
+      const p=[A[0]+mit[i][0]*tI,A[1]+mit[i][1]*tI], q=[B[0]+mit[j][0]*tI,B[1]+mit[j][1]*tI];
+      const p0=proj(p[0],p[1],0), q0=proj(q[0],q[1],0), q1=proj(q[0],q[1],-POOL_WATER_DROP_IN), p1=proj(p[0],p[1],-POOL_WATER_DROP_IN);
+      ctx.moveTo(p0[0],p0[1]); ctx.lineTo(q0[0],q0[1]); ctx.lineTo(q1[0],q1[1]); ctx.lineTo(p1[0],p1[1]); ctx.closePath();
+    }
+    ctx.fill();
+    drawWallCap(ctx,pts,1,true,POOL_COPING,proj,L.seed,!!amb.snow);
+  }
+}
+/* Every crossing tile in view, back to front, each drawn against its deck
+   (crossingRegions): which way it spans, and which neighbours are the same deck. */
+function paintCrossings(ctx,W,H,amb,ex,rect){
+  const R=crossingRegions(); if (!R.list.length) return;
+  const vx0=rect?rect[0]-TILE_W:-TILE_W-ex, vx1=rect?rect[2]+TILE_W:W+TILE_W+ex;
+  const vy0=rect?rect[1]-TILE_H*2:-TILE_H*2-ex, vy1=rect?rect[3]+TILE_H*2:H+TILE_H*2+ex;
+  const tiles=[];
+  for (const reg of R.list) for (const [x,y] of reg.tiles){
+    const [sx,sy]=screenOf(x,y,W,H);
+    if (sx<vx0||sx>vx1||sy<vy0||sy>vy1) continue;
+    tiles.push([x,y,reg,viewDepth(x,y)]);
+  }
+  tiles.sort((p,q)=>p[3]-q[3]);
+  const dry=(x,y)=>onPlot(x,y) && tileTerrain(x,y)!=='water';
+  for (const [x,y,reg] of tiles){
+    const proj=wallCapProj(W,H,(elevationAt(x,y)||0)*ELEV_STEP);
+    drawCrossingTile(ctx,x,y,reg.type,reg.axis,proj,(a,b)=>reg.has.has(a+','+b),dry,!!amb.snow,(reg.x0*73856093^reg.y0*19349663)>>>0);
+  }
 }
 /* Repaint ONE rectangle of the bake, in device pixels. Clears it, clips to it,
    and paints the tiles that can reach it — so the tile loop is bounded by the
@@ -818,7 +896,11 @@ function mergeCollinearClosed(pts){
    patio rounded its corners off inside its own walls. A raised bed that is the
    WHOLE top of its terrace (raisedBedInfo) is the exception: its edges stay soft
    and its wall is drawn along the curve they make (paintRaisedBedWall). */
-function terrainUnitEdges(loop, set, solid, myRank, rankAt, myElev, elevAt, dropSoft){
+/* `crispAt`/`meCrisp` (0.9.154): a formal pool is square whatever the garden's
+   edge style, so every edge of it is HARD, and so is a neighbour's edge facing
+   it: a path or a bed against its coping stops on the line rather than
+   rounding or bleeding over the stone. */
+function terrainUnitEdges(loop, set, solid, myRank, rankAt, myElev, elevAt, dropSoft, crispAt, meCrisp){
   const edges=[];
   const SOFT=0, HARD=1, COVERED=2;
   let drop=false;
@@ -828,9 +910,11 @@ function terrainUnitEdges(loop, set, solid, myRank, rankAt, myElev, elevAt, drop
     if (drop) return dropSoft ? SOFT : HARD;
     if (solid[key]){
       const r=rankAt[key];
-      if (r<myRank) return SOFT;                 // laid over it: draw organic, on top
-      return r>myRank ? COVERED : HARD;
+      if (r>myRank) return COVERED;
+      if (meCrisp || (crispAt && crispAt[key])) return HARD;
+      return r<myRank ? SOFT : HARD;             // laid over it: draw organic, on top
     }
+    if (meCrisp) return HARD;
     return isLawnTile(ox,oy) ? SOFT : HARD;      // lawn smooths; a wall or the plot line does not
   };
   for (let i=0;i<loop.length;i++){
@@ -1516,10 +1600,12 @@ function buildTerrainRegions(){
   const keyOf={};  // "x,y" -> kind|colour|elev (regions split at all three)
   const rankAt={}; // "x,y" -> TERRAIN_RANK: which of two materials is laid on top
   const elevAt={}; // "x,y" -> level, so a skirt only runs under a coverer at its own height
+  const crispAt={}; // "x,y" -> a formal pool: square, and squared against
   for (const k in game.terrain){ const o=game.terrain[k];
     if (!o || o.removed) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     solid[k]=true;
+    if (o.k==='water' && waterStyle(o.c).crisp) crispAt[k]=true;
     rankAt[k]=terrainRank(o.k);
     elevAt[k]=elevationAt(x,y)||0;
     keyOf[k]=o.k+'|'+(o.c||'')+'|'+elevAt[k];
@@ -1543,7 +1629,7 @@ function buildTerrainRegions(){
     }
     const o=game.terrain[k];
     const rank=terrainRank(o.k), elev=elevAt[k], raised=raisedBedInfo(set,elev);
-    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid,rank,rankAt,elev,elevAt,!!raised));
+    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid,rank,rankAt,elev,elevAt,!!raised,crispAt,!!crispAt[k]));
     const useCount={};
     for (const es of unit) for (const e of es){
       const vk=e.a.join(','); useCount[vk]=(useCount[vk]||0)+1; }

@@ -17,7 +17,7 @@ const TRAY_CATS=[
      the house — and it sat last in the strip, scrolled out of view, so the
      step that should come first was the one found last. */
   {id:'house',    label:'Site',             tools:['building','house']},
-  {id:'landscape',label:'Ground',           tools:['lawn','path','bed','water','edging']},
+  {id:'landscape',label:'Ground',           tools:['lawn','path','bed','water','crossing','edging']},
   // Terrace leads: it is what most people opening this tab came to build
   {id:'leveling', label:'Grade',            tools:['terrace','steps','raise','lower','level','wall']},
   /* What stands, what you look at, and what you use (0.9.153). These were
@@ -118,6 +118,8 @@ const TOOLS={
   /* Edging acts on a whole bed per tap (paintEdgingAt), so it has no disc size
      and nothing for Fill to add; a drag still edges every bed it crosses. */
   edging:  {layer:'landscape', brush:true,  placement:true,  paints:false, material:true, apply:(x,y,o)=>paintEdgingAt(x,y)},
+  // laid over water a tile at a time (0.9.154), so a tap or a drag; nothing to fill
+  crossing:{layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeCrossingAt(x,y)},
   house:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false}, // no apply — placed via placeHouse
   building:{layer:'landscape', brush:false, placement:true,  paints:false, material:false}, // corner-by-corner polygon input
   // add/remove tiles on an already-placed footprint. sizable so a whole wing
@@ -626,6 +628,7 @@ function drawBrushSwatchCanvas(c,includeLast){
   };
   const matIcon=(kind,id)=>{ drawMaterialIcon(g,c.width/2,c.height/2+1,c.width*.36,c.height*.24,kind,id); return true; };
   if (isTerrainKind(k)) return matIcon(k,terrainDraftId(k));
+  if (k==='crossing') return matIcon('crossing',crossingDraft());
   if (isElevationTool(k)){ diamond(k==='lower'?'#6f7f83':'#8ba263','rgba(239,230,211,.45)');
     g.fillStyle=uiInk('--icon-ink'); g.font='700 12px IBM Plex Sans'; g.textAlign='center'; g.textBaseline='middle';
     g.fillText(k==='level'?'0':(k==='raise'?'+':'-'),c.width/2,c.height/2+1); return true; }
@@ -812,7 +815,14 @@ function drawMaterialIcon(tc,cx,cy,hw,hh,kind,id,stroke){
   materialIconPath(tc,cx,cy,hw,hh); tc.clip();
   const sx=cx, sy=cy-TILE_H/2;                 // drawGroundTexture takes the top corner
   if (kind==='water') drawWaterTexture(tc,sx,sy,3,7,o,amb,false,3.4);
-  else {
+  else if (kind==='crossing'){
+    drawWaterTexture(tc,sx,sy,3,7,{k:'water',c:'pond'},amb,false,3.4);
+    if (crossingTypeId(id)!=='none'){
+      // tile (3,7) on the swatch: the deck carries on past it both ways along x
+      const proj=(gx,gy,z)=>[cx+((gx-3.5)-(gy-7.5))*TILE_W/2, cy+((gx-3.5)+(gy-7.5))*TILE_H/2-z*EDGE_RISE_PX];
+      drawCrossingTile(tc,3,7,crossingTypeId(id),'x',proj,(a,b)=>b===7,()=>false,false,0x51ab);
+    }
+  } else {
     const rs=mulberry(materialIconSeed(id));
     if (kind==='bed') rs();                    // paintGround spends one draw before the texture
     const base = kind==='path' ? pathFill(o,0) : kind==='lawn' ? lawnFill(o,amb) : bedFill(o,amb);
@@ -824,7 +834,7 @@ function drawMaterialIcon(tc,cx,cy,hw,hh,kind,id,stroke){
   tc.restore();
   if (stroke!==false){
     materialIconPath(tc,cx,cy,hw,hh);
-    tc.strokeStyle=kind==='water'?'rgba(232,248,244,.55)':'rgba(239,230,211,.45)';
+    tc.strokeStyle=(kind==='water'||kind==='crossing')?'rgba(232,248,244,.55)':'rgba(239,230,211,.45)';
     tc.lineWidth=1.2; tc.stroke();
   }
 }
@@ -1144,6 +1154,11 @@ function pickAt(x,y){
     game.fillMode=false; game.trayCat='leveling';
     setTool('terrace', null); buildToolTray();
     toast(`Picked ${terraceLabel()}.`);
+  } else if (crossingAt(x,y)){
+    game.crossingDraft=crossingAt(x,y); game.waterStyle=waterStyleId(terr.c||game.waterStyle);
+    game.fillMode=false; game.trayCat='landscape'; game.drill=null;
+    setTool('crossing', null); buildToolTray();
+    toast(`Picked ${lowerFirst(crossingLabel())}.`);
   } else if (terr){
     if (terr.k==='path') game.pathColor=pathColorId(terr.c||game.pathColor);
     if (terr.k==='water') game.waterStyle=waterStyleId(terr.c||game.waterStyle);
@@ -2013,7 +2028,8 @@ const TOOL_SEARCH={
   lawn:   {label:'Lawn',kind:'fill',   hay:'lawn grass turf mown mow meadow long grass rough wildflower clover eco no-mow fescue moss thyme chamomile tapestry artificial synthetic astroturf ground landscape'},
   path:   {label:'Path',kind:'fill',   hay:'path paths walkway gravel limestone slate charcoal red clay hardscape landscape'},
   bed:    {label:'Bed',kind:'fill',    hay:'bed beds soil gravel rock river rock leaf litter mulch bark pine straw pea gravel planting area landscape'},
-  water:  {label:'Water',kind:'fill',  hay:'water pond river lake stream creek wet landscape'},
+  water:  {label:'Water',kind:'fill',  hay:'water pond river lake stream creek wet formal pool reflecting canal rill landscape'},
+  crossing:{label:'Crossing',kind:'fill',hay:'crossing cross bridge footbridge plank boardwalk slab stepping stones over water pond stream creek ground'},
   edging: {label:'Edging',kind:'fill', hay:'edging edge restraint mowing strip mow strip lawn border spade cut steel corten aluminium brick setts soldier course sawtooth dogtooth rope-top victorian tile fieldstone stone concrete timber log roll willow wattle ground'},
   raise:  {label:'Raise',kind:'layers',hay:'raise elevation grade berm terrace hill leveling'},
   lower:  {label:'Lower',kind:'layers',hay:'lower elevation grade swale basin depression leveling'},
@@ -2083,6 +2099,8 @@ const SEARCH_OPTION_SOURCES=[
   {tool:'path',  rows:()=>PATH_COLORS,  draft:'pathColor',  norm:id=>pathColorId(id), groups:()=>PATH_GROUPS},
   {tool:'bed',   rows:()=>BED_STYLES,   draft:'bedStyle',   norm:id=>bedStyleId(id),  groups:()=>BED_GROUPS},
   {tool:'water', rows:()=>WATER_STYLES, draft:'waterStyle', norm:id=>waterStyleId(id)},
+  {tool:'crossing',rows:()=>CROSSING_TYPES.filter(c=>c.id!=='none'),draft:'crossingDraft',norm:id=>crossingTypeId(id),
+   extra:()=>'bridge over water', icon:(tc,d)=>drawMaterialIcon(tc,24,22,18,13,'crossing',d)},
   {tool:'edging',rows:()=>EDGING_STYLES,draft:'edgingDraft',norm:id=>edgingStyleId(id)},
   {tool:'wall',  rows:()=>WALL_STYLES,  draft:'wallDraft',  norm:id=>wallStyleId(id)},
   {tool:'fence', rows:()=>FENCE_STYLES, draft:'fenceDraft', field:'style', norm:d=>normalizeFenceDraft(d)},
@@ -3561,7 +3579,7 @@ function trayStateSig(ignoreDiscoverySearch=false){
     g.challenge?j([g.challenge.id,g.challenge.title,g.challenge.match,g.challenge.palette,g.challenge.paletteFree]):'-',
     // every draft the tray paints a chip from
     j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.waterFeatureDraft,g.supportDraft,g.boulderDraft,g.petDraft,g.potDraft,
-       g.seatDraft,g.ornamentDraft,g.edgingDraft,g.wallDraft,g.terraceDraft,g.stepDraft,g.buildingStyleDraft,g.buildingDraft,
+       g.seatDraft,g.ornamentDraft,g.edgingDraft,g.crossingDraft,g.wallDraft,g.terraceDraft,g.stepDraft,g.buildingStyleDraft,g.buildingDraft,
        g.houseDraft]),
     g.lastBrushTool||'', g.lastBrushVar||'', g.lastBrushTrayCat||'', g.lastBrushDrill||'',
     // tray-module state that changes what is drawn
@@ -3805,8 +3823,9 @@ function trayTick(){ const t=trayEl('i','lg-tick'); t.appendChild(uiIcon('check'
 const GROUND_SHELVES=[
   {k:'lawn',  name:'Lawn',  desc:'Long grass, clover or moss, or mow a path back', pop:['mown','meadow','clover']},
   {k:'path',  name:'Path',  desc:'Gravel, stone, paving and decking',              pop:['warm','bluestone','brick']},
-  {k:'bed',   name:'Bed',   desc:'Soil, mulch or gravel to plant into',            pop:['soil','mulch','pea']},
-  {k:'water', name:'Water', desc:'Paint a pond, a river or a lake',                pop:['pond','river','lake']},
+  {k:'bed',   name:'Bed',   desc:'Soil, mulch, gravel or a bog to plant into',     pop:['soil','mulch','pea']},
+  {k:'water', name:'Water', desc:'Paint a pond, a river, a lake or a formal pool', pop:['pond','formal','river']},
+  {k:'crossing',name:'Crossing',desc:'Stepping stones or a bridge, laid over water', pop:['stepping','slab','plank']},
   {k:'edging',name:'Edging',desc:'Tap a bed to edge all of it against the lawn',   pop:['steel','brick','timber']}
 ];
 function groundShelf(k){
@@ -3815,6 +3834,7 @@ function groundShelf(k){
   if (k==='bed')    return {table:BED_STYLES,   groups:BED_GROUPS,  cur:bedStyle(game.bedStyle).id,   data:'bedStyle',  set:id=>{ game.bedStyle=id; }};
   if (k==='water')  return {table:WATER_STYLES, cur:waterStyle(game.waterStyle).id, data:'waterStyle', set:id=>{ game.waterStyle=id; }};
   if (k==='edging') return {table:EDGING_STYLES,groups:EDGING_GROUPS,cur:edgingDraft(), data:'edging', set:id=>{ game.edgingDraft=edgingStyleId(id); }};
+  if (k==='crossing') return {table:CROSSING_TYPES,cur:crossingDraft(), data:'crossing', set:id=>{ game.crossingDraft=crossingTypeId(id); }};
   return null;
 }
 /* What a shut shelf shows: the surface in hand first, then the common ones. */
@@ -3831,7 +3851,8 @@ function renderGroundShelves(tray,cat){
       const on=armed&&spec.cur===m.id, b=trayEl('button','lg-chip'+(on?' sel':'')); b.type='button';
       b.dataset.k=shelf.k; b.dataset[spec.data]=m.id; b.setAttribute('aria-pressed',on?'true':'false');
       b.title=shelf.k==='lawn'&&m.none?'Mow back to plain lawn: lifts a meadow, and turfs over a bed or a path'
-        :shelf.k==='edging'&&m.id==='none'?'Lift the edging back off':m.label;
+        :shelf.k==='edging'&&m.id==='none'?'Lift the edging back off'
+        :shelf.k==='crossing'&&m.id==='none'?'Lift a crossing off the water, leaving the water':m.label;
       const {c,x}=trayCanvas(72,42,true);
       // nearly the whole tile at true scale, where the old chip showed a 36x22 crop
       if (shelf.k==='edging') drawEdgingIcon(x,m.id,72,42);
@@ -3859,7 +3880,7 @@ function renderGroundShelves(tray,cat){
       toggle('Fewer','chevron-up','Show the common ones only');
     } else {
       groundShelfFace(shelf,spec,more?3:4).forEach(id=>chip(spec.table.find(m=>m.id===id)));
-      if (more) toggle(`All ${spec.table.length}`,'chevron-down',`Every ${shelf.name.toLowerCase()} ${shelf.k==='edging'?'style':'surface'}`);
+      if (more) toggle(`All ${spec.table.length}`,'chevron-down',`Every ${shelf.name.toLowerCase()} ${shelf.k==='edging'||shelf.k==='crossing'?'style':'surface'}`);
     }
   });
   /* Edge look for the whole garden — organic curves vs crisp tile edges
@@ -5034,6 +5055,8 @@ function refreshTray(){
       ? toolPickOn(+el.dataset.pick)
       : el.dataset.edging
       ? game.tool==='edging' && edgingDraft()===el.dataset.edging
+      : el.dataset.crossing
+      ? game.tool==='crossing' && crossingDraft()===el.dataset.crossing
       : el.dataset.pathColor
       ? game.tool==='path' && game.pathColor===el.dataset.pathColor
       : el.dataset.bedStyle
@@ -5346,6 +5369,7 @@ function sheetContextLabel(){
   if (game.tool==='waterfeature') return cap(waterFeatureLabel());
   if (game.tool==='boulder') return boulderLabel();
   if (game.tool==='edging') return edgingLabel();
+  if (game.tool==='crossing') return crossingLabel();
   if (game.tool==='wall') return wallLabel();
   if (game.tool==='terrace') return terraceLabel();
   if (game.tool==='steps') return stepsLabel();
@@ -5394,6 +5418,7 @@ function toolGuide(){
     bed:{k:`${bedStyle(game.bedStyle).label} bed`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     water:{k:`${waterStyle(game.waterStyle).label} water`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     edging:{k:edgingLabel(),v:edgingDraft()==='none'?'Tap a bed to lift its edging':'Tap a bed or path to edge all of it; tap again in another style to change it'},
+    crossing:{k:crossingLabel(),v:crossingDraft()==='none'?'Tap or drag over a crossing to lift it':'Tap or drag across water to lay it'},
     wall:{k:wallLabel(),v:wallDraft()==='none'?'Tap a terrace to strip its wall back to earth':'Tap a terrace or sunken patio to face all of it'},
     terrace:{k:terraceLabel(),v:game.fillMode?'Tap a bed or area to build all of it to this height'
       :`Drag corner to corner, or tap for a ${pergolaSizeText(TERRACE_TAP_W,TERRACE_TAP_H)} raised bed — tap a terrace to change what you picked`},

@@ -1934,6 +1934,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='pergola') label='Place pergola';
   else if (game.tool==='pet') label='Place pet';
   else if (game.tool==='edging') label=edgingDraft()==='none'?'Lift edging':'Edge this bed';
+  else if (game.tool==='crossing') label=crossingDraft()==='none'?'Lift crossing':'Lay crossing';
   else if (game.tool==='wall') label='Face the terrace';
   else if (game.tool==='terrace') label='Build terrace';
   else if (game.tool==='pot') label='Set down a pot';
