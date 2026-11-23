@@ -2813,11 +2813,16 @@ function selectionEstimate(r=game.sel,depthIn=3,items=game.selItems){
     if (c.plant) plants++;
     if (c.bulb) bulbs++;
   }
-  const bedArea=tileAreaSqFt(bedKeys.size), armed=PLANTS[game.lastBrushTool]?plantDef(game.lastBrushTool,game.lastBrushVar):null;
+  // measured inside any walls, as the planting list measures it (surfaceSqInAt)
+  let bedSqIn=0;
+  for (const k of bedKeys){ const ci=k.indexOf(','); bedSqIn+=surfaceSqInAt(+k.slice(0,ci),+k.slice(ci+1)); }
+  const bedArea=bedSqIn/144, armed=PLANTS[game.lastBrushTool]?plantDef(game.lastBrushTool,game.lastBrushVar):null;
+  // a raised bed's soil goes under the mulch the dialog is quoting, so it takes that depth
+  const soil=raisedBedSoil(bedKeys,depthIn);
   return {
     w,h,widthFt:w*TILE_IN/12,heightFt:h*TILE_IN/12,areaSqFt:tileAreaSqFt(w*h),
     bedTiles:bedKeys.size,bedAreaSqFt:bedArea,edgeFt:materialPerimeterFt(bedKeys),
-    mulchCuYd:mulchYards(bedArea,depthIn),plants,bulbs,
+    mulchCuYd:mulchYards(bedArea,depthIn),soilCuYd:soil.cuYd,raisedTiles:soil.tiles,plants,bulbs,
     armedName:armed&&armed.name,approxPlants:armed&&bedKeys.size?plantsForTiles(bedKeys.size,armed.space):null,
   };
 }

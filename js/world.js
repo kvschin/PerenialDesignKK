@@ -2115,6 +2115,83 @@ function plantWallBounds(x,y){
   if (elevationAt(x,y-1)<h){ ly=Math.max(ly,-off); any=true; }
   return any ? {lx,hx,ly,hy} : null;
 }
+/* RAISED-BED SOIL (0.9.152). The planting list billed a raised bed's wall and
+   not the soil that fills it. A bed tile above grade is filled from the ground
+   to the underside of its surface layer (the bed's own material, `surfaceIn`
+   deep, which its Bed row already bills), less what its walls stand on: a
+   wall's top is `topIn` thick and stands inside the tile whose face it is, so a
+   5 x 3 tile bed in 8 in brick holds 74 x 38 in of soil, not 90 x 54, and a bed
+   one tile wide between two such walls holds 2 in across. It is counted a level
+   at a time, because a wall stands only where its neighbour is lower: the upper
+   wall of a two-tier bed stands on the lower tier's soil, not on the ground. A
+   bank (no facing) takes no room. The same wall tops come off every SURFACE
+   on a walled tile (surfaceSqInAt): the bed's mulch, a patio's paving and a
+   lawn's turf stop at the coping. */
+function wallTopInAt(x,y){ const st=wallStyle(wallStyleAt(x,y)); return st.face ? (st.topIn||0) : 0; }
+// the level of the ground beside a tile, west, east, north, south
+function tileSideLevels(x,y){ return [elevationAt(x-1,y),elevationAt(x+1,y),elevationAt(x,y-1),elevationAt(x,y+1)]; }
+// a tile's area inside walls `th` thick, at the layer of earth from level L to L+1
+function insideSqIn(th,nb,L){
+  const t=i=>nb[i]<=L ? th : 0;
+  return Math.max(0,TILE_IN-t(0)-t(1))*Math.max(0,TILE_IN-t(2)-t(3));
+}
+/* The surface on one tile, in square inches: the tile less any wall tops on it.
+   A step is whole, since its tread is laid over its riser. */
+function surfaceSqInAt(x,y){
+  const g=elevationGrid(), full=TILE_IN*TILE_IN;
+  if (!(g.hi>0) && !g.sunken) return full;        // no earthworks: the common case, one check
+  if (stepDirAt(x,y)) return full;
+  const th=wallTopInAt(x,y);
+  return th ? insideSqIn(th,tileSideLevels(x,y),elevationAt(x,y)-1) : full;
+}
+// cubic inches of soil under one bed tile's surface, from the ground up
+function raisedBedFillCuIn(x,y,surfaceIn=BED_DEPTH_IN){
+  const h=elevationAt(x,y), R=ELEV_RISER_IN, fill=h*R-surfaceIn;
+  if (h<=0 || fill<=0) return 0;
+  const th=wallTopInAt(x,y), nb=th ? tileSideLevels(x,y) : null;
+  let v=0;
+  for (let L=0;L<h;L++){
+    const z0=L*R, z1=Math.min((L+1)*R,fill); if (z1<=z0) break;
+    v+=(th ? insideSqIn(th,nb,L) : TILE_IN*TILE_IN)*(z1-z0);
+  }
+  return v;
+}
+/* Every raised bed tile among `keys` (all the garden's terrain if none), with
+   the soil to fill them: cubic yards, the surface inside the walls, the range of
+   depths, how many separate beds (4-connected, any height, so a two-tier bed is
+   one), whether any is walled, and the surface materials on top. A step is
+   paving, never bed. */
+function raisedBedSoil(keys,surfaceIn=BED_DEPTH_IN){
+  const out={cuYd:0, sqFt:0, lo:Infinity, hi:0, beds:0, tiles:0, walled:false, surfaces:new Set()};
+  const g=elevationGrid(); if (!(g.hi>0)) return out;
+  const raised=new Set();
+  for (const k of (keys || Object.keys(game.terrain||{}))){
+    const t=game.terrain[k]; if (!t || t.removed || t.k!=='bed') continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (stepDirAt(x,y)) continue;
+    const v=raisedBedFillCuIn(x,y,surfaceIn); if (!(v>0)) continue;
+    const d=elevationAt(x,y)*ELEV_RISER_IN-surfaceIn;
+    raised.add(k); out.tiles++;
+    out.cuYd+=v/46656; out.sqFt+=surfaceSqInAt(x,y)/144;
+    out.lo=Math.min(out.lo,d); out.hi=Math.max(out.hi,d);
+    if (wallTopInAt(x,y)) out.walled=true;
+    out.surfaces.add(bedStyleId(t.c));
+  }
+  const seen=new Set();
+  for (const k of raised){
+    if (seen.has(k)) continue;
+    out.beds++; seen.add(k);
+    const stack=[k];
+    while (stack.length){
+      const c=stack.pop(), ci=c.indexOf(','), x=+c.slice(0,ci), y=+c.slice(ci+1);
+      for (const [dx,dy] of ELEV_DIRS){
+        const n=(x+dx)+','+(y+dy);
+        if (raised.has(n) && !seen.has(n)){ seen.add(n); stack.push(n); }
+      }
+    }
+  }
+  return out;
+}
 function isHedgePlant(p){
   const D=p && plantDef(p.s,p.v);
   return !!(D && D.look && D.look.hedge);

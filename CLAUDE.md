@@ -5539,6 +5539,28 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     plant is chosen being a normal state. Print CSS in `styles.css` strips
     everything but the sheet; `.hard-note` (the sub-line) must stay
     `display:block` or it runs on from the material name.
+    **Raised-bed soil is billed, and every surface is measured inside its
+    walls** (0.9.152; `raisedBedSoil`, `raisedBedFillCuIn`, `surfaceSqInAt`,
+    world.js). The list priced a raised bed's wall and not the soil that fills
+    it. One **Soil** line, "Raised bed soil", in cubic yards: each bed tile
+    above grade (a step never) filled from the ground to the underside of its
+    surface layer (`BED_DEPTH_IN`, which the Bed row already bills, so nothing
+    is counted twice), less what its walls stand on. A wall's top is `topIn`
+    thick and stands on the tile whose face it is, so a 5 x 3 tile bed in 8 in
+    brick holds 74 x 38 in of soil, not 90 x 54. It is summed a LEVEL at a
+    time, because a wall stands only where its neighbour is lower: the upper
+    wall of a two-tier bed stands on the lower tier's soil. A bank takes no
+    room. The sub-line counts the beds (4-connected, any height), the area
+    inside the walls, the depths and what is on top, and under 2 cu yd the
+    bag-scale volume as well. The same wall tops now come off every SURFACE
+    on the list, lawn, paving, bed and water (a terrace's patio stops at its
+    coping), and off the selection estimate's bed area, which also gains the
+    soil row, under the mulch depth its slider is set to. A step's tread is
+    whole: it is laid over its riser. **A volume that rounds to "0 cu yd" is
+    said by the bag** (`fmtVolumeFit`, `fmtVolumeBagCuYd`, core.js: cubic
+    feet, or litres in metric), mulch notes included. NOT billed: fill under a
+    terrace with a lawn or paved top, which is subsoil or hardcore rather than
+    soil.
 14b. **Design plan** — `openPlan()` draws an Oudolf-style top-down drift
     map to `#planCanvas`. `planComponents()` flood-fills contiguous
     same-species/cultivar tiles (8-connectivity) into drifts;

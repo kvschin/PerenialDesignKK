@@ -1456,7 +1456,9 @@ function renderSelectionEstimate(){
   if (est.bedTiles){
     html+=row('Bed area',`Approx. ${fmtAreaSqFt(est.bedAreaSqFt,0)}`);
     html+=row('Exposed bed edge',`Approx. ${fmtFeet(est.edgeFt,1)}`);
-    html+=row(`Mulch at ${fmtLengthIn(depth)}`,`Approx. ${fmtVolumeCuYd(est.mulchCuYd)}`);
+    html+=row(`Mulch at ${fmtLengthIn(depth)}`,`Approx. ${fmtVolumeFit(est.mulchCuYd)}`);
+    if (est.raisedTiles) html+=row('Raised bed soil',
+      `Approx. ${est.soilCuYd<2 ? fmtVolumeBagCuYd(est.soilCuYd) : fmtVolumeCuYd(est.soilCuYd)}`);
     if (est.approxPlants) html+=row(`${est.armedName} at spacing`,`Approx. ${est.approxPlants} plants`);
   }
   if (est.plants||est.bulbs) html+=row('Already placed',`${est.plants} plants${est.bulbs?` + ${est.bulbs} bulbs`:''}`);

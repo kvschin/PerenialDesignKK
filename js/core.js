@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.151';
+const APP_VERSION = '0.9.152';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -779,6 +779,18 @@ function fmtAreaSqFt(sqFt,dp){
 function fmtVolumeCuYd(cuYd){
   const v=Math.max(0,+cuYd||0);
   return `${trimNum(metricUnits()?v*CUM_PER_CUYD:v,1)} ${volumeUnit()}`;
+}
+/* The same volume at BAG scale, cubic feet or litres: soil for a small raised
+   bed is bought by the bag, and a tenth of a yard reads "0.1 cu yd" for
+   anything from 2 to 4 cu ft. */
+function fmtVolumeBagCuYd(cuYd){
+  const v=Math.max(0,+cuYd||0);
+  if (metricUnits()){ const l=v*CUM_PER_CUYD*1000; return `${trimNum(l>=100?Math.round(l/10)*10:l,0)} L`; }
+  const f=v*27; return `${trimNum(f,f<10?1:0)} cu ft`;
+}
+// in yards, or by the bag where yards would round to nothing ("0 cu yd")
+function fmtVolumeFit(cuYd){
+  return +cuYd>0 && fmtVolumeCuYd(cuYd)===fmtVolumeCuYd(0) ? fmtVolumeBagCuYd(cuYd) : fmtVolumeCuYd(cuYd);
 }
 /* A bare NUMBER in the display unit, for a table cell whose column header
    already carries the unit — repeating "sq ft" down forty rows is noise. */

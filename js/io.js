@@ -1338,40 +1338,60 @@ function hardscapeRows(){
   const add=(kind,name,count,n,detail)=>rows.push({kind,name,count,n:+n||0,detail:detail||''});
   const bump=(m,k)=>{ m[k]=(m[k]||0)+1; };
   const volumeNote=(areaSqFt,depthIn)=>
-    `${fmtVolumeCuYd(mulchYards(areaSqFt,depthIn))} at ${fmtLengthIn(depthIn)} deep`;
+    `${fmtVolumeFit(mulchYards(areaSqFt,depthIn))} at ${fmtLengthIn(depthIn)} deep`;
 
   /* ---- surfaces ---- one pass over the terrain map, split by kind.
      Mown lawn is STILL an absence (see LAWN_STYLES), so it is the one tally here
      counted by walking the plot rather than the map -- O(GW*GH), affordable
      because this runs when the list is opened and never in a frame -- and it
      asks isLawnTile, so the two cannot disagree about what counts as lawn. */
-  const lawnTiles={}, pathTiles={}, bedTiles={}, waterTiles={};
+  /* Every surface is measured INSIDE its walls (surfaceSqInAt, 0.9.152): a
+     wall's top stands on its own tile, so a raised bed's mulch, a terrace's
+     paving and its turf stop at the coping. Square inches, kept per material. */
+  const lawnSqIn={}, pathSqIn={}, bedSqIn={}, waterSqIn={};
+  const put=(m,id,x,y)=>{ m[id]=(m[id]||0)+surfaceSqInAt(x,y); };
   for (const k in game.terrain){
     const t=game.terrain[k]; if (!t||t.removed) continue;
-    if (t.k==='lawn') bump(lawnTiles,lawnStyleId(t.c));
-    else if (t.k==='path') bump(pathTiles,pathColorId(t.c));
-    else if (t.k==='bed') bump(bedTiles,bedStyleId(t.c));
-    else if (t.k==='water') bump(waterTiles,waterStyleId(t.c));
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (t.k==='lawn') put(lawnSqIn,lawnStyleId(t.c),x,y);
+    else if (t.k==='path') put(pathSqIn,pathColorId(t.c),x,y);
+    else if (t.k==='bed') put(bedSqIn,bedStyleId(t.c),x,y);
+    else if (t.k==='water') put(waterSqIn,waterStyleId(t.c),x,y);
   }
-  let mown=0;
   for (let y=0;y<GH;y++) for (let x=0;x<GW;x++)
-    if (isLawnTile(x,y) && !terrainAt(x,y)) mown++;
-  if (mown) lawnTiles.mown=(lawnTiles.mown||0)+mown;
+    if (isLawnTile(x,y) && !terrainAt(x,y)) put(lawnSqIn,'mown',x,y);
 
-  for (const id in lawnTiles){
-    const area=tileAreaSqFt(lawnTiles[id]);
+  for (const id in lawnSqIn){
+    const area=lawnSqIn[id]/144;
     add('Lawn', lawnLabelFor(id), fmtAreaSqFt(area), area);
   }
-  for (const id in pathTiles){
-    const c=pathColor(id), area=tileAreaSqFt(pathTiles[id]);
+  for (const id in pathSqIn){
+    const c=pathColor(id), area=pathSqIn[id]/144;
     add('Paving', c.label, fmtAreaSqFt(area), area, c.depth ? volumeNote(area,c.depth) : '');
   }
-  for (const id in bedTiles){
-    const area=tileAreaSqFt(bedTiles[id]);
+  for (const id in bedSqIn){
+    const area=bedSqIn[id]/144;
     add('Bed', bedStyle(id).label, fmtAreaSqFt(area), area, volumeNote(area,BED_DEPTH_IN));
   }
-  for (const id in waterTiles){
-    const area=tileAreaSqFt(waterTiles[id]);
+  /* The soil to fill raised beds (0.9.152; raisedBedSoil, world.js), one line
+     because it comes in one delivery: from the ground to the underside of the
+     bed's surface, which the Bed row above already bills, less what the walls
+     stand on. A small bed is bought by the bag, so under 2 cu yd the sub-line
+     says it in cubic feet or litres as well. */
+  const soil=raisedBedSoil(null,BED_DEPTH_IN);
+  if (soil.tiles){
+    const d=v=>fmtLengthIn(v,{ftAt:48});
+    const deep=Math.round(soil.lo)===Math.round(soil.hi) ? d(soil.hi) : `${d(soil.lo)} to ${d(soil.hi)}`;
+    const top=soil.surfaces.size===1
+      ? `${fmtLengthIn(BED_DEPTH_IN)} of ${lowerFirst(bedStyle([...soil.surfaces][0]).label)}`
+      : `the ${fmtLengthIn(BED_DEPTH_IN)} surface`;
+    const count=fmtVolumeFit(soil.cuYd), bag=fmtVolumeBagCuYd(soil.cuYd);
+    add('Soil', 'Raised bed soil', count, soil.cuYd,
+      `${soil.beds>1?`${soil.beds} beds, `:''}${fmtAreaSqFt(soil.sqFt)}${soil.walled?' inside the walls':''}, `+
+      `${deep} deep under ${top}`+(count!==bag && soil.cuYd<2 ? ` (${bag})` : ''));
+  }
+  for (const id in waterSqIn){
+    const area=waterSqIn[id]/144;
     add('Water', waterStyle(id).label, fmtAreaSqFt(area), area, 'surface area');
   }
 

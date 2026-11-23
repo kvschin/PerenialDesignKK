@@ -27141,3 +27141,114 @@ test('the eyedropper picks a flight up into the Steps tool', () => {
   assertEqual(game.tool, 'steps');
   assertEqual(JSON.stringify(stepDraft()), JSON.stringify({ w: 'stone', tread: 'bluestone', width: 3 }), 'its riser, tread and width');
 });
+
+/* ---- raised-bed soil (0.9.152) ---- */
+function soilRow(){ return hardscapeRows().find(r => r.kind === 'Soil'); }
+function raisedBed(x0, y0, x1, y1, h, w, mat){
+  game.bedStyle = mat || 'mulch';
+  for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) buildTerraceTile(x, y, { h, w, top: 'bed' });
+}
+
+test('a raised bed bills the soil to fill it, inside its walls and under its surface', () => {
+  setup(21, 21);
+  raisedBed(5, 5, 9, 7, 3, 'brick');                    // 5 x 3 tiles, 15 in, 8 in brick tops
+  const R = ELEV_RISER_IN, top = wallStyle('brick').topIn;
+  const inside = (5 * TILE_IN - 2 * top) * (3 * TILE_IN - 2 * top), deep = 3 * R - BED_DEPTH_IN;
+  const s = raisedBedSoil(null, BED_DEPTH_IN);
+  assertEqual(s.tiles, 15, 'every tile of it'); assertEqual(s.beds, 1, 'one bed'); assert(s.walled, 'walled');
+  assert(Math.abs(s.cuYd - inside * deep / 46656) < 1e-9, `${s.cuYd} cu yd`);
+  assert(Math.abs(s.sqFt - inside / 144) < 1e-9, 'its surface is what is inside the walls');
+  const row = withUnits('imperial', soilRow);
+  assert(row, 'a Soil line on the list'); assertEqual(row.name, 'Raised bed soil');
+  assert(Math.abs(row.n - s.cuYd) < 1e-9, 'sorted by its volume');
+  assertEqual(row.detail, '20 sq ft inside the walls, 12 in deep under 3 in of bark mulch (20 cu ft)');
+  assertEqual(row.count, '0.7 cu yd');
+  const bed = withUnits('imperial', () => hardscapeRows().find(r => r.kind === 'Bed'));
+  assertEqual(bed.count, '20 sq ft', 'and the mulch is quoted on the same area, not on the coping');
+  assertEqual(withUnits('metric', soilRow).count, '0.6 cu m', 'metric');
+});
+
+test("a two-tier bed's upper wall stands on the lower tier's soil, not on the ground", () => {
+  setup(21, 21);
+  raisedBed(4, 4, 8, 8, 2, 'stone');
+  raisedBed(6, 6, 6, 6, 4, 'stone');                    // one tile, two levels above the rest
+  const R = ELEV_RISER_IN, T = TILE_IN, th = wallStyle('stone').topIn;
+  const want = 2 * R * T * T + (4 * R - BED_DEPTH_IN - 2 * R) * (T - 2 * th) ** 2;
+  assert(Math.abs(raisedBedFillCuIn(6, 6) - want) < 1e-9, 'the first two levels are the whole tile');
+  assertEqual(raisedBedSoil().beds, 1, 'and the two tiers are one bed');
+  const row = withUnits('imperial', soilRow);
+  assert(/ 7 in to 18 in deep /.test(row.detail), row.detail);
+});
+
+test('raised-bed soil counts only beds above grade, and says how many', () => {
+  setup(21, 21);
+  game.bedStyle = 'mulch';
+  for (let x = 2; x <= 4; x++) { game.tool = 'bed'; placeTerrainAt(x, 2); }   // a bed at grade
+  raisedBed(2, 10, 3, 11, -1, 'stone', 'black');        // a sunken one
+  game.pathColor = 'grey';
+  for (let x = 10; x <= 12; x++) buildTerraceTile(x, 2, { h: 2, w: 'brick', top: 'path' });  // a paved terrace
+  assertEqual(soilRow(), undefined, 'nothing to fill');
+  const beds = withUnits('imperial', () => hardscapeRows().filter(r => r.kind === 'Bed').map(r => r.name + ' ' + r.count).sort().join('; '));
+  assertEqual(beds, 'Bark mulch 6.8 sq ft; Black mulch 9 sq ft',
+    'a bed at grade or sunken is measured tile for tile, as it always was');
+  raisedBed(14, 14, 15, 15, 2, 'none', 'gravel');       // a bank, no walls
+  raisedBed(14, 4, 14, 4, 1, 'sleeper', 'gravel');
+  const s = raisedBedSoil();
+  assertEqual(s.beds, 2, 'two raised beds'); assertEqual(s.tiles, 5, 'five tiles of them');
+  const row = withUnits('imperial', soilRow);
+  assert(/^2 beds, /.test(row.detail) && / of gravel/.test(row.detail), row.detail);
+  const bank = raisedBedFillCuIn(14, 14);
+  assert(Math.abs(bank - TILE_IN * TILE_IN * (2 * ELEV_RISER_IN - BED_DEPTH_IN)) < 1e-9, 'a bank takes no room');
+});
+
+test("a terrace's paving and turf stop at its coping too, but a step's tread is whole", () => {
+  setup(21, 21);
+  game.pathColor = 'bluestone';
+  for (let x = 4; x <= 7; x++) for (let y = 4; y <= 6; y++) buildTerraceTile(x, y, { h: 4, w: 'stone', top: 'path' });
+  for (let x = 12; x <= 13; x++) for (let y = 12; y <= 13; y++) buildTerraceTile(x, y, { h: 2, w: 'none', top: 'lawn' });
+  const top = wallStyle('stone').topIn, area = name => withUnits('imperial', () => hardscapeRows().find(r => r.name === name).n);
+  const patio = (4 * TILE_IN - 2 * top) * (3 * TILE_IN - 2 * top) / 144;
+  assert(Math.abs(area('Bluestone') - patio) < 1e-9, `the patio inside its coping: ${area('Bluestone')}`);
+  const lawn = hardscapeRows().filter(r => r.kind === 'Lawn').reduce((s, r) => s + r.n, 0);
+  assert(Math.abs(lawn - (GW * GH - 12) * TILE_IN * TILE_IN / 144) < 1e-9, 'a lawn on a bank loses nothing, and lawn at grade nothing');
+  game.stepDraft = { w: 'stone', tread: 'bluestone', width: 2 };
+  tapStepsAt(5, 7, { ox: 0, oy: -0.4 });
+  assert(isStepTile(5, 7), 'a flight laid');
+  assertEqual(surfaceSqInAt(5, 7), TILE_IN * TILE_IN, 'a tread is laid over its riser and between its cheeks');
+});
+
+test('a small raised bed is quoted by the bag', () => {
+  setup(21, 21);
+  raisedBed(5, 5, 5, 5, 1, 'sleeper');                  // one tile, 5 in
+  const row = withUnits('imperial', soilRow);
+  assert(/cu ft$/.test(row.count), 'cubic feet, not "0 cu yd": ' + row.count);
+  assert(!/\(/.test(row.detail), 'and not twice');
+  assert(/ L$/.test(withUnits('metric', soilRow).count), 'litres in metric');
+  const bed = withUnits('imperial', () => hardscapeRows().find(r => r.kind === 'Bed'));
+  assert(/^[\d.]+ cu ft at 3 in deep$/.test(bed.detail), 'and so is its mulch: ' + bed.detail);
+  assertEqual(fmtVolumeFit(0), withUnits('imperial', () => fmtVolumeFit(0)), 'nothing stays nothing');
+  assertEqual(withUnits('imperial', () => fmtVolumeFit(0)), '0 cu yd');
+});
+
+test('a step is paving, even with a bed painted over its tread', () => {
+  setup(21, 21);
+  raisedBed(6, 5, 14, 9, 4, 'brick');
+  game.stepDraft = { w: 'brick', tread: 'bluestone', width: 3 };
+  tapStepsAt(10, 10, { ox: 0, oy: -0.4 });
+  assert(isStepTile(10, 10), 'a flight laid');
+  const tiles = raisedBedSoil().tiles;
+  game.bedStyle = 'mulch'; game.tool = 'bed'; placeTerrainAt(10, 10);
+  assertEqual(terrainAt(10, 10).k, 'bed', 'a bed painted on the top step');
+  assertEqual(raisedBedSoil().tiles, tiles, 'and still not a raised bed to fill');
+});
+
+test('the selection estimate fills raised beds under the mulch depth it is set to', () => {
+  setup(21, 21);
+  raisedBed(5, 5, 7, 6, 3, 'stone');
+  game.sel = { x0: 4, y0: 4, x1: 8, y1: 7 };
+  const at2 = selectionEstimate(game.sel, 2, selectionPayload(game.sel)), at4 = selectionEstimate(game.sel, 4, selectionPayload(game.sel));
+  assertEqual(at2.raisedTiles, 6, 'six raised bed tiles');
+  assert(Math.abs(at2.soilCuYd - raisedBedSoil(null, 2).cuYd) < 1e-9, 'the same sum as the list');
+  assert(at4.soilCuYd < at2.soilCuYd, 'deeper mulch, less soil under it');
+  assert(Math.abs(at2.bedAreaSqFt - raisedBedSoil().sqFt) < 1e-9, 'its bed area is inside the walls');
+});
