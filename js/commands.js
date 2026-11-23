@@ -263,6 +263,7 @@ function actHere(opts){
     return;
   }
   if (game.tool==='terrace'){ tapTerraceAt(x,y); return; }
+  if (game.tool==='steps'){ tapStepsAt(x,y,opts); return; }
   if (game.tool==='pet'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`A ${petLabel()} settles in.`); }
@@ -1348,7 +1349,9 @@ function setTerraceTile(x,y,d){
   let changed=false;
   if (elevationAt(x,y)!==d.h || wallStyleAt(x,y)!==d.w){
     if (!game.elevation) game.elevation={};
-    setTile('elevation',k,Object.assign({},live,{h:d.h,w:d.w,t:Date.now()}));
+    const rec=Object.assign({},live,{h:d.h,w:d.w,t:Date.now()});
+    if (elevationAt(x,y)!==d.h) delete rec.s;   // a step built to another height is a terrace
+    setTile('elevation',k,rec);
     changed=true;
   }
   for (const [dx,dy] of ELEV_DIRS){
@@ -1468,6 +1471,169 @@ function finishTerraceDrag(x0,y0,x1,y1){
   if (n){ hapticFeedback('place'); toast(terraceBuiltText(r,d)); }
   else toast('That terrace is already there.');
   return n;
+}
+
+/* ---------- steps ----------
+   A flight down from a terrace, or into a sunken patio (STEP_WIDTHS, core.js).
+   A tap on the EDGE where it goes lays it, straight out from that edge onto the
+   lower ground, each tile a level below the one behind it, until it reaches that
+   ground: a 36 in terrace gets seven risers and six treads, nine feet of flight.
+   It is laid whole or not at all, like a terrace, and a refusal says why. A tap
+   on a flight restyles all of it to the riser, tread and width-free choices in
+   the panel. */
+function stepDraft(){ return game.stepDraft=normalizeStepDraft(game.stepDraft); }
+// what the pointer aims at while Steps is armed (input.js), for the preview and hoverSig
+let stepsHover=null;
+function stepsLabel(d){
+  d=normalizeStepDraft(d||stepDraft());
+  const st=wallStyle(d.w), t=pathColor(d.tread);
+  return `Steps · ${st.short||st.label} · ${t.short||t.label} · ${fmtFeet(d.width*TILE_IN/12,1)}`;
+}
+function isStepTile(x,y){ return !!stepDirAt(x,y); }
+/* The flight a step belongs to: the 4-connected steps going down the same way.
+   Two flights laid side by side in different directions stay two flights. */
+function stepFlightAt(x,y){
+  const d=stepDirAt(x,y); if (!d) return null;
+  const same=(nx,ny)=>{ const e=stepDirAt(nx,ny); return e && e[0]===d[0] && e[1]===d[1]; };
+  const seen=new Set([x+','+y]), q=[[x,y]], tiles=[];
+  while (q.length){
+    const [tx,ty]=q.pop(); tiles.push([tx,ty]);
+    for (const [dx,dy] of ELEV_DIRS){
+      const nx=tx+dx, ny=ty+dy, nk=nx+','+ny;
+      if (seen.has(nk) || !same(nx,ny)) continue;
+      seen.add(nk); q.push([nx,ny]);
+    }
+  }
+  return {tiles, has:seen, dir:d};
+}
+/* What a press aims at: the level change on the edge of the tile nearest the
+   pointer (o is evPlacement's sub-tile offset, which for a press on a wall FACE
+   lies past the owner's edge, toward the face), or a flight to restyle. With no
+   offset (a keyboard E) the edges are tried in order. `side` says which half of
+   the edge the pointer is on, so an even-width flight centres under it. */
+function stepsAim(x,y,o){
+  if (!onPlot(x,y)) return null;
+  if (isStepTile(x,y)) return {flight:true, x, y, key:'f'+x+','+y};
+  const ox=o&&Number.isFinite(o.ox)?o.ox:0, oy=o&&Number.isFinite(o.oy)?o.oy:0, h=elevationAt(x,y);
+  const order=ELEV_DIRS.map(d=>({d, dot:d[0]*ox+d[1]*oy})).sort((a,b)=>b.dot-a.dot);
+  for (const {d} of order){
+    const nx=x+d[0], ny=y+d[1];
+    if (!onPlot(nx,ny) || siteStructureAt(nx,ny) || isDoor(nx,ny)) continue;
+    const nh=elevationAt(nx,ny); if (nh===h) continue;
+    const down=nh<h, hx=down?x:nx, hy=down?y:ny, lx=down?nx:x, ly=down?ny:y, n=down?d:[-d[0],-d[1]];
+    // just below a flight is the flight
+    if (isStepTile(hx,hy)) return {flight:true, x:hx, y:hy, key:'f'+hx+','+hy};
+    const p=[-n[1],n[0]], side=(p[0]*ox+p[1]*oy)>=0?1:-1;
+    return {hx,hy,lx,ly,n,H:Math.max(h,nh),L:Math.min(h,nh),side,
+            key:hx+','+hy+'>'+lx+','+ly+(side>0?'+':'-')};
+  }
+  return null;
+}
+/* The flight an aim would lay: its tiles and the height each is built to, or why
+   it cannot be laid. The flight centres on the aimed edge, sliding along it if
+   the edge ends short of the width, so a flight off the end of a raised bed
+   still fits when the bed is wide enough. */
+function stepFlightPlan(aim,d){
+  d=normalizeStepDraft(d);
+  const {n,H,L}=aim, w=d.width, p=[-n[1],n[0]], N=H-L-1;
+  if (N<1) return {single:true, aim};
+  const base=w%2 ? -((w-1)>>1) : (aim.side>0 ? -(w/2-1) : -(w/2));
+  const abuts=c=>{
+    const tx=aim.lx+p[0]*c, ty=aim.ly+p[1]*c, ux=tx-n[0], uy=ty-n[1];
+    return onPlot(tx,ty) && onPlot(ux,uy) && elevationAt(ux,uy)===H && elevationAt(tx,ty)===L
+      && !isStepTile(ux,uy) && !siteStructureAt(ux,uy);
+  };
+  let c0=null;
+  for (let s=0;s<w && c0===null;s++) for (const sh of s?[-s,s]:[0]){
+    let ok=true; for (let c=base+sh;c<base+sh+w;c++) if (!abuts(c)){ ok=false; break; }
+    if (ok){ c0=base+sh; break; }
+  }
+  if (c0===null){
+    // how much edge there is under the aim, for the refusal
+    let run=abuts(0)?1:0; if (run){ for (let c=1;abuts(c);c++) run++; for (let c=-1;abuts(c);c--) run++; }
+    return {short:true, run, aim};
+  }
+  const tiles=[];
+  for (let k=1;k<=N;k++) for (let c=c0;c<c0+w;c++)
+    tiles.push([aim.lx+p[0]*c+n[0]*(k-1), aim.ly+p[1]*c+n[1]*(k-1), H-k]);
+  let blocked=null;
+  for (const [x,y] of tiles){
+    if (!onPlot(x,y)) { blocked={why:'off',x,y}; break; }
+    if (elevationAt(x,y)!==L){ blocked={why:'ground',x,y}; break; }
+    if (isStepTile(x,y)){ blocked={why:'step',x,y}; break; }
+    const b=footprintBlocker([[x,y]],'steps',null);
+    if (b){ blocked=Object.assign(b,{x,y}); break; }
+  }
+  return {tiles, blocked, aim, n, rise:H-L, w, c0};
+}
+const STEP_BLOCKER_TEXT={
+  ground:'The ground is not level where the steps would land. Clear a level run for them.',
+  step:'Another flight is in the way.',
+};
+function stepsRefusalText(plan){
+  if (!plan) return 'Tap the edge of a terrace or a sunken patio, where the steps go.';
+  if (plan.single) return `That is a single ${fmtLengthIn(ELEV_RISER_IN)} step already.`;
+  if (plan.short) return plan.run
+    ? `That edge is only ${fmtFeet(plan.run*TILE_IN/12,1)} long. Pick a narrower flight.`
+    : 'Nothing level to land the steps on there.';
+  const b=plan.blocked; if (!b) return '';
+  return STEP_BLOCKER_TEXT[b.why] || blockerText(b,'flight');
+}
+// lay a tread on one tile, with the Ground path tool, so it obeys a painted surface's rules
+function layStepTread(x,y,tread){
+  const was=game.tool, pc=game.pathColor;
+  try { game.tool='path'; game.pathColor=tread; return !!placeTerrainAt(x,y); }
+  finally { game.tool=was; game.pathColor=pc; }
+}
+function buildStepFlight(plan,d){
+  d=normalizeStepDraft(d);
+  if (!plan || !plan.tiles || plan.blocked) return 0;
+  const s=ELEV_DIRS.findIndex(q=>q[0]===plan.n[0]&&q[1]===plan.n[1])+1;
+  if (!game.elevation) game.elevation={};
+  let n=0;
+  for (const [x,y,h] of plan.tiles){
+    const k=`${x},${y}`;
+    setTile('elevation',k,{h, w:d.w, s, t:Date.now()});
+    layStepTread(x,y,d.tread);
+    n++;
+  }
+  return n;
+}
+// restyle a whole flight to the panel's riser and tread
+function restyleStepFlight(f,d){
+  d=normalizeStepDraft(d);
+  let n=0;
+  for (const [x,y] of f.tiles){
+    const k=`${x},${y}`, e=game.elevation[k];
+    if (wallStyleId(e.w)!==d.w){ setTile('elevation',k,Object.assign({},e,{w:d.w,t:Date.now()})); n++; }
+    const t=terrainAt(x,y);
+    if (!t || t.k!=='path' || pathColorId(t.c)!==d.tread){ if (layStepTread(x,y,d.tread)) n++; }
+  }
+  return n;
+}
+// how many risers a flight climbs: one per level it spans, and the one onto the ground
+function stepFlightRisers(f){
+  const hs=new Set(f.tiles.map(([x,y])=>elevationAt(x,y)));
+  return hs.size+1;
+}
+/* "Laid 6 stone steps with bluestone treads, 4.5 ft wide." */
+function stepsBuiltText(plan,d){
+  return `Laid ${plan.rise} ${lowerFirst(stepsName(d.w,d.tread))}, ${fmtFeet(plan.w*TILE_IN/12,1)} wide.`;
+}
+function tapStepsAt(x,y,o){
+  const d=stepDraft(), aim=stepsAim(x,y,o);
+  if (aim && aim.flight){
+    const f=stepFlightAt(aim.x,aim.y), n=restyleStepFlight(f,d);
+    if (n){ hapticFeedback('place'); toast(`Changed the flight to ${lowerFirst(stepsName(d.w,d.tread))}.`); }
+    else toast('That flight is already like that.');
+    return n?'steps':null;
+  }
+  const plan=aim ? stepFlightPlan(aim,d) : null;
+  if (!plan || !plan.tiles || plan.blocked){ rejectPlacement(stepsRefusalText(plan)); return null; }
+  buildStepFlight(plan,d);
+  hapticFeedback('place');
+  toast(stepsBuiltText(plan,d));
+  return 'steps';
 }
 /* The footprint index for a keyed multi-tile layer (seats, fire pits, water
    features, boulders): tile -> the record standing on it. seatAt and its
@@ -2926,6 +3092,8 @@ function rotatedSelectionItems(items,rot){
         out.push(item); dstOf.set(item,rot(c.x,c.y+sz.h-1));
       } else rest[f]=cloneCell(c[f]);
     }
+    // a step goes down the way it went, turned with everything else
+    if (rest.elev && rest.elev.s>=1 && rest.elev.s<=4) rest.elev.s=(rest.elev.s%4)+1;
     if (Object.keys(rest).length>2){ out.push(rest); dstOf.set(rest,rot(c.x,c.y)); }
   }
   return {items:out, dst:c=>dstOf.get(c)};
@@ -3116,8 +3284,8 @@ function selPointerUp(){
 function evPlacement(e){ // pointer position -> owning world tile + sub-tile offset
   const W=VW/ZOOM, H=VH/ZOOM;
   const pt=canvasClientPoint(e), sx=pt.x/ZOOM, sy=pt.y/ZOOM;
-  // the Wall tool aims at a terrace FACE, which is nobody's top (wallTileAt)
-  const [x,y]=game.tool==='wall' ? wallTileAt(sx, sy, W, H) : tileAt(sx, sy, W, H);
+  // the Wall and Steps tools aim at a terrace FACE, which is nobody's top (wallTileAt)
+  const [x,y]=(game.tool==='wall'||game.tool==='steps') ? wallTileAt(sx, sy, W, H) : tileAt(sx, sy, W, H);
   const [wx,wy]=worldPointAt(sx, sy, W, H, elevationAt(x,y));
   return {x,y,wx,wy,ox:wx-x,oy:wy-y};
 }

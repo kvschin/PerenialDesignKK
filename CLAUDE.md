@@ -4572,9 +4572,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **20.6 inches**, four risers, with one or two being typical. A flight-and-
     cheeks apparatus for something that is almost never more than two treads
     was over-built, and it was the fiddliest thing in the file to draw well.
-    If access ever needs showing, the idea to start from is a PATH that renders
-    as treads where it crosses a level change: no tool, no facing, no placement
-    rules, and it matches how paths already flow through beds by `TERRAIN_RANK`.
+    (They came back in 0.9.151, differently: see the Steps note below. A terrace
+    now reaches 36 in, seven risers, and a flight is TILES a level apart rather
+    than treads drawn on a face.)
     **A HOLLOW shows its face too, as of Sep 2026** — it did not, and that was
     the standing limitation here. `ELEV_MIN` is -2, so Lower digs two courses
     below grade, and a sunken patio drew no cut face, traced no wall and billed
@@ -4707,10 +4707,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `paintWallRuns` takes paintGround's `ex` and `rect`; it culled to the viewport
     alone, so a wall in the bake's margin was left out until the pan-settle rebake,
     and a band bake drew every wall in view, clipped away. Bake with a dozen walled
-    terraces: level at the fitted view, 41 against 38 ms at 100%. Steps were
-    considered and left: a flight is a run of terraces a step apart, which Terrace
-    builds and the caps now draw as risers with nosings; a tool that grades a
-    flight in one drag would be its own piece of work.
+    terraces: level at the fitted view, 41 against 38 ms at 100%. (Steps were
+    considered and left here, as terraces a level apart; built that way they drew
+    as a stack of planter boxes, each with a coping round it. 0.9.151 built them.)
     **0.9.147: a plant on a capped edge tile is drawn in the bed** (`plantWallBounds`,
     `WALL_PLANT_CLEAR` 6, in `plantScreenOf`). A plant stands at its tile's middle,
     9 in from the face, and a brick top is 8 in across, so the back row stood on the
@@ -4720,6 +4719,65 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     wall one tile wide keeps the middle, and a top too thin to reach (corten) moves
     nothing. Only the drawing moves: tile, spacing and rules are unchanged. A sunken
     patio's rim plants stand back from its coping by the same rule.
+    **0.9.151: Steps** (`STEP_WIDTHS`/`STEP_RISERS`/`STEP_TREADS`/`normalizeStepDraft`/
+    `stepsName`, core.js; `stepDirAt`, world.js; `stepsAim`/`stepFlightPlan`/
+    `buildStepFlight`/`tapStepsAt`/`stepFlightAt`, commands.js; `drawStepNosing`,
+    world.js; `stepFaceOccluders`/`drawStepsGhost`, renderer.js; `drawStepsIcon`,
+    tray.js). Terraces reached 36 in and nothing showed how you got up one. One
+    level is `ELEV_RISER_IN` (5.14 in) and one tile 18 in, so a tile a level lower
+    than the one behind it IS a step, a 5 in riser and an 18 in tread, which is an
+    ordinary gentle garden step. So a flight needed nothing new about height: each
+    step is an elevation record marked `s`, the direction it goes down (1-4,
+    `ELEV_DIRS[s-1]`), with `w` its riser and paving laid on it as the tread
+    (through `placeTerrainAt`, so a tread obeys every rule paving does). An older
+    build reads the record as a terrace a level high.
+    *Laying one*: the **Steps** row on the Grade tab, after Terrace, with Riser
+    (the faced `WALL_STYLES`), Tread (nine paving materials) and Width (3, 4.5,
+    6 ft). Tap-only (`brush:false`). A tap aims at the level change on the edge of
+    the tile NEAREST the pointer (`evPlacement`'s sub-tile offset; for a press on a
+    wall face `wallTileAt` resolves the owner and the offset lies past its edge,
+    toward the face), and lays the flight straight out from that edge onto the
+    LOWER ground, a level lower each tile until it lands: a 36 in terrace gets
+    seven risers, nine feet of flight. The same rule puts a flight INTO a sunken
+    patio, on its floor. It centres under the pointer (an even width on the half
+    of the edge the pointer is on) and slides along the edge if the edge ends
+    short; it is laid whole or not at all, and the refusal says why (no edge, a
+    single step already, an edge too short, off the plot, ground not level, a
+    building, water, a plant or a placed piece in the way, another flight). A tap
+    on a flight, or just below one, restyles all of it (riser and tread; width
+    and heights kept). Hover shows the flight before it is laid
+    (`stepsHover`, set on pointermove, in `hoverSig`), red where refused. The
+    eyedropper picks a flight up into the tool. A step whose HEIGHT changes
+    (Raise, Lower, Terrace to another height) stops being a step; refacing keeps
+    it. A selection's quarter turn turns `s` with it, and an import refuses an
+    `s` outside 1-4.
+    *Drawing*: `elevationUnitEdges` marks each face `step` (its owner is a step)
+    and `riser` (it faces the way that step, or the step below it, goes down);
+    runs split on both (`wallRunSplits`). The face down ONTO the top step is the
+    flight's top riser: faced in the step's riser material (`wall`) under the
+    terrace's own coping (`capWall`), so the coping reads as the top nosing. A
+    step run draws a NOSING instead of a coping (`drawStepNosing`): the tread's
+    lit front edge standing 1 in proud, its 2 in slab and its shadow on the riser,
+    mitred at a step's corners through `wallRunEndsFor` (step runs join only each
+    other); a loose tread (gravel, bark) is held by a flush strip of the riser's
+    top instead. Built as terraces a level apart, a flight drew as a stack of
+    planter boxes, a coping round each step. **Walls are drawn after all the
+    ground**, so a face behind taller ground paints over it; rare for terraces,
+    every flight seen from its terrace's side for steps. A step's faces are
+    therefore clipped by the tops of taller tiles in front of them
+    (`stepFaceOccluders`: a 4 x 4 window toward the camera from each face, each
+    tile clipped out on its own, since a clip intersects the last), grown a little
+    so the seam between two shows no hairline.
+    *Documents*: the planting list counts steps by the step (risers), one line
+    per riser and tread material ("Stone steps with bluestone treads", "6 steps",
+    "4.5 ft wide, 5 in risers, 22.5 ft of tread"); risers are not billed as wall,
+    a flight's sides are, without the coping they do not have. The plan draws a
+    flight as stairs are drawn: a line at each riser and along its sides, an arrow
+    from its foot to its top tread (`planStepFlights`) and UP at its foot through
+    the label placer (on the bottom tread where the foot is the plot's edge); a
+    step carries no spot height. Not done: the guidebook has no Steps demo, and a
+    terrace whose height changes after its flight is laid leaves the flight at the
+    old heights (lay it again).
 12d. **Water features** (`WATER_FEATURES`/`WATER_FINISHES`, `drawWaterFeature`) —
     pond, river and lake are AREAS: you paint them, they shelve from a bank, and
     until 0.8.71 they were the only water the app could draw. The water that
@@ -6245,8 +6303,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     was three taps and a scroll. The garden-wide Edges setting closes the page
     as a row with a segment. **Grade is a row per tool** with the sentence its
     tooltip held; **Terrace** leads (a raised bed, terrace or sunken patio built
-    with its wall, §12c) and the armed tool's options (Height and Wall, or Wall
-    material) open directly under its own row, not below the last. **Hardscape
+    with its wall, §12c), then **Steps** (a flight down from one, 0.9.151, §12c),
+    and the armed tool's options (Height, Wall and Top; Riser, Tread and Width; or
+    Wall material) open directly under its own row, not below the last. **Hardscape
     is four quick picks over a card per tool** (below). Decor's two kinds of
     thing carry the same headings. The chips and cards are items of
     `#toolTray.landscape-results`' own grid, so the sub-pages' `.tool` chips sit

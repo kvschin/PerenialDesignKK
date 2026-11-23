@@ -902,7 +902,8 @@ function gardenFileProblem(env){
       } else if (layer==='terrain'){
         if (!isTerrainKind(p.k) || !string(p,'c') || !string(p,'e')) return 'This garden contains invalid ground material data.';
       } else if (layer==='elevation'){
-        if (!Number.isInteger(p.h) || p.h<ELEV_MIN || p.h>ELEV_MAX || !string(p,'w')) return 'This garden contains invalid elevation data.';
+        if (!Number.isInteger(p.h) || p.h<ELEV_MIN || p.h>ELEV_MAX || !string(p,'w') ||
+            (p.s!==undefined && !(Number.isInteger(p.s) && p.s>=1 && p.s<=4))) return 'This garden contains invalid elevation data.';
       } else {
         // Material IDs can have legacy aliases; their existing normalizers own
         // that migration. Their types must still be safe for the renderers.
@@ -1297,7 +1298,9 @@ function planTerraceSpots(){
   const seen=new Set(), out=[];
   for (const k in game.elevation){
     const e=game.elevation[k]; if (!e || e.removed || !e.h || seen.has(k)) continue;
-    const [x,y]=k.split(',').map(Number), r=terraceRegionAt(x,y);
+    const [x,y]=k.split(',').map(Number);
+    if (isStepTile(x,y)){ seen.add(k); continue; }      // a flight carries an UP arrow, not a height a step
+    const r=terraceRegionAt(x,y);
     if (!r){ seen.add(k); continue; }
     r.has.forEach(t=>seen.add(t));
     let sx=0, sy=0; for (const [tx,ty] of r.tiles){ sx+=tx; sy+=ty; }
@@ -1309,6 +1312,24 @@ function planTerraceSpots(){
   return out.sort((a,b)=>b.n-a.n);
 }
 function planTerraceSpotText(h){ return `${h>0?'+':'−'}${terraceInches(h)}`; }
+/* Every flight of steps, for the plan's UP arrow: the centre of its lowest and
+   its highest row of treads (in tile coordinates, a tile's centre at +0.5) and
+   the way it goes down. */
+function planStepFlights(){
+  const seen=new Set(), out=[];
+  for (const k in game.elevation||{}){
+    if (seen.has(k)) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (!isStepTile(x,y)) continue;
+    const f=stepFlightAt(x,y); f.has.forEach(t=>seen.add(t));
+    let lo=Infinity, hi=-Infinity;
+    for (const [tx,ty] of f.tiles){ const h=elevationAt(tx,ty); if (h<lo) lo=h; if (h>hi) hi=h; }
+    const mid=h=>{ const row=f.tiles.filter(([tx,ty])=>elevationAt(tx,ty)===h);
+      return [row.reduce((s,t)=>s+t[0],0)/row.length+0.5, row.reduce((s,t)=>s+t[1],0)/row.length+0.5]; };
+    out.push({dir:f.dir, lo:mid(lo), hi:mid(hi), risers:stepFlightRisers(f)});
+  }
+  return out;
+}
 function hardscapeRows(){
   const rows=[];
   /* `n` is the magnitude the sort reads. Most counts here are formatted
@@ -1369,16 +1390,41 @@ function hardscapeRows(){
      side. A wall's own proud top (sleeper, concrete, steel) is part of its face. */
   const wallBy={};
   for (const run of buildElevationRuns()){
-    const st=wallStyle(run.wall); if (!st.face) continue;
+    // a riser is part of its step and billed with it, below; a flight's sides are walls
+    const st=wallStyle(run.wall); if (!st.face || run.riser) continue;
     const ft=wallRunFeet(run), hIn=wallRunFaceIn(run,st);
-    const w=wallBy[st.id]||(wallBy[st.id]={ft:0,area:0,lo:Infinity,hi:0});
+    const w=wallBy[st.id]||(wallBy[st.id]={ft:0,area:0,lo:Infinity,hi:0,cope:0});
     w.ft+=ft; w.area+=ft*hIn/12; w.lo=Math.min(w.lo,hIn); w.hi=Math.max(w.hi,hIn);
+    if (!run.step) w.cope+=ft;                    // a step's side wears its tread, not a coping
   }
   for (const id in wallBy){
     const w=wallBy[id], st=wallStyle(id), h=v=>fmtLengthIn(v,{ftAt:48});
     const high=Math.round(w.lo)===Math.round(w.hi) ? h(w.hi) : `${h(w.lo)} to ${h(w.hi)}`;
     add('Retaining wall', wallLabelFor(id), fmtAreaSqFt(w.area), w.area,
-      `${fmtFeet(w.ft)} long, ${high} high${st.cope?`, with ${fmtFeet(w.ft)} of ${st.cope}`:''}`);
+      `${fmtFeet(w.ft)} long, ${high} high${st.cope&&w.cope?`, with ${fmtFeet(w.cope)} of ${st.cope}`:''}`);
+  }
+
+  /* STEPS (0.9.151), counted by the step -- a riser and its tread are what a
+     builder prices -- one line per riser and tread material, with the width, the
+     rise and the feet of tread (slab or nosing, ordered by the foot) under it. A
+     flight's risers are not billed as wall; its sides are, being walls. */
+  const stepsBy={}, seenStep=new Set();
+  for (const k in game.elevation||{}){
+    if (seenStep.has(k)) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (!isStepTile(x,y)) continue;
+    const f=stepFlightAt(x,y); f.has.forEach(t=>seenStep.add(t));
+    const t=terrainAt(x,y), tread=t&&t.k==='path'?pathColorId(t.c):'';
+    const byLv={}; for (const [tx,ty] of f.tiles){ const h=elevationAt(tx,ty); byLv[h]=(byLv[h]||0)+1; }
+    const s=stepsBy[wallStyleAt(x,y)+'|'+tread]||(stepsBy[wallStyleAt(x,y)+'|'+tread]={flights:0,risers:0,widths:new Set(),treadFt:0});
+    s.flights++; s.risers+=stepFlightRisers(f); s.widths.add(Math.max(...Object.values(byLv)));
+    s.treadFt+=f.tiles.length*TILE_IN/12;
+  }
+  for (const key in stepsBy){
+    const [w,tread]=key.split('|'), s=stepsBy[key];
+    const widths=[...s.widths].sort((a,b)=>a-b).map(n=>fmtFeet(n*TILE_IN/12,1));
+    add('Steps', stepsName(w,tread||null), `${s.risers} step${s.risers>1?'s':''}`, s.risers,
+      `${s.flights>1?`${s.flights} flights, `:''}${widths.join(' and ')} wide, ${fmtLengthIn(ELEV_RISER_IN)} risers, ${fmtFeet(s.treadFt,1)} of tread`);
   }
 
   const fenceFt=fenceRunFeet();
@@ -3127,6 +3173,14 @@ function drawPlanGround(ctx,g,site){
     const runs=buildElevationRuns(), endsFor=wallRunEndsFor(runs), rbt=raisedBedTiles();
     for (const run of runs){
       const st=wallStyle(run.wall);
+      /* A flight is drawn the way a plan draws stairs: a line at each riser and
+         along its sides, and an UP arrow (below), not as walls with a coping. */
+      if (run.step || run.riser){
+        const p=wallRunDrawPoints(run.edges);
+        ctx.strokeStyle='#4a423a'; ctx.lineWidth=1.1; ctx.beginPath();
+        p.forEach(([gx,gy],i)=>i?ctx.lineTo(X(gx),Y(gy)):ctx.moveTo(X(gx),Y(gy))); ctx.stroke();
+        continue;
+      }
       if (!st.face || (rbt && run.edges.every(e=>rbt.has(e.tile)))) continue;
       const g=wallRunCapGeom(run);
       band(g.pts,g.sgn,g.closed,st,g.closed?null:endsFor(run));
@@ -3135,6 +3189,15 @@ function drawPlanGround(ctx,g,site){
       const st=wallStyle(r.raised.wall); if (!st.face) continue;
       for (const loop of r.loops) for (const arc of (loop.closed?[loop]:loop.arcs))
         if (!arc.hard && !arc.covered) band(edgingCurvePoints(arc,p=>p),-(loop.side||1),!!loop.closed,st,null);
+    }
+    // each flight's arrow, from its foot up to its top tread; the UP is a label (drawPlanSheet)
+    for (const f of planStepFlights()){
+      const [dx,dy]=f.dir, t=[X(f.lo[0]+dx*0.2),Y(f.lo[1]+dy*0.2)], h=[X(f.hi[0]-dx*0.3),Y(f.hi[1]-dy*0.3)];
+      const ux=(t[0]-h[0])/(Math.hypot(t[0]-h[0],t[1]-h[1])||1), uy=(t[1]-h[1])/(Math.hypot(t[0]-h[0],t[1]-h[1])||1), a=Math.max(3,cell*0.22);
+      ctx.strokeStyle='#4a423a'; ctx.fillStyle='#4a423a'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(t[0],t[1]); ctx.lineTo(h[0],h[1]); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(h[0],h[1]); ctx.lineTo(h[0]+ux*a-uy*a*0.55,h[1]+uy*a+ux*a*0.55);
+      ctx.lineTo(h[0]+ux*a+uy*a*0.55,h[1]+uy*a-ux*a*0.55); ctx.closePath(); ctx.fill();
     }
     ctx.restore();
   }
@@ -3483,6 +3546,15 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
     const text=planTerraceSpotText(sp.h), fs=9;
     const at=place.place(X(sp.at[0]+0.5),Y(sp.at[1]+0.5)+3,planLabelBox(ctx,text,0,fs),bounds);
     queued.push({kind:'tree',code:text,qty:0,fs,ink:sp.h>0?'#7a5a2c':'#3f6478',at});
+  });
+  // UP at the foot of every flight, where its arrow starts
+  planStepFlights().forEach(f=>{
+    const fs=9, [dx,dy]=f.dir;
+    // on the ground at its foot, or on its bottom tread where the foot is the plot's edge
+    let px=f.lo[0]+dx*0.85, py=f.lo[1]+dy*0.85;
+    if (px<0.3 || py<0.3 || px>GW-0.3 || py>GH-0.3){ px=f.lo[0]; py=f.lo[1]; }
+    const at=place.place(X(px),Y(py)+3,planLabelBox(ctx,'UP',0,fs),bounds);
+    queued.push({kind:'tree',code:'UP',qty:0,fs,ink:'#4a423a',at});
   });
   // every leader first, so no label's halo is cut by a line drawn after it
   queued.forEach(q=>{ if (q.at.leader) drawPlanLeader(ctx,[q.at.x,q.at.y],q.at.leader,q.ink); });

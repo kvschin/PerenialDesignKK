@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.150';
+const APP_VERSION = '0.9.151';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -278,6 +278,33 @@ function terraceInches(h){ return fmtLengthIn(Math.abs(h)*ELEV_RISER_IN,{ftAt:48
 // "15 in" up, "Sunk 10 in" down, in the reader's units
 function terraceHeightText(h){
   return (h<0?'Sunk ':'')+terraceInches(h);
+}
+/* STEPS (0.9.151): a flight down from a terrace, or into a sunken patio. One
+   elevation level is ELEV_RISER_IN (5.14 in) and one tile is TILE_IN (18 in),
+   so a tile a level lower than the one behind it IS a step: a 5 in riser and an
+   18 in tread, which is a gentle, ordinary garden step. A flight is therefore a
+   run of tiles stepping down a level each, and nothing new has to be modelled
+   about height: each step is an elevation record ({h, w}) marked `s`, the
+   direction the flight goes down (1-4, ELEV_DIRS[s-1]), and the tread is paving
+   on top of it. The riser is a wall material, the tread a paving one. A step
+   used to be buildable by hand as terraces a level apart, and drew as a stack of
+   planter boxes, each with a coping round it.
+   Widths in tiles: 3, 4.5 and 6 ft. 3 ft is the least a garden flight is built
+   to, and 4-5 ft is the usual. */
+const STEP_WIDTHS = [2,3,4];
+const STEP_RISERS = WALL_STYLES.filter(w=>w.face).map(w=>w.id);
+// the paving a tread is commonly made of, out of PATH_COLORS (slabs, units, timber, and two loose ones)
+const STEP_TREADS = ['bluestone','sandstone','slate','brick','setts','concrete','deck','warm','bark'];
+function normalizeStepDraft(d){
+  d=d||{};
+  return {w:STEP_RISERS.includes(d.w) ? d.w : 'stone',
+          tread:STEP_TREADS.includes(d.tread) ? d.tread : 'bluestone',
+          width:STEP_WIDTHS.includes(+d.width) ? +d.width : 3};
+}
+// "Stone steps with bluestone treads", for the planting list and a toast
+function stepsName(w,tread){
+  const st=wallStyle(w), t=PATH_COLORS.find(c=>c.id===tread);
+  return `${(st.short||st.label)} steps${t?` with ${lowerFirst(t.label)} treads`:''}`;
 }
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 

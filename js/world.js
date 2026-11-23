@@ -1931,7 +1931,8 @@ function setElevationAt(x,y,h){
     && ELEV_DIRS.some(([dx,dy])=>{ const nx=x+dx, ny=y+dy;
       return nx>=0 && ny>=0 && nx<GW && ny<GH && elevationAt(nx,ny)<0; });
   if (n===0 && !keepWall) clearTile('elevation',k);
-  else setTile('elevation',k,Object.assign({},live,{h:n,t:Date.now()}));
+  else { const rec=Object.assign({},live,{h:n,t:Date.now()}); delete rec.s;   // a step raised or lowered is a step no longer
+    setTile('elevation',k,rec); }
   tidyGradeWallsAround(x,y);
   return true;
 }
@@ -1958,6 +1959,12 @@ function edgingAt(x,y){
 function wallStyleAt(x,y){
   const e=game.elevation && game.elevation[`${x},${y}`];
   return (e && !e.removed) ? wallStyleId(e.w) : 'none';
+}
+/* A step's downhill direction ([dx,dy], one of ELEV_DIRS), or null for any tile
+   that is not a step (normalizeStepDraft, core.js). */
+function stepDirAt(x,y){
+  const e=game.elevation && game.elevation[`${x},${y}`];
+  return (e && !e.removed && e.s>=1 && e.s<=4) ? ELEV_DIRS[(e.s|0)-1] : null;
 }
 // the directions this tile actually falls away in — where a wall has a face
 function elevationDropDirs(x,y){
@@ -2853,16 +2860,47 @@ function drawWallCap(ctx,pts,sgn,closed,st,proj,seed,snow,ends){
   for (let i=0;i<segs;i++){ const j=(i+1)%n, P0=facing[i]?I[i]:Ib[i], P1=facing[i]?I[j]:Ib[j]; ctx.moveTo(P0[0],P0[1]); ctx.lineTo(P1[0],P1[1]); }
   ctx.stroke();
 }
-/* Treads climbing that same face. A flight cannot be painted ON the wall
-   plane — that gives horizontal bands, which is what a staircase drawn flat
-   looks like. Each tread is a HORIZONTAL surface projecting out of the bank
-   toward the low side, so `out` is the screen delta of one whole tile in the
-   direction the ground falls, and one tread's going is that over the number
-   of steps: 18 inches of tile divided by the levels it drops. */
-/* Flights are painted in their own pass, after every ground tile — they run
-   past their own tile, so painting them in the tile loop let the next tile
-   cover them. Only the camera-facing sides are considered, exactly as the wall
-   faces are: a flight on the far side of a bank is not visible. */
+/* A step's front edge (0.9.151): the tread laid on the riser, overhanging it.
+   What makes a step read as a step from above is its NOSING -- the lit front
+   edge of the tread, the slab's thickness under it and its shadow on the riser
+   -- and not a coping round every step, which is what a flight built as
+   terraces a level apart drew: a stack of planter boxes. A loose tread (gravel,
+   bark) has no slab, so the riser's own top shows round it instead, flush, the
+   way a sleeper or a stone edge holds a gravel step. `pts`, `sgn`, `closed`,
+   `proj` and `ends` are drawWallCap's; `st` is the riser, `tread` a PATH_COLORS
+   id or null. */
+const STEP_NOSE_IN = 1, STEP_SLAB_IN = 2;
+function drawStepNosing(ctx,pts,sgn,closed,st,tread,proj,snow,ends){
+  if (!pts || pts.length<2) return;
+  const pc=tread ? PATH_COLORS.find(c=>c.id===tread) : null;
+  if (!pc || pc.depth){
+    if (st.cap) drawWallCap(ctx,pts,sgn,closed,
+      Object.assign({},st,{topIn:Math.min(st.topIn,5),capIn:0,overIn:0,cope:null}),proj,0,snow,ends);
+    return;
+  }
+  if (closed && pts.length>2){ const a=pts[0], b=pts[pts.length-1]; if (Math.hypot(a[0]-b[0],a[1]-b[1])<1e-6) pts=pts.slice(0,-1); }
+  const {segN,mit,segs}=wallCapMiters(pts,sgn,closed,ends), n=pts.length, oI=STEP_NOSE_IN/TILE_IN;
+  const tones=pc.tones||[pc.fill,pc.fill,pc.fill,pc.fill];
+  const lit=snow ? '#e6ebf0' : tones[2], edge=snow ? '#c3c9cf' : shade(tones[0],-4);
+  const O=pts.map((p,i)=>[p[0]-mit[i][0]*oI, p[1]-mit[i][1]*oI]);
+  const facing=[];
+  for (let i=0;i<segs;i++){ const a=pts[i], b=pts[(i+1)%n], mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+    facing.push(proj(mx-segN[i][0]*0.25,my-segN[i][1]*0.25,0)[1] > proj(mx,my,0)[1]+1e-6); }
+  const quad=(a,b,c,d)=>{ ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]); ctx.lineTo(d[0],d[1]); ctx.closePath(); };
+  const each=(fill,f)=>{ ctx.fillStyle=fill; ctx.beginPath();
+    for (let i=0;i<segs;i++) if (facing[i]){ const j=(i+1)%n; f(i,j); } ctx.fill(); };
+  // the slab's shadow on the riser, under the overhang
+  each('rgba(20,16,12,0.28)',(i,j)=>quad(proj(pts[i][0],pts[i][1],-STEP_SLAB_IN),proj(pts[j][0],pts[j][1],-STEP_SLAB_IN),
+    proj(pts[j][0],pts[j][1],-STEP_SLAB_IN-1.6),proj(pts[i][0],pts[i][1],-STEP_SLAB_IN-1.6)));
+  // its front edge, standing proud of the riser by the nosing
+  each(edge,(i,j)=>quad(proj(O[i][0],O[i][1],0),proj(O[j][0],O[j][1],0),proj(O[j][0],O[j][1],-STEP_SLAB_IN),proj(O[i][0],O[i][1],-STEP_SLAB_IN)));
+  // and the strip of tread that overhangs, lit
+  each(lit,(i,j)=>quad(proj(pts[i][0],pts[i][1],0),proj(pts[j][0],pts[j][1],0),proj(O[j][0],O[j][1],0),proj(O[i][0],O[i][1],0)));
+  ctx.lineWidth=1; ctx.strokeStyle='rgba(255,250,236,0.42)'; ctx.beginPath();
+  for (let i=0;i<segs;i++) if (facing[i]){ const j=(i+1)%n, a=proj(O[i][0],O[i][1],0), b=proj(O[j][0],O[j][1],0); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
+  ctx.stroke();
+}
+/* A bank, per tile; a faced wall is drawn as a run (paintWallRuns). */
 function drawElevationSides(ctx,W,H,x,y,base){
   const h=elevationAt(x,y);
   /* NOT `h<=0`. ELEV_MIN is -2, so Lower digs two courses below grade — and a
@@ -2894,7 +2932,6 @@ function drawElevationSides(ctx,W,H,x,y,base){
        it follows the contour instead of stepping around the tile lattice. */
     if (wall.face) return;
     side(a,b,drop,toneColor(base,shadeAmt));
-    // and the flight, if this face is the one the steps climb
   });
 }
 /* A level's tint: lighter on a terrace, shadowed in a hollow. It used to stroke

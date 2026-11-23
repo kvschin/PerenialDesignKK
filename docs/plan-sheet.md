@@ -797,6 +797,15 @@ four facings).
 The tile tint under a terrace stays; only the numbers went. A spot height is
 placed after the plant labels, so a code keeps the spot it wants.
 
+### Steps (0.9.151)
+
+A flight is drawn the way a plan draws stairs: a thin line at each riser and
+along its sides (not the wall band a terrace gets), its treads filled in the
+tread's paving, an arrow from its foot to its top tread, and **UP** at the foot,
+placed with the plant labels (on the bottom tread where the foot is the plot's
+edge). A step carries no spot height; the terrace it comes down from keeps its
+one. `planStepFlights` gives each flight's foot, top and direction.
+
 ## What is still open
 
 Ranked, most valuable first.

@@ -9952,11 +9952,11 @@ test('the Grade tab says what each tool does, and opens the armed one\'s options
   try {
     let kids = page('hand');
     const rows = kids.filter(c => /\blt-row\b/.test(c.className));
-    assertEqual(rows.map(r => r.dataset.k).join(), 'terrace,raise,lower,level', 'a row per tool, Terrace first; Wall only while armed');
+    assertEqual(rows.map(r => r.dataset.k).join(), 'terrace,steps,raise,lower,level', 'a row per tool, Terrace first, then Steps; Wall only while armed');
     assert(rows.every(r => r.children[1].children[1].textContent.length > 20), 'each with the sentence its tooltip used to hold');
     const heads = kids.filter(c => /\blg-head\b/.test(c.className));
     assertEqual(heads.map(h => h.children[0].textContent).join(), 'Shape the ground', 'Raise, Lower and Level under their own heading');
-    assertEqual(kids.indexOf(heads[0]), kids.indexOf(rows[1]) - 1, 'directly above Raise');
+    assertEqual(kids.indexOf(heads[0]), kids.indexOf(rows[2]) - 1, 'directly above Raise');
     assertEqual(kids.length, rows.length + 1, 'and nothing else until one is armed');
     assertEqual(rows[0].children[1].children[2].textContent, terraceLabel(), 'Terrace says the height and wall it will build');
     kids = page('terrace');
@@ -9968,6 +9968,13 @@ test('the Grade tab says what each tool does, and opens the armed one\'s options
     assertEqual(kids.filter(c => c.dataset && c.dataset.terraceTop).map(c => c.dataset.terraceTop).join(), 'bed,path,lawn,keep', 'and every top');
     assert(kids.some(c => /\blg-note\b/.test(c.className) && /what you pick here/.test(c.textContent)), 'with a line saying a tap changes only what is picked');
     assert(kids.findIndex(c => c.dataset && c.dataset.k === 'raise') > at + 1 + TERRACE_LEVELS.length, 'above the next tool, not below the last');
+    kids = page('steps');
+    const st = kids.findIndex(c => c.dataset && c.dataset.k === 'steps' && /\blt-row\b/.test(c.className));
+    assertEqual(kids[st + 1].textContent, 'Riser', 'Steps opens its riser, tread and width under its row');
+    assertEqual(kids.filter(c => c.dataset && c.dataset.stepW).length, STEP_RISERS.length, 'every riser');
+    assertEqual(kids.filter(c => c.dataset && c.dataset.stepTread).length, STEP_TREADS.length, 'every tread');
+    assertEqual(kids.filter(c => c.dataset && c.dataset.stepWidth).map(c => c.dataset.stepWidth).join(), '2,3,4', 'and every width');
+    assertEqual(kids[st].children[1].children[2].textContent, stepsLabel(), 'saying what it will lay');
     kids = page('wall');
     assert(kids.some(c => c.dataset && c.dataset.k === 'wall' && /\blt-row\b/.test(c.className)), 'armed from a search or the rail, Wall shows its row');
     assertEqual(kids.filter(c => c.dataset && c.dataset.wallStyle).length, WALL_STYLES.length, 'Wall opens its materials the same way');
@@ -26983,4 +26990,154 @@ test('a terrace carries one spot height in inches, not a step count on every til
   const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p]; return (...a) => { if (p === 'fillText') texts++; }; }, set(o, p, v){ o[p] = v; return true; } });
   drawPlanGround(rec, { cell: 10, padL: 0, padT: 0, W2: 200, H2: 200, X: x => x * 10, Y: y => y * 10 }, { lightsLive: [], bouldersLive: [] });
   assertEqual(texts, 0, 'no number is printed on the raised tiles');
+});
+
+/* ---------- steps (0.9.151) ---------- */
+// a garden with a 31 in brick terrace (x 6-14, y 5-9) and, apart, a 10 in sunken patio (x 1-5, y 15-18)
+function stepsGarden(){
+  setup(21, 21);
+  game.pathColor = 'grey';
+  for (let x = 6; x <= 14; x++) for (let y = 5; y <= 9; y++) buildTerraceTile(x, y, { h: 6, w: 'brick', top: 'path' });
+  for (let x = 1; x <= 5; x++) for (let y = 15; y <= 18; y++) buildTerraceTile(x, y, { h: -2, w: 'stone', top: 'keep' });
+  game.stepDraft = { w: 'stone', tread: 'bluestone', width: 3 };
+}
+function saidBy(fn){ const old = toast, said = []; toast = m => { said.push(m); }; try { fn(); } finally { toast = old; } return said; }
+
+test("a tap at a terrace's edge lays a flight down to the ground, a level a step", () => {
+  stepsGarden();
+  const said = saidBy(() => assertEqual(tapStepsAt(10, 10, { ox: 0, oy: -0.4 }), 'steps', 'built'));
+  for (let k = 0; k < 5; k++) for (let x = 9; x <= 11; x++){
+    const y = 10 + k, e = game.elevation[`${x},${y}`];
+    assertEqual(elevationAt(x, y), 5 - k, `(${x},${y}) is the step ${5 - k} levels up`);
+    assertEqual(e.s, 2, 'going down toward +y'); assertEqual(e.w, 'stone', 'faced in the riser');
+    const t = terrainAt(x, y); assert(t && t.k === 'path' && t.c === 'bluestone', 'its tread laid in bluestone');
+  }
+  assertEqual(elevationAt(10, 15), 0, 'and it lands on the ground, one riser below the last tread');
+  assertEqual(elevationAt(8, 10) + elevationAt(12, 10), 0, 'three tiles wide, centred on the tap');
+  assert(/^Laid 6 stone steps with bluestone treads, 4\.5 ft wide\.$/.test(withUnits('imperial', () => said[0])), said[0]);
+  // the same flight from the terrace's own edge tile, or from its wall face (an offset past the edge)
+  for (const o of [{ ox: 0, oy: 0.4 }, { ox: 0.05, oy: 0.8 }]){
+    stepsGarden(); tapStepsAt(10, 9, o);
+    assertEqual(elevationAt(10, 10) + ',' + elevationAt(10, 14), '5,1', 'tapped from above: ' + JSON.stringify(o));
+  }
+});
+
+test('steps go down into a sunken patio, on its floor', () => {
+  stepsGarden();
+  tapStepsAt(3, 14, { ox: 0, oy: 0.4 });          // the rim, toward the hollow
+  for (let x = 2; x <= 4; x++){ assertEqual(elevationAt(x, 15), -1, `a step halfway down at ${x}`); assertEqual(game.elevation[`${x},15`].s, 2); }
+  assertEqual(elevationAt(3, 16), -2, 'and the floor beyond it is the floor');
+});
+
+test('steps are refused whole, and say why', () => {
+  const why = (x, y, o) => saidBy(() => assertEqual(tapStepsAt(x, y, o), null, 'refused at ' + x + ',' + y))[0] || '';
+  stepsGarden();
+  assert(/edge of a terrace/.test(why(10, 7, { ox: 0, oy: 0 })), 'the middle of a terrace has no edge to come down');
+  game.plants['10,12'] = { s: 'bluestem', d: 0, t: 1 };
+  assert(/Lift the planting/.test(why(10, 10, { ox: 0, oy: -0.4 })), 'a plant in the way');
+  delete game.plants['10,12'];
+  // a 2-tile stub sticking out of the terrace is too short for a 4.5 ft flight
+  for (let x = 6; x <= 7; x++) buildTerraceTile(x, 10, { h: 6, w: 'brick', top: 'keep' });
+  assert(withUnits('imperial', () => /only 3 ft long/.test(why(6, 11, { ox: 0, oy: -0.4 }))), 'an edge shorter than the flight');
+  stepsGarden(); buildTerraceTile(2, 2, { h: 1, w: 'brick', top: 'keep' });
+  assert(withUnits('imperial', () => /single 5 in step/.test(why(2, 3, { ox: 0, oy: -0.4 }))), 'one level is already a step');
+  stepsGarden(); setTile('elevation', '10,13', { h: 1, w: 'none', t: 1 });
+  assert(/not level/.test(why(10, 10, { ox: 0, oy: -0.4 })), 'a flight needs level ground to land on');
+  stepsGarden(); for (let x = 16; x <= 18; x++) for (let y = 2; y <= 3; y++) buildTerraceTile(x, y, { h: 6, w: 'brick', top: 'keep' });
+  assert(/on the plot/.test(why(17, 1, { ox: 0, oy: 0.4 })), 'a flight that would run off the plot');
+  assertEqual(JSON.stringify(game.elevation).includes('"s":'), false, 'and nothing was built by any of them');
+});
+
+test('an even-width flight centres under the half of the edge the pointer is on', () => {
+  stepsGarden(); game.stepDraft.width = 2;
+  tapStepsAt(10, 10, { ox: 0.2, oy: -0.4 });
+  assertEqual([9, 10, 11].map(x => elevationAt(x, 10)).join(), '0,5,5', 'pointer on the +x half: 10 and 11');
+  stepsGarden(); game.stepDraft.width = 2;
+  tapStepsAt(10, 10, { ox: -0.2, oy: -0.4 });
+  assertEqual([9, 10, 11].map(x => elevationAt(x, 10)).join(), '5,5,0', 'on the -x half: 9 and 10');
+});
+
+test('a tap on a flight restyles all of it, and nothing else', () => {
+  stepsGarden(); tapStepsAt(10, 10, { ox: 0, oy: -0.4 });
+  game.stepDraft = { w: 'sleeper', tread: 'warm', width: 2 };
+  const said = saidBy(() => tapStepsAt(9, 13, {}));
+  assert(/Changed the flight to sleeper steps with warm gravel treads/.test(said[0]), said[0]);
+  for (let y = 10; y <= 14; y++) for (let x = 9; x <= 11; x++){
+    assertEqual(game.elevation[`${x},${y}`].w, 'sleeper'); assertEqual(terrainAt(x, y).c, 'warm');
+  }
+  assertEqual(elevationAt(11, 10), 5, 'its width and heights are kept');
+  assertEqual(wallStyleAt(8, 7), 'brick', 'and the terrace it comes down from is untouched');
+});
+
+test("a step's faces are risers and cheeks, and the top riser takes the flight's facing under the terrace's coping", () => {
+  stepsGarden(); tapStepsAt(10, 10, { ox: 0, oy: -0.4 });
+  const runs = buildElevationRuns();
+  const risers = runs.filter(r => r.riser), steps = runs.filter(r => r.step);
+  assert(risers.length >= 6, 'six risers, the top one included: ' + risers.length);
+  assert(risers.every(r => r.edges.every(e => e.n[0] === 0 && e.n[1] === 1)), 'every riser faces down the flight');
+  assert(steps.some(r => !r.riser), 'and a step has sides too, its cheeks');
+  const top = risers.find(r => !r.step);
+  assert(top && top.h === 6 && top.wall === 'stone' && top.capWall === 'brick', 'the top riser hangs from the terrace: stone, under its brick coping');
+  assert(runs.filter(r => !r.step && !r.riser && r.h > 0).every(r => r.wall === 'brick'), 'the rest of the terrace keeps its wall');
+});
+
+test('a step is drawn with a nosing, not a coping', () => {
+  stepsGarden(); tapStepsAt(10, 10, { ox: 0, oy: -0.4 });
+  const calls = { nose: 0, cap: 0 }, n0 = drawStepNosing, c0 = drawWallCap;
+  drawStepNosing = (...a) => { calls.nose++; return n0(...a); };
+  drawWallCap = (...a) => { calls.cap++; return c0(...a); };
+  try {
+    const W = VW / ZOOM, H = VH / ZOOM;
+    const steps = buildElevationRuns().filter(r => r.step).length;
+    const ctx = new Proxy({}, { get: (o, p) => p in o ? o[p] : (p === 'getTransform' ? () => ({ a: 1, b: 0 }) : () => {}), set: (o, p, v) => { o[p] = v; return true; } });
+    paintWallRuns(ctx, W, H, AMBIENCE.Summer, 1e6, null);
+    assertEqual(calls.nose, steps, 'one nosing per step run');
+    assert(calls.cap >= 1, 'and the terrace keeps its coping');
+  } finally { drawStepNosing = n0; drawWallCap = c0; }
+});
+
+test('steps are billed as steps, and their risers are not billed as wall', () => {
+  stepsGarden(); tapStepsAt(10, 10, { ox: 0, oy: -0.4 });
+  const rows = withUnits('imperial', () => hardscapeRows());
+  const st = rows.find(r => r.kind === 'Steps');
+  assert(st, 'a Steps line');
+  assertEqual(st.name, 'Stone steps with bluestone treads'); assertEqual(st.count, '6 steps'); assertEqual(st.n, 6);
+  assert(/4\.5 ft wide, 5 in risers, 22\.5 ft of tread/.test(st.detail), st.detail);
+  let wall = 0;
+  for (const r of buildElevationRuns()){ const s = wallStyle(r.wall); if (s.id === 'stone' && !r.riser) wall += wallRunFeet(r) * wallRunFaceIn(r, s) / 12; }
+  const sw = rows.find(r => r.kind === 'Retaining wall' && r.name === wallLabelFor('stone'));
+  assert(sw && Math.abs(sw.n - wall) < 1e-6, "the stone wall billed is the flight's sides and the patio, not its risers");
+  const flights = planStepFlights();
+  assertEqual(flights.length, 1); assertEqual(flights[0].dir.join(), '0,1'); assertEqual(flights[0].risers, 6);
+  assertEqual(planTerraceSpots().length, 2, 'the plan gives the terrace and the patio a spot height, not every step');
+});
+
+test('a step stops being a step when its height is changed, and turns with a selection', () => {
+  stepsGarden(); tapStepsAt(10, 10, { ox: 0, oy: -0.4 });
+  game.tool = 'raise'; applyElevationTool(9, 12);
+  assertEqual(game.elevation['9,12'].s, undefined, 'raised, it is a terrace tile');
+  setTerraceTile(10, 12, { h: 6, w: 'stone' });
+  assertEqual(game.elevation['10,12'].s, undefined, 'built to a new height by Terrace, too');
+  setTerraceTile(11, 12, { h: 3, w: 'brick' });
+  assertEqual(game.elevation['11,12'].s, 2, 'but refacing a step keeps it a step');
+  const turned = rotatedSelectionItems([{ x: 11, y: 11, elev: { h: 4, w: 'stone', s: 2, t: 1 } }], (x, y) => [y, x]);
+  assertEqual(turned.items[0].elev.s, 3, 'a quarter turn turns the way it goes down (+y to -x)');
+  let s = 1; for (let i = 0; i < 4; i++) s = rotatedSelectionItems([{ x: 0, y: 0, elev: { h: 1, w: 'stone', s } }], (x, y) => [x, y]).items[0].elev.s;
+  assertEqual(s, 1, 'and four bring it back');
+});
+
+test('a garden file with steps imports, and a bad step direction does not', () => {
+  stepsGarden(); tapStepsAt(10, 10, { ox: 0, oy: -0.4 });
+  const env = { pocketPrairie: 1, v: 1, world: buildSaveBlob() };
+  assertEqual(gardenFileProblem(env), null, 'steps travel in a shared file');
+  const bad = JSON.parse(JSON.stringify(env)); bad.world.elevation['10,10'].s = 7;
+  assert(/invalid elevation/.test(gardenFileProblem(bad) || ''), 'a direction that is not one of the four is refused');
+});
+
+test('the eyedropper picks a flight up into the Steps tool', () => {
+  stepsGarden(); tapStepsAt(10, 10, { ox: 0, oy: -0.4 });
+  game.stepDraft = { w: 'brick', tread: 'deck', width: 2 };
+  saidBy(() => pickAt(10, 12));
+  assertEqual(game.tool, 'steps');
+  assertEqual(JSON.stringify(stepDraft()), JSON.stringify({ w: 'stone', tread: 'bluestone', width: 3 }), 'its riser, tread and width');
 });

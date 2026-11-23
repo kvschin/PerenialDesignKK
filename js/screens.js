@@ -4065,6 +4065,7 @@ const HOVER_RING_ONLY=new Set(['hand','select','ruler','pick']);
 function hoverSig(){
   const h=game.hoverTile;
   if (!h) return '';
+  if (game.tool==='steps') return stepsHover ? stepsHover.key : '';
   if (HOVER_RING_ONLY.has(game.tool)){
     const sh=layerShown('woody') ? shrubAt(h[0],h[1]) : null;
     return sh ? 's'+sh.key : '';

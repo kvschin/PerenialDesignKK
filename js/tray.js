@@ -19,7 +19,7 @@ const TRAY_CATS=[
   {id:'house',    label:'Site',             tools:['building','house']},
   {id:'landscape',label:'Ground',           tools:['lawn','path','bed','water','edging']},
   // Terrace leads: it is what most people opening this tab came to build
-  {id:'leveling', label:'Grade',            tools:['terrace','raise','lower','level','wall']},
+  {id:'leveling', label:'Grade',            tools:['terrace','steps','raise','lower','level','wall']},
   {id:'structures',label:'Hardscape',       tools:['fence','pergola','support','firepit','waterfeature','boulder','seat']},
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'decor',    label:'Decor',            tools:['pot','ornament','pet']},
@@ -103,6 +103,10 @@ const TOOLS={
      no `once`. */
   terrace: {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, measure:'rect',
     apply:(x,y,o)=>buildTerraceTile(x,y,terraceDraft()), rect:(x0,y0,x1,y1)=>finishTerraceDrag(x0,y0,x1,y1)},
+  /* Steps are laid a whole flight per tap, on the edge where they go (tapStepsAt),
+     so there is nothing to drag and nothing for Fill to add. */
+  steps:   {layer:'landscape', brush:false, placement:true,  paints:false, material:false,
+    apply:(x,y,o)=>{ const a=stepsAim(x,y,o), p=a&&!a.flight?stepFlightPlan(a,stepDraft()):null; return p&&buildStepFlight(p,stepDraft())?'steps':null; }},
   /* Edging acts on a whole bed per tap (paintEdgingAt), so it has no disc size
      and nothing for Fill to add; a drag still edges every bed it crosses. */
   edging:  {layer:'landscape', brush:true,  placement:true,  paints:false, material:true, apply:(x,y,o)=>paintEdgingAt(x,y)},
@@ -624,9 +628,9 @@ function drawBrushSwatchCanvas(c,includeLast){
   if (k==='boulder'){ drawBoulderChip(g,boulderDraft(),c.width,c.height,0.4); return true; }
   if (k==='pergola'){ drawPergolaChip(g,pergolaDraft(),c.width,c.height); return true; }
   // both chip artworks are 48x44; the swatch is whatever size this canvas is
-  if (k==='terrace'||k==='wall'){ const s=Math.min(c.width/48,c.height/44);
+  if (k==='terrace'||k==='wall'||k==='steps'){ const s=Math.min(c.width/48,c.height/44);
     g.save(); g.translate((c.width-48*s)/2,(c.height-44*s)/2); g.scale(s,s);
-    if (k==='terrace') drawTerraceIcon(g,terraceDraft()); else drawWallIcon(g,wallDraft());
+    if (k==='terrace') drawTerraceIcon(g,terraceDraft()); else if (k==='steps') drawStepsIcon(g,stepDraft()); else drawWallIcon(g,wallDraft());
     g.restore(); return true; }
   if (k==='pet'){ drawPet(g,c.width/2,c.height-3,petDraft(),0.62); return true; }
   if (k==='edging'){ drawEdgingIcon(g,edgingDraft(),c.width,c.height); return true; }
@@ -763,6 +767,29 @@ function drawTerraceIcon(tc,d){
   face(W,N,'#5d4e3b'); face(N,E,'#6b5a44');
   tc.restore();
   drawChipWallCap(tc,st,[[0,0],[1,0],[1,1],[0,1]],-1,true,24,cy,ihw,ihh);   // round the rim
+}
+/* A steps chip: three steps of a flight two tiles wide, coming down toward the
+   left, each a block with its tread on top and its riser and side in the riser's
+   material through the garden's own face painter. A slab tread has a lit
+   nosing; a loose one is held by a strip of the riser's top, as in the garden. */
+function drawStepsIcon(tc,d){
+  d=normalizeStepDraft(d);
+  const st=wallStyle(d.w), pc=pathColor(d.tread), tones=pc.tones||[pc.fill,pc.fill,pc.fill,pc.fill];
+  const wide=0.6+d.width*0.45, hw=6.5, hh=3.25, rz=4.6, n=3;
+  const cx=24-(wide-n)*hw/2, cy=22-((wide+n)*hh-n*rz)/2;            // centred in the 48x44 chip
+  const P=(x,y,z)=>[cx+(x-y)*hw, cy+(x+y)*hh-z];
+  const quad=(a,b,c,e,fill)=>{ tc.fillStyle=fill; tc.beginPath(); tc.moveTo(a[0],a[1]); tc.lineTo(b[0],b[1]);
+    tc.lineTo(c[0],c[1]); tc.lineTo(e[0],e[1]); tc.closePath(); tc.fill(); };
+  for (let k=0;k<n;k++){
+    const z=(n-k)*rz, y0=k, y1=k+1;
+    // the side and the riser, down to the ground
+    drawWallFace(tc,P(wide,y0,z),P(wide,y1,z),z,st,7+k);
+    drawWallFace(tc,P(0,y1,z),P(wide,y1,z),z,st,11+k);
+    quad(P(0,y0,z),P(wide,y0,z),P(wide,y1,z),P(0,y1,z),tones[1]);         // the tread
+    if (pc.depth){ quad(P(0,y1-0.22,z),P(wide,y1-0.22,z),P(wide,y1,z),P(0,y1,z),st.capTone||st.tone); }
+    else { tc.strokeStyle='rgba(255,250,236,0.6)'; tc.lineWidth=1; tc.beginPath();
+      const a=P(0,y1,z), b=P(wide,y1,z), c=P(wide,y0,z); tc.moveTo(a[0],a[1]); tc.lineTo(b[0],b[1]); tc.lineTo(c[0],c[1]); tc.stroke(); }
+  }
 }
 function drawMaterialIcon(tc,cx,cy,hw,hh,kind,id,stroke){
   const amb=AMBIENCE.Summer, o={k:kind,c:id};
@@ -1074,6 +1101,14 @@ function pickAt(x,y){
     game.fillMode=false; game.trayCat='house'; game.buildingStyleDraft=normalizeBuildingStyle(building);
     setTool('building',null); buildToolTray();
     toast(`Picked ${building.status==='proposed'?'proposed':'existing'} building footprint style.`);
+  } else if (isStepTile(x,y)){
+    // a step: its riser, tread and the flight's width, into the Steps tool
+    const f=stepFlightAt(x,y), h=elevationAt(x,y), t=terr&&terr.k==='path'?pathColorId(terr.c):null;
+    const width=f.tiles.filter(([tx,ty])=>elevationAt(tx,ty)===h).length;
+    game.stepDraft=normalizeStepDraft({w:wallStyleAt(x,y),tread:t||stepDraft().tread,width});
+    game.fillMode=false; game.trayCat='leveling';
+    setTool('steps', null); buildToolTray();
+    toast(`Picked ${stepsLabel()}.`);
   } else if (TERRACE_LEVELS.includes(elevationAt(x,y))){
     /* A terrace or sunken patio: its height and its wall, into the Terrace tool,
        so a second one can be built to match. The eyedropper answered "Nothing
@@ -1969,6 +2004,8 @@ const TOOL_SEARCH={
   level:  {label:'Level',kind:'layers',hay:'level elevation grade flatten reset leveling'},
   terrace:{label:'Terrace / raised bed',kind:'layers',
            hay:'terrace raised bed planter retaining wall sunken patio hollow step level change sleeper timber brick stone dry stone gabion corten concrete bank grade leveling'},
+  steps:  {label:'Steps',kind:'layers',
+           hay:'steps step stairs stair staircase flight tread treads riser risers nosing access terrace patio sunken raised bed grade leveling'},
   wall:   {label:'Retaining wall',kind:'layers',
            hay:'wall retaining wall terrace bank sleeper gabion drystone dry stone facing grade leveling'},
   fence:  {label:'Fence / Gate',kind:'layers',drill:'fence',
@@ -3507,7 +3544,7 @@ function trayStateSig(ignoreDiscoverySearch=false){
     g.challenge?j([g.challenge.id,g.challenge.title,g.challenge.match,g.challenge.palette,g.challenge.paletteFree]):'-',
     // every draft the tray paints a chip from
     j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.waterFeatureDraft,g.supportDraft,g.boulderDraft,g.petDraft,g.potDraft,
-       g.seatDraft,g.ornamentDraft,g.edgingDraft,g.wallDraft,g.terraceDraft,g.buildingStyleDraft,g.buildingDraft,
+       g.seatDraft,g.ornamentDraft,g.edgingDraft,g.wallDraft,g.terraceDraft,g.stepDraft,g.buildingStyleDraft,g.buildingDraft,
        g.houseDraft]),
     g.lastBrushTool||'', g.lastBrushVar||'', g.lastBrushTrayCat||'', g.lastBrushDrill||'',
     // tray-module state that changes what is drawn
@@ -3689,6 +3726,7 @@ function verifyTrayCache(){
     ['petDraft',    ()=>{ const o=g.petDraft; g.petDraft=Object.assign({},o,{species:(o&&o.species)==='cat'?'dog':'cat'}); return ()=>{ g.petDraft=o; }; }],
     ['edgingDraft', ()=>{ const o=g.edgingDraft; g.edgingDraft=(o==='steel'?'timber':'steel'); return ()=>{ g.edgingDraft=o; }; }],
     ['wallDraft',   ()=>{ const o=g.wallDraft; g.wallDraft=(o==='stone'?'brick':'stone'); return ()=>{ g.wallDraft=o; }; }],
+    ['stepDraft',   ()=>{ const o=g.stepDraft; g.stepDraft={w:(o&&o.w)==='brick'?'sleeper':'brick',tread:'slate',width:(o&&o.width)===2?4:2}; return ()=>{ g.stepDraft=o; }; }],
     ['terraceDraft',()=>{ const o=g.terraceDraft; g.terraceDraft={h:(o&&o.h)===1?4:1,w:(o&&o.w)==='brick'?'gabion':'brick'}; return ()=>{ g.terraceDraft=o; }; }],
     ['discoveryOpenSpecies',()=>{ const o=discoveryOpenSpecies; discoveryOpenSpecies=o?null:'coneflower'; return ()=>{ discoveryOpenSpecies=o; }; }],
     ['sourceMenuOpen',()=>{ const o=sourceMenuOpen; sourceMenuOpen=!o; return ()=>{ sourceMenuOpen=o; }; }],
@@ -3844,6 +3882,8 @@ function renderGroundShelves(tray,cat){
    search and for a brush the rail remembers, and shows its row while armed. */
 const GRADE_TOOLS=[
   {k:'terrace',name:'Terrace',desc:'A raised bed, terrace or sunken patio, with its wall and its top. Drag corner to corner, or tap. Tap one to change it.'},
+  // a function, for the riser in the reader's units
+  {k:'steps',  name:'Steps',  desc:()=>`A flight down from a terrace or into a sunken patio, a step for every ${fmtLengthIn(ELEV_RISER_IN)}. Tap the edge where it goes.`},
   {k:'wall',   name:'Wall',   desc:'Face a whole terrace or sunken patio with stone, brick or timber. Tap it.', armedOnly:true},
   {k:'raise',  name:'Raise',  desc:'Lift the ground a step. Drag to shape a berm.', shape:true},
   {k:'lower',  name:'Lower',  desc:'Dig the ground down a step, for a swale or a basin.', shape:true},
@@ -3881,9 +3921,10 @@ function renderGradeTools(tray,cat){
     const on=game.tool===t.k, b=trayEl('button','lt-row'+(on?' sel':'')); b.type='button'; b.dataset.k=t.k;
     b.setAttribute('aria-pressed',on?'true':'false');
     const {c,x}=trayCanvas(48,44,true);
-    if (t.k==='terrace') drawTerraceIcon(x,terraceDraft()); else if (t.k==='wall') drawWallIcon(x,wallDraft()); else drawGradeIcon(x,t.k);
-    const text=trayEl('span','lt-text'); text.append(trayEl('b',null,t.name),trayEl('small',null,t.desc));
-    const cur=t.k==='terrace'?terraceLabel():t.k==='wall'?wallLabel():'';
+    if (t.k==='terrace') drawTerraceIcon(x,terraceDraft()); else if (t.k==='steps') drawStepsIcon(x,stepDraft());
+    else if (t.k==='wall') drawWallIcon(x,wallDraft()); else drawGradeIcon(x,t.k);
+    const text=trayEl('span','lt-text'); text.append(trayEl('b',null,t.name),trayEl('small',null,typeof t.desc==='function'?t.desc():t.desc));
+    const cur=t.k==='terrace'?terraceLabel():t.k==='steps'?stepsLabel():t.k==='wall'?wallLabel():'';
     if (cur) text.appendChild(trayEl('em',null,cur));
     b.append(c,text); b.onclick=()=>{ setTool(t.k,null); buildToolTray(); };
     tray.appendChild(b);
@@ -3908,6 +3949,21 @@ function renderGradeTools(tray,cat){
         tp.id==='keep' ? 'Leave the top as it is'
           : `Lay the top with ${terraceTopText(tp.id).replace(/^a |^paved in |^laid to /,'')}: the ${tp.label.toLowerCase()} you last chose under Ground`).dataset.terraceTop=tp.id);
       tray.appendChild(trayEl('p','lg-note','Tap a terrace to change it to what you pick here. What you have not picked stays as it is.'));
+    }
+    if (on&&t.k==='steps'){
+      const sd=stepDraft(), arm=next=>{ game.stepDraft=normalizeStepDraft(Object.assign({},sd,next)); setTool('steps',null); buildToolTray(); };
+      sep('Riser');
+      STEP_RISERS.forEach(id=>{ const ws=wallStyle(id);
+        optionBtn('steps',ws.short||ws.label,sd.w===id,tc=>drawStepsIcon(tc,Object.assign({},sd,{w:id})),()=>arm({w:id}),
+          `Risers and sides in ${lowerFirst(ws.label)}`).dataset.stepW=id; });
+      sep('Tread');
+      STEP_TREADS.forEach(id=>{ const pc=pathColor(id);
+        optionBtn('steps',pc.short||pc.label,sd.tread===id,tc=>drawStepsIcon(tc,Object.assign({},sd,{tread:id})),()=>arm({tread:id}),
+          `Treads of ${lowerFirst(pc.label)}`).dataset.stepTread=id; });
+      sep('Width');
+      STEP_WIDTHS.forEach(w=>optionBtn('steps',fmtFeet(w*TILE_IN/12,1),sd.width===w,tc=>drawStepsIcon(tc,Object.assign({},sd,{width:w})),
+        ()=>arm({width:w}),`A flight ${fmtFeet(w*TILE_IN/12,1)} wide`).dataset.stepWidth=String(w));
+      tray.appendChild(trayEl('p','lg-note','Tap the edge of a terrace or sunken patio where the steps go, and the flight runs straight down from it. Tap a flight to change its riser and tread.'));
     }
     if (on&&t.k==='wall'){
       sep('Wall material');
@@ -4907,6 +4963,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (isElevationTool(k)) hay+=' elevation grade grading raised lowered berm swale terrace level';
     if (k==='wall') hay+=' grade retaining wall terrace bank sleeper gabion drystone dry stone facing '+WALL_STYLES.map(w=>w.label).join(' ');
     if (k==='terrace') hay+=' grade terrace raised bed planter sunken patio retaining wall bank '+WALL_STYLES.map(w=>w.label).join(' ');
+    if (k==='steps') hay+=' grade stairs flight treads risers '+STEP_RISERS.map(w=>wallStyle(w).label).join(' ')+' '+STEP_TREADS.map(t=>pathColor(t).label).join(' ');
     if (k==='edging') hay+=' ground edging edge restraint mowing strip lawn border spade steel corten setts soldier course '+EDGING_STYLES.map(e=>e.label).join(' ');
     if (k==='fence') hay+=' hardscape structures fence gate door arbor wall screen deer privacy '
       +FENCE_STYLES.map(f=>f.label+' '+(f.short||'')).join(' ');
@@ -5240,6 +5297,7 @@ function sheetContextLabel(){
   if (game.tool==='edging') return edgingLabel();
   if (game.tool==='wall') return wallLabel();
   if (game.tool==='terrace') return terraceLabel();
+  if (game.tool==='steps') return stepsLabel();
   if (game.tool==='pot') return potLabel();
   if (game.tool==='seat') return seatLabel();
   if (game.tool==='ornament') return ornamentLabel();
@@ -5288,6 +5346,7 @@ function toolGuide(){
     wall:{k:wallLabel(),v:wallDraft()==='none'?'Tap a terrace to strip its wall back to earth':'Tap a terrace or sunken patio to face all of it'},
     terrace:{k:terraceLabel(),v:game.fillMode?'Tap a bed or area to build all of it to this height'
       :`Drag corner to corner, or tap for a ${pergolaSizeText(TERRACE_TAP_W,TERRACE_TAP_H)} raised bed — tap a terrace to change what you picked`},
+    steps:{k:stepsLabel(),v:'Tap the edge of a terrace or sunken patio where the steps go — tap a flight to change it'},
     raise:{k:'Raise grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
     lower:{k:'Lower grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
     level:{k:'Level grade',v:`Tap or drag — ${game.brushSize}-tile brush`},

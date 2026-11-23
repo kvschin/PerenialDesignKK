@@ -644,6 +644,8 @@ cnv.addEventListener('pointermove',e=>{
   // keep the brush/erase footprint ghost under the cursor even mid-drag
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
   buildingHover=game.tool==='building' ? previewBuildingCorner(place) : null;
+  // the edge a Steps tap would build on depends on where in the tile the pointer is
+  stepsHover=game.tool==='steps'&&game.hoverTile ? stepsAim(x,y,place) : null;
   if (game.tool==='select'){ if (selPointerMove(x,y)) return; }
   if (rulerDrag){
     if (x>=0&&y>=0&&x<GW&&y<GH){
@@ -770,4 +772,4 @@ cnv.addEventListener('pointercancel',e=>{
   cancelCanvasGesture(true);
 });
 cnv.addEventListener('auxclick',e=>{ if (e.button===1) e.preventDefault(); }); // no middle-click autoscroll
-cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; buildingHover=null; });
+cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; buildingHover=null; stepsHover=null; });

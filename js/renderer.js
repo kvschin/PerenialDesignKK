@@ -1244,12 +1244,21 @@ function elevationUnitEdges(loop, set, h){
          wall, and a wall painted one tile wide, whose contour runs up one side
          and back down the other. */
       const ridge=elevationAt(ix-n[0], iy-n[1])<h;
-      out.push({a:[x,y], b:[nx,ny], drop, n, ridge, wall:wallStyleAt(ix,iy), seed:tileSeed(ix,iy), tile:inK});
+      /* STEPS (0.9.151). A face on a step is a RISER where it faces the way the
+         flight goes down, and a cheek otherwise; the face down ONTO the top step
+         is that flight's top riser, faced in the flight's material, with the
+         coping of the terrace it hangs from (capWall) kept across it. */
+      const sIn=stepDirAt(ix,iy), sOut=stepDirAt(outX,outY), own=wallStyleAt(ix,iy);
+      const riser=!!((sIn && sIn[0]===n[0] && sIn[1]===n[1]) || (sOut && sOut[0]===n[0] && sOut[1]===n[1]));
+      const wall=(!sIn && sOut && riser) ? wallStyleAt(outX,outY) : own;
+      out.push({a:[x,y], b:[nx,ny], drop, n, ridge, wall, capWall:own, step:!!sIn, riser, seed:tileSeed(ix,iy), tile:inK});
       x=nx; y=ny;
     }
   }
   return out;
 }
+// a step's faces are not a terrace's: a run never mixes the two, nor a riser with a cheek
+function wallRunSplits(p,q){ return p.step!==q.step || p.riser!==q.riser || p.capWall!==q.capWall; }
 function buildElevationRuns(){
   const sig=wallRunKey();
   if (wallRunCache.sig===sig && wallRunCache.elevRef===game.elevation) return wallRunCache.runs;
@@ -1290,7 +1299,7 @@ function buildElevationRuns(){
       const breaks=i=>{
         const prev=es[(i+n-1)%n], cur=es[i];
         if (!drawable(cur) || !drawable(prev)) return true;
-        return prev.drop!==cur.drop || prev.wall!==cur.wall;
+        return prev.drop!==cur.drop || prev.wall!==cur.wall || wallRunSplits(prev,cur);
       };
       let start=-1;
       for (let i=0;i<n;i++) if (breaks(i)){ start=i; break; }
@@ -1304,7 +1313,7 @@ function buildElevationRuns(){
       for (let s2=0;s2<n;s2++){
         const i=(start+s2)%n, e=es[i];
         if (!drawable(e)){ flush(); continue; }
-        if (pend && (pend[0].drop!==e.drop || pend[0].wall!==e.wall)) flush();
+        if (pend && (pend[0].drop!==e.drop || pend[0].wall!==e.wall || wallRunSplits(pend[0],e))) flush();
         if (!pend) pend=[];
         pend.push(e);
       }
@@ -1337,8 +1346,8 @@ function polyTiles(p){
 function makeWallRun(edges,h){
   const p=wallRunPoints(edges), e=edges[0], tiles=polyTiles(p);
   let weight=0; for (const q of edges) weight+=q.ridge?0.5:1;
-  return {pts:p, edges, h, drop:e.drop, wall:e.wall, seed:e.seed, tiles,
-          billTiles:tiles*(weight/edges.length)};
+  return {pts:p, edges, h, drop:e.drop, wall:e.wall, capWall:e.capWall, step:!!e.step, riser:!!e.riser,
+          seed:e.seed, tiles, billTiles:tiles*(weight/edges.length)};
 }
 /* Linear feet the planting list bills — the traced contour, not a count of
    exposed tile faces. Faces double-count a diagonal (every step contributes
@@ -1389,6 +1398,11 @@ function paintWallRuns(ctx,W,H,amb,ex,rect){
    which side is the ground it holds (from the first edge: its outward normal `n`
    points at the lower tile), and whether it closes on itself. Shared by the
    garden and the plan sheet, so the two cannot disagree about where a top runs. */
+// what a step run's tread is laid in: the paving on its first tile, or null
+function stepTreadOf(run){
+  const t=game.terrain && game.terrain[run.edges[0].tile];
+  return (t && !t.removed && t.k==='path') ? pathColorId(t.c) : null;
+}
 function wallRunCapGeom(run){
   const e0=run.edges[0], d=[e0.b[0]-e0.a[0],e0.b[1]-e0.a[1]], last=run.edges[run.edges.length-1];
   return {pts:wallRunDrawPoints(run.edges), sgn:Math.sign((-e0.n[0])*(-d[1])+(-e0.n[1])*d[0])||1,
@@ -1397,15 +1411,17 @@ function wallRunCapGeom(run){
 /* Where one run's top meets another's at a corner (a sunken patio's rim is
    several runs), each needs the other's direction to mitre the corner. Keyed by
    the vertex AND the level, since only a top at the same height carries on. */
+/* A step's riser and its cheek are separate runs too, and their nosings mitre the
+   same way, though only with each other: a step's nosing never joins a coping. */
 function wallRunEndsFor(runs){
-  const ends=new Map(), endKey=(p,h)=>p[0]+','+p[1]+','+h;
-  for (const run of runs){ if (!wallStyle(run.wall).cap) continue;
+  const ends=new Map(), endKey=(p,h,s)=>p[0]+','+p[1]+','+h+(s?'s':'');
+  for (const run of runs){ if (!wallStyle(run.wall).cap && !run.step) continue;
     const a=run.edges[0], b=run.edges[run.edges.length-1];
     if (b.b[0]===a.a[0]&&b.b[1]===a.a[1]) continue;
-    for (const [p,e] of [[a.a,a],[b.b,b]]){ const k=endKey(p,run.h);
+    for (const [p,e] of [[a.a,a],[b.b,b]]){ const k=endKey(p,run.h,run.step);
       (ends.get(k)||ends.set(k,[]).get(k)).push({run,n:[-e.n[0],-e.n[1]]}); } }
   return run=>{ const a=run.edges[0], b=run.edges[run.edges.length-1];
-    const other=p=>{ const l=ends.get(endKey(p,run.h))||[]; const o=l.find(q=>q.run!==run); return o?o.n:null; };
+    const other=p=>{ const l=ends.get(endKey(p,run.h,run.step))||[]; const o=l.find(q=>q.run!==run); return o?o.n:null; };
     return {n0:other(a.a), n1:other(b.b)}; };
 }
 /* The projector a wall's top is drawn through: tile-corner coordinates on a
@@ -1425,6 +1441,42 @@ function paintWallRun(ctx,run,W,H,shown,inView,snow,rbt,endsFor){
     const reach=TILE_W*0.6;                       // the top's offset along the ground, either way
     if (!inView(minX-reach,maxX+reach,minY-lift-reach-(st.capIn||0)*EDGE_RISE_PX,maxY-lift+fall+reach)) return;
   }
+  // a step's faces stand behind taller ground often enough to need hiding (stepFaceOccluders)
+  const hide=(run.step||run.riser) ? stepFaceOccluders(run,W,H) : null;
+  if (hide){ ctx.save(); for (const d of hide){ ctx.beginPath(); ctx.rect(-1e6,-1e6,2e6,2e6);
+    ctx.moveTo(d[0][0],d[0][1]); for (let i=1;i<4;i++) ctx.lineTo(d[i][0],d[i][1]); ctx.closePath(); ctx.clip('evenodd'); } }
+  try { paintWallRunBody(ctx,run,W,H,shown,snow,rbt,endsFor,st,lift,fall); }
+  finally { if (hide) ctx.restore(); }
+}
+/* WALLS ARE DRAWN AFTER ALL THE GROUND (paintWallRuns), so a face standing behind
+   taller ground is painted over it. That was rare while a wall meant a terrace,
+   and with steps it is every flight seen from its terrace's side: each step's
+   side would show through the terrace in front of it. So a step's faces are
+   clipped by the tops of the taller tiles in front of them, those in a 4 x 4
+   window toward the camera from each face that stand above the face's top.
+   Each is clipped out on its own (a clip intersects the one before, so the
+   result is everything but their union). Null when nothing is in front. */
+function stepFaceOccluders(run,W,H){
+  const face=viewDirToWorld(1,0), side=viewDirToWorld(0,1), seen=new Set(), out=[];
+  for (const e of run.edges){
+    const n=e.n, s=(n[0]===face[0]&&n[1]===face[1]) ? side : (n[0]===side[0]&&n[1]===side[1]) ? face : null;
+    if (!s) continue;                               // facing away: not drawn
+    const ci=e.tile.indexOf(','), tx=+e.tile.slice(0,ci), ty=+e.tile.slice(ci+1);
+    for (let a=0;a<4;a++) for (let b=0;b<4;b++){
+      if (!a && !b) continue;
+      const x=tx+a*s[0]+b*n[0], y=ty+a*s[1]+b*n[1], k=x+','+y;
+      if (seen.has(k) || x<0||y<0||x>=GW||y>=GH) continue;
+      seen.add(k);
+      const h=elevationAt(x,y); if (h<=run.h) continue;
+      // a little over a pixel larger than the tile, or the seam between two shows a hairline of the face
+      const c=screenOfCorner(x+0.5,y+0.5,W,H);
+      out.push([[x,y],[x+1,y],[x+1,y+1],[x,y+1]].map(([qx,qy])=>{ const q=screenOfCorner(qx,qy,W,H);
+        return [q[0]+(q[0]-c[0])*0.04, q[1]+(q[1]-c[1])*0.04-h*ELEV_STEP]; }));
+    }
+  }
+  return out.length ? out : null;
+}
+function paintWallRunBody(ctx,run,W,H,shown,snow,rbt,endsFor,st,lift,fall){
   let piece=[];
   const emit=()=>{
     if (piece.length>0){
@@ -1439,7 +1491,11 @@ function paintWallRun(ctx,run,W,H,shown,inView,snow,rbt,endsFor){
   // draw theirs along the bed's curve
   if (rbt && run.edges.every(e=>rbt.has(e.tile))) return;
   const g=wallRunCapGeom(run);
-  drawWallCap(ctx,g.pts,g.sgn,g.closed,st,wallCapProj(W,H,lift),run.edges[0].seed,snow,g.closed||!endsFor?null:endsFor(run));
+  // a step has its tread's nosing, not a coping (drawStepNosing)
+  if (run.step){ drawStepNosing(ctx,g.pts,g.sgn,g.closed,st,stepTreadOf(run),wallCapProj(W,H,lift),snow,g.closed||!endsFor?null:endsFor(run)); return; }
+  // the top riser keeps the coping of the terrace it hangs from
+  const cs=run.capWall && run.capWall!==run.wall && wallStyle(run.capWall).cap ? wallStyle(run.capWall) : st;
+  drawWallCap(ctx,g.pts,g.sgn,g.closed,cs,wallCapProj(W,H,lift),run.edges[0].seed,snow,g.closed||!endsFor?null:endsFor(run));
 }
 /* A fixed order for painting a region's grain, where the flood's order would do
    for everything else. Grains of neighbouring tiles overlap a little, so paint
@@ -4712,6 +4768,7 @@ function render(t){
   drawRulerOverlay(cx,W,H);
   drawPergolaGhost(cx,W,H,cal.season);
   drawTerraceGhost(cx,W,H);
+  drawStepsGhost(cx,W,H);
   drawEdgingGhost(cx,W,H);
   drawWallFaceHover(cx,W,H);
   drawToolDragMetric(cx,W,H);
@@ -5189,6 +5246,59 @@ function drawTerraceGhost(cx,W,H){
     walls(run(flat,hi),drop);
     cx.restore();
     poly(flat,null,'rgba(243,236,221,0.9)',[6,4]);
+  }
+  cx.restore();
+}
+/* The flight a Steps tap would lay, before it is laid (stepsHover, set on
+   pointermove from the edge nearest the pointer): each step a box at its height,
+   its tread in the tread's colour and its camera-facing sides in the riser's;
+   red where it would be refused, with the tile in the way marked. Over a flight,
+   its outline, since a tap restyles all of it. Kept per aim, garden revision and
+   draft, so a still pointer works nothing out. */
+const stepsGhostCache={key:null,plan:null,flight:null};
+function drawStepsGhost(cx,W,H){
+  if (game.tool!=='steps' || typeof stepsHover==='undefined' || !stepsHover || !layerShown('landscape')) return;
+  const d=stepDraft(), key=stepsHover.key+'|'+game.rev+'|'+d.w+'|'+d.tread+'|'+d.width;
+  const c=stepsGhostCache;
+  if (c.key!==key){ c.key=key;
+    c.flight=stepsHover.flight ? stepFlightAt(stepsHover.x,stepsHover.y) : null;
+    c.plan=stepsHover.flight ? null : stepFlightPlan(stepsHover,d); }
+  const corners=(x,y,lift)=>[[x,y],[x+1,y],[x+1,y+1],[x,y+1]].map(([qx,qy])=>{ const q=screenOfCorner(qx,qy,W,H); return [q[0],q[1]-lift]; });
+  const poly=(pts)=>{ cx.beginPath(); pts.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1])); cx.closePath(); };
+  cx.save(); cx.lineJoin='round';
+  if (c.flight){
+    cx.setLineDash([5,4]); cx.lineWidth=1.6; cx.strokeStyle='rgba(243,236,221,0.9)';
+    for (const [x,y] of c.flight.tiles){ poly(corners(x,y,elevationAt(x,y)*ELEV_STEP)); cx.stroke(); }
+    cx.restore(); return;
+  }
+  const p=c.plan;
+  if (!p || !p.tiles){
+    // a single step already, or an edge too short: mark the edge that was aimed at
+    if (p && p.aim){ const a=p.aim, lift=a.H*ELEV_STEP, n=a.n;
+      const ex=a.hx+(n[0]>0?1:0), ey=a.hy+(n[1]>0?1:0), along=n[0]?[0,1]:[1,0];
+      const q0=screenOfCorner(ex,ey,W,H), q1=screenOfCorner(ex+along[0],ey+along[1],W,H);
+      cx.setLineDash([5,4]); cx.lineWidth=2.4; cx.strokeStyle='rgba(230,118,92,0.95)';
+      cx.beginPath(); cx.moveTo(q0[0],q0[1]-lift); cx.lineTo(q1[0],q1[1]-lift); cx.stroke(); }
+    cx.restore(); return;
+  }
+  const L=p.aim.L, st=wallStyle(d.w), pc=pathColor(d.tread), tread=(pc.tones&&pc.tones[1])||pc.fill;
+  if (p.blocked){
+    cx.setLineDash([6,4]); cx.lineWidth=1.5; cx.strokeStyle='rgba(230,118,92,0.9)'; cx.fillStyle='rgba(196,58,44,0.12)';
+    for (const [x,y] of p.tiles){ poly(corners(x,y,L*ELEV_STEP)); cx.fill(); cx.stroke(); }
+    if (onPlot(p.blocked.x,p.blocked.y)){ const [sx,sy]=screenOf(p.blocked.x,p.blocked.y,W,H);
+      tileDiamond(cx,sx,sy,'rgba(196,58,44,0.45)',null); }
+    cx.restore(); return;
+  }
+  const order=p.tiles.slice().sort((a,b)=>viewDepth(a[0],a[1])-viewDepth(b[0],b[1]));
+  cx.globalAlpha=0.78;
+  for (const [x,y,h] of order){
+    const top=corners(x,y,h*ELEV_STEP), drop=(h-L)*ELEV_STEP;
+    let lo=0; for (let i=1;i<4;i++) if (top[i][1]>top[lo][1]) lo=i;   // the corner nearest the camera
+    cx.fillStyle=st.tone;
+    for (const [a,b] of [[top[(lo+3)%4],top[lo]],[top[lo],top[(lo+1)%4]]]){
+      cx.beginPath(); cx.moveTo(a[0],a[1]); cx.lineTo(b[0],b[1]); cx.lineTo(b[0],b[1]+drop); cx.lineTo(a[0],a[1]+drop); cx.closePath(); cx.fill(); }
+    cx.fillStyle=tread; poly(top); cx.fill();
+    cx.strokeStyle='rgba(243,236,221,0.9)'; cx.lineWidth=1.2; cx.stroke();
   }
   cx.restore();
 }
