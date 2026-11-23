@@ -21803,7 +21803,8 @@ test('water features reach both client documents', () => {
   const plan = readRepoFile('js/io.js');
   const drawn = plan.slice(plan.indexOf('// water features'), plan.indexOf('// boulders'));
   assert(/game\.waterFeatures/.test(drawn), 'openPlan iterates the layer');
-  assert(/ellipse/.test(drawn), 'and draws the ripple rings that read as water on a plan');
+  assert(/drawPlanWaterFeature\(/.test(drawn), 'through its own to-scale painter');
+  assert(/rings\(/.test(String(drawPlanWaterFeature)), 'and draws the ripple rings that read as water on a plan');
 });
 
 test('a water feature survives a save, and an older garden simply has none', async () => {
@@ -26878,4 +26879,108 @@ test('a bench and a sphere come in sizes, on one chip with a Size row', () => {
   // the two benches are told apart in search, where they used to share a label
   const hits = searchOptionItems().filter(i => i.tool === 'seat').map(i => i.label);
   assertEqual(new Set(hits).size, hits.length, 'no two seating results share a name: ' + hits.join(', '));
+});
+
+/* ---------- the plan sheet's hardscape, to scale (0.9.150) ---------- */
+// a canvas that keeps every path it is handed, with the style it was filled or stroked in
+function planRecorder(){
+  const paths = []; let cur = [];
+  const ctx = new Proxy({ lineWidth: 1, fillStyle: '#000', strokeStyle: '#000' }, {
+    get(o, p){ if (p in o) return o[p];
+      if (p === 'measureText') return s => ({ width: String(s).length * 6 });
+      return (...a) => {
+        if (p === 'beginPath') cur = [];
+        else if (p === 'moveTo' || p === 'lineTo') cur.push([a[0], a[1]]);
+        else if (p === 'arc') { for (let i = 0; i < 16; i++) cur.push([a[0] + a[2] * Math.cos(i * Math.PI / 8), a[1] + a[2] * Math.sin(i * Math.PI / 8)]); }
+        else if (p === 'fill' || p === 'stroke') paths.push({ op: p, fill: o.fillStyle, stroke: o.strokeStyle, pts: cur.slice() });
+      }; },
+    set(o, p, v){ o[p] = v; return true; } });
+  const bbox = pts => { const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+    return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys),
+      cx: (Math.max(...xs) + Math.min(...xs)) / 2, cy: (Math.max(...ys) + Math.min(...ys)) / 2 }; };
+  return { ctx, paths, bbox };
+}
+
+test('a piece on the plan turns the way the garden turns it', () => {
+  for (let f = 0; f < 4; f++){
+    const [ax, ay] = turnAxes([[1, 0], [0, 1]], f), fr = planPieceFrame(planRecorder().ctx, 100, 100, 2, f);
+    const q = fr.Q(3, 5), want = [100 + (3 * ax[0] + 5 * ay[0]) * 2, 100 + (3 * ax[1] + 5 * ay[1]) * 2];
+    assert(Math.abs(q[0] - want[0]) < 1e-9 && Math.abs(q[1] - want[1]) < 1e-9, `face ${f}: (${q}) is where turnAxes puts it (${want})`);
+  }
+});
+
+test('a trough is drawn as a trough, its real length and turned the way it stands', () => {
+  setup(15, 15);
+  const cell = 18, ppi = cell / TILE_IN;
+  for (const face of [0, 1]){
+    const r = planRecorder();
+    drawPlanPot(r.ctx, 0, 0, cell, { style: 'trough', size: 'trough54', finish: '', face });
+    const outer = r.bbox(r.paths[0].pts), long = 54 * ppi, deep = 14 * ppi;
+    const [w, h] = face ? [deep, long] : [long, deep];
+    assert(Math.abs(outer.w - w) < 0.01 && Math.abs(outer.h - h) < 0.01,
+      `face ${face}: ${outer.w.toFixed(1)} x ${outer.h.toFixed(1)}, a 54 x 14 in box (it was a circle 54 in across)`);
+  }
+  const r = planRecorder();
+  drawPlanPot(r.ctx, 0, 0, cell, { style: 'terracotta', size: 'p24', finish: '' });
+  assert(Math.abs(r.bbox(r.paths[0].pts).w - 24 * ppi) < 0.01, 'a round pot is its real diameter');
+});
+
+test('water features and seating are drawn to their real size, in their own outlines', () => {
+  setup(20, 20);
+  const cell = 18, ppi = cell / TILE_IN;
+  const sizeOf = (fn, d) => { const r = planRecorder(); fn(r.ctx, 0, 0, cell, d); return r.bbox(r.paths.find(p => p.op === 'fill').pts); };
+  const bath = sizeOf(drawPlanWaterFeature, { form: 'birdbath', finish: 'stone', face: 0 });
+  assert(Math.abs(bath.w - waterFeature('birdbath').wIn * ppi) < 0.01, 'a birdbath is its real 26 in across');
+  const mill = sizeOf(drawPlanWaterFeature, { form: 'millstone', finish: 'stone', face: 0 });
+  assert(mill.w > bath.w + 5, 'and a 34 in millstone is bigger than it (both were 84% of a 2-tile ellipse)');
+  // a wall spout's wall is on its back, and turns with it
+  const wall = face => { const r = planRecorder();
+    drawPlanWaterFeature(r.ctx, 0, 0, cell, { form: 'spout', finish: 'corten', face });
+    const outer = r.bbox(r.paths[0].pts), bar = r.bbox(r.paths[r.paths.length - 1].pts);
+    return [Math.sign(Math.round(bar.cx - outer.cx)), Math.sign(Math.round(bar.cy - outer.cy))]; };
+  assertEqual(wall(0).join(), '0,-1', 'facing 0, the wall is on the -v side');
+  assertEqual(wall(1).join(), '1,0', 'turned a quarter, it goes where turnAxes takes -v');
+  // a seat is all its parts together: an Adirondack's arms, a picnic table's benches
+  const whole = d => { const r = planRecorder(); drawPlanSeat(r.ctx, 0, 0, cell, d); return r.bbox(r.paths.flatMap(p => p.pts)); };
+  for (const t of SEAT_TYPES){
+    const b = whole({ type: t.id, finish: t.finishes[0], face: 0 });
+    assert(Math.abs(b.w - t.wIn * ppi) < 0.6 && Math.abs(b.h - t.dIn * ppi) < 0.6,
+      `${t.id} is drawn ${(b.w / ppi).toFixed(0)} x ${(b.h / ppi).toFixed(0)} in, its real ${t.wIn} x ${t.dIn}`);
+  }
+  const turned = whole({ type: 'lounger', finish: 'teak', face: 1 }), lo = seatType('lounger');
+  assert(Math.abs(turned.w - lo.dIn * ppi) < 0.6 && Math.abs(turned.h - lo.wIn * ppi) < 0.6, 'a turned lounger lies the other way');
+});
+
+test('climbing frames are on the plan', () => {
+  setup(15, 15);
+  const g = { cell: 18, X: x => x * 18, Y: y => y * 18 };
+  const n = () => { const r = planRecorder(); drawPlanStructures(r.ctx, g); return r.paths.length; };
+  const base = n();
+  game.supports['4,4'] = { style: 'obelisk', mat: 'timber', face: 0, t: 1 };
+  const one = n();
+  assert(one > base, 'an obelisk draws (it was billed on the planting list and missing from the plan)');
+  game.supports['8,4'] = { style: 'arch', mat: 'black', face: 1, t: 1 };
+  game.supports['4,9'] = { style: 'trellis', mat: 'willow', face: 0, t: 1 };
+  assert(n() > one, 'and so do an arch and a trellis panel');
+});
+
+test('a terrace carries one spot height in inches, not a step count on every tile', () => {
+  setup(20, 20);
+  for (let x = 3; x <= 7; x++) for (let y = 3; y <= 6; y++) setTerraceTile(x, y, { h: 3, w: 'brick' });
+  for (let x = 12; x <= 15; x++) for (let y = 12; y <= 14; y++) setTerraceTile(x, y, { h: -2, w: 'stone' });
+  const spots = planTerraceSpots();
+  assertEqual(spots.length, 2, 'one spot per terrace or patio, not one per tile');
+  assertEqual(spots[0].n, 20, 'biggest first');
+  withUnits('imperial', () => {
+    assertEqual(planTerraceSpotText(spots[0].h), '+' + terraceInches(3), 'above grade, in inches');
+    assert(/^−\d+ in$/.test(planTerraceSpotText(spots[1].h)), 'below grade too: ' + planTerraceSpotText(spots[1].h));
+  });
+  assert(/cm$/.test(withUnits('metric', () => planTerraceSpotText(3))), 'and in centimetres for a metric gardener');
+  const [x, y] = spots[0].at;
+  assert(x >= 4 && x <= 6 && y >= 4 && y <= 5, `the spot sits in the middle of its terrace (${x},${y})`);
+  // the ground pass writes no text at all now
+  let texts = 0;
+  const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p]; return (...a) => { if (p === 'fillText') texts++; }; }, set(o, p, v){ o[p] = v; return true; } });
+  drawPlanGround(rec, { cell: 10, padL: 0, padT: 0, W2: 200, H2: 200, X: x => x * 10, Y: y => y * 10 }, { lightsLive: [], bouldersLive: [] });
+  assertEqual(texts, 0, 'no number is printed on the raised tiles');
 });

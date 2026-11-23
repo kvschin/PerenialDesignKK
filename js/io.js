@@ -1110,15 +1110,23 @@ function exportRows(){
    is drawn rather than keyed, which is the convention for an object on a
    planting plan; it is there at all because, unlike a pet, it is bought and
    set out. */
-function drawPlanOrnament(ctx,x0,y0,cell,d){
-  const sp=ornamentKind(d.kind), fin=ornamentFinish(d.finish), sz=ornamentTileSize(d);
-  const ppi=cell/TILE_IN, cx=x0+sz.w*cell/2, cy=y0+sz.h*cell/2, f=d.face;
-  // the piece's own (u,v) in inches onto the sheet, a quarter turn per face
+/* A placed piece in its OWN frame on the sheet: (u,v) in real inches about the
+   middle of its footprint, turned a quarter per `face` exactly as turnAxes turns
+   it in the garden (face 1 carries u onto world +y and v onto world -x), so a
+   bench's back, a spout's wall and an arch's legs land where the garden draws
+   them. Every to-scale symbol on the plan draws through this one frame. */
+function planPieceFrame(ctx,cx,cy,ppi,f){
   const Q=(u,v)=>{ const r=f===1?[-v,u]:f===2?[-u,-v]:f===3?[v,-u]:[u,v]; return [cx+r[0]*ppi, cy+r[1]*ppi]; };
   const poly=pts=>{ ctx.beginPath(); pts.forEach((p,i)=>{ const q=Q(p[0],p[1]); if (i) ctx.lineTo(q[0],q[1]); else ctx.moveTo(q[0],q[1]); }); ctx.closePath(); };
-  const box=(u0,u1,v0,v1)=>poly([[u0,v0],[u1,v0],[u1,v1],[u0,v1]]);
-  const ring=(u,v,r)=>{ const q=Q(u,v); ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(0.8,r*ppi),0,7); };
-  const line=(a,b)=>{ const p=Q(a[0],a[1]), q=Q(b[0],b[1]); ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke(); };
+  return {Q, poly,
+    box:(u0,u1,v0,v1)=>poly([[u0,v0],[u1,v0],[u1,v1],[u0,v1]]),
+    ring:(u,v,r)=>{ const q=Q(u,v); ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(0.8,r*ppi),0,7); },
+    line:(a,b)=>{ const p=Q(a[0],a[1]), q=Q(b[0],b[1]); ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke(); }};
+}
+function drawPlanOrnament(ctx,x0,y0,cell,d){
+  const sp=ornamentKind(d.kind), fin=ornamentFinish(d.finish), sz=ornamentTileSize(d);
+  const ppi=cell/TILE_IN, cx=x0+sz.w*cell/2, cy=y0+sz.h*cell/2;
+  const {box,ring,line}=planPieceFrame(ctx,cx,cy,ppi,d.face);
   const body=mixHex(fin.body,'#f7f3e8',0.4), mark='rgba(79,71,59,0.8)';
   ctx.save();
   ctx.fillStyle=body; ctx.strokeStyle='#4f473b'; ctx.lineWidth=1.1;
@@ -1154,6 +1162,153 @@ function drawPlanOrnament(ctx,x0,y0,cell,d){
   }
   ctx.restore();
 }
+/* A container TO SCALE: a round pot a circle its real diameter, a square or
+   timber box a square, a trough a 14 in deep rectangle along its length and
+   turned the way it stands, tinted by its colour, with the soil line inside the
+   rim. A trough used to be a circle as wide as the trough is long. */
+function drawPlanPot(ctx,x0,y0,cell,p){
+  const d=normalizePotDraft(p), st=potStyle(d.style), sz=potTileSize(d), r=potSizeDef(d.size).wIn/2;
+  const ppi=cell/TILE_IN, {box,ring}=planPieceFrame(ctx,x0+sz.w*cell/2,y0+sz.h*cell/2,ppi,d.face);
+  const hd=st.form==='trough' ? 7 : r;          // drawPotArt's trough is 14 in across
+  const boxy=st.form==='square'||st.form==='crate'||st.form==='trough';
+  const shape=k=>boxy ? box(-r+k,r-k,-hd+k,hd-k) : ring(0,0,r-k);
+  ctx.save();
+  ctx.fillStyle=mixHex(potColors(d).body,'#f7f3e8',0.55); ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.2;
+  shape(0); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle='rgba(92,84,69,0.55)'; ctx.lineWidth=0.9;
+  shape(Math.min(r,hd)*0.38); ctx.stroke();
+  ctx.restore();
+}
+/* A water feature TO SCALE in its own outline, the vessel tinted by its finish
+   and the water blue with the concentric rings a drawn plan gives water. A
+   bubbler's gravel reservoir is the dotted ring round it; a wall spout's wall is
+   the heavy bar on its back side. They were all one ellipse 84% of the tiles
+   they claim, so a 26 in birdbath and a 34 in millstone drew the same. */
+function drawPlanWaterFeature(ctx,x0,y0,cell,d){
+  d=normalizeWaterFeatureDraft(d);
+  const sp=waterFeature(d.form), fin=waterFinish(d.finish), sz=waterFeatureTileSize(d);
+  const ppi=cell/TILE_IN, {box,ring,line}=planPieceFrame(ctx,x0+sz.w*cell/2,y0+sz.h*cell/2,ppi,d.face);
+  const R=sp.wIn/2, hu=sp.wIn/2, hv=sp.dIn/2, ink='#4f473b';
+  ctx.save(); ctx.lineWidth=1.1; ctx.strokeStyle=ink;
+  const vessel=()=>{ ctx.fillStyle=mixHex(fin.body,'#f7f3e8',0.4); ctx.fill(); ctx.stroke(); };
+  const pool=()=>{ ctx.fillStyle='#a9d2df'; ctx.fill(); ctx.strokeStyle='#3f5f6b'; ctx.lineWidth=0.9; ctx.stroke();
+    ctx.strokeStyle=ink; ctx.lineWidth=1.1; };
+  const rings=r=>{ ctx.save(); ctx.strokeStyle='rgba(63,95,107,0.55)'; ctx.lineWidth=0.8;
+    for (const f of [0.62,0.32]){ ring(0,0,r*f); ctx.stroke(); } ctx.restore(); };
+  const gravel=()=>{ ctx.save(); ctx.setLineDash([1.5,2.5]); ctx.strokeStyle='rgba(92,84,69,0.7)';
+    ring(0,0,R*1.32); ctx.stroke(); ctx.restore(); };
+  switch (sp.form){
+    case 'pedestal': ring(0,0,R); vessel(); ring(0,0,R*0.8); pool(); rings(R*0.8); break;
+    case 'urn':      gravel(); ring(0,0,R); vessel(); ring(0,0,R*0.3); pool(); break;
+    case 'millstone':gravel(); ring(0,0,R); vessel(); ring(0,0,R*0.14); pool(); break;
+    case 'tiered':   ring(0,0,R); vessel(); ring(0,0,R*0.88); pool(); rings(R*0.88);
+                     ring(0,0,R*0.44); vessel(); ring(0,0,R*0.22); vessel(); break;
+    case 'tsukubai': box(-hu,hu,-hv,hv); vessel(); ring(0,0,R*0.5); pool(); break;
+    case 'spout':
+      box(-hu*0.94,hu*0.94,-hv*0.6,hv*0.6); vessel();
+      box(-hu*0.94+2,hu*0.94-2,-hv*0.6+2,hv*0.6-2); pool();
+      ctx.fillStyle=mixHex(fin.dark||fin.body,'#3b3226',0.3);
+      box(-hu*0.88,hu*0.88,-hv*0.72-1.5,-hv*0.72+1.5); ctx.fill();         // the wall it spouts from
+      break;
+    case 'tank':     ring(0,0,R); vessel(); ring(0,0,R-2.5); pool(); rings(R-2.5); break;
+    case 'basin':
+      box(-hu,hu,-hv,hv); vessel(); box(-hu+3,hu-3,-hv+3,hv-3); pool();
+      ctx.save(); ctx.strokeStyle='rgba(63,95,107,0.55)'; ctx.lineWidth=0.8;
+      box(-hu*0.6,hu*0.6,-hv*0.45,hv*0.45); ctx.stroke(); ctx.restore(); break;
+    default:         ring(0,0,R); vessel(); ring(0,0,R*0.7); pool();
+  }
+  ctx.restore();
+}
+/* Seating TO SCALE, each piece in its own outline: a bench with its back on the
+   back side (-v, where seatSolids puts it), an Adirondack between its two wide
+   arms, a stool or a bistro table round, a picnic table with a bench either
+   side, a lounger with its raised head end. Slats mark timber; stone is plain.
+   It was a hatched rectangle the size of the tiles it claims, so a stool, a
+   dining table and a lounger were the same drawing, each larger than itself. */
+function drawPlanSeat(ctx,x0,y0,cell,s){
+  const d=normalizeSeatDraft(s), t=seatType(d.type), fin=seatFinish(d.finish), sz=seatTileSize(d);
+  const ppi=cell/TILE_IN, {box,ring,line}=planPieceFrame(ctx,x0+sz.w*cell/2,y0+sz.h*cell/2,ppi,d.face);
+  const hu=t.wIn/2, hv=t.dIn/2, ink='#5c5445', back=mixHex(fin.tones[0],'#3b3226',0.45);
+  ctx.save(); ctx.strokeStyle=ink; ctx.lineWidth=1.1;
+  const solid=()=>{ ctx.fillStyle=mixHex(fin.tones[0],'#f7f3e8',0.45); ctx.fill(); ctx.stroke(); };
+  const dark=()=>{ ctx.fillStyle=back; ctx.fill(); ctx.stroke(); };
+  const slats=(u0,u1,v0,v1,n)=>{ if (fin.mat==='stone') return;
+    ctx.save(); ctx.strokeStyle='rgba(92,84,69,0.5)'; ctx.lineWidth=0.6;
+    for (let i=1;i<n;i++){ const v=v0+(v1-v0)*i/n; line([u0,v],[u1,v]); } ctx.restore(); };
+  switch (t.form){
+    case 'bench':
+      box(-hu,hu,-hv,hv); solid(); slats(-hu,hu,-hv+4,hv,4);
+      if (fin.mat!=='stone'){ box(-hu,hu,-hv,-hv+4); dark(); }      // a stone bench is a slab, backless
+      break;
+    case 'adirondack':
+      box(-hu+6,hu-6,-hv,hv); solid(); slats(-hu+6,hu-6,-hv+6,hv,4);
+      box(-hu,-hu+6,-hv+6,hv-2); solid(); box(hu-6,hu,-hv+6,hv-2); solid();   // the wide arms
+      box(-hu+6,hu-6,-hv,-hv+6); dark(); break;                                 // the fan
+    case 'chair':
+      box(-hu,hu,-hv,hv); solid(); slats(-hu,hu,-hv+3,hv,3); box(-hu,hu,-hv,-hv+3); dark(); break;
+    case 'stool':
+      if (fin.mat==='stone'){ ring(0,0,hu); solid(); } else { box(-hu,hu,-hv,hv); solid(); slats(-hu,hu,-hv,hv,3); }
+      break;
+    case 'bistro':
+      ring(0,0,hu); solid(); ctx.fillStyle=ink; ring(0,0,1.6); ctx.fill(); break;
+    case 'dining':
+      box(-hu,hu,-hv,hv); solid(); slats(-hu,hu,-hv,hv,5); break;
+    case 'picnic':
+      box(-hu,hu,-14.2,14.2); solid(); slats(-hu,hu,-14.2,14.2,5);
+      box(-hu,hu,-hv,-hv+10); solid(); box(-hu,hu,hv-10,hv); solid(); break;
+    case 'lounger':
+      box(-hu,hu,-hv,hv); solid(); slats(-hu,hu,-hv+26,hv,6); box(-hu,hu,-hv,-hv+26); dark(); break;
+    default:
+      box(-hu,hu,-hv,hv); solid();
+  }
+  ctx.restore();
+}
+/* A climbing frame TO SCALE, drawn over the planting the way the pergola is,
+   because the climber is planted on it and its blob would hide it: an obelisk a
+   square with its four legs and its ridges to the top, a trellis panel a run
+   between two posts, an arch its four legs with the overhead span dashed. They
+   were on the planting list and missing from the plan altogether. */
+function drawPlanSupport(ctx,x0,y0,cell,s){
+  const d=normalizeSupportDraft(s), sp=supportStyle(d.style), m=supportMaterial(d.mat), sz=supportTileSize(d);
+  const ppi=cell/TILE_IN, {Q,box,line}=planPieceFrame(ctx,x0+sz.w*cell/2,y0+sz.h*cell/2,ppi,d.face);
+  const hu=sp.wIn/2, hv=sp.dIn/2, ink=mixHex(m.dark,'#3b3226',0.3), ps=Math.max(2,2*ppi);
+  const post=(u,v)=>{ const q=Q(u,v); ctx.beginPath(); ctx.arc(q[0],q[1],ps/2+0.5,0,7); ctx.fill(); };
+  ctx.save(); ctx.strokeStyle=ink; ctx.fillStyle=ink; ctx.lineWidth=1.1;
+  if (sp.form==='panel'){
+    line([-hu,0],[hu,0]);
+    ctx.lineWidth=0.7; for (let u=-hu+5;u<hu-1;u+=5) line([u,-hv],[u,hv]);
+    post(-hu,0); post(hu,0);
+  } else if (sp.form==='arch'){
+    line([-hu,-hv],[-hu,hv]); line([hu,-hv],[hu,hv]);
+    ctx.save(); ctx.setLineDash([3,2]); ctx.lineWidth=0.9; box(-hu,hu,-hv,hv); ctx.stroke(); ctx.restore();
+    for (const u of [-hu,hu]) for (const v of [-hv,hv]) post(u,v);
+  } else {
+    box(-hu,hu,-hv,hv); ctx.stroke();
+    ctx.lineWidth=0.7; line([-hu,-hv],[hu,hv]); line([hu,-hv],[-hu,hv]);
+    for (const u of [-hu,hu]) for (const v of [-hv,hv]) post(u,v);
+  }
+  ctx.restore();
+}
+/* One spot height per terrace or sunken patio, in inches above or below grade,
+   at the tile nearest its middle, biggest first. The sheet printed the elevation
+   STEP on every raised tile ("+3" forty times over a bed), a unit nothing else in
+   the app uses and a texture rather than a reading. */
+function planTerraceSpots(){
+  const seen=new Set(), out=[];
+  for (const k in game.elevation){
+    const e=game.elevation[k]; if (!e || e.removed || !e.h || seen.has(k)) continue;
+    const [x,y]=k.split(',').map(Number), r=terraceRegionAt(x,y);
+    if (!r){ seen.add(k); continue; }
+    r.has.forEach(t=>seen.add(t));
+    let sx=0, sy=0; for (const [tx,ty] of r.tiles){ sx+=tx; sy+=ty; }
+    const mx=sx/r.tiles.length, my=sy/r.tiles.length;
+    let at=r.tiles[0], best=Infinity;
+    for (const t of r.tiles){ const dd=(t[0]-mx)**2+(t[1]-my)**2; if (dd<best){ best=dd; at=t; } }
+    out.push({h:r.h, at, n:r.tiles.length});
+  }
+  return out.sort((a,b)=>b.n-a.n);
+}
+function planTerraceSpotText(h){ return `${h>0?'+':'−'}${terraceInches(h)}`; }
 function hardscapeRows(){
   const rows=[];
   /* `n` is the magnitude the sort reads. Most counts here are formatted
@@ -2773,16 +2928,14 @@ function drawPlanGround(ctx,g,site){
   for (let gx=0;gx<=GW;gx++){ ctx.beginPath(); ctx.moveTo(X(gx),Y(0)); ctx.lineTo(X(gx),Y(GH)); ctx.stroke(); }
   for (let gy=0;gy<=GH;gy++){ ctx.beginPath(); ctx.moveTo(X(0),Y(gy)); ctx.lineTo(X(GW),Y(gy)); ctx.stroke(); }
   ctx.restore();
-  // elevation grade: subtle plan cue under materials/plants
+  /* elevation grade: subtle plan cue under materials/plants. The height itself
+     is ONE spot label per terrace, placed with the plant labels (planTerraceSpots,
+     drawPlanSheet), not a step count printed on every tile. */
   for (const k in game.elevation){ const e=game.elevation[k];
     if (!e || e.removed || !e.h) continue;
     const [x,y]=k.split(',').map(Number);
     ctx.fillStyle=e.h>0?'rgba(145,119,70,0.16)':'rgba(73,112,140,0.18)';
     ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
-    ctx.fillStyle=e.h>0?'#8a6735':'#4f7388';
-    ctx.font=`600 ${Math.max(7,Math.min(10,cell*0.42))}px IBM Plex Sans`;
-    ctx.textAlign='center';
-    ctx.fillText(`${e.h>0?'+':''}${e.h}`,X(x)+cell/2,Y(y)+cell/2+3);
   }
   // terrain — organic gardens draw the SAME smoothed region geometry the
   // garden renderer uses (terrainLoopPath over the cached arcs, projected to
@@ -2847,25 +3000,11 @@ function drawPlanGround(ctx,g,site){
       ctx.fillStyle='#2f261f'; ctx.fillRect(cxp-hw+t,cyp-hd+t,Math.max(1,hw*2-t*2),Math.max(1,hd*2-t*2));
     }
   }
-  // water features
+  // water features, to scale in their own outlines (drawPlanWaterFeature)
   for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k];
     if (!w || w.removed) continue;
-    const [x,y]=k.split(',').map(Number), d=normalizeWaterFeatureDraft(w);
-    const spec=waterFeature(d.form), sz=waterFeatureTileSize(d);
-    const px=X(x), py=Y(y), ww=sz.w*cell, hh=sz.h*cell;
-    ctx.fillStyle='#a9d2df'; ctx.strokeStyle='#3f5f6b'; ctx.lineWidth=1.3;
-    const round = spec.form!=='basin' && spec.form!=='spout';
-    if (round){
-      ctx.beginPath(); ctx.ellipse(px+ww/2,py+hh/2,ww*0.42,hh*0.42,0,0,7); ctx.fill(); ctx.stroke();
-    } else {
-      ctx.fillRect(px+cell*0.1,py+cell*0.1,ww-cell*0.2,hh-cell*0.2);
-      ctx.strokeRect(px+cell*0.1,py+cell*0.1,ww-cell*0.2,hh-cell*0.2);
-    }
-    // concentric rings: the standing convention for water on a drawn plan
-    ctx.strokeStyle='rgba(63,95,107,0.55)'; ctx.lineWidth=0.9;
-    for (const f of [0.26,0.15]){
-      ctx.beginPath(); ctx.ellipse(px+ww/2,py+hh/2,ww*f,hh*f,0,0,7); ctx.stroke();
-    }
+    const [x,y]=k.split(',').map(Number);
+    drawPlanWaterFeature(ctx,X(x),Y(y),cell,w);
   }
   // boulders
   /* Each rock TO SCALE in its real outline: the widest ring of the very shell
@@ -2927,32 +3066,17 @@ function drawPlanGround(ctx,g,site){
     }
   }
   /* Containers and seating are site objects a contractor sets out, so unlike
-     the pets they DO belong on the plan. A pot is a ring at its real diameter;
-     seating is its real footprint with a hatched fill. */
+     the pets they DO belong on the plan, each to scale in its own outline
+     (drawPlanPot, drawPlanSeat). */
   for (const k in game.pots||{}){
     const p=game.pots[k]; if (!p||p.removed) continue;
-    const [x,y]=k.split(',').map(Number), sz=potTileSize(p);
-    const dia=potSizeDef(potSizeFor(p.style,p.size)).wIn;
-    const cx2=X(x)+cell*sz.w/2, cy2=Y(y)+cell/2;
-    const r=Math.max(2.5,(dia/TILE_IN)*cell/2);
-    ctx.save();
-    ctx.fillStyle='rgba(247,243,232,0.85)'; ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.2;
-    ctx.beginPath(); ctx.arc(cx2,cy2,r,0,7); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle='rgba(92,84,69,0.55)'; ctx.lineWidth=0.9;
-    ctx.beginPath(); ctx.arc(cx2,cy2,r*0.62,0,7); ctx.stroke();
-    ctx.restore();
+    const [x,y]=k.split(',').map(Number);
+    drawPlanPot(ctx,X(x),Y(y),cell,p);
   }
   for (const k in game.seats||{}){
     const s2=game.seats[k]; if (!s2||s2.removed) continue;
-    const [x,y]=k.split(',').map(Number), sz=seatTileSize(s2);
-    const x0=X(x), y0=Y(y), w=cell*sz.w, h=cell*sz.h;
-    ctx.save();
-    ctx.fillStyle='rgba(140,128,104,0.20)'; ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.2;
-    ctx.fillRect(x0,y0,w,h); ctx.strokeRect(x0,y0,w,h);
-    ctx.strokeStyle='rgba(92,84,69,0.45)'; ctx.lineWidth=0.7;
-    for (let i=1;i<4;i++){ const t=i/4;
-      ctx.beginPath(); ctx.moveTo(x0,y0+h*t); ctx.lineTo(x0+w,y0+h*t); ctx.stroke(); }
-    ctx.restore();
+    const [x,y]=k.split(',').map(Number);
+    drawPlanSeat(ctx,X(x),Y(y),cell,s2);
   }
   for (const k in game.ornaments||{}){
     const o=game.ornaments[k]; if (!o||o.removed) continue;
@@ -3059,6 +3183,12 @@ function drawPlanStructures(ctx,g){
       ctx.closePath(); ctx.stroke();
     }
     ctx.restore();
+  }
+  // climbing frames, over the climber planted on them (drawPlanSupport)
+  for (const k in game.supports||{}){
+    const s=game.supports[k]; if (!s||s.removed) continue;
+    const [x,y]=k.split(',').map(Number);
+    drawPlanSupport(ctx,X(x),Y(y),cell,s);
   }
   // building footprints: exterior site context, deliberately distinct from legacy houses
   (game.buildings||[]).forEach(b=>{
@@ -3346,6 +3476,13 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
     const code=codes[c.s+'|'+(c.v||'')];
     const at=place.place(lx,ly,planLabelBox(ctx,code,0,fs),bounds);
     queued.push({kind:'tree',code,qty:0,fs,ink:'#2c241c',at});
+  });
+  /* A spot height per terrace or sunken patio, after the planting so a plant
+     code keeps the place it wants and the height moves out of its way. */
+  planTerraceSpots().forEach(sp=>{
+    const text=planTerraceSpotText(sp.h), fs=9;
+    const at=place.place(X(sp.at[0]+0.5),Y(sp.at[1]+0.5)+3,planLabelBox(ctx,text,0,fs),bounds);
+    queued.push({kind:'tree',code:text,qty:0,fs,ink:sp.h>0?'#7a5a2c':'#3f6478',at});
   });
   // every leader first, so no label's halo is cut by a line drawn after it
   queued.forEach(q=>{ if (q.at.leader) drawPlanLeader(ctx,[q.at.x,q.at.y],q.at.leader,q.ink); });

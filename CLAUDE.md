@@ -4479,7 +4479,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     axes, so the garden, the tray chips and the guidebook paint through one
     function (the `fencePanel` lesson) — and neither reads the camera.
     Unlike the pets, containers and seating **do** appear on the client-facing
-    documents: a ring at its real diameter and a hatched footprint on the plan,
+    documents: on the plan each is drawn to scale in its own outline through
+    `planPieceFrame` (0.9.150; `drawPlanPot`, `drawPlanSeat`, docs/plan-sheet.md),
     and a Containers & seating table on the planting list — a pot is one plant,
     one vessel and a bag of compost, which is a different line from an area at a
     spacing.
@@ -4804,8 +4805,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     piece standing on more than one tile positions itself from** (§12b).
     Unlike the garden pets these DO reach the client documents — somebody buys
     one and somebody installs it, the same reason containers and seating do: a
-    line on the planting list naming the finish, and concentric rings on the
-    plan, which is the standing convention for water on a drawn sheet.
+    line on the planting list naming the finish, and on the plan each form to
+    scale in its own outline (`drawPlanWaterFeature`, 0.9.150) with the
+    concentric rings that are the standing convention for water on a drawn sheet.
 
 12e. **Vertical supports + climbers** (`SUPPORT_STYLES`/`SUPPORT_MATERIALS`,
     `drawSupport`; `type:'vine'`, `form:'climber'`, `climberRenderDetail`) —
@@ -4910,7 +4912,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     like anything else and are eligible under the same `plantFits` gate; nothing
     about the catalog needed a special case. Like containers and seating they
     DO reach the client documents: the frame is a line on the planting list
-    naming its material, and the climber is an ordinary plant on it.
+    naming its material and is drawn on the plan over its climber
+    (`drawPlanSupport`, 0.9.150), and the climber is an ordinary plant on it.
 
 12f. **Pergolas** (`PERGOLA_MATERIALS`/`PERGOLA_HEIGHTS`/`PERGOLA_SPEC`,
     `pergolaRegions`/`pergolaFrameIn`/`pergolaFrameAt`, world.js;

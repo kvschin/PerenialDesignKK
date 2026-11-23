@@ -695,8 +695,8 @@ worked, and hid the seam. They are now named:
 | --- | --- |
 | `planGeometry(rowsBelow)` | paper size, the 660px floor, the centred origin, the `X`/`Y` projectors |
 | `drawPlanPaper(ctx,g,sheetName)` | paper, border, title block, true-north arrow |
-| `drawPlanGround(ctx,g,site)` | grid, grade, terrain, firepits, water features, boulders, fences, walls, lights |
-| `drawPlanStructures(ctx,g)` | footprints, houses, the deeded lot line — the base that goes *over* the planting |
+| `drawPlanGround(ctx,g,site)` | grid, grade, terrain, firepits, water features, boulders, fences, containers, seating, ornaments, walls, lights |
+| `drawPlanStructures(ctx,g)` | pergolas, climbing frames, footprints, houses, the deeded lot line — the base that goes *over* the planting |
 | `drawPlanKeyRows(ctx,g,ly2,legRows,site)` | the light/boulder/tree-note rows under the schedule |
 | `drawPlanScaleBar(ctx,g)` | the graphic scale |
 
@@ -775,6 +775,27 @@ and centres the drawing (13-tile plot, 312px drawing on 660px paper, centred at
 carrying its own `latin` is not double-appended (`Salvia nemorosa 'Caradonna'`);
 bulbs reach the schedule; and the spacing column follows the units preference
 (`18" o.c.` / `46 cm o.c.`). The sheet grew 150px taller for the full schedule.
+
+### Hardscape to scale, and spot heights (0.9.150)
+
+The landscaping audit found the site objects drawn three different ways: fire
+pits, boulders and ornaments to scale in their own outlines, everything else as
+a fraction of the tiles it claims, and the climbing frames not at all. Now every
+placed piece goes through one frame, `planPieceFrame(ctx,cx,cy,ppi,face)`: real
+inches about the middle of the footprint, turned a quarter per `face` exactly as
+`turnAxes` turns it in the garden (a test holds the two to each other at all
+four facings).
+
+| | before | after |
+| --- | --- | --- |
+| container | a circle the pot's width; a trough a circle as wide as it is long | `drawPlanPot`: round pots their diameter, square and timber boxes square, a trough 14 in deep and turned, tinted by its colour |
+| water feature | one ellipse, 84% of its tiles, rings | `drawPlanWaterFeature`: each form in its own outline at its real size, a bubbler's gravel reservoir dotted round it, a wall spout's wall on its back |
+| seating | a hatched rectangle the size of its tiles | `drawPlanSeat`: each piece its real size, the back on the back side (`-v`), slats for timber, stone plain |
+| climbing frame | missing | `drawPlanSupport`, over the planting like the pergola: an obelisk's legs and ridges, a trellis panel between its posts, an arch's legs with its span dashed |
+| terrace | "+3" on every raised tile | one spot height per terrace or patio, "+15 in" / "−10 in", placed with the plant labels (`planTerraceSpots`) |
+
+The tile tint under a terrace stays; only the numbers went. A spot height is
+placed after the plant labels, so a code keeps the spot it wants.
 
 ## What is still open
 
