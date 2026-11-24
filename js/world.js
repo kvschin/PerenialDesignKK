@@ -10,6 +10,7 @@ const DEFAULT_LAYER_VIS = Object.freeze({
   height:false,
   matureCanopies:false,
   edgeRulers:false,
+  existing:false,          // hatch what is already there (0.9.155)
   night:false,
 });
 function defaultLayerVis(){ return Object.assign({}, DEFAULT_LAYER_VIS); }
@@ -166,7 +167,8 @@ function crossingRegions(){
       }
       axis=ey>ex?'y':'x';
     }
-    const reg={type, tiles, has, axis, x0, x1, y0, y1};
+    const reg={type, tiles, has, axis, x0, x1, y0, y1,
+      ex:tiles.every(([tx,ty])=>{ const r=game.terrain[tx+','+ty]; return !!(r&&r.ex); })};
     list.push(reg); for (const t of tiles) at.set(t[0]+','+t[1],reg);
   }
   crossingRegionCache={key, ref:game.terrain, at, list};
@@ -317,10 +319,15 @@ function edgingInheritedAt(x,y,kind,c){
    — a tile side facing lawn — so the number on the planting list is the
    number of feet you can see, and an edge that becomes interior stops being
    billed the moment it stops being drawn. */
-function edgingRunFeet(){
+/* EXISTING and PROPOSED (0.9.155): a record carries `ex:true` when it is
+   already on the site, so the planting list leaves it off the orders and lists
+   it apart, and the plan hatches it. `exWant` filters a tally: undefined counts
+   everything, false only what is proposed, true only what is there already. */
+function exMatch(r,exWant){ return exWant===undefined || !!(r && r.ex)===exWant; }
+function edgingRunFeet(exWant){
   const out={};
   for (const k in game.terrain){
-    const t=game.terrain[k]; if (!t || t.removed) continue;
+    const t=game.terrain[k]; if (!t || t.removed || !exMatch(t,exWant)) continue;
     const e=edgingStyleId(t.e); if (e==='none') continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     const n=edgingSidesAt(x,y);
@@ -338,10 +345,10 @@ function edgingRunFeet(){
    rather than a length you buy -- and a contiguous run of gate tiles is ONE
    opening (fenceGateSpan), so counting gate tiles would sell three gates to
    somebody who drew one 4 ft one. */
-function fenceRunFeet(){
+function fenceRunFeet(exWant){
   const out={};
   for (const k in game.fences){
-    const f=game.fences[k]; if (!f || f.removed || f.gate) continue;
+    const f=game.fences[k]; if (!f || f.removed || f.gate || !exMatch(f,exWant)) continue;
     const st=fenceStyleId(f.style);
     const id=st+'|'+fenceHeightFor(st,f.height);
     out[id]=(out[id]||0)+1;
@@ -352,10 +359,10 @@ function fenceRunFeet(){
 /* One entry per OPENING, keyed style|height|spanTiles. Only the leading tile of
    a run bills it -- fenceGateSpan counts the gate tiles either side, so the tile
    with none before it is the one that draws the gate and the one that pays. */
-function fenceGateOpenings(){
+function fenceGateOpenings(exWant){
   const out={};
   for (const k in game.fences){
-    const f=game.fences[k]; if (!f || f.removed || !f.gate) continue;
+    const f=game.fences[k]; if (!f || f.removed || !f.gate || !exMatch(f,exWant)) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     const g=fenceGateSpan(x,y,fenceRunAxis(x,y));
     if (g.a) continue;                       // not the leading tile of this opening
@@ -467,6 +474,8 @@ const game = {
   terraceDraft:{h:3,w:'drystone',top:'bed'},        // the height, facing and top the next terrace is built with
   edgingDraft:'steel',                               // material the edging brush paints onto a bed or path edge
   crossingDraft:'stepping',                          // what the Crossing tool lays over water (CROSSING_TYPES)
+  surveyDraft:'existing',                            // what the Existing tool marks: 'existing' or 'proposed'
+  surveyLayer:'all',                                 // and which things: 'all', 'plants' or 'land'
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
@@ -1834,6 +1843,8 @@ function pergolaRegions(){
     reg.lights='none';
     for (const [tx,ty] of reg.tiles){ const p=map[`${tx},${ty}`];
       if (p && p.lights==='festoon'){ reg.lights='festoon'; break; } }
+    // existing when every bay is (0.9.155)
+    reg.ex=reg.tiles.every(([tx,ty])=>{ const p=map[tx+','+ty]; return !!(p&&p.ex); });
     reg.info=pergolaRegionInfo(reg.tiles);
     reg.has=(xx,yy)=>xx>=0&&yy>=0&&xx<GW&&yy<GH&&at.get(yy*GW+xx)===reg;
     list.push(reg);
@@ -2331,7 +2342,7 @@ function raisedBedSoil(keys,surfaceIn=BED_DEPTH_IN){
   const g=elevationGrid(); if (!(g.hi>0)) return out;
   const raised=new Set();
   for (const k of (keys || Object.keys(game.terrain||{}))){
-    const t=game.terrain[k]; if (!t || t.removed || t.k!=='bed') continue;
+    const t=game.terrain[k]; if (!t || t.removed || t.k!=='bed' || t.ex) continue;   // an existing bed is filled already
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     if (stepDirAt(x,y)) continue;
     const v=raisedBedFillCuIn(x,y,surfaceIn); if (!(v>0)) continue;

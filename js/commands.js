@@ -257,6 +257,13 @@ function actHere(opts){
     else rejectPlacement(edgingTapText(false,x,y));
     return;
   }
+  if (game.tool==='survey'){
+    lastSurveyCount=0;
+    const r=stampBrushAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(surveyTapText(lastSurveyCount)); }
+    else rejectPlacement(surveyTapText(0));
+    return;
+  }
   if (game.tool==='crossing'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(crossingTapText(true,x,y)); }
@@ -601,6 +608,7 @@ function placeTerrainAt(x,y){
   const keep=v=>{
     const rec=Object.assign({},terrObj,v,{t:Date.now()});
     if (rec.k!=='water') delete rec.x;              // a crossing is laid over water, and goes with it
+    if (terrObj && (rec.k!==terrObj.k || rec.c!==terrObj.c)) delete rec.ex;   // a new surface is proposed work
     if (edgingStyleId(rec.e)==='none'){ const e=edgingInheritedAt(x,y,rec.k,rec.c); if (e) rec.e=e; else delete rec.e; }
     return rec;
   };
@@ -1166,6 +1174,75 @@ function potFitWarning(def,pot){
    material round a whole region, kept showing the old one until the last tile
    was found. `lastEdging` is what the tap's toast reports. */
 function edgingDraft(){ return game.edgingDraft=edgingStyleId(game.edgingDraft); }
+/* ---------- existing and proposed (0.9.155) ----------
+   A site survey marks what is already there: the trees, the patio, the fence
+   you are keeping. A record carries `ex:true`; the planting list leaves it off
+   the orders and lists it apart, and the plan hatches it. Buildings have had
+   their own Existing/Proposed status all along (game.buildings' `status`);
+   this is the same question for everything else. The Existing tool marks what
+   is on a tile (a tap, a drag with the shared brush size, or Fill for a whole
+   patio), and a selection's More menu marks everything in it. */
+const SURVEY_LAYERS=[['all','Everything'],['plants','Plants'],['land','Landscape']];
+function surveyDraft(){ return game.surveyDraft=game.surveyDraft==='proposed'?'proposed':'existing'; }
+function surveyLayer(){ const l=game.surveyLayer; return game.surveyLayer=SURVEY_LAYERS.some(r=>r[0]===l)?l:'all'; }
+function surveyLabel(){ return surveyDraft()==='existing' ? 'Mark existing' : 'Mark proposed'; }
+/* Every record on a tile that can be marked, as [layer, key]: the plant on it
+   (or the shrub whose spread it is in), its bulbs, its surface, a fence or a
+   light, the placed piece whose footprint it is in, and a pergola's whole roof. */
+function surveyRecordsAt(x,y,which){
+  const out=[], seen=new Set(), k=`${x},${y}`;
+  const live=(layer,key)=>{ const r=game[layer]&&game[layer][key], id=layer+'|'+key;
+    if (r && !r.removed && !seen.has(id)){ seen.add(id); out.push([layer,key]); } };
+  if (which!=='land'){
+    const p=game.plants[k];
+    if (p && !p.removed) live('plants',k);
+    else { const sh=shrubAt(x,y); if (sh && sh.key) live('plants',sh.key); }
+    live('bulbs',k);
+  }
+  if (which!=='plants'){
+    live('terrain',k); live('fences',k); live('lights',k);
+    for (const id of SEL_FOOTPRINT_KEYS){ const fp=SEL_FOOTPRINTS[id], o=fp.at(x,y); if (o && o.key) live(fp.layer,o.key); }
+    if (pergolaAt(x,y)){ const reg=pergolaRegions().at.get(y*GW+x); if (reg) for (const [tx,ty] of reg.tiles) live('pergolas',tx+','+ty); }
+  }
+  return out;
+}
+// mark what is on a tile; how many records changed
+function markExistingAt(x,y,mode,which){
+  mode=mode||surveyDraft(); which=which||surveyLayer();
+  const want=mode==='existing'; let n=0;
+  for (const [layer,key] of surveyRecordsAt(x,y,which)){
+    const r=game[layer][key];
+    if (!!r.ex===want) continue;
+    const next=Object.assign({},r);
+    if (want) next.ex=true; else delete next.ex;
+    setTile(layer,key,next); n++;
+  }
+  return n;
+}
+/* The tool's hooks return 'survey' when anything changed (a drag names its
+   message by what the hook returns) and keep the count of records here, which
+   a tap reports. */
+let lastSurveyCount=0;
+function surveyStamp(tiles){
+  let n=0;
+  for (const [x,y] of tiles) if (onPlot(x,y)) n+=markExistingAt(x,y);
+  lastSurveyCount=n;
+  return n ? 'survey' : null;
+}
+function surveyTapText(n){
+  if (n) return `Marked ${n===1?'it':n+' things'} as ${surveyDraft()}.`;
+  return surveyDraft()==='existing' ? 'Nothing here to mark, or it is marked existing already.'
+    : 'Nothing here is marked existing.';
+}
+// everything in the selection, in one undo step
+function markSelection(mode){
+  const r=game.sel; if (!r) return 0;
+  let n=0;
+  withUndo(()=>{ for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++) n+=markExistingAt(x,y,mode,'all'); });
+  if (game.sel) game.selItems=selectionPayload(game.sel);
+  toast(n ? `Marked ${n} thing${n>1?'s':''} as ${mode}.` : (mode==='existing' ? 'Everything here is marked existing already.' : 'Nothing here is marked existing.'));
+  return n;
+}
 /* ---------- crossings (0.9.154) ----------
    Laid on water, a tile at a time, by tap or by drag; the 'none' row lifts one.
    It stays on the water record (`x`), so the pond is untouched under it. */

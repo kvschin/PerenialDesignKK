@@ -10016,10 +10016,10 @@ test('the Site tab is a row per tool, with the footprint choices under Draw foot
     setTool('hand', null);
     let kids = page();
     const rows = kids.filter(c => /\blt-row\b/.test(c.className));
-    assertEqual(rows.map(r => r.dataset.k).join(), 'site-photo,site-north,building,building-edit', 'four rows, in the order a site is set up');
+    assertEqual(rows.map(r => r.dataset.k).join(), 'site-photo,site-north,building,building-edit,survey', 'five rows, in the order a site is set up');
     assert(rows.every(r => r.children[1].children[1].textContent.length > 20), 'each saying what it is for');
-    assertEqual(rows.filter(r => r.hasAttribute('aria-pressed')).map(r => r.dataset.k).join(), 'building,building-edit',
-      'the two tools are pressed buttons; the photo and north are actions');
+    assertEqual(rows.filter(r => r.hasAttribute('aria-pressed')).map(r => r.dataset.k).join(), 'building,building-edit,survey',
+      'the three tools are pressed buttons; the photo and north are actions');
     assertEqual(kids.filter(c => c.dataset && (c.dataset.siteStatus || c.dataset.siteFill || c.dataset.siteEdge)).length, 0,
       'and nothing about the next footprint until it is being drawn');
     game.siteNorthDeg = 30; kids = page();
@@ -27525,4 +27525,133 @@ test('the Ground tab has a Crossing shelf, and the search finds a bridge', () =>
   paintArea('water', 'pond', 4, 4, 8, 8); layCrossing('slab', [[5, 5]]);
   game.tool = 'pick'; pickAt(5, 5);
   assertEqual(game.tool + ':' + crossingDraft(), 'crossing:slab', 'Pick arms the crossing');
+});
+
+/* ---- existing and proposed (0.9.155) ---- */
+function surveyGarden(){
+  setup(25, 25);
+  game.tool = 'path'; game.pathColor = 'bluestone';
+  for (let x = 4; x <= 10; x++) for (let y = 4; y <= 9; y++) placeTerrainAt(x, y);
+  game.fenceDraft = { style: 'privacy', height: 6, gate: false };
+  game.tool = 'fence'; for (let x = 2; x <= 9; x++) placeFenceAt(x, 2);
+  game.tool = PLANT_KEYS.find(k => PLANTS[k].type === 'tree'); game.toolVar = null; placePlantAt(6, 14);
+  game.seatDraft = { type: 'bench6', finish: 'teak', face: 0 }; game.tool = 'seat'; applyToolAt(6, 6);
+}
+
+test('Existing marks what is on a tile, the plants or the landscape, and Proposed unmarks it', () => {
+  surveyGarden();
+  const seatKey = Object.keys(game.seats).find(k => !game.seats[k].removed), w = seatTileSize(game.seats[seatKey]).w;
+  assertEqual(markExistingAt(6 + w - 1, 6, 'existing', 'land'), 2, 'the paving and the bench, from the bench\'s far tile');
+  assert(game.seats[seatKey].ex && game.terrain[`${6 + w - 1},6`].ex, 'both marked');
+  assertEqual(markExistingAt(6 + w - 1, 6, 'existing', 'land'), 0, 'marking it again changes nothing');
+  assertEqual(markExistingAt(6, 14, 'existing', 'land'), 0, 'Landscape leaves a tree alone');
+  assertEqual(markExistingAt(6, 14, 'existing', 'plants'), 1, 'Plants marks it');
+  assertEqual(markExistingAt(3, 2, 'existing', 'all'), 1, 'a fence tile');
+  assertEqual(markExistingAt(6 + w - 1, 6, 'proposed', 'all'), 2, 'Proposed takes the mark off again');
+  assert(!('ex' in game.seats[seatKey]), 'and leaves no field behind');
+  // the tool: a tap says how many, through the shared brush size
+  game.tool = 'survey'; game.surveyDraft = 'existing'; game.surveyLayer = 'all'; game.brushSize = 1;
+  const said = saidBy(() => { game.actX = 5; game.actY = 5; actHere(); });
+  assertEqual(said[0], 'Marked it as existing.', 'a tap');
+  game.brushSize = 3;
+  const more = saidBy(() => { game.actX = 8; game.actY = 8; actHere(); });
+  assert(/^Marked \d+ things as existing\.$/.test(more[0]), 'a wider brush, many: ' + more[0]);
+});
+
+test('a selection marks everything in it in one undo step', () => {
+  surveyGarden();
+  game.sel = { x0: 4, y0: 4, x1: 10, y1: 9 }; game.selItems = selectionPayload(game.sel);
+  const undos = undoStack.length;
+  const said = saidBy(() => markSelection('existing'));
+  assert(/^Marked \d+ things as existing\.$/.test(said[0]), said[0]);
+  assertEqual(undoStack.length, undos + 1, 'one step');
+  assert(game.terrain['4,4'].ex && game.terrain['10,9'].ex, 'the whole patio');
+  doUndo();
+  assert(!game.terrain['4,4'].ex, 'and undo takes it back');
+});
+
+test('the orders leave what is already there off, and list it apart', () => {
+  surveyGarden();
+  const forb = PLANT_KEYS.find(k => PLANTS[k].type === 'forb');
+  game.tool = 'bed'; game.bedStyle = 'mulch'; for (let x = 14; x <= 17; x++) placeTerrainAt(x, 10);
+  game.tool = forb; for (let x = 14; x <= 17; x++) placePlantAt(x, 10);
+  const before = withUnits('imperial', () => hardscapeRows().map(r => r.name + ':' + r.count).join(' | '));
+  for (let x = 4; x <= 7; x++) for (let y = 4; y <= 9; y++) markExistingAt(x, y, 'existing', 'land');
+  for (let x = 2; x <= 9; x++) markExistingAt(x, 2, 'existing', 'all');
+  markExistingAt(6, 14, 'existing', 'plants'); markExistingAt(14, 10, 'existing', 'plants');
+  const hard = withUnits('imperial', () => hardscapeRows());
+  const row = n => hard.find(r => r.name === n);
+  assertEqual(row('Bluestone').count, '41 sq ft', 'only the patio\'s new part is paving to order');
+  assert(!hard.some(r => r.kind === 'Fence'), 'the fence is not ordered');
+  assert(!hard.some(r => r.kind === 'Seating'), 'nor the bench on the existing patio');
+  assert(before.includes('Bluestone:95 sq ft'), 'it was all ordered before: ' + before);
+  const order = exportRows(), tree = PLANT_KEYS.find(k => PLANTS[k].type === 'tree');
+  assert(!order.some(r => r.name === PLANTS[tree].name), 'the existing tree is not on the plant order');
+  assertEqual(order.find(r => r.name === PLANTS[forb].name).count, 3, 'and an existing perennial is not counted');
+  const there = withUnits('imperial', () => existingRows());
+  assert(there.some(r => r.kind === 'Plant' && r.name === PLANTS[tree].name && r.count === '1 plant'), 'the tree is listed as there');
+  assert(there.some(r => r.kind === 'Fence' && /12 ft/.test(r.count)), 'and the fence, by the foot');
+  assert(there.some(r => r.name === 'Bluestone' && r.count === '54 sq ft'), 'and the patio');
+  assert(there.every(r => !r.detail), 'with nothing to order on any of it');
+});
+
+test('a surface repainted in another material is proposed work', () => {
+  surveyGarden();
+  markExistingAt(5, 5, 'existing', 'land');
+  game.tool = 'path'; game.pathColor = 'bluestone'; placeTerrainAt(5, 5);
+  assert(game.terrain['5,5'].ex, 'the same material keeps the mark');
+  game.pathColor = 'brick'; placeTerrainAt(5, 5);
+  assert(!game.terrain['5,5'].ex, 'a new one drops it');
+  // an existing raised bed is filled already
+  game.tool = 'bed'; game.bedStyle = 'mulch';
+  for (let x = 14; x <= 16; x++) for (let y = 14; y <= 15; y++) buildTerraceTile(x, y, { h: 3, w: 'brick', top: 'bed' });
+  const soil = raisedBedSoil().tiles;
+  for (let x = 14; x <= 16; x++) for (let y = 14; y <= 15; y++) markExistingAt(x, y, 'existing', 'land');
+  assertEqual(raisedBedSoil().tiles, 0, `an existing bed needs no soil (was ${soil} tiles)`);
+});
+
+test('the plan hatches what is there, draws an existing tree in grey, and schedules only the new', () => {
+  surveyGarden();
+  const tree = PLANT_KEYS.find(k => PLANTS[k].type === 'tree');
+  markExistingAt(6, 14, 'existing', 'plants');
+  for (let x = 4; x <= 10; x++) for (let y = 4; y <= 9; y++) markExistingAt(x, y, 'existing', 'land');
+  assertEqual(plantingQuantities()[tree + '|'] || 0, 0, 'no existing tree to order on the schedule');
+  assertEqual(planSite().treesLive.length, 0, 'it is not a proposed tree on the sheet');
+  assert(planSite().existingCount > 40, 'the sheet knows there is a survey to key');
+  assertEqual(planSiteRows(planSite()), 1, 'one key row for it');
+  const seatKey = Object.keys(game.seats).find(k => !game.seats[k].removed), w = seatTileSize(game.seats[seatKey]).w;
+  const tiles = new Set(existingTiles().map(t => t.join(',')));
+  for (let x = 6; x < 6 + w; x++) assert(tiles.has(x + ',6'), 'every tile of the bench is hatched: ' + x);
+  const texts = [], ctx = document.createElement('canvas').getContext('2d');
+  ctx.fillText = t => texts.push(t);
+  drawPlanExisting(ctx, { cell: 18, X: v => v * 18, Y: v => v * 18 });
+  assertEqual(texts.join(), 'ex. ' + PLANTS[tree].name, 'the existing tree is named, since no schedule names it');
+});
+
+test('the mark is saved, survives an import, and must be a yes or no', () => {
+  surveyGarden();
+  markExistingAt(3, 2, 'existing', 'all');
+  const env = { pocketPrairie: 1, v: 1, world: buildSaveBlob() };
+  assertEqual(env.world.fences['3,2'].ex, true, 'carried in the save');
+  assertEqual(gardenFileProblem(env), null, 'a valid garden');
+  env.world.fences['3,2'].ex = 'yes';
+  assert(/existing/.test(gardenFileProblem(env) || ''), 'a mark that is not true or false is refused');
+});
+
+test('the Site tab offers Existing or proposed, with what to mark under it', () => {
+  setup(21, 21);
+  const tray = document.getElementById('toolTray');
+  game.trayCat = 'house'; game.traySearch = ''; game.drill = null; tray.children.length = 0; setTool('hand', null); buildToolTray(true);
+  const row = tray.children.find(c => c.dataset && c.dataset.k === 'survey' && /\blt-row\b/.test(c.className));
+  assert(row, 'a row on the Site tab');
+  row.onclick();
+  tray.children.length = 0; buildToolTray(true);
+  const modes = tray.children.filter(c => c.dataset && c.dataset.surveyMode), layers = tray.children.filter(c => c.dataset && c.dataset.surveyLayer);
+  assertEqual(modes.map(c => c.dataset.surveyMode).join(), 'existing,proposed', 'Existing and Proposed');
+  assertEqual(layers.map(c => c.dataset.surveyLayer).join(), 'all,plants,land', 'and what it marks');
+  layers.find(c => c.dataset.surveyLayer === 'plants').onclick();
+  assertEqual(surveyLayer(), 'plants', 'a chip sets it');
+  assert(toolMeta('survey').sizable && toolMeta('survey').paints, 'the brush size, and Fill for a whole patio');
+  assert(landscapeSearchItems('existing').some(i => i.tool === 'survey'), 'the search finds it');
+  assertEqual(brushTrayCatForTool('survey'), 'house', 'and the rail brings it back to the Site tab');
 });

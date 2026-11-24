@@ -453,10 +453,12 @@ function poolOutlines(){
         if (!seen.has(nk) && isPool(nx,ny) && (elevationAt(nx,ny)||0)===h){ seen.add(nk); stack.push([nx,ny]); }
       }
     }
+    // existing when every tile of it is (0.9.155): its coping is then not ordered
+    const ex=[...set].every(t=>{ const r=game.terrain[t]; return !!(r&&r.ex); });
     for (const pts of traceOutlines(set)){
       let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
       for (const [px,py] of pts){ if (px<x0) x0=px; if (px>x1) x1=px; if (py<y0) y0=py; if (py>y1) y1=py; }
-      loops.push({pts, h, seed:tileSeed(pts[0][0],pts[0][1]), x0,x1,y0,y1});
+      loops.push({pts, h, seed:tileSeed(pts[0][0],pts[0][1]), x0,x1,y0,y1, ex});
     }
   }
   poolOutlineCache={key, ref:game.terrain, loops};
@@ -4850,6 +4852,7 @@ function render(t){
   if (game.focusTile && !focusedShrub) drawPlantFocusRing(cx,W,H,game.focusTile);
 
   // selection tool: marquee, committed selection, and move/copy ghost
+  drawExistingOverlay(cx,W,H);
   if (game.tool==='select') drawSelectionOverlay(cx,W,H,t,cal.season,sway);
   drawRulerOverlay(cx,W,H);
   drawPergolaGhost(cx,W,H,cal.season);
@@ -5550,6 +5553,54 @@ function drawPlantFocusRing(ctx,W,H,tile){
   ctx.strokeStyle='rgba(36,26,22,0.6)'; ctx.lineWidth=4.5; ctx.stroke();
   ctx.strokeStyle='rgba(240,183,101,0.95)'; ctx.lineWidth=2.2; ctx.stroke();
   ctx.restore();
+}
+/* ---------- what is already there (0.9.155) ----------
+   Every tile carrying something marked existing (`ex`), kept on game.rev: a
+   plant or a bulb on its own tile, a surface, a fence, a light, a pergola bay,
+   and every tile of a placed piece's footprint. */
+let existingTileCache={rev:-1, tiles:[]};
+function existingTiles(){
+  if (existingTileCache.rev===game.rev) return existingTileCache.tiles;
+  const set=new Set();
+  for (const layer of ['plants','bulbs','terrain','fences','lights','pergolas']){
+    const m=game[layer]||{};
+    for (const k in m){ const r=m[k]; if (r && !r.removed && r.ex) set.add(k); }
+  }
+  for (const id of SEL_FOOTPRINT_KEYS){
+    const fp=SEL_FOOTPRINTS[id], m=game[fp.layer]||{};
+    for (const k in m){ const r=m[k]; if (!r || r.removed || !r.ex) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=fp.size(r);
+      for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) set.add(xx+','+yy); }
+  }
+  existingTileCache={rev:game.rev, tiles:[...set].map(k=>{ const ci=k.indexOf(','); return [+k.slice(0,ci),+k.slice(ci+1)]; })};
+  return existingTileCache.tiles;
+}
+/* Hatched, as a drawing hatches what exists: drawn while the Existing tool is
+   in hand or the Layers menu's Existing overlay is on, over the planting, so a
+   marked tree shows at its foot. */
+function drawExistingOverlay(cx,W,H){
+  if (game.tool!=='survey' && !game.layerVis.existing) return;
+  const tiles=existingTiles(); if (!tiles.length) return;
+  const HX=TILE_W*0.5, HY=TILE_H*0.5;
+  cx.save();
+  const shown=[];
+  for (const [x,y] of tiles){
+    const [sx,sy]=screenOf(x,y,W,H);
+    if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
+    shown.push([sx,sy]);
+  }
+  if (!shown.length){ cx.restore(); return; }
+  const diamonds=()=>{ cx.beginPath();
+    for (const [sx,sy] of shown){ const cy=sy+HY; cx.moveTo(sx,cy-HY); cx.lineTo(sx+HX,cy); cx.lineTo(sx,cy+HY); cx.lineTo(sx-HX,cy); cx.closePath(); } };
+  diamonds(); cx.fillStyle='rgba(246,242,232,0.22)'; cx.fill();
+  cx.save(); diamonds(); cx.clip();
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for (const [sx,sy] of shown){ if (sx-HX<x0) x0=sx-HX; if (sx+HX>x1) x1=sx+HX; if (sy<y0) y0=sy; if (sy+TILE_H>y1) y1=sy+TILE_H; }
+  cx.strokeStyle='rgba(36,32,26,0.42)'; cx.lineWidth=1; cx.beginPath();
+  for (let d=x0-(y1-y0);d<x1;d+=6){ cx.moveTo(d,y1); cx.lineTo(d+(y1-y0),y0); }
+  cx.stroke(); cx.restore();
+  diamonds(); cx.setLineDash([3,2]); cx.strokeStyle='rgba(250,246,236,0.85)'; cx.lineWidth=1.1; cx.stroke(); cx.setLineDash([]);
+  cx.restore();
 }
 function drawSelectionOverlay(cx,W,H,t,season,sway){
   if (selDrag){                                    // dragging out a marquee

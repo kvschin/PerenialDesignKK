@@ -16,7 +16,7 @@ const TRAY_CATS=[
   /* Site FIRST: a real design starts from the site — north, a photo to trace,
      the house — and it sat last in the strip, scrolled out of view, so the
      step that should come first was the one found last. */
-  {id:'house',    label:'Site',             tools:['building','house']},
+  {id:'house',    label:'Site',             tools:['building','house','survey']},
   {id:'landscape',label:'Ground',           tools:['lawn','path','bed','water','crossing','edging']},
   // Terrace leads: it is what most people opening this tab came to build
   {id:'leveling', label:'Grade',            tools:['terrace','steps','raise','lower','level','wall']},
@@ -118,6 +118,11 @@ const TOOLS={
   /* Edging acts on a whole bed per tap (paintEdgingAt), so it has no disc size
      and nothing for Fill to add; a drag still edges every bed it crosses. */
   edging:  {layer:'landscape', brush:true,  placement:true,  paints:false, material:true, apply:(x,y,o)=>paintEdgingAt(x,y)},
+  /* marks what is already there (0.9.155): the shared brush size, a drag, and
+     Fill for a whole patio. The disc goes to it at once, so a tap can say how
+     many things it marked (surveyStamp). */
+  survey:  {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true,
+            stamp:(tiles,o)=>surveyStamp(tiles), apply:(x,y,o)=>markExistingAt(x,y)?'survey':null},
   // laid over water a tile at a time (0.9.154), so a tap or a drag; nothing to fill
   crossing:{layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeCrossingAt(x,y)},
   house:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false}, // no apply — placed via placeHouse
@@ -1461,6 +1466,8 @@ function showSelectionMore(anchor){
   add('Estimate materials\u2026',()=>openSelectionEstimate());
   add('Replace plants\u2026',()=>openSelectionReplace());
   add('Rotate 90 degrees',()=>{ rotateSelection(); renderSelectionActions(); refreshCanvasTools(); });
+  add('Mark existing',()=>markSelection('existing'),null,false,'Mark everything in the selection as already there: hatched on the plan, left off the orders');
+  add('Mark proposed',()=>markSelection('proposed'),null,false,'Mark everything in the selection as new work');
   // the clipboard, named as one (and on Ctrl/Cmd+C and V)
   add('Copy area',()=>saveSelectedArea(),null,false,'Copy everything in the selection to paste elsewhere (Ctrl+C)');
   add('Paste area',()=>pasteSavedArea(),null,!storedArea(),'Paste the copied area here (Ctrl+V)');
@@ -1742,7 +1749,7 @@ async function importSitePhoto(file){
 // true when the view is anything other than "everything visible, no overlay"
 function layerViewActive(){
   return (ENABLE_LAYER_EDIT_FOCUS && game.layerFocus!=='all') || game.layerVis.shade ||
-    game.layerVis.moisture || game.layerVis.height || game.layerVis.matureCanopies || game.layerVis.edgeRulers ||
+    game.layerVis.moisture || game.layerVis.height || game.layerVis.matureCanopies || game.layerVis.edgeRulers || game.layerVis.existing ||
     !!(game.underlay&&game.underlay.visible) || LAYER_DEFS.some(([k])=>!layerShown(k));
 }
 function blockIfWrongEditLayer(layer){
@@ -1956,6 +1963,7 @@ function buildLayerPopover(){
   row(()=>!!game.layerVis.height, v=>{ setLayerVis('height',v); }, 'Height Overlay');
   row(()=>!!game.layerVis.matureCanopies, v=>{ setLayerVis('matureCanopies',v); }, 'Mature Canopies');
   row(()=>!!game.layerVis.edgeRulers, v=>{ setLayerVis('edgeRulers',v); }, 'Edge Rulers');
+  row(()=>!!game.layerVis.existing, v=>{ setLayerVis('existing',v); }, 'Existing (hatched)');
   section('Reference');
   if (game.underlay){
     row(()=>!!game.underlay.visible, v=>{ game.underlay.visible=v; markUnderlayChanged(); if (game.inGarden) saveSolo(true); }, 'Site Photo');
@@ -2029,6 +2037,7 @@ const TOOL_SEARCH={
   path:   {label:'Path',kind:'fill',   hay:'path paths walkway gravel limestone slate charcoal red clay hardscape landscape'},
   bed:    {label:'Bed',kind:'fill',    hay:'bed beds soil gravel rock river rock leaf litter mulch bark pine straw pea gravel planting area landscape'},
   water:  {label:'Water',kind:'fill',  hay:'water pond river lake stream creek wet formal pool reflecting canal rill landscape'},
+  survey: {label:'Existing or proposed',kind:'brush',drill:null,hay:'existing proposed survey site keep keeping retain remain already there mark hatch'},
   crossing:{label:'Crossing',kind:'fill',hay:'crossing cross bridge footbridge plank boardwalk slab stepping stones over water pond stream creek ground'},
   edging: {label:'Edging',kind:'fill', hay:'edging edge restraint mowing strip mow strip lawn border spade cut steel corten aluminium brick setts soldier course sawtooth dogtooth rope-top victorian tile fieldstone stone concrete timber log roll willow wattle ground'},
   raise:  {label:'Raise',kind:'layers',hay:'raise elevation grade berm terrace hill leveling'},
@@ -3579,7 +3588,7 @@ function trayStateSig(ignoreDiscoverySearch=false){
     g.challenge?j([g.challenge.id,g.challenge.title,g.challenge.match,g.challenge.palette,g.challenge.paletteFree]):'-',
     // every draft the tray paints a chip from
     j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.waterFeatureDraft,g.supportDraft,g.boulderDraft,g.petDraft,g.potDraft,
-       g.seatDraft,g.ornamentDraft,g.edgingDraft,g.crossingDraft,g.wallDraft,g.terraceDraft,g.stepDraft,g.buildingStyleDraft,g.buildingDraft,
+       g.seatDraft,g.ornamentDraft,g.edgingDraft,g.crossingDraft,g.surveyDraft,g.surveyLayer,g.wallDraft,g.terraceDraft,g.stepDraft,g.buildingStyleDraft,g.buildingDraft,
        g.houseDraft]),
     g.lastBrushTool||'', g.lastBrushVar||'', g.lastBrushTrayCat||'', g.lastBrushDrill||'',
     // tray-module state that changes what is drawn
@@ -5012,6 +5021,36 @@ function buildToolTrayInner(){
       tc.strokeStyle='#c97f3f'; tc.lineWidth=2.4;
       tc.beginPath(); tc.moveTo(24,15); tc.lineTo(24,29); tc.moveTo(17,22); tc.lineTo(31,22); tc.stroke();
     },()=>{ setTool('building-edit',null); buildToolTray(); },true);
+    /* Existing or proposed (0.9.155): what is already on the site, so the plan
+       hatches it and the planting list leaves it off the orders. */
+    row('survey','Existing or proposed','Mark what is already there, the trees, the patio, the fence you are keeping. The plan hatches it and the planting list leaves it off the orders.',
+      game.tool==='survey' ? surveyLabel() : '',tc=>{
+        tc.fillStyle='rgba(239,230,211,.14)'; tc.strokeStyle=uiInk('--icon-ink-soft'); tc.lineWidth=1.4;
+        tc.beginPath(); tc.moveTo(24,9); tc.lineTo(41,22); tc.lineTo(24,35); tc.lineTo(7,22); tc.closePath(); tc.fill(); tc.stroke();
+        tc.save(); tc.clip(); tc.strokeStyle=uiInk('--icon-ink'); tc.lineWidth=1.2; tc.beginPath();
+        for (let d=-30;d<40;d+=6){ tc.moveTo(d,40); tc.lineTo(d+30,8); } tc.stroke(); tc.restore();
+        tc.fillStyle='#c97f3f'; tc.font='700 12px IBM Plex Sans, sans-serif'; tc.textAlign='center'; tc.fillText('E',24,27);
+      },()=>{ setTool('survey',null); buildToolTray(); },true);
+    if (game.tool==='survey'){
+      const seg=(head,rows,cur,set,data)=>{
+        sep(head);
+        rows.forEach(([id,label])=>{
+          const b=trayEl('button','tool'+(cur===id?' sel':'')); b.type='button'; b.dataset.k='survey'; b.dataset[data]=id;
+          b.setAttribute('aria-pressed',cur===id?'true':'false');
+          const c=document.createElement('canvas'); c.width=48; c.height=44; const tc=c.getContext('2d');
+          tc.strokeStyle=uiInk('--icon-ink-soft'); tc.lineWidth=1.4; tc.beginPath(); tc.moveTo(24,10); tc.lineTo(40,22); tc.lineTo(24,34); tc.lineTo(8,22); tc.closePath(); tc.stroke();
+          if (id==='existing'){ tc.save(); tc.clip(); tc.strokeStyle=uiInk('--icon-ink'); tc.beginPath(); for (let d=-30;d<40;d+=6){ tc.moveTo(d,40); tc.lineTo(d+30,8); } tc.stroke(); tc.restore(); }
+          if (id==='proposed'){ tc.fillStyle='#c97f3f'; tc.beginPath(); tc.moveTo(24,14); tc.lineTo(34,22); tc.lineTo(24,30); tc.lineTo(14,22); tc.closePath(); tc.fill(); }
+          if (id==='plants'||id==='all'){ tc.strokeStyle='#8ead67'; tc.lineWidth=2; tc.beginPath(); tc.moveTo(20,26); tc.lineTo(20,14); tc.moveTo(24,27); tc.lineTo(26,12); tc.moveTo(28,26); tc.lineTo(31,15); tc.stroke(); }
+          if (id==='land'||id==='all'){ tc.fillStyle='#9e998e'; tc.fillRect(id==='all'?28:17,24,id==='all'?9:14,5); }
+          b.append(c,trayEl('span',null,label)); b.onclick=()=>{ set(id); setTool('survey',null); buildToolTray(); };
+          tray.appendChild(b);
+        });
+      };
+      seg('Mark',[['existing','Existing'],['proposed','Proposed']],surveyDraft(),id=>{ game.surveyDraft=id; },'surveyMode');
+      seg('What',SURVEY_LAYERS,surveyLayer(),id=>{ game.surveyLayer=id; },'surveyLayer');
+      tray.appendChild(trayEl('p','lg-note','Tap or drag; the brush size sets how much. Fill marks a whole patio or bed. Buildings are marked as you draw them, above.'));
+    }
   }
   finishToolTrayRender();
 }
@@ -5057,6 +5096,10 @@ function refreshTray(){
       ? game.tool==='edging' && edgingDraft()===el.dataset.edging
       : el.dataset.crossing
       ? game.tool==='crossing' && crossingDraft()===el.dataset.crossing
+      : el.dataset.surveyMode
+      ? game.tool==='survey' && surveyDraft()===el.dataset.surveyMode
+      : el.dataset.surveyLayer
+      ? game.tool==='survey' && surveyLayer()===el.dataset.surveyLayer
       : el.dataset.pathColor
       ? game.tool==='path' && game.pathColor===el.dataset.pathColor
       : el.dataset.bedStyle
@@ -5370,6 +5413,7 @@ function sheetContextLabel(){
   if (game.tool==='boulder') return boulderLabel();
   if (game.tool==='edging') return edgingLabel();
   if (game.tool==='crossing') return crossingLabel();
+  if (game.tool==='survey') return surveyLabel();
   if (game.tool==='wall') return wallLabel();
   if (game.tool==='terrace') return terraceLabel();
   if (game.tool==='steps') return stepsLabel();
@@ -5418,6 +5462,7 @@ function toolGuide(){
     bed:{k:`${bedStyle(game.bedStyle).label} bed`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     water:{k:`${waterStyle(game.waterStyle).label} water`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     edging:{k:edgingLabel(),v:edgingDraft()==='none'?'Tap a bed to lift its edging':'Tap a bed or path to edge all of it; tap again in another style to change it'},
+    survey:{k:surveyLabel(),v:surveyDraft()==='existing'?'Tap or drag over what is already there':'Tap or drag over something to make it proposed again'},
     crossing:{k:crossingLabel(),v:crossingDraft()==='none'?'Tap or drag over a crossing to lift it':'Tap or drag across water to lay it'},
     wall:{k:wallLabel(),v:wallDraft()==='none'?'Tap a terrace to strip its wall back to earth':'Tap a terrace or sunken patio to face all of it'},
     terrace:{k:terraceLabel(),v:game.fillMode?'Tap a bed or area to build all of it to this height'

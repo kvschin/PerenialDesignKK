@@ -3394,6 +3394,42 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (303 badly) without it, and 214 slightly (antialiasing) with it, against a
     full bake. The list orders stepping stones by the stone and a bridge by its
     deck's width and length; the plan draws each deck with its boards.
+11b3. **Existing and proposed** (0.9.155). Only a building footprint could
+    be marked Existing or Proposed (its `status`), and a site survey needs the
+    trees, the patio and the fence you are keeping. Any record of the plants,
+    bulbs, terrain, fences, lights, pergolas and the placed pieces
+    (`SEL_FOOTPRINTS`) may carry `ex:true`; grade (walls, steps) is not marked.
+    **The tool** is `survey` on the Site tab ("Existing or proposed"): Mark
+    Existing or Proposed (`game.surveyDraft`), on Everything, Plants or Landscape
+    (`game.surveyLayer`, `SURVEY_LAYERS`), with the shared brush size (its
+    `stamp` hook takes the whole disc and keeps a count, `lastSurveyCount`, which
+    a tap reports; a drag names its message by the hook's return, 'survey') and
+    Fill for a whole patio. `surveyRecordsAt` is what a tile holds: its plant, or
+    the shrub whose spread it is in, its bulb, surface, fence, light, the piece
+    whose footprint it is in, and a pergola's whole roof. A selection's More menu
+    marks everything in it in one undo step (`markSelection`). A surface
+    repainted in another material drops the mark (new work); one repainted the
+    same keeps it.
+    **The orders leave it out and list it apart.** `exportRows`,
+    `plantingQuantities`, `planComponents`, `shrubPlanComponents` and the
+    plan's planted ids skip `ex`, so the schedule, the stand labels and the order
+    are the new planting only. `hardscapeRows(opts)` takes `{existing:true}`;
+    the run tallies (`edgingRunFeet`, `fenceRunFeet`, `fenceGateOpenings`) take
+    `exWant` (`exMatch`), and a deck, a pool's coping and a pergola roof are
+    existing when every tile of them is. Mown lawn, walls, steps and raised-bed
+    soil are proposed only (`raisedBedSoil` skips an existing bed: it is filled).
+    `existingRows()` is the list's **Already there** section and the CSV's last,
+    with no sub-lines, since nothing in it is ordered.
+    **Hatched, on the plan and in the garden.** `existingTiles()` (renderer.js,
+    on game.rev) is every tile carrying a mark, a piece's whole footprint
+    included. The plan hatches those tiles last, over every piece
+    (`drawPlanExisting`, after `drawPlanStructures`), draws an existing tree or
+    shrub with a grey, DOTTED crown (a proposed one is dashed) and names it
+    "ex. <name>", since no schedule does, and keys it ("Hatched = existing, to
+    remain"). The garden hatches the same tiles over the planting
+    (`drawExistingOverlay`) while the tool is armed or the Layers menu's
+    **Existing (hatched)** overlay (`layerVis.existing`) is on; otherwise an
+    existing thing draws as itself. Imports refuse an `ex` that is not a boolean.
 11c. **The season wash** (`SEASON_WASH` / `seasonWashGradients` /
     `seasonSkyBake` / `drawSeasonSky` / `applySeasonLighting`, world.js) — the
     sky ramp + sun + haze before the frame and the tint + beam + vignette after

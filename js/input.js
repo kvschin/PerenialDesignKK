@@ -529,6 +529,7 @@ const DRAG_DONE={
   pot:       n=>`Placed ${n} container${n>1?'s':''}: ${potLabel()}.`,
   seat:      n=>`Placed ${n} seat${n>1?'s':''}: ${lowerFirst(seatLabel())}.`,
   ornament:  n=>`Placed ${n} ornament${n>1?'s':''}: ${lowerFirst(ornamentLabel())}.`,
+  survey:    n=>`Marked what the stroke crossed as ${surveyDraft()}.`,
   crossing:  n=>crossingDraft()==='none' ? `Lifted the crossing off ${n} tile${n>1?'s':''}.`
     : `Laid ${n} tile${n>1?'s':''} of ${lowerFirst(crossingLabel())}.`,
   // a drag edges each bed it crosses once, so the count is of beds, not tiles

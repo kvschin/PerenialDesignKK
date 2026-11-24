@@ -892,6 +892,7 @@ function gardenFileProblem(env){
       if (!tileKey(key) || !gardenRecord(p) || !number(p,'t') ||
           (p.removed!==undefined && typeof p.removed!=='boolean')) return `This garden has an invalid ${layer} record.`;
       if (p.removed) continue;
+      if (p.ex!==undefined && typeof p.ex!=='boolean') return 'This garden contains invalid existing-site data.';
       if (layer==='plants' || layer==='bulbs'){
         if (typeof p.s!=='string' || (p.v!=null && typeof p.v!=='string') ||
             (p.dailySiteId!=null&&(typeof p.dailySiteId!=='string'||!/^[a-z0-9-]{1,40}$/.test(p.dailySiteId))) ||
@@ -1069,7 +1070,7 @@ function exportRows(){
   const order=plantingQuantities();   // the plan's own numbers, summed per stand
   [game.plants,game.bulbs].forEach(layer=>{
     for (const k in layer){ const p=layer[k];
-      if (!p.removed && p.s){ const ck=p.s+'|'+(p.v||'');
+      if (!p.removed && p.s && !p.ex){ const ck=p.s+'|'+(p.v||'');        // existing plants are not ordered
         counts[ck]=(counts[ck]||0)+1; } }
   });
   return Object.keys(counts).map(ck=>{
@@ -1330,7 +1331,11 @@ function planStepFlights(){
   }
   return out;
 }
-function hardscapeRows(){
+function hardscapeRows(opts){
+  /* Proposed work by default; `opts.existing` asks for what is already there
+     (0.9.155), which the list shows apart and orders nothing of. Walls and steps
+     are always proposed: grade is not marked. */
+  const want=!!(opts&&opts.existing), keepRec=r=>!!(r&&r.ex)===want;
   const rows=[];
   /* `n` is the magnitude the sort reads. Most counts here are formatted
      strings, and the comparator used to subtract them -- NaN, so rows within one
@@ -1351,14 +1356,14 @@ function hardscapeRows(){
   const lawnSqIn={}, pathSqIn={}, bedSqIn={}, waterSqIn={};
   const put=(m,id,x,y)=>{ m[id]=(m[id]||0)+surfaceSqInAt(x,y); };
   for (const k in game.terrain){
-    const t=game.terrain[k]; if (!t||t.removed) continue;
+    const t=game.terrain[k]; if (!t||t.removed||!keepRec(t)) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     if (t.k==='lawn') put(lawnSqIn,lawnStyleId(t.c),x,y);
     else if (t.k==='path') put(pathSqIn,pathColorId(t.c),x,y);
     else if (t.k==='bed') put(bedSqIn,bedStyleId(t.c),x,y);
     else if (t.k==='water') put(waterSqIn,waterStyleId(t.c),x,y);
   }
-  for (let y=0;y<GH;y++) for (let x=0;x<GW;x++)
+  if (!want) for (let y=0;y<GH;y++) for (let x=0;x<GW;x++)
     if (isLawnTile(x,y) && !terrainAt(x,y)) put(lawnSqIn,'mown',x,y);
 
   for (const id in lawnSqIn){
@@ -1383,7 +1388,7 @@ function hardscapeRows(){
      stand on. A small bed is bought by the bag, so under 2 cu yd the sub-line
      says it in cubic feet or litres as well. */
   const soil=raisedBedSoil(null,BED_DEPTH_IN);
-  if (soil.tiles){
+  if (soil.tiles && !want){
     const d=v=>fmtLengthIn(v,{ftAt:48});
     const deep=Math.round(soil.lo)===Math.round(soil.hi) ? d(soil.hi) : `${d(soil.lo)} to ${d(soil.hi)}`;
     const top=soil.surfaces.size===1
@@ -1396,7 +1401,7 @@ function hardscapeRows(){
   }
   // a formal pool's coping is ordered by the foot, round every pool
   let copeFt=0;
-  for (const L of poolOutlines()) for (let i=0;i<L.pts.length;i++){
+  for (const L of poolOutlines()) if (L.ex===want) for (let i=0;i<L.pts.length;i++){
     const a=L.pts[i], b=L.pts[(i+1)%L.pts.length]; copeFt+=Math.hypot(b[0]-a[0],b[1]-a[1])*TILE_IN/12; }
   for (const id in waterSqIn){
     const area=waterSqIn[id]/144;
@@ -1409,6 +1414,7 @@ function hardscapeRows(){
      where it lands on the banks. */
   const cross={};
   for (const reg of crossingRegions().list){
+    if (reg.ex!==want) continue;
     const c=cross[reg.type]||(cross[reg.type]={n:0,stones:0,sizes:[]});
     if (reg.type==='stepping'){ c.stones+=reg.tiles.length; continue; }
     c.n++;
@@ -1429,7 +1435,7 @@ function hardscapeRows(){
   }
 
   /* ---- runs ---- */
-  const edgingFt=edgingRunFeet();
+  const edgingFt=edgingRunFeet(want);
   for (const id in edgingFt) add('Edging', edgingLabelFor(id), fmtFeet(edgingFt[id]), edgingFt[id]);
 
   /* A wall is billed by its FACE AREA (0.9.146): block, stone and brick are
@@ -1442,7 +1448,7 @@ function hardscapeRows(){
      how many feet of coping: that is ordered by the foot, round every faced
      side. A wall's own proud top (sleeper, concrete, steel) is part of its face. */
   const wallBy={};
-  for (const run of buildElevationRuns()){
+  if (!want) for (const run of buildElevationRuns()){
     // a riser is part of its step and billed with it, below; a flight's sides are walls
     const st=wallStyle(run.wall); if (!st.face || run.riser) continue;
     const ft=wallRunFeet(run), hIn=wallRunFaceIn(run,st);
@@ -1462,7 +1468,7 @@ function hardscapeRows(){
      rise and the feet of tread (slab or nosing, ordered by the foot) under it. A
      flight's risers are not billed as wall; its sides are, being walls. */
   const stepsBy={}, seenStep=new Set();
-  for (const k in game.elevation||{}){
+  if (!want) for (const k in game.elevation||{}){
     if (seenStep.has(k)) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     if (!isStepTile(x,y)) continue;
@@ -1480,7 +1486,7 @@ function hardscapeRows(){
       `${s.flights>1?`${s.flights} flights, `:''}${widths.join(' and ')} wide, ${fmtLengthIn(ELEV_RISER_IN)} risers, ${fmtFeet(s.treadFt,1)} of tread`);
   }
 
-  const fenceFt=fenceRunFeet();
+  const fenceFt=fenceRunFeet(want);
   for (const id in fenceFt){
     const [st,h]=id.split('|');
     // named as the toast and the tray name it: one label builder for one fence
@@ -1494,6 +1500,7 @@ function hardscapeRows(){
      size and material share a line. */
   const pergolas={};
   for (const reg of pergolaRegions().list){
+    if (!!reg.ex!==want) continue;
     const inf=reg.info, w=inf.x1-inf.x0+1, h=inf.y1-inf.y0+1, rect=reg.tiles.length===w*h;
     let posts=0;
     for (const [x,y] of reg.tiles) posts+=pergolaFrameAt(x,y).posts.length;
@@ -1506,7 +1513,7 @@ function hardscapeRows(){
     add('Pergola', pergolaLabelFor({mat:g.reg.mat,height:g.reg.height}), g.n, g.n,
       (g.rect ? pergolaSizeText(g.w,g.h) : `${fmtAreaSqFt(area)} covered`)+`, ${g.posts} posts`);
   }
-  const gates=fenceGateOpenings();
+  const gates=fenceGateOpenings(want);
   for (const id in gates){
     const [st,h,span]=id.split('|');
     add('Gate', `${fenceStyle(st).label} gate`, gates[id], gates[id],
@@ -1515,27 +1522,27 @@ function hardscapeRows(){
 
   /* ---- things you buy one of ---- */
   const pots={}, seats={}, waters={}, pits={}, rocks={}, props={}, lamps={}, orns={};
-  for (const k in game.pots||{}){ const p2=game.pots[k]; if (!p2||p2.removed) continue;
+  for (const k in game.pots||{}){ const p2=game.pots[k]; if (!p2||p2.removed||!keepRec(p2)) continue;
     // colour is part of what you order, so it splits the line
     bump(pots, potStyleId(p2.style)+'|'+potSizeFor(p2.style,p2.size)+'|'+potFinishFor(p2.style,p2.finish)); }
-  for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed) continue;
+  for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed||!keepRec(s2)) continue;
     // snapped, so the list bills the finish the garden actually draws
     const d=normalizeSeatDraft(s2); bump(seats, d.type+'|'+d.finish); }
-  for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k]; if (!w||w.removed) continue;
+  for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k]; if (!w||w.removed||!keepRec(w)) continue;
     const d=normalizeWaterFeatureDraft(w); bump(waters, d.form+'|'+d.finish); }
-  for (const k in game.ornaments||{}){ const o=game.ornaments[k]; if (!o||o.removed) continue;
+  for (const k in game.ornaments||{}){ const o=game.ornaments[k]; if (!o||o.removed||!keepRec(o)) continue;
     // which way it is turned is not something you order
     const d=normalizeOrnamentDraft(o); bump(orns, d.kind+'|'+d.finish); }
-  for (const k in game.firepits||{}){ const f=game.firepits[k]; if (!f||f.removed) continue;
+  for (const k in game.firepits||{}){ const f=game.firepits[k]; if (!f||f.removed||!keepRec(f)) continue;
     // the material is what you order; `face` is only which way it is turned
     const d=normalizeFirepitDraft(f); bump(pits, [d.style,d.finish,d.shape,d.size].join('|')); }
-  for (const k in game.boulders||{}){ const b2=game.boulders[k]; if (!b2||b2.removed) continue;
+  for (const k in game.boulders||{}){ const b2=game.boulders[k]; if (!b2||b2.removed||!keepRec(b2)) continue;
     // the stone is what you order; `face` is only which side shows
     const d=normalizeBoulderDraft(b2); bump(rocks, d.type+'|'+d.stone); }
-  for (const k in game.supports||{}){ const sp=game.supports[k]; if (!sp||sp.removed) continue;
+  for (const k in game.supports||{}){ const sp=game.supports[k]; if (!sp||sp.removed||!keepRec(sp)) continue;
     // `face` is which way it is turned, which is not something you order
     const d=normalizeSupportDraft(sp); bump(props, d.style+'|'+d.mat); }
-  for (const k in game.lights||{}){ const l=game.lights[k]; if (!l||l.removed) continue;
+  for (const k in game.lights||{}){ const l=game.lights[k]; if (!l||l.removed||!keepRec(l)) continue;
     // the FINISH splits the line the way a pot's colour does: it is what you buy
     // a torch has no lamp colour, so two torches never split on one
     const d=normalizeLightDraft(l); bump(lamps, d.type+'|'+(lightIsFlame(d)?'':d.tone)+'|'+d.finish); }
@@ -1568,7 +1575,7 @@ function hardscapeRows(){
      definition of a run, which the drawing also reads. */
   let fFt=0, fRuns=0, fBulbs=0;
   for (const reg of pergolaRegions().list){
-    if (reg.lights!=='festoon') continue;
+    if (reg.lights!=='festoon' || !!reg.ex!==want) continue;
     for (const [x,y] of reg.tiles){
       const run=festoonRunIn(reg.has,reg.info,x,y);
       if (!run || run[0]!==0) continue;          // count each run once, at its first tile
@@ -1580,10 +1587,25 @@ function hardscapeRows(){
 
   return rows.sort((p2,q2)=>p2.kind===q2.kind ? q2.n-p2.n : (p2.kind<q2.kind?-1:1));
 }
+/* What is already there (0.9.155): the plants by species, then everything else
+   in the hardscape table's own words and units. None of it is ordered, so it
+   has no sub-lines. */
+function existingRows(){
+  const rows=[], plants={};
+  [game.plants,game.bulbs].forEach(layer=>{ for (const k in layer){ const p=layer[k];
+    if (p && !p.removed && p.s && p.ex){ const id=p.s+'|'+(p.v||''); plants[id]=(plants[id]||0)+1; } } });
+  for (const id in plants){
+    const [sp,v]=id.split('|'), P=plantDef(sp,v||null), n=plants[id];
+    const q=isIndividualDef(P) ? n : Math.max(1,plantsForTiles(n,P.space));
+    rows.push({kind:'Plant', name:P.name, count:`${q} plant${q>1?'s':''}`, n:q, detail:''});
+  }
+  rows.sort((a,b)=>b.n-a.n);
+  return rows.concat(hardscapeRows({existing:true}).map(r=>Object.assign({},r,{detail:''})));
+}
 function openExport(){
   tourNote('list');   // the tour ends on the payoff, and this is its only opener
   funnel(FUNNEL_EVENTS.listOpened);     // the conversion moment, if the paywall lands here
-  const rows=exportRows(), body=$('exportBody'), hard=hardscapeRows();
+  const rows=exportRows(), body=$('exportBody'), hard=hardscapeRows(), there=existingRows();
   const where=game.worldName||'My garden';
   $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${tileSizeText()}`;
   // The heading names the whole table, which has carried edging and retaining
@@ -1598,8 +1620,16 @@ function openExport(){
     hard.map(r=>`<tr><td>${r.name}${r.detail?`<small class="hard-note">${r.detail}</small>`:''}</td>`+
       `<td>${r.kind}</td><td><b>${r.count}</b></td></tr>`).join('')+
     `</tbody></table></div>` : '';
+  /* What was marked existing on the Site tab: listed, so the survey is on the
+     sheet too, and left out of every order above. */
+  const exHtml = there.length ? `<h3 class="export-sub">Already there</h3>`+
+    `<p class="note">Marked existing: hatched on the plan, and not in the orders above.</p>`+
+    `<div class="export-wrap"><table class="export-table"><thead><tr>`+
+    `<th>Item</th><th>Type</th><th>Quantity</th></tr></thead><tbody>`+
+    there.map(r=>`<tr><td>${r.name}</td><td>${r.kind}</td><td>${r.count}</td></tr>`).join('')+
+    `</tbody></table></div>` : '';
   if (!rows.length){
-    body.innerHTML=hardHtml+'<p class="note">Nothing planted yet. Plant a few drifts, then come back for the list.</p>';
+    body.innerHTML=hardHtml+'<p class="note">Nothing planted yet. Plant a few drifts, then come back for the list.</p>'+exHtml;
   } else {
     /* areaFt stays SQUARE FEET on the row — it is what the CSV writes and
        what the total is summed from — and only the cell is converted. Summing
@@ -1612,15 +1642,15 @@ function openExport(){
       <tbody>${tr}</tbody>
       <tfoot><tr><td>Total</td><td>${tot.c}</td><td>${areaNumberText(tot.f)}</td><td></td><td>${tot.o}</td></tr></tfoot></table></div>
       <p class="note">"To order" converts planted ground to plants at each species' recommended
-      spacing. Native status is compared with ${nativeRegionLabel(activeFilters().nativeRegion)}; origin and horticultural provenance remain separate facts.</p>${hardHtml}`;
+      spacing. Native status is compared with ${nativeRegionLabel(activeFilters().nativeRegion)}; origin and horticultural provenance remain separate facts.</p>${hardHtml}${exHtml}`;
   }
   openOverlay('exportScreen','#btnPrint');
 }
 function exportCsv(){
   /* A garden can be all hardscape -- a courtyard drawn before a single plant is
      chosen is a normal state, and this used to refuse to export one. */
-  const rows=exportRows(), hard=hardscapeRows();
-  if (!rows.length && !hard.length){ toast('Nothing planted or built yet.'); return; }
+  const rows=exportRows(), hard=hardscapeRows(), there=existingRows();
+  if (!rows.length && !hard.length && !there.length){ toast('Nothing planted or built yet.'); return; }
   funnel(FUNNEL_EVENTS.listExported);   // took the order away — the deepest step
   const esc=v=>`"${String(v).replace(/"/g,'""')}"`;
   /* The header NAMES the unit and the values follow it, so a bare number in a
@@ -1646,6 +1676,11 @@ function exportCsv(){
     if (lines.length) lines.push('');
     lines.push(['Item','Type','Quantity','Notes'].map(esc).join(','));
     hard.forEach(r=>lines.push([r.name,r.kind,r.count,r.detail].map(esc).join(',')));
+  }
+  if (there.length){
+    if (lines.length) lines.push('');
+    lines.push(['Already there (not ordered)','Type','Quantity'].map(esc).join(','));
+    there.forEach(r=>lines.push([r.name,r.kind,r.count].map(esc).join(',')));
   }
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
@@ -1767,7 +1802,7 @@ function openBloomCalendar(){
 function planComponents(layer){
   const src=layer||game.plants;
   const live={};
-  for (const k in src){ const p=src[k]; if (p && !p.removed){
+  for (const k in src){ const p=src[k]; if (p && !p.removed && !p.ex){   // existing: drawn apart (drawPlanExisting)
     const [x,y]=k.split(',').map(Number), def=plantDef(p.s,p.v);
     if (isShrubDef(def)) shrubFootprintTiles(x,y,p,true).forEach(([xx,yy])=>{ if (!live[`${xx},${yy}`]) live[`${xx},${yy}`]=p; });
     else live[k]=p;
@@ -1867,7 +1902,7 @@ function plantingQuantities(){
   const qty={}, bump=(s,v,n)=>{ const id=s+'|'+(v||''); qty[id]=(qty[id]||0)+n; };
   // specimens: counted, because the record IS the plant
   for (const k in game.plants){ const p=game.plants[k];
-    if (p && !p.removed && p.s && !isPlanStandDef(plantDef(p.s,p.v))) bump(p.s,p.v,1); }
+    if (p && !p.removed && p.s && !p.ex && !isPlanStandDef(plantDef(p.s,p.v))) bump(p.s,p.v,1); }
   // everything grouped into stands, at the density its own label states
   [[game.plants,PLAN_STAND_GAP],[game.bulbs,BULB_STAND_GAP]].forEach(([layer,gap])=>{
     const comps=planComponents(layer).filter(c=>isPlanStandDef(plantDef(c.s,c.v)));
@@ -2149,7 +2184,7 @@ function isPlanStandDef(def){ return !isShrubPlanDef(def) && !isTreeDef(def); }
 function shrubPlanComponents(){
   const live={};
   for (const k in game.plants){ const p=game.plants[k];
-    if (!p || p.removed) continue;
+    if (!p || p.removed || p.ex) continue;
     const def=plantDef(p.s,p.v);
     if (!isShrubPlanDef(def)) continue;
     const [x,y]=k.split(',').map(Number);
@@ -2346,6 +2381,38 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y,label,boxes,tints){
   if (label!==false) drawShrubPlanCode(ctx,code,shrubPlanQty(c),rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)),boxes);
   ctx.restore();
 }
+/* What is already there (0.9.155), drawn the way a survey is drawn on a plan:
+   hatched. Every tile carrying something marked existing is hatched over what
+   the sheet drew there, and an existing tree or shrub is drawn in grey, its
+   crown dotted where a proposed one is dashed, and named, since it is on no
+   schedule. */
+function drawPlanExisting(ctx,g){
+  const {cell,X,Y}=g, tiles=existingTiles();
+  if (!tiles.length) return;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(X(0),Y(0),GW*cell,GH*cell); ctx.clip();
+  for (const k in game.plants){ const p=game.plants[k];
+    if (!p || p.removed || !p.ex) continue;
+    const def=plantDef(p.s,p.v); if (!isWoodyDef(def)) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), cx2=X(x)+cell/2, cy2=Y(y)+cell/2;
+    const r=Math.max(0.5,isTreeDef(def)?canopyRadius(p):woodyRadiusTiles(def))*cell;
+    ctx.fillStyle='rgba(120,112,98,0.06)'; ctx.beginPath(); ctx.arc(cx2,cy2,r,0,7); ctx.fill();
+    ctx.strokeStyle='#7d7466'; ctx.lineWidth=1.1; ctx.setLineDash([1.5,3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#6b6356'; ctx.beginPath(); ctx.arc(cx2,cy2,Math.max(2.2,cell*0.16),0,7); ctx.fill();
+    ctx.font='italic 9px IBM Plex Sans'; ctx.textAlign='center';
+    ctx.fillText('ex. '+def.name,cx2,cy2+Math.max(11,cell*0.5));
+  }
+  ctx.beginPath();
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for (const [x,y] of tiles){ ctx.rect(X(x),Y(y),cell,cell);
+    if (X(x)<x0) x0=X(x); if (X(x)+cell>x1) x1=X(x)+cell; if (Y(y)<y0) y0=Y(y); if (Y(y)+cell>y1) y1=Y(y)+cell; }
+  ctx.clip();
+  ctx.strokeStyle='rgba(70,62,52,0.42)'; ctx.lineWidth=0.6; ctx.beginPath();
+  const step=Math.max(3.5,cell*0.22);
+  for (let d=x0-(y1-y0);d<x1;d+=step){ ctx.moveTo(d,y1); ctx.lineTo(d+(y1-y0),y0); }
+  ctx.stroke();
+  ctx.restore();
+}
 function drawTreePlan(ctx,p,x,y,cell,X,Y,tints){
   const def=plantDef(p.s,p.v), reach=canopyRadius(p);
   const tt=planTintOf(tints,p.s,p.v);
@@ -2425,7 +2492,7 @@ function planCodes(ids){
 function planPlantedRefIds(){
   const ids=new Set();
   [game.plants,game.bulbs].forEach(l=>{ for (const k in l){ const p=l[k];
-    if (p && !p.removed && p.s) ids.add(p.s+'|'+(p.v||'')); } });
+    if (p && !p.removed && p.s && !p.ex) ids.add(p.s+'|'+(p.v||'')); } });
   return [...ids];
 }
 // rows a full schedule takes: one per species|cultivar, plus its header
@@ -2487,7 +2554,7 @@ function planScheduleSplits(){
 function planSheets(){
   const sheets=[{id:'planting', layer:'plants', name:'Planting plan'}];
   const bulbs=game.bulbs||{};
-  if (Object.keys(bulbs).some(k=>bulbs[k]&&!bulbs[k].removed))
+  if (Object.keys(bulbs).some(k=>bulbs[k]&&!bulbs[k].removed&&!bulbs[k].ex))
     sheets.push({id:'bulbs', layer:'bulbs', name:'Bulb plan'});
   if (planScheduleSplits())
     sheets.push({id:'schedule', layer:'all', name:'Plant schedule'});
@@ -2546,7 +2613,7 @@ function planSharedState(sheets,measureCtx){
      planting list, or the set contradicts itself. */
   const planted={};
   [game.plants,game.bulbs].forEach(layer=>{ for (const k in layer){ const p=layer[k];
-    if (p && !p.removed && p.s){ const id=p.s+'|'+(p.v||''); planted[id]=(planted[id]||0)+1; } } });
+    if (p && !p.removed && p.s && !p.ex){ const id=p.s+'|'+(p.v||''); planted[id]=(planted[id]||0)+1; } } });
   const ids=Object.keys(planted).sort((a,b)=>planted[b]-planted[a]||a.localeCompare(b));
   const shared={planted, qty:plantingQuantities(), codes:planCodes(ids), ids, sheets,
     tints:planSheetTints(ids,planLayerOf), site:planSite(),
@@ -2891,7 +2958,8 @@ function planSite(){
   const live=m=>Object.keys(m||{}).filter(k=>m[k]&&!m[k].removed);
   return {lightsLive:live(game.lights), bouldersLive:live(game.boulders),
     treesLive:Object.keys(game.plants).filter(k=>{ const p=game.plants[k];
-      return p && !p.removed && isTreeDef(plantDef(p.s,p.v)); })};
+      return p && !p.removed && !p.ex && isTreeDef(plantDef(p.s,p.v)); }),
+    existingCount:existingTiles().length};
 }
 /* Where the schedule page's table starts. One row below the drawing sheets'
    padT, because a drawing has nothing at the top of its field while this table
@@ -2899,7 +2967,7 @@ function planSite(){
    drawPlanPaper puts the over-page warning on. */
 const PLAN_SCHED_TOP=PLAN_PAD_T+PLAN_ROW_H;
 function planSiteRows(site){
-  return (site.lightsLive.length?1:0)+(site.bouldersLive.length?1:0)+(site.treesLive.length?1:0);
+  return (site.lightsLive.length?1:0)+(site.bouldersLive.length?1:0)+(site.treesLive.length?1:0)+(site.existingCount?1:0);
 }
 function planSheetIds(shared,sheet){
   if (sheet.layer==='all') return shared.ids;   // the schedule page holds the set
@@ -3411,6 +3479,15 @@ function drawPlanKeyRows(ctx,g,y0,site){
     ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
     ctx.fillText(`BOULDER - stone feature (${bouldersLive.length})`, cx2+14, cy2);
   }
+  if (site.existingCount){
+    const cy2=y0+row++*PLAN_ROW_H, cx2=padL;
+    ctx.save(); ctx.beginPath(); ctx.rect(cx2,cy2-8,22,9); ctx.clip();
+    ctx.strokeStyle='rgba(70,62,52,0.6)'; ctx.lineWidth=0.7; ctx.beginPath();
+    for (let d=-10;d<26;d+=4){ ctx.moveTo(cx2+d,cy2+1); ctx.lineTo(cx2+d+9,cy2-8); } ctx.stroke(); ctx.restore();
+    ctx.strokeStyle='#7d7466'; ctx.lineWidth=0.8; ctx.strokeRect(cx2,cy2-8,22,9);
+    ctx.fillStyle='#6e5f48'; ctx.font='10px IBM Plex Sans'; ctx.textAlign='left';
+    ctx.fillText('Hatched = existing, to remain; not on the plant schedule or the orders.', cx2+28, cy2);
+  }
   if (treesLive.length){
     const cy2=y0+row++*PLAN_ROW_H, cx2=padL;
     ctx.save();
@@ -3606,6 +3683,7 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
     drawTreePlan(ctx,p,x,y,cell,X,Y,tints);
   });
   drawPlanStructures(ctx,g);
+  drawPlanExisting(ctx,g);            // over every piece it marks, as a survey hatch is
   /* One label per STAND, white halo for legibility.  The size range is wider
      than the old per-component 8-13px — which was five pixels across a whole
      sheet, a uniform texture rather than a hierarchy — and it is affordable
