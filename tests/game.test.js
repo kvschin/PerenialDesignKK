@@ -1682,12 +1682,13 @@ test('a woody climber keeps its stems on its frame through spring; hops and Ital
 
 test('the yuccas, agaves, sotols and ocotillo keep their size through spring', () => {
   // Their winter leaves are drawn grey or blue-green, which the colour test cannot read
-  // as evergreen, and ocotillo's canes are wood with no winter leaves at all.
+  // as evergreen, and ocotillo's canes are wood with no winter leaves at all. Garden
+  // sage (0.9.161) is a woody subshrub whose grey leaves stand all winter.
   setup();
   const ydOf=d=>{ game.dayOffset=(game.dayOffset||0)+(d-(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)); };
   ydOf(0);
   const kept=['yucca','adamsneedle','spanishdagger','beakedyucca','redyucca','gianthesperaloe','sotol','texassotol',
-    'texasbeargrass','ocotillo','parryagave','havardagave','whalestongue'];
+    'texasbeargrass','ocotillo','parryagave','havardagave','whalestongue','gardensage'];
   for (const k of kept){
     assert(PLANTS[k].noCutback,k+': marked on the record');
     assertEqual(seasonEnvelope(k),1,k+': stands at full size on the first day of spring');
@@ -2878,6 +2879,42 @@ test('a salvia flower is a hood over a lip, not a round floret', () => {
     assert(lips.reduce((n,o)=>n+o.pts.filter(p=>p.length===3).length,0)>=hoods.reduce((n,o)=>n+o.pts.length,0)/6,`${k}: a lower lip under every hood`);
     assertEqual(ops.filter(o=>o.fill===shade(col,-15)).length,0,`${k}: no batch of round florets`);
   }
+});
+/* 0.9.161: foxgloves were a column of round bells on both sides of the stem, the
+   native zinnias a bouquet of bare stalks with daisies on top. */
+test('a foxglove is a spire of spotted bells, open below and in bud at the tip', () => {
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='foxglove'))
+    assertEqual(PLANTS[k].look.spikeStyle,'foxglove',`${k}: a spire of hanging bells`);
+  for (const k of ['foxglove','rustyfoxglove','yellowfoxglove','strawberryfoxglove','sunsetfoxglove']){
+    const P=plantDef(k), S=P.sea.Summer, L=P.look, ops=recordPlant(k,'Summer',null,1);
+    const throat=L.throat||mixHex(S.bloom,'#ffffff',0.55);
+    const mouths=ops.filter(o=>o.fill===throat).reduce((n,o)=>n+o.pts.filter(p=>p.length===3).length,0);
+    assert(mouths>=L.stems*L.bells*0.2,`${k}: bells open their mouths toward you (${mouths})`);
+    const bodies=ops.filter(o=>o.fill===shade(S.bloom,-6)||o.fill===shade(S.bloom,-26));
+    assert(bodies.length>=L.stems && bodies.every(o=>o.pts.length>=18),`${k}: the bells are flared tubes, not round dots`);
+    const bud=mixHex(S.fol,S.bloom,0.5);
+    assert(ops.some(o=>o.fill===shade(bud,-8)),`${k}: buds still at the tip at full bloom`);
+  }
+  // after the bloom the flowers are gone and capsules stand up the spike
+  const P=PLANTS.rustyfoxglove, seed=P.sea.Winter.seed;
+  assert(recordPlant('rustyfoxglove','Winter',null,0).some(o=>o.fill===shade(seed,-8)&&o.pts.length>=10),'rusty foxglove stands in seed through winter');
+});
+test('the native zinnias are flowering mounds, and the new sages and foxgloves are in the catalog', () => {
+  for (const k of ['prairiezinnia','desertzinnia']){
+    const L=PLANTS[k].look;
+    assert(PLANTS[k].form==='shrub'&&L.habit==='mossphlox'&&L.cushion>0&&L.paperyRays,`${k}: a needle-leaved cushion whose rays dry on the plant`);
+  }
+  for (const [k,v] of [['meadowsage','eastfriesland'],['meadowsage','marcus'],['meadowsage','lubecca'],['meadowsage','schwellenburg'],
+    ['meadowsage','sensationrose'],['meadowsage','snowhill'],['meadowsage','rosequeen'],['mealycupsage','victoriablue'],
+    ['autumnsage','furmansred'],['autumnsage','wildthing'],['autumnsage','teresa'],['autumnsage','burgundyseduction'],['pitchersage','nekan'],
+    ['gardensage','berggarten'],['gardensage','purpurascens'],['gardensage','tricolor'],['gardensage','icterina'],
+    ['whorledclary','purplerain'],['whorledclary','alba'],
+    ['foxglove','pamschoice'],['foxglove','suttonsapricot'],['foxglove','candymountain'],['rustyfoxglove','gelberherold']])
+    assert(PLANTS[k].cv && PLANTS[k].cv[v],`${k}:${v} is in the catalog`);
+  for (const k of ['gardensage','whorledclary']) assertEqual(PLANTS[k].group,'salvia',`${k}: on the Salvia card`);
+  // 'Teresa' is a bicolour: a pink hood over a white lip
+  const T=plantDef('autumnsage','teresa');
+  assert(recordPlant('autumnsage','Summer','teresa',1).some(o=>o.fill===T.look.hoodCol),"'Teresa' draws its hoods pink");
 });
 test('every forb draws at its sourced height', () => {
   // The px-art h is the drawn height in inches; heightIn is what the card quotes.
@@ -26066,6 +26103,8 @@ test('a flowering mat holds its flowers in the mat, with no stems standing out o
           assert(top<=deep+H*0.08+petal*1.8+1,`${k}${v?':'+v:''} ${season}: drawn ${top.toFixed(1)} over a mat ${deep.toFixed(1)} deep`);
           const flowers=ops.filter(o=>o.op==='ellipse'&&Math.abs(o.a[2]-petal)<1e-9).length;
           if (S.bloom) assert(flowers>=3,`${k}${v?':'+v:''} ${season}: flowers on the mat`);
+          // a zinnia's rays stay on, dry and papery, after it flowers (paperyRays, 0.9.161)
+          else if (L.paperyRays) assert(flowers>=3,`${k}${v?':'+v:''} ${season}: papery rays stay on the mat`);
           else assertEqual(flowers,0,`${k}${v?':'+v:''} ${season}: capsules in seed, not flowers`);
           n++;
         }

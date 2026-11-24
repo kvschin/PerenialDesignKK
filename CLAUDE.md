@@ -8588,6 +8588,35 @@ burnets 0.1-0.4 ms, Joe Pye 0.4-0.9, salvias 0.1-0.8, against 0.1-0.6 for compar
 `dev/burnet-joepye-salvia-review.html` shows every choice in four seasons, its heads close up
 and at true scale, with `?check` and `?bench`.
 
+**Foxgloves, native zinnias and more sages (0.9.161)**, all opt-in. **Foxgloves**
+(`spikeStyle:'foxglove'`, `drawFoxgloveSpike`) were a column of round bells both sides of the
+stem. Now a spire of `bells` flared tubes (`bellLen`, `bellW`, `lip`) on short stalks, hanging
+from one side (`secund` 1) or set all round (0, rusty foxglove), held by `face` 'down', 'out' or
+'up' ('Candy Mountain'); where a bell faces you its mouth shows a pale `throat` spotted in the
+season's `eye`. They open from the bottom and the top 14% is always buds, with a last bud on the
+tip; after the bloom pointed capsules stand up the spike. A rosette of stalked leaves
+(`leafStyle:'rosette'`) and alternate stem leaves. A foxglove keeps no winter foliage on purpose:
+a green Winter `fol` makes `holdsWinterLeaves` skip the spring cutback, and its spires would
+stand full height from March. **The native zinnias** (prairie, desert) were a bouquet of bare
+stalks under daisies. They are now the moss phlox cushion (`habit:'mossphlox'`, `cushion`,
+needle leaves) with few-rayed flowers on its face, `eyeR` sizing the disc and `paperyRays`
+keeping the rays on, dry, round a darkened disc in seed where other mats set capsules; a
+cushion's winter snow now lies on its flowers, not where an upright stem would end. Both declare
+`sideScale:0.83`, the least that clears every real picture plus 0.03. The garden zinnias
+(Z. elegans, Zahara, Profusion) are annuals and are left out by decision. **Sages**: `hoodCol`
+colours a salvia's hood apart from its lip ('Teresa'). Added meadow sage 'East Friesland',
+'Marcus', 'Lubecca', 'Schwellenburg', 'Sensation Rose' and the × sylvestris 'Snow Hill' and
+'Rose Queen'; mealycup 'Victoria Blue'; autumn sage 'Furman's Red', 'Wild Thing', 'Teresa',
+'Burgundy Seduction'; pitcher sage 'Nekan'; garden sage (S. officinalis, a woody subshrub:
+`noCutback`, flower stems only in flower and seed) with 'Berggarten', 'Purpurascens',
+'Tricolor', 'Icterina'; whorled clary (S. verticillata) with 'Purple Rain' and 'Alba'.
+Foxgloves added: D. purpurea 'Pam's Choice', 'Sutton's Apricot', 'Candy Mountain'; rusty
+'Gelber Herold'; yellow (D. grandiflora), strawberry (D. × mertonensis, a hybrid with no wild
+range) and sunset foxglove (D. obscura). Every choice draws within 12% of its sourced height,
+most within 6%. Bakes: foxgloves 0.3-0.5 ms in flower (0.3 before), zinnias 0.16-0.2 (0.14-0.3),
+sages unchanged, whorled clary 0.86. Sources: `docs/plant-data/foxglove-zinnia-sage-sources.json`
+(also what was left out and why); `dev/foxglove-zinnia-sage-review.html`.
+
 **Flowering mats and pussytoes (0.9.122).** *The mossphlox habit drew a stem a full plant
 height for every flower* (moss phlox, aubretia, rock rose, periwinkle, trailing bellflower,
 blue-eyed Mary), ending nowhere near the flower, which it sited down in the mat beside it:

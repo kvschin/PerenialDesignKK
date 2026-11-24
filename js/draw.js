@@ -2690,7 +2690,9 @@ function salviaSpikeAt(ctx,hx,hy,span,L,S,phase,blv,stem,rec,small){
           }
         }
       }
-      ctx.fillStyle=pass?(part?shade(col,14):col):(part?shade(col,-12):shade(col,-24)); ctx.fill();
+      // `hoodCol` (0.9.161) colours the hood apart from the lip: a bicolour sage, 'Teresa'
+      const hc=part&&L.hoodCol&&phase===1?L.hoodCol:null;
+      ctx.fillStyle=hc?(pass?hc:shade(hc,-14)):pass?(part?shade(col,14):col):(part?shade(col,-12):shade(col,-24)); ctx.fill();
     }
   }
 }
@@ -2706,6 +2708,99 @@ function drawSalviaSpike(ctx,hx,hy,H,L,S,phase,blv,stem,rec,stemCol){
       salviaSpikeAt(ctx,hx+d*span*(0.2+b*0.06),hy+span*(0.38+b*0.12),span*0.62,L,S,phase,blv,stem+b+3,rec,true); }
   }
   salviaSpikeAt(ctx,hx,hy,span,L,S,phase,blv,stem,rec,false);
+}
+
+/* ---------- foxglove spires (Digitalis, 0.9.161) ----------
+   A foxglove's raceme is a spire of tubular bells, each on a short stalk,
+   hanging from one side of the stem in D. purpurea (`secund` 1) and set all
+   round in rusty foxglove (0). A bell widens from its stalk to a flared mouth
+   with a lower lip, and where it faces you the mouth shows a pale throat
+   spotted dark (`spots`, the season's `eye`). It opens from the bottom: above
+   the open bells, buds tighten to the tip; after the bloom the flowers drop and
+   pointed capsules stand up the spike into winter. It was a column of round
+   bells on both sides of the stem, which read as a stack of bubbles.
+   `bells` (count), `bellLen` and `bellW` (px, the mouth's width), `lip`,
+   `face` ('down' hanging, 'out' level as rusty foxglove holds them, 'up' as
+   'Candy Mountain' does), `spikeSpan` (a share of the plant's height),
+   `throat` (the throat colour; the bloom paled by default). Bells of one tone
+   are one path; the lit sides, the throats and the spots one each. */
+const FG_N = 8, FG_PROF = new Float64Array(FG_N+1);
+for (let i=0;i<=FG_N;i++){ const t=i/FG_N; FG_PROF[i]=0.32+0.6*Math.pow(t,1.35)+(t>0.82?(t-0.82)*0.9:0); }
+const FG_MAX = 48;
+const _fgB=new Float64Array(FG_MAX*6);      // base x,y, mouth x,y, half-width, fore
+function drawFoxgloveSpike(ctx,hx,hy,H,L,S,phase,blv,stem,rec){
+  const col=phase===1?S.bloom:phase<0?S.seed:(S.bloom||S.fol); if (!col) return;
+  const n=Math.max(4,Math.min(FG_MAX,Math.round(L.bells||24))), span=H*(L.spikeSpan||0.42)*rec;
+  const len=(L.bellLen||4)*rec, w=(L.bellW||2.6)*rec*0.5, lip=L.lip===undefined?0.5:L.lip;
+  const sec=L.secund===undefined?1:L.secund, face=L.face||'down';
+  const tilt=face==='up'?-0.35:face==='out'?0.22:0.62;      // radians below level
+  const d0=(stem&1)?Math.PI:0, spread=0.8+(1-sec)*5.5;
+  // the top of a spike is always in bud while it flowers
+  const openFrom=phase===1?Math.min(0.86,0.25+0.85*blv):phase<0?1:0;
+  const yAt=u=>hy+span*Math.pow(u,0.85);
+  // the axis, bare at the top where the buds are
+  ctx.strokeStyle=shade(S.fol||col,-20); ctx.lineWidth=Math.max(0.7,1.05*rec); ctx.beginPath();
+  ctx.moveTo(hx,yAt(1)+2); ctx.quadraticCurveTo(hx,hy+span*0.3,hx+((stem&1)?-1:1)*span*0.03,hy-1); ctx.stroke();
+  // the open bells: built once, painted far half then near half
+  let nb=0;
+  const bud=L.budCol||(S.fol?mixHex(S.fol,phase===1?S.bloom:col,0.5):col);
+  for (let k=0;k<n;k++){
+    const u=(k+0.2)/n, y=yAt(u), az=d0+(hash01(k,stem+3)-0.5)*spread+(sec<0.5?k*2.39996:0);
+    const sx=Math.cos(az), fore=Math.sin(az), open=u>=1-openFrom;
+    const sz=0.55+0.45*Math.min(1,u*2.2);
+    if (!open || phase<0){
+      // a bud, or after the bloom a capsule, close against the axis
+      if (phase<0 && u<0.2) continue;
+      fcPush(hx+sx*len*0.3*sz,y+len*0.12,Math.max(0.5,w*(phase<0?0.55:0.62)*sz),phase<0?1.5:1.3);
+      continue;
+    }
+    if (nb>=FG_MAX) continue;
+    const ped=len*0.3, bx=hx+sx*ped, by=y+ped*0.25+fore*ped*0.2;
+    const k2=0.35+0.65*Math.abs(sx);
+    const vx=sx*Math.cos(tilt)*len*k2, vy=Math.sin(tilt)*len+fore*Math.cos(tilt)*len*0.32;
+    const j=nb*6; _fgB[j]=bx; _fgB[j+1]=by; _fgB[j+2]=bx+vx; _fgB[j+3]=by+vy; _fgB[j+4]=w*sz; _fgB[j+5]=fore; nb++;
+  }
+  // a last bud tight on the tip, so the spike tapers to a point rather than a bare stalk
+  if (phase>=0) fcPush(hx+((stem&1)?-1:1)*span*0.03,hy-0.5,Math.max(0.45,w*0.4),1.4);
+  fcDraw(ctx,phase<0?col:bud,14,-8);
+  if (!nb) return;
+  const throat=L.throat||mixHex(col,'#ffffff',0.55), spots=S.eye||shade(col,-60);
+  for (let pass=0;pass<2;pass++){
+    // bodies
+    ctx.beginPath();
+    for (let b=0;b<nb;b++){ const j=b*6; if ((_fgB[j+5]<0)!==(pass===0)) continue;
+      const x0=_fgB[j],y0=_fgB[j+1],x1=_fgB[j+2],y1=_fgB[j+3],hw=_fgB[j+4];
+      ribbonPath(ctx,x0,y0,(x0+x1)/2,(y0+y1)/2,x1,y1,FG_PROF,hw,0,4,true);
+      // the lower lip, out past the mouth on its lower side
+      if (lip>0){ let dx=x1-x0, dy=y1-y0; const l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
+        const nx=-dy, ny=dx, sgn=ny>0?1:-1, lx=x1+dx*hw*0.35*lip+nx*sgn*hw*0.55, ly=y1+dy*hw*0.35*lip+ny*sgn*hw*0.55;
+        ctx.moveTo(lx+hw*0.55*lip,ly); ctx.ellipse(lx,ly,hw*0.55*lip,hw*0.4*lip,Math.atan2(dy,dx),0,7); }
+    }
+    ctx.fillStyle=pass?shade(col,-6):shade(col,-26); ctx.fill();
+    if (!pass) continue;
+    // the lit side of each near bell
+    ctx.beginPath();
+    for (let b=0;b<nb;b++){ const j=b*6; if (_fgB[j+5]<0) continue;
+      const hw=_fgB[j+4]; if (hw<0.7) continue;
+      const ox=LIT.x*hw*0.35, oy=LIT.y*hw*0.35;
+      ribbonPath(ctx,_fgB[j]+ox,_fgB[j+1]+oy,(_fgB[j]+_fgB[j+2])/2+ox,(_fgB[j+1]+_fgB[j+3])/2+oy,_fgB[j+2]+ox,_fgB[j+3]+oy,FG_PROF,hw*0.5,0,4,true); }
+    ctx.fillStyle=shade(col,18); ctx.fill();
+    // the mouths: a pale spotted throat, open as far as the bell faces you
+    ctx.beginPath();
+    for (let b=0;b<nb;b++){ const j=b*6; const f=_fgB[j+5]; if (f<-0.2) continue;
+      const x0=_fgB[j],y0=_fgB[j+1],x1=_fgB[j+2],y1=_fgB[j+3],hw=_fgB[j+4]*FG_PROF[FG_N];
+      const a=Math.atan2(y1-y0,x1-x0)+Math.PI/2, ry=hw*(0.25+0.6*Math.max(0,f));
+      ctx.moveTo(x1+Math.cos(a)*hw,y1+Math.sin(a)*hw); ctx.ellipse(x1,y1,hw*0.92,ry,a,0,7);
+      if (L.spots!==false && hw>0.9) for (let s=0;s<3;s++){
+        const t=(s-1)*0.42, q=0.2+0.25*hash01(b,s);
+        fcPush(x1+Math.cos(a)*hw*t+Math.cos(a-Math.PI/2)*ry*q,y1+Math.sin(a)*hw*t+Math.sin(a-Math.PI/2)*ry*q,Math.max(0.28,hw*0.13),1);
+      }
+    }
+    ctx.fillStyle=throat; ctx.fill();
+    if (_fcN){ ctx.fillStyle=spots; ctx.beginPath();
+      for (let i=0;i<_fcN;i++){ ctx.moveTo(_fcX[i]+_fcR[i],_fcY[i]); ctx.arc(_fcX[i],_fcY[i],_fcR[i],0,7); }
+      ctx.fill(); _fcN=0; }
+  }
 }
 
 /* ---------- ornamental onion heads ----------
@@ -9384,6 +9479,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawDaleaHead(ctx,hx,hy,L,S,ph,blv,i,rec);
       }
+      else if (L.spikeStyle==='foxglove'){ // a spire of hanging bells; a later stem is in bud
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
+        if (ph!==null) drawFoxgloveSpike(ctx,hx,hy,H,L,S,ph,blv,i,rec);
+      }
       else if (L.spikeStyle==='salvia'){ // whorls of two-lipped flowers; a later stem is in bud
         const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawSalviaSpike(ctx,hx,hy,H,L,S,ph,blv,i,rec,P.stem||shade(S.fol||S.seed||'#6b6248',-18));
@@ -10821,7 +10920,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const len=H*(raisedMat
           ? (L.foliageH||0.18)+matRise*(0.78+liftRnd*0.22)
           : (L.flowerLen||0.85)+liftRnd*(L.flowerJitter||0.2));
-        if(AMBIENCE[season].snow&&S.seed){
+        // a cushion's flowers sit on its face, so their snow goes there (below)
+        if(AMBIENCE[season].snow&&S.seed&&!(habit==='mossphlox'&&L.cushion)){
           if(!snowAnchors)snowAnchors=[];snowAnchors.push([ox+sway*2,-len,2.2]);
         }
         // A mat's flowers sit IN the mat, on stems too short to see. The stroke
@@ -10842,8 +10942,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             const cw=matCushionW(L,growth), ch=matCushionH(L,H,growth);
             cx=Math.max(-cw*0.92,Math.min(cw*0.92,cx0*cw*0.9/(((L.flowerW||20)+(L.flowerSpread||24))/2)));
             cy=-matCushionAt(cx/cw)*ch*(0.6+0.4*ry);
+            if(AMBIENCE[season].snow&&S.seed&&!(i%3)){ if(!snowAnchors)snowAnchors=[]; snowAnchors.push([cx,cy-petal*0.4,Math.max(1.4,petal*0.9)]); }
           }
-          if (!blooming && S.seed){
+          if (!blooming && S.seed && !L.paperyRays){
             // in seed a mat carries small capsules, not a second crop of brown flowers
             // (half as many, small, and part the colour of the leaves they sit among)
             if (!(i&1)) fcPush(cx,cy,petal*0.32,1.25);
@@ -10857,7 +10958,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           } else
           for(let p=0;p<petals;p++){ const a=p/petals*Math.PI*2;
             ctx.beginPath(); ctx.ellipse(cx+Math.cos(a)*petal*0.72,cy+Math.sin(a)*petal*0.58,petal,petal*0.56,a,0,7); ctx.fill(); }
-          if (S.eye && (blooming || !S.seed)){ ctx.fillStyle=S.eye; ctx.beginPath(); ctx.arc(cx,cy,petal*0.34,0,7); ctx.fill(); ctx.fillStyle=col; }
+          // `paperyRays` (0.9.161): a zinnia's rays stay on, dry and papery, round a
+          // darkened disc after it flowers, where the rest set capsules. `eyeR` sizes the disc.
+          const er=petal*(L.eyeR||0.34);
+          if (S.eye && (blooming || !S.seed)){ ctx.fillStyle=S.eye; ctx.beginPath(); ctx.arc(cx,cy,er,0,7); ctx.fill(); ctx.fillStyle=col; }
+          else if (L.paperyRays && S.seed){ ctx.fillStyle=shade(S.seed,-34); ctx.beginPath(); ctx.arc(cx,cy,er,0,7); ctx.fill(); ctx.fillStyle=col; }
         }
         else if (habit==='matflower'){
           const petals=L.petals||5, petalLen=L.petalLen||4.8, petalW=L.petalW||2.9;

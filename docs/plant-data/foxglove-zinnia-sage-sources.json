@@ -1,0 +1,45 @@
+{
+  "reviewed": "2026-11-24",
+  "note": "The foxgloves, native zinnias and sages of 0.9.161. Foxgloves were redrawn and filled out; the two native zinnias redrawn (no cultivars are added: the garden zinnias are annuals and were left out by decision); the sages filled out. Sizes are MBG Plant Finder figures unless an estimate says otherwise; heightIn is the plant in flower.",
+  "sources": {
+    "mbg": "Missouri Botanical Garden Plant Finder, https://plantfinder.mobot.org/PlantFinderDetails.aspx?taxonid=<id>, read 2026-11-24"
+  },
+  "plants": {
+    "foxglove": {"source": "mbg 286969", "estimates": "Existing record kept (54 in; MBG 2-5 ft, zones 4-8). MBG flags it as invasive where it naturalizes; the blurb now says it escapes into clearings in the Pacific Northwest."},
+    "foxglove|pamschoice": {"source": "mbg 255148", "heightIn": 42, "estimates": "MBG 3-4 ft x 1-2.5 ft; white with maroon throat and spotting."},
+    "foxglove|suttonsapricot": {"source": "mbg 263646", "heightIn": 42, "estimates": "MBG 3-4 ft x 1-1.5 ft; pale apricot-orange, June-July."},
+    "foxglove|candymountain": {"source": "mbg 297683", "heightIn": 42, "zones": [4, 9], "estimates": "MBG 3-4 ft, zones 4-9; pink, flowers facing up all round the stem."},
+    "rustyfoxglove|gelberherold": {"source": "mbg 243718", "heightIn": 48, "estimates": "MBG 3-5 ft; yellow with rusty interior veining, June-July."},
+    "yellowfoxglove": {"source": "mbg 287003", "heightIn": 30, "spread": 15, "zones": [3, 8], "nativeTo": ["europe", "asia"], "estimates": "MBG 2-3 ft x 1-1.5 ft, part shade, yellow, May-June in St Louis; bloom months set to June-July like the other foxgloves."},
+    "strawberryfoxglove": {"source": "mbg 290652", "heightIn": 42, "spread": 18, "zones": [4, 8], "provenance": "hybrid", "estimates": "MBG 3-4 ft x 1-2 ft, coppery rose. D. purpurea x D. grandiflora, coming true from seed; Wikipedia files it under D. x fulva, recorded as a synonym. No wild range."},
+    "sunsetfoxglove": {"source": "mbg 287089", "heightIn": 18, "spread": 13, "zones": [4, 8], "nativeTo": ["europe", "africa"], "estimates": "MBG 1-2 ft x 0.75-1.5 ft, rusty-orange to greenish-yellow; Spain and Morocco."},
+    "prairiezinnia": {"estimates": "Existing record's figures kept (8 in, zones 4-9). Redrawn only."},
+    "desertzinnia": {"estimates": "Existing record's figures kept (8 in, zones 6-10). Redrawn only."},
+    "meadowsage|eastfriesland": {"source": "mbg 250495", "heightIn": 15, "estimates": "MBG 1-1.5 ft x 0.75-1 ft; violet purple. 'Ostfriesland' is the cultivar name, East Friesland its trade name."},
+    "meadowsage|marcus": {"source": "mbg 256640", "heightIn": 9, "estimates": "MBG 0.5-1 ft; deep violet."},
+    "meadowsage|lubecca": {"source": "mbg 273072", "heightIn": 18, "estimates": "MBG 1-2 ft; violet-blue."},
+    "meadowsage|schwellenburg": {"source": "mbg 250003", "heightIn": 18, "estimates": "MBG 1-2 ft; rose-purple."},
+    "meadowsage|sensationrose": {"source": "mbg 257425", "heightIn": 11, "estimates": "MBG 0.75-1 ft; lavender-pink."},
+    "meadowsage|snowhill": {"source": "mbg 250255", "heightIn": 21, "provenance": "hybrid", "estimates": "MBG 1.5-2 ft; white. Salvia x sylvestris 'Schneehugel', recorded as the other x sylvestris choices are."},
+    "meadowsage|rosequeen": {"source": "mbg 260402", "heightIn": 21, "provenance": "hybrid", "estimates": "MBG 1.5-2 ft; rose pink. Salvia x sylvestris."},
+    "mealycupsage|victoriablue": {"source": "mbg 265455", "heightIn": 18, "zones": [8, 10], "estimates": "MBG 1-2 ft, zones 8-10; deep blue."},
+    "autumnsage|furmansred": {"source": "mbg 263488", "heightIn": 30, "zones": [6, 10], "estimates": "MBG 2-3 ft, zones 6-10. MBG's bloom field says pink; the cultivar is grown and named for its deep red, which is how it is drawn."},
+    "autumnsage|wildthing": {"source": "mbg 263487", "heightIn": 30, "zones": [6, 9], "estimates": "MBG 2-3 ft; hot pink."},
+    "autumnsage|teresa": {"source": "mbg 458606", "heightIn": 30, "zones": [7, 9], "estimates": "MBG 2-3 ft; white and pink bicolour, drawn as a pink hood over a white lip."},
+    "autumnsage|burgundyseduction": {"source": "mbg 456896", "heightIn": 33, "zones": [6, 9], "estimates": "MBG 2.5-3 ft x 1.5-2 ft; dark magenta-red."},
+    "pitchersage|nekan": {"source": "mbg 281505", "heightIn": 36, "zones": [4, 9], "estimates": "MBG 2-4 ft x 2-3 ft; blue."},
+    "gardensage": {"source": "mbg 281464", "heightIn": 27, "spread": 27, "zones": [4, 8], "nativeTo": ["europe"], "estimates": "MBG 2-2.5 ft square; blue, June. A woody subshrub: no spring cutback (noCutback), flower stems only in flower and seed."},
+    "gardensage|berggarten": {"source": "mbg 250498", "heightIn": 21, "zones": [5, 8], "estimates": "MBG 1.5-2 ft."},
+    "gardensage|purpurascens": {"source": "mbg 250500", "heightIn": 18, "zones": [6, 9], "estimates": "MBG 1-2 ft."},
+    "gardensage|tricolor": {"source": "mbg 250501", "heightIn": 15, "zones": [6, 9], "estimates": "MBG 1-1.5 ft."},
+    "gardensage|icterina": {"source": "mbg 260037", "heightIn": 18, "estimates": "MBG 1-2 ft, zones 4-8."},
+    "whorledclary": {"source": "mbg 281428", "heightIn": 24, "spread": 21, "zones": [5, 8], "nativeTo": ["europe", "asia"], "estimates": "MBG 1.5-2.5 ft x 1.5-2 ft, lilac blue, June-September."},
+    "whorledclary|purplerain": {"source": "mbg 250503", "heightIn": 18, "estimates": "MBG 1-2 ft x 1.5-2.5 ft, smoky purple, July-September."},
+    "whorledclary|alba": {"source": "mbg 265374", "heightIn": 21, "estimates": "MBG 1.5-2 ft; white."}
+  },
+  "left_out": {
+    "Salvia microphylla 'Hot Lips'": "Not in the MBG Plant Finder; no source read.",
+    "Salvia pratensis": "MBG flags it as invasive where it has escaped; left out.",
+    "Digitalis purpurea Excelsior and Foxy Groups": "Seed mixes of several colours, which one record cannot draw."
+  }
+}
