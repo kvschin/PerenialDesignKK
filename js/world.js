@@ -2733,36 +2733,87 @@ function bambooRenderDetail(x,y,p,W,H){
   });
   return bambooDirs.length ? {bambooDirs} : null;
 }
+function climberRenderDetail(x,y,p,W,H){
+  const P=PLANTS[p.s]; if (!P || P.type!=='vine') return null;
+  const sup=supportAt(x,y); if (!sup) return null;
+  let run=null, ext=null;
+  /* Along a fence the frame is the RUN: a climber may spread as far as the
+     fence goes either side of it (a few tiles is all a sprite holds), and stops
+     at an end post or a gate. */
+  if (sup.kind==='fence'){
+    run=fenceRunAxis(x,y);
+    const along=dir=>{ let k=0, f;
+      while (k<4 && (f=fenceAt(x+dir*(k+1)*run[0],y+dir*(k+1)*run[1])) && !f.gate) k++;
+      return k; };
+    ext=[-(0.5+along(-1)), 0.5+along(1)];
+  }
+  return climberSupportDetail(sup,x,y,P,isoAxes(),run,ext);
+}
 /* What a climber grows on, baked into the render detail exactly as a hedge's
    neighbours are — which is the whole reason this feature was affordable. The
    detail is computed once per buildScene and bakePlantKeyParts already folds it
    into the sprite key, so a climber that changes support re-bakes for free and
    nothing new had to learn about caching.
+   A pure function of the frame, the tile and the drawing basis, so the garden
+   and the guidebook's stage (which has its own camera) hand drawPlant the same
+   description. `sup` is what supportAt answers; `run` and `ext` are a fence's
+   run and reach, which only the garden can see.
    `ft` is what the plant may REACH here: its own mature height clamped by the
    support, so a 30ft wisteria on a 6ft obelisk fills the obelisk and stops.
-   `axis` is the screen run a flat support spreads along — a fence gives it for
-   free through fenceRunAxis, and without it a climber on a fence would draw as
-   a cone standing in front of the panel rather than as a sheet across it. */
-function climberRenderDetail(x,y,p,W,H){
-  const P=PLANTS[p.s]; if (!P || P.type!=='vine') return null;
-  const sup=supportAt(x,y); if (!sup) return null;
+   Since 0.9.158 a climber also knows how WIDE its frame is. A flat frame -- a
+   fence, a panel, wires, a fan -- hands over `axis` (the screen run), `step`
+   (px per tile along it) and `ext`, how far the frame reaches either side of
+   this tile in tiles, and the plant spreads by its own real `spread` within
+   that: before, every climber was the same 1.6 tiles wide whatever it was on,
+   so two roses on a 3 ft trellis spilled a tile past both posts. A round frame
+   hands over its radius at the foot and the top (`r0`, `r1`) and its height
+   (`fh`). An arch hands over its run, its depth and which leg this tile is, and
+   the climber goes up that leg and over the top to the crown. Everything
+   screen-shaped is rounded, because it rides the sprite key. */
+function climberSupportDetail(sup,x,y,P,axes,run,ext){
   const reachFt=(P.heightIn||P.h*12)/12;
   const out={climb:sup.kind, ft:Math.min(sup.ft, reachFt)};
+  const [ax,ay]=axes;
+  const r1=v=>Math.round(v*10)/10, r3=v=>Math.round(v*1000)/1000;
   /* On a pergola it climbs the POST and spreads over the roof, so the drawing
      needs where the post stands on screen relative to the tile's centre. */
-  if (sup.kind==='pergola' && sup.post){
-    const [ax,ay]=isoAxes(), a=sup.a, b=sup.post[0], r=sup.post[1];
-    const wx=a?r:b, wy=a?b:r;
-    out.post=[Math.round(ax[0]*wx+ay[0]*wy), Math.round(ax[1]*wx+ay[1]*wy)];
+  if (sup.kind==='pergola'){
+    if (sup.post){
+      const a=sup.a, b=sup.post[0], r=sup.post[1];
+      const wx=a?r:b, wy=a?b:r;
+      out.post=[Math.round(ax[0]*wx+ay[0]*wy), Math.round(ax[1]*wx+ay[1]*wy)];
+    }
+    return out;
   }
-  if (sup.kind==='fence' || sup.kind==='panel' || sup.kind==='arch'){
-    const run = sup.kind==='fence' ? fenceRunAxis(x,y)
-      : (normalizeFacing(sup.face)%2 ? [0,1] : [1,0]);
-    const [sx,sy]=screenOf(x,y,W,H), [nx,ny]=screenOf(x+run[0],y+run[1],W,H);
-    const dx=nx-sx, dy=ny-sy, len=Math.hypot(dx,dy)||1;
-    out.axis=[dx/len,dy/len];
+  const spec=sup.kind==='fence' ? null : supportStyle(sup.style);
+  const form=spec ? spec.form : 'fence';
+  if (form==='fence'||form==='panel'||form==='wire'||form==='fan'||form==='arch'){
+    const rw=form==='fence' ? (run||[1,0]) : (normalizeFacing(sup.face)%2 ? [0,1] : [1,0]);
+    const rv=[rw[0]*ax[0]+rw[1]*ay[0], rw[0]*ax[1]+rw[1]*ay[1]], step=Math.hypot(rv[0],rv[1])||1;
+    out.axis=[rv[0]/step, rv[1]/step];
+    out.step=r1(step);
+    if (form==='fence'){ const e=ext||[-0.5,0.5]; out.ext=[r3(e[0]),r3(e[1])]; return out; }
+    const n=Math.max(sup.w,sup.h), i=(x-sup.x)+(y-sup.y), off=i-(n-1)/2, half=inchesToTiles(spec.wIn)/2;
+    if (form==='arch'){
+      const dw=normalizeFacing(sup.face)%2 ? [1,0] : [0,1], halfD=inchesToTiles(spec.dIn)/2;
+      out.span=n; out.leg=i;
+      out.side=off<0?-1:1;                 // the leg this tile's climber goes up
+      out.off=r3(off); out.hw=r3(half);
+      out.run=[r1(rv[0]), r1(rv[1])];
+      out.dep=[r1((dw[0]*ax[0]+dw[1]*ay[0])*halfD), r1((dw[0]*ax[1]+dw[1]*ay[1])*halfD)];
+      out.fh=r1(feetToPx(spec.ft)); out.sp=SUPPORT_ARCH_SPRING;
+      return out;
+    }
+    out.ext=[r3(-half-off), r3(half-off)];
+    // a fan is one plant's frame: narrow at its foot, its full spread at the top
+    if (form==='fan'){ const foot=inchesToTiles(6)/2; out.ext0=[r3(-foot-off), r3(foot-off)]; }
+    return out;
   }
-  if (sup.kind==='arch'){ out.span=sup.w>sup.h?sup.w:sup.h; out.leg=(x-sup.x)+(y-sup.y); }
+  const half=inchesToTiles(spec.wIn)/2;
+  out.fh=r1(feetToPx(spec.ft));
+  if (form==='obelisk'){ out.r0=r1(half*TILE_W*0.95); out.r1=r1(half*TILE_W*0.2); }
+  else if (form==='wigwam'){ out.r0=r1(half*Math.SQRT2*TILE_W/2*1.05); out.r1=r1(out.r0*0.16); }
+  else { out.r0=out.r1=r1(TILE_W*0.3); }   // foliage wound round a post
   return out;
 }
 function plantRenderDetail(x,y,p,W,H){

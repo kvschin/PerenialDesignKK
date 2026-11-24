@@ -585,6 +585,33 @@ function drawOrnamentChip(tc,d,w,h,capK){
   }
   tc.drawImage(bmp,0,0);
 }
+/* A climbing frame fitted to a small canvas the same way, through
+   drawSupportArt and supportArtExtent: one painter for the garden, the chip, the
+   card and the brush swatch, and a fit to the frame's real reach. */
+const SUPPORT_CHIP_CACHE=new Map();
+function drawSupportChip(tc,d,w,h,capK){
+  if (!tc) return;
+  d=Object.assign(normalizeSupportDraft(d),{face:0});
+  const key=JSON.stringify(d)+'|'+w+'x'+h+'|'+(capK||0.5);
+  let bmp=SUPPORT_CHIP_CACHE.get(key);
+  if (!bmp){
+    if (SUPPORT_CHIP_CACHE.size>96) SUPPORT_CHIP_CACHE.clear();
+    bmp=document.createElement('canvas'); bmp.width=w; bmp.height=h;
+    const c=bmp.getContext('2d');
+    if (c){
+      /* Fitted twice: the scale decides how heavy the members must be drawn to
+         read at it, and that weight widens the reach a little. */
+      const fit=e=>Math.min(capK||0.5,(w-4)/(e.x1-e.x0),(h-4)/(e.y1-e.y0));
+      const thick=Math.max(1,Math.min(2.4,0.75/fit(supportArtExtent(d))));
+      const e=supportArtExtent(d,thick), k=fit(e);
+      c.save(); c.translate(w/2-(e.x0+e.x1)/2*k,h/2-(e.y0+e.y1)/2*k); c.scale(k,k);
+      drawSupportArt(c,0,0,d,'Summer',ISO_AXES_FLAT,0x3c1d,thick);
+      c.restore();
+    }
+    SUPPORT_CHIP_CACHE.set(key,bmp);
+  }
+  tc.drawImage(bmp,0,0);
+}
 /* A pergola fitted to a small canvas the same way, through drawPergolaArt --
    a whole little pergola built by the garden's own frame rules, so the chip
    shows posts, beams and rafters where the canvas would put them. It used to
@@ -655,6 +682,7 @@ function drawBrushSwatchCanvas(c,includeLast){
   if (k==='ornament'){ drawOrnamentChip(g,ornamentDraft(),c.width,c.height,0.34); return true; }
   if (k==='boulder'){ drawBoulderChip(g,boulderDraft(),c.width,c.height,0.4); return true; }
   if (k==='pergola'){ drawPergolaChip(g,pergolaDraft(),c.width,c.height); return true; }
+  if (k==='support'){ drawSupportChip(g,supportDraft(),c.width,c.height,0.3); return true; }
   // both chip artworks are 48x44; the swatch is whatever size this canvas is
   if (k==='terrace'||k==='wall'||k==='steps'||k==='berm'){ const s=Math.min(c.width/48,c.height/44);
     g.save(); g.translate((c.width-48*s)/2,(c.height-44*s)/2); g.scale(s,s);
@@ -2111,7 +2139,7 @@ const TOOL_SEARCH={
   pergola:{label:'Pergola',kind:'fill',drill:'pergola',
            hay:'pergola arbor arbour overhead roof shade structure rafters beams posts patio hardscape climber festoon string lights bistro lights fairy lights café lights'},
   support:{label:'Support / Trellis',kind:'fill',drill:'support',
-           hay:'support trellis obelisk tuteur arch arbor climber vine frame vertical hardscape structures willow timber metal'},
+           hay:'support trellis lattice obelisk tuteur arch arbor fan wire espalier wigwam teepee tepee pillar post climber vine frame vertical hardscape structures willow timber metal bamboo painted corten'},
   waterfeature:{label:'Water feature',kind:'fill',drill:'waterfeature',
            hay:'water feature fountain birdbath bird bath bubbler bubbling urn millstone tiered tsukubai stone basin wall spout trough stock tank reflecting pool rill hardscape focal point'},
   boulder:{label:'Boulder',kind:'fill',drill:'boulder',
@@ -2170,7 +2198,8 @@ const SEARCH_OPTION_SOURCES=[
   {tool:'pergola',rows:()=>PERGOLA_MATERIALS,draft:'pergolaDraft',field:'mat',norm:d=>normalizePergolaDraft(d),
    label:r=>r.label+' pergola', icon:(tc,d)=>drawPergolaChip(tc,d,48,44)},
   {tool:'support',rows:()=>SUPPORT_STYLES,draft:'supportDraft',field:'style',norm:d=>normalizeSupportDraft(d),
-   extra:r=>searchFinishLabels(SUPPORT_MATERIALS,r.materials)},
+   label:r=>cap(r.family ? supportSizeText(r)+' '+lowerFirst(r.label) : r.label),
+   extra:r=>searchFinishLabels(SUPPORT_MATERIALS,r.materials)+' climbing frame', icon:(tc,d)=>drawSupportChip(tc,d,48,44)},
   {tool:'firepit',rows:()=>FIREPIT_STYLES,draft:'firepitDraft',field:'style',norm:d=>normalizeFirepitDraft(d),
    label:r=>r.label+' fire pit', extra:r=>searchFinishLabels(FIREPIT_FINISHES,r.finishes),
    icon:(tc,d)=>drawFirepitChip(tc,d,48,44)},
@@ -4096,7 +4125,7 @@ const TOOL_CARDS=[
   // a function where it carries a size, so it follows the units preference
   {k:'fence',       name:'Fence',        desc:()=>`Fences, walls and gates, ${fmtFeet(FENCE_HEIGHTS[0])} to ${fmtFeet(FENCE_HEIGHTS[FENCE_HEIGHTS.length-1])}`},
   {k:'pergola',     name:'Pergola',      desc:'A roof over a patio, for climbers and string lights'},
-  {k:'support',     name:'Support',      desc:'An obelisk, trellis or arch for a climber'},
+  {k:'support',     name:'Support',      desc:'A trellis, obelisk, arch, wires or a wigwam for a climber'},
   {k:'waterfeature',name:'Water feature',desc:'A birdbath, urn, fountain or basin'},
   {k:'firepit',     name:'Fire pit',     desc:'Stone, brick, steel or a fire bowl'},
   {k:'boulder',     name:'Boulder',      desc:'Rocks, ledges and standing stones'},
@@ -4110,6 +4139,7 @@ const TOOL_PICKS=[
   {k:'fence',  label:'Cedar fence',   d:{style:'privacy',height:6,gate:false}},
   {k:'fence',  label:'Stone wall',    d:{style:'stone',height:3,gate:false}},
   {k:'pergola',label:'Pergola',d:{mat:'timber',height:8,lights:'none'}},
+  {k:'support',label:'Trellis',d:{style:'trellis',mat:'timber',face:0,pat:'diamond'}},
   {k:'waterfeature',label:'Birdbath', d:{form:'birdbath'}},
   {k:'firepit',label:'Brick fire pit',d:{style:'brick',finish:'tumbled',shape:'round',size:'round36',face:0}},
   {k:'ornament',label:'Sphere', d:{kind:'sphere'}},
@@ -4149,12 +4179,13 @@ function armToolPick(i){
 /* The tool's draft, drawn w x h by the painter the garden uses for it. */
 function toolCardArt(k,w,h,d){
   d=toolCardDraft(k,d);
-  if (k==='firepit'||k==='pergola'||k==='boulder'||k==='seat'||k==='ornament'){
+  if (k==='firepit'||k==='pergola'||k==='boulder'||k==='seat'||k==='ornament'||k==='support'){
     const {c,x,dpr,pw,ph}=trayCanvas(w,h,false);
     if (k==='firepit') drawFirepitChip(x,d,pw,ph,0.62*dpr);
     else if (k==='pergola') drawPergolaChip(x,d,pw,ph);
     else if (k==='boulder') drawBoulderChip(x,d,pw,ph,0.95*dpr);
     else if (k==='ornament') drawOrnamentChip(x,d,pw,ph,0.8*dpr);
+    else if (k==='support') drawSupportChip(x,d,pw,ph,0.62*dpr);
     else drawSeatChip(x,d,pw,ph,0.7*dpr);
     return c;
   }
@@ -4167,10 +4198,6 @@ function toolCardArt(k,w,h,d){
     for (let i=0;i<n;i++) fencePanel(x,x0+i*seg,y,x0+(i+1)*seg,y,ph,st,st.infill,7+i);
     x.strokeStyle=st.post; x.lineWidth=st.infill==='masonry'?6:3.4;
     for (let i=0;i<=n;i++){ x.beginPath(); x.moveTo(x0+i*seg,y); x.lineTo(x0+i*seg,y-ph); x.stroke(); }
-  } else if (k==='support'){
-    const sp=supportStyle(d.style), s=Math.min(0.5,(w-12)/(inchesToTiles(sp.wIn)*Math.SQRT2*TILE_W),(h-10)/feetToPx(sp.ft));
-    x.save(); x.translate(w/2,h-6); x.scale(s,s);
-    drawSupportArt(x,0,0,Object.assign({},d,{face:0}),'Summer',ISO_AXES_FLAT,0x3c1d); x.restore();
   } else if (k==='waterfeature'){
     const sp=waterFeature(d.form);
     const wPx=inchesToTiles(sp.wIn)*Math.SQRT2*TILE_W*(sp.bed?1.32:1.06), hPx=feetToPx(sp.hIn/12)+inchesToTiles(sp.dIn)*Math.SQRT2*TILE_H*0.62;
@@ -4569,19 +4596,11 @@ function buildToolTrayInner(){
     const sd=supportDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
-    /* Through drawSupportART, so a chip cannot advertise a frame the canvas
-       does not draw — and never drawSupport, which positions itself from
-       screenOf and would land the piece off a 48x44 chip entirely. One cap for
-       every chip, each shrinking below it to fit, the miniWater rule. */
-    const supChipScale=spec=>Math.min(0.30,
-      40/(inchesToTiles(spec.wIn)*Math.SQRT2*TILE_W), 34/feetToPx(spec.ft));
-    const miniSupport=(tc,d)=>{
-      d=normalizeSupportDraft(d);
-      const k=supChipScale(supportStyle(d.style));
-      tc.save(); tc.translate(24,36); tc.scale(k,k);
-      drawSupportArt(tc,0,0,Object.assign({},d,{face:0}),'Summer',ISO_AXES_FLAT,0x3c1d);
-      tc.restore();
-    };
+    /* Through drawSupportChip -- drawSupportART fitted to its reach -- so a chip
+       cannot advertise a frame the canvas does not draw, and never drawSupport,
+       which positions itself from screenOf and would land the piece off a 48x44
+       chip entirely. One cap for every chip, each shrinking below it to fit. */
+    const miniSupport=(tc,d)=>drawSupportChip(tc,d,48,44,0.36);
     const choose=patch=>{
       const cur=supportDraft(), next=Object.assign({},cur,patch);
       // a style may not be made in the armed material — snap, do not reset
@@ -4597,6 +4616,7 @@ function buildToolTrayInner(){
       if (patch.style!==undefined) b.dataset.supportStyle=patch.style;
       if (patch.mat!==undefined) b.dataset.supportMat=patch.mat;
       if (patch.face!==undefined) b.dataset.supportFace=String(patch.face);
+      if (patch.pat!==undefined) b.dataset.supportPat=patch.pat;
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       miniSupport(c.getContext('2d'),d);
       const sp=document.createElement('span'); sp.textContent=label;
@@ -4606,11 +4626,25 @@ function buildToolTrayInner(){
     if (game.drill==='support'){
       backBtn();
       sep('Support');
-      SUPPORT_STYLES.forEach(s=>toolBtn(s.short||s.label, sd.style===s.id, {style:s.id},
-        `${s.label} — ${fmtFeet(s.ft)} for a climber`));
+      /* One chip per frame: the 3 ft and 6 ft trellis panels are ONE panel with a
+         Size row below, the bench's idiom. A family chip keeps the size in hand. */
+      const fam=supportFamily(sd.style), cur=supportStyle(sd.style);
+      SUPPORT_STYLES.filter((s,i)=>!s.family || SUPPORT_STYLES.findIndex(t=>t.family===s.family)===i).forEach(s=>{
+        const mine=s.family && s.family===cur.family;
+        toolBtn(s.short||s.label, mine||sd.style===s.id, {style:mine?sd.style:s.id},
+          `${s.label} — ${fmtFeet(s.ft)} for a climber`);
+      });
       sep('Material');
-      supportMaterials(sd.style).forEach(m=>toolBtn(m.label, sd.mat===m.id, {mat:m.id}, m.label));
-      if (supportStyle(sd.style).face){
+      supportMaterials(sd.style).forEach(m=>toolBtn(m.label, sd.mat===m.id, {mat:m.id}, cap(supportLabelFor(Object.assign({},sd,{mat:m.id})))));
+      if (fam.length>1){
+        sep('Size');
+        fam.forEach(s=>toolBtn(supportSizeText(s), sd.style===s.id, {style:s.id}, cap(supportLabelFor(Object.assign({},sd,{style:s.id})))));
+      }
+      if (cur.pattern){
+        sep('Lattice');
+        SUPPORT_PATTERNS.forEach(p=>toolBtn(p.label, sd.pat===p.id, {pat:p.id}, cap(supportLabelFor(Object.assign({},sd,{pat:p.id})))));
+      }
+      if (cur.face){
         sep('Facing');
         toolBtn('Turn', false, {face:(sd.face+1)%4}, 'Turn it a quarter');
       }
@@ -5139,7 +5173,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
       +FENCE_STYLES.map(f=>f.label+' '+(f.short||'')).join(' ');
     if (k==='firepit') hay+=' hardscape structures fire pit ring bowl round square metal '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ')
       +' '+FIREPIT_STYLES.map(s=>s.label).join(' ')+' '+FIREPIT_FINISHES.map(f=>f.label).join(' ');
-    if (k==='support') hay+=' hardscape support trellis obelisk arch arbor climber vine frame '+SUPPORT_STYLES.map(s=>s.label).join(' ')+' '+SUPPORT_MATERIALS.map(m=>m.label).join(' ');
+    if (k==='support') hay+=' hardscape support trellis lattice obelisk arch arbor fan wire espalier wigwam teepee pillar climber vine frame '+SUPPORT_STYLES.map(s=>s.label).join(' ')+' '+SUPPORT_MATERIALS.map(m=>m.label).join(' ');
     if (k==='waterfeature') hay+=' hardscape water feature fountain birdbath bubbler urn millstone basin spout tank pool '+WATER_FEATURES.map(w=>w.label+' '+(w.short||'')).join(' ')+' '+WATER_FINISHES.map(f=>f.label).join(' ');
     if (k==='boulder') hay+=' hardscape structures boulder rock stone rockery outcrop slab ledge monolith '
       +BOULDER_FORMS.map(f=>f.label).join(' ')+' '+BOULDER_STONES.map(st=>st.label).join(' ');
@@ -5228,6 +5262,8 @@ function refreshTray(){
       ? game.tool==='support' && supportDraft().style===el.dataset.supportStyle
       : el.dataset.supportMat
       ? game.tool==='support' && supportDraft().mat===el.dataset.supportMat
+      : el.dataset.supportPat
+      ? game.tool==='support' && supportDraft().pat===el.dataset.supportPat
       : el.dataset.waterForm
       ? game.tool==='waterfeature' && waterFeatureDraft().form===el.dataset.waterForm
       : el.dataset.waterFinish

@@ -1284,6 +1284,24 @@ function drawPlanSupport(ctx,x0,y0,cell,s){
     line([-hu,0],[hu,0]);
     ctx.lineWidth=0.7; for (let u=-hu+5;u<hu-1;u+=5) line([u,-hv],[u,hv]);
     post(-hu,0); post(hu,0);
+  } else if (sp.form==='wire'){
+    // a wire is drawn as one, dashed: the posts and their braces are what is built
+    ctx.save(); ctx.setLineDash([2,2]); ctx.lineWidth=0.8; line([-hu,0],[hu,0]); ctx.restore();
+    ctx.lineWidth=0.9; line([-hu,0],[-hu+15,0]); line([hu,0],[hu-15,0]);
+    post(-hu,0); post(hu,0);
+  } else if (sp.form==='fan'){
+    // seen from above a fan is a line as wide as its top, standing on one stake
+    line([-hu,0],[hu,0]);
+    ctx.lineWidth=0.7; for (const u of [-hu,hu]) line([u,-hv],[u,hv]);
+    post(0,0);
+  } else if (sp.form==='wigwam'){
+    // its canes round a circle, leaning in to the tie at the middle
+    ctx.lineWidth=0.7;
+    for (let i=0;i<sp.poles;i++){ const a=6.2832*i/sp.poles+0.4, q=[hu*Math.cos(a),hv*Math.sin(a)];
+      line(q,[0,0]); post(q[0],q[1]); }
+    const c=Q(0,0); ctx.beginPath(); ctx.arc(c[0],c[1],Math.max(1.2,ppi*1.6),0,7); ctx.stroke();
+  } else if (sp.form==='pillar'){
+    box(-hu,hu,-hv,hv); ctx.fill();
   } else if (sp.form==='arch'){
     line([-hu,-hv],[-hu,hv]); line([hu,-hv],[hu,hv]);
     ctx.save(); ctx.setLineDash([3,2]); ctx.lineWidth=0.9; box(-hu,hu,-hv,hv); ctx.stroke(); ctx.restore();
@@ -1644,7 +1662,8 @@ function hardscapeRows(opts){
     const d=normalizeBoulderDraft(b2); bump(rocks, d.type+'|'+d.stone); }
   for (const k in game.supports||{}){ const sp=game.supports[k]; if (!sp||sp.removed||!keepRec(sp)) continue;
     // `face` is which way it is turned, which is not something you order
-    const d=normalizeSupportDraft(sp); bump(props, d.style+'|'+d.mat); }
+    // the lattice is what you order too: a diamond and a square panel are two lines
+    const d=normalizeSupportDraft(sp); bump(props, d.style+'|'+d.mat+'|'+(d.pat||'')); }
   for (const k in game.lights||{}){ const l=game.lights[k]; if (!l||l.removed||!keepRec(l)) continue;
     // the FINISH splits the line the way a pot's colour does: it is what you buy
     // a torch has no lamp colour, so two torches never split on one
@@ -1664,8 +1683,8 @@ function hardscapeRows(opts){
      buried third included, since that is delivered too (boulderWeightLb). */
   for (const id in rocks){ const [type,stone]=id.split('|'), d={type,stone};
     add('Boulder', boulderLabelFor(d), rocks[id], rocks[id], boulderTakeoffText(d,rocks[id])); }
-  for (const id in props){ const [style,mat]=id.split('|');
-    add('Support', supportLabel({style,mat}), props[id], props[id]); }
+  for (const id in props){ const [style,mat,pat]=id.split('|'), d={style,mat,pat:pat||undefined};
+    add('Support', supportLabel(d), props[id], props[id], supportTakeoffText(d,props[id])); }
   for (const id in lamps){ const [type,tone,finish]=id.split('|');
     /* The NAME is the fixture you order -- its metal and its model. The lamp
        colour is a setup choice rather than a different product, so it rides the

@@ -2337,6 +2337,16 @@ function plantDrawBox(P,key,growth){
   // versions do not change silhouette when the governor flips. `growth` here is
   // the same value drawPlant is handed, since the shadow scales with it.
   const below=plantDrawBelow(P,growth,H)+8;
+  /* A climber takes its frame's shape (0.9.158): along a fence or a 6 ft panel
+     it spreads up to CLIMB_REACH of its height either side of its foot, and a
+     run seen in iso slopes, so one end of it is lower on the screen than the
+     foot and the other higher. The box holds that reach in both directions,
+     plus a leaf, for every frame. */
+  if (P.type==='vine'){
+    const reach=H*CLIMB_REACH;
+    return {halfW:Math.max(halfW, reach*0.9+H*0.08+12), top:Math.max(top, H+reach*0.46+H*0.08+20),
+      bot:Math.max(18, Number.isFinite(below)?below:18, reach*0.46+H*0.06+12)};
+  }
   return {halfW, top, bot:Math.max(18,Number.isFinite(below)?below:18)};
 }
 /* ---------- sprite pixels live in ImageBitmaps, not <canvas> elements ----------

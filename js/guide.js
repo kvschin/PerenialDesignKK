@@ -717,7 +717,18 @@ function gsPaintEntities(ctx,st,sway){
        tulips and a pot of sedge agreeing about where soil level is. The vessel
        sorts behind it (gsPropDepth), so the foliage draws over its own rim. */
     const pot=st.props.find(q=>q.kind==='pot'&&q.x===x&&q.y===y);
-    ents.push({d:(pot?gsPropDepth(st,pot)-0.24:gsDepth(st,x,y))+0.30, draw:()=>{
+    /* A climber on a frame takes the frame's shape, through the garden's own
+       climberSupportDetail on the stage's axes, and draws in front of it --
+       the scene's rule (buildScene) on the stage's depths. */
+    const P=PLANTS[p.s], fr=P&&P.type==='vine' ? st.props.find(q=>{ if (q.kind!=='support') return false;
+      const sz=gsPropSize(q); return x>=q.x&&x<q.x+sz.w&&y>=q.y&&y<q.y+sz.h; }) : null;
+    let detail;
+    if (fr){
+      const fd=normalizeSupportDraft(fr), spec=supportStyle(fd.style), sz=gsPropSize(fr);
+      detail=climberSupportDetail({kind:spec.form, ft:spec.ft, style:fd.style, face:fd.face,
+        w:sz.w, h:sz.h, x:fr.x, y:fr.y},x,y,P,gsAxes(st));
+    }
+    ents.push({d:fr?gsPropDepth(st,fr)+0.14:(pot?gsPropDepth(st,pot)-0.24:gsDepth(st,x,y))+0.30, draw:()=>{
       let px=x+(p.ox||0), py=y+(p.oy||0), lift=0;
       if (pot){ const sz=gsPropSize(pot);
         px=pot.x+(sz.w-1)/2; py=pot.y+(sz.h-1)/2;
@@ -731,7 +742,7 @@ function gsPaintEntities(ctx,st,sway){
          reading game state after all. The season still decides WHETHER there is
          a flower, because that comes from the species' own `sea` block. */
       drawPlant(ctx,sx,sy+TILE_H/2-lift,p.s,p.g,st.season,tileSeed(x,y),sway,p.v,
-        p.bloom===undefined?1:p.bloom);
+        p.bloom===undefined?1:p.bloom,detail);
       ctx.restore();
     }});
   });
@@ -3183,8 +3194,10 @@ function guideChapters(){
             'All three reach the planting list and the plan — somebody has to buy and install them.']},
       {id:'climbers', demo:'climbers', title:'Supports and climbers',
        lead:'Vertical is the one dimension a small garden has spare.',
-       how:['Stand an obelisk, a trellis panel or an arch first — or use a fence you already have.',
+       how:['Stand a frame first: a trellis panel, a fan, wires, an obelisk, a wigwam, a rose pillar or an arch — or use a fence you already have.',
             'A climber cannot be planted in open ground, and a frame will not take anything but a climber.',
+            'A climber spreads as wide as it really grows, and no wider than its frame.',
+            'Plant an arch at its legs: the tile between them is the way through, and a path can run under it.',
             'Lift the frame and the climber comes with it.']},
       {id:'lighting', demo:'lighting', title:'Lighting',
        lead:'Path lights, bollards, lamp posts, a lantern on a hook, uplights and torches.',

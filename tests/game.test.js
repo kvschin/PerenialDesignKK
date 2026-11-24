@@ -1668,6 +1668,18 @@ test('a plant that keeps its leaves through winter is not cut back in spring', (
   assert(plantGrowth({s:'bluestem',d:absDay()-200})<0.2,'beside a cut-back grass');
 });
 
+test('a woody climber keeps its stems on its frame through spring; hops and Italian clematis start again', () => {
+  /* A climber followed the perennial year, so every spring a climbing rose and a
+     wisteria were cut to a stub at the foot of their arch and grew it again. */
+  setup();
+  game.dayOffset=(game.dayOffset||0)-(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS);
+  const woody=['virginiacreeper','trumpethoneysuckle','crossvine','americanwisteria','climbinghydrangea','climbingrose','starjasmine'];
+  for (const k of woody) assertEqual(seasonEnvelope(k),1,k+': stands at full size on the first day of spring');
+  for (const k of ['goldenhops','clematisviticella']) assert(seasonEnvelope(k)<0.2,k+': is cut back and grows again');
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='vine'&&PLANTS[k].noCutback).sort().join(),woody.slice().sort().join(),
+    'and those are the climbers that keep their stems');
+});
+
 test('the yuccas, agaves, sotols and ocotillo keep their size through spring', () => {
   // Their winter leaves are drawn grey or blue-green, which the colour test cannot read
   // as evergreen, and ocotillo's canes are wood with no winter leaves at all.
@@ -1680,7 +1692,8 @@ test('the yuccas, agaves, sotols and ocotillo keep their size through spring', (
     assert(PLANTS[k].noCutback,k+': marked on the record');
     assertEqual(seasonEnvelope(k),1,k+': stands at full size on the first day of spring');
   }
-  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].noCutback).sort().join(),kept.slice().sort().join(),'and nothing else is');
+  // the woody climbers carry it too (their own test, above)
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].noCutback&&PLANTS[k].type!=='vine').sort().join(),kept.slice().sort().join(),'and nothing else is');
   // false aloe dies back to the ground in winter and comes again like any perennial
   assert(!PLANTS.falsealoe.noCutback&&seasonEnvelope('falsealoe')<0.2,'false aloe is still cut back');
   // the flag means something only where the spring envelope applies
@@ -22135,6 +22148,151 @@ test('supports survive a save, and an older garden simply has none', async () =>
   assertEqual(supportAt(4, 4), null, 'and nothing standing in it');
 
   await sDel('hortus:world:' + id); await sDel('hortus:world:' + legacy);
+});
+
+/* ---- 0.9.158: the frames rebuilt, the new ones, and climbers that fit ---- */
+test('a trellis panel keeps its lattice inside its posts and rails', () => {
+  /* The old lattice was a row of V's standing on the ground: each lath ran from
+     a foot to a point half the panel's width along, so they crossed both posts
+     and the top rail and stood in the soil. Every lath is now inside the frame,
+     in both patterns and both sizes, and a diamond has laths both ways. */
+  for (const id of ['trellis', 'trellis6']) for (const pat of ['diamond', 'square']) {
+    const d = normalizeSupportDraft({ style: id, mat: 'timber', pat }), spec = supportStyle(id);
+    const hh = feetToPx(spec.ft), halfW = inchesToTiles(spec.wIn) / 2;
+    const laths = supportMembers(spec, supportMaterial('timber'), d, hh).filter(m => m.role === 'lath');
+    assert(laths.length > 8, `${id} ${pat}: it has a lattice (${laths.length} laths)`);
+    for (const m of laths) for (const [u, v, z] of m.pts) {
+      assert(Math.abs(u) <= halfW + 1e-9, `${id} ${pat}: a lath stays between the posts (u ${u.toFixed(3)})`);
+      assert(z >= feetToPx(6 / 12) - 1e-6 && z <= hh - feetToPx(4 / 12) + 1e-6,
+        `${id} ${pat}: and between the rails (z ${z.toFixed(1)})`);
+    }
+    const dirs = new Set(laths.map(m => { const [a, b] = m.pts;
+      return Math.sign(Math.round((b[0] - a[0]) * 1e6)) + ',' + Math.sign(Math.round((b[2] - a[2]) * 1e6)); }));
+    if (pat === 'diamond') assertEqual(dirs.size, 2, `${id}: a diamond lattice runs both ways`);
+    else assert(dirs.has('0,1') && dirs.has('1,0'), `${id}: a square lattice is upright and across`);
+  }
+});
+
+test('every frame draws inside the reach its chip is fitted to', () => {
+  /* supportArtExtent is what the tray chip, the card and the brush swatch fit;
+     a frame that drew past it would be cropped there. Recorded off the real
+     painter, every frame in every material and lattice, summer and winter. */
+  for (const s of SUPPORT_STYLES) for (const m of s.materials) for (const pat of (s.pattern ? ['diamond', 'square'] : [undefined]))
+    for (const season of ['Summer', 'Winter']) {
+      const d = { style: s.id, mat: m, face: 0, pat };
+      const ctx = extentRecorder(), e = supportArtExtent(d);
+      drawSupportArt(ctx, 0, 0, d, season, ISO_AXES_FLAT, 7);
+      const b = ctx.b, tag = `${s.id}/${m}/${pat || '-'}/${season}`;
+      assert(b.n > 10, tag + ': it draws');
+      assert(b.x0 >= e.x0 - 1 && b.x1 <= e.x1 + 1 && b.y0 >= e.y0 - 1 && b.y1 <= e.y1 + 1,
+        `${tag}: inside its extent (${[b.x0, b.x1, b.y0, b.y1].map(Math.round)} vs ${[e.x0, e.x1, e.y0, e.y1].map(Math.round)})`);
+    }
+});
+
+test('the new frames: what they are called, where they stand, and how they are ordered', () => {
+  withUnits('imperial', () => {
+    assertEqual(supportLabelFor({ style: 'obelisk', mat: 'timber' }), 'Timber obelisk', 'a frame with one size names no size');
+    assertEqual(supportLabelFor({ style: 'trellis6', mat: 'white', pat: 'square' }), '6 ft painted white square trellis panel',
+      'a panel names its size and its lattice');
+    assertEqual(supportLabelFor({ style: 'trellis', mat: 'timber' }), '3 ft timber diamond trellis panel',
+      'and a panel saved before lattices is the diamond it was drawn as');
+  });
+  assertEqual(normalizeSupportDraft({ style: 'obelisk', pat: 'square' }).pat, undefined, 'only a panel carries a lattice');
+  assertEqual(normalizeSupportDraft({ style: 'wigwam', mat: 'timber' }).mat, 'bamboo', 'a material a frame is not made in snaps to its first');
+  assertEqual(normalizeSupportDraft({ style: 'wire', mat: 'bamboo' }).mat, 'timber', 'wires go up on timber, metal or corten posts');
+  const size = id => { const t = supportTileSize({ style: id, face: 0 }); return t.w + 'x' + t.h; };
+  assertEqual(size('trellis'), '2x1', 'a 3 ft panel stands on two tiles');
+  assertEqual(size('trellis6'), '4x1', 'a 6 ft panel on four');
+  assertEqual(size('fan'), '1x1', 'a fan stands on its one foot, however wide its top');
+  assertEqual(size('wire'), '4x1', 'six feet of wires');
+  assertEqual(size('wigwam') + ' ' + size('pillar'), '1x1 1x1', 'a wigwam and a pillar on one tile each');
+  assertEqual(supportFamily('trellis6').map(s => s.id).join(), 'trellis,trellis6', 'the two panels are one family');
+
+  setup(21, 21);
+  game.supports['2,2'] = { style: 'wire', mat: 'timber', face: 0, t: 1 };
+  game.supports['2,6'] = { style: 'wire', mat: 'timber', face: 0, t: 1 };
+  game.supports['10,2'] = { style: 'trellis', mat: 'timber', pat: 'diamond', face: 0, t: 1 };
+  game.supports['10,6'] = { style: 'trellis', mat: 'timber', pat: 'square', face: 0, t: 1 };
+  game.supports['14,10'] = { style: 'wigwam', mat: 'bamboo', face: 0, t: 1 };
+  const rows = withUnits('imperial', () => hardscapeRows().filter(r => r.kind === 'Support'));
+  const wire = rows.find(r => /wire trellis/i.test(r.name));
+  assert(wire && wire.count === 2, 'two wire trellises are one line of two');
+  assert(/5 wires/.test(wire.detail) && /60 ft of wire in all/.test(wire.detail), 'and it says what wire to buy: ' + wire.detail);
+  assertEqual(rows.filter(r => /trellis panel/.test(r.name)).length, 2, 'a diamond and a square panel are two lines');
+  assert(/6 canes/.test(rows.find(r => /wigwam/i.test(r.name)).detail), 'a wigwam is ordered by its canes');
+
+  const hits = searchOptionItems().filter(i => i.tool === 'support').map(i => i.label);
+  for (const want of ['Wigwam', 'Rose pillar', 'Fan trellis', 'Wire trellis', '3 ft trellis panel', '6 ft trellis panel'])
+    assert(hits.includes(want), 'the landscape search finds ' + want + ': ' + hits.join(', '));
+});
+
+test('an arch is walked through: its middle tile is open ground, and a climber goes at a leg', () => {
+  setup(21, 21);
+  const vine = 'climbingrose', forb = firstOfType('forb');
+  game.tool = 'support'; game.supportDraft = { style: 'arch', mat: 'black', face: 0 };
+  assertEqual(applyToolAt(4, 8), 'support', 'the arch goes up on three tiles');
+  assert(supportAt(5, 8).way && !supportAt(4, 8).way && !supportAt(6, 8).way, 'the middle one is the way through');
+  game.tool = vine;
+  assertEqual(applyToolAt(5, 8), null, 'no climber in the way through');
+  assertEqual(applyToolAt(4, 8), 'plant', 'it goes at a leg');
+  game.tool = forb;
+  assertEqual(applyToolAt(6, 8), null, 'a leg is for a climber only');
+  assertEqual(applyToolAt(5, 8), 'plant', 'the way through takes a low planting');
+  delete game.plants['5,8'];
+  // a path runs under it, which is what an arch is for
+  game.tool = 'path';
+  assert(placeTerrainAt(5, 8), 'a path can be laid through the arch');
+  assertEqual(placeTerrainAt(6, 8), null, 'but not under its legs');
+  // and an arch can go up over a path, or a low planting, already there
+  setup(21, 21);
+  game.tool = 'path'; placeTerrainAt(5, 8);
+  game.tool = 'support'; game.supportDraft = { style: 'arch', mat: 'timber', face: 1 };
+  assertEqual(applyToolAt(5, 7), 'support', 'over a path, which is its way through');
+  game.plants['12,9'] = { s: forb, d: 0, t: 1 };
+  game.supportDraft = { style: 'arch', mat: 'timber', face: 0 };
+  assertEqual(applyToolAt(11, 9), 'support', 'and over a perennial standing in its way through');
+  game.plants['16,4'] = { s: forb, d: 0, t: 1 };
+  assertEqual(applyToolAt(16, 4), null, 'a perennial where a leg would stand still refuses it');
+});
+
+test('a climber spreads as wide as it grows, and no wider than its frame', () => {
+  /* Every climber used to be the same 1.6 tiles wide whatever it was on, so two
+     roses on a 3 ft trellis spilled a tile past both posts. Read off the real
+     drawing: where its leaves and flowers land, against the frame's reach. */
+  setup(21, 21);
+  const W = 800, H = 600, vine = 'climbingrose';
+  const centres = (x, y) => {
+    const p = game.plants[`${x},${y}`], det = climberRenderDetail(x, y, p, W, H), pts = [];
+    const ctx = makeCanvasCtx({ ellipse(cx, cy){ if (!/^rgba\(0,\s*0,\s*0/.test(String(this.fillStyle))) pts.push([cx, cy]); } });
+    drawPlant(ctx, 0, 0, vine, 1, 'Summer', tileSeed(x, y), 0, undefined, 1, det);
+    return { det, pts };
+  };
+  game.tool = 'support'; game.supportDraft = { style: 'trellis', mat: 'timber', face: 0 };
+  applyToolAt(5, 5);
+  game.tool = vine; applyToolAt(5, 5);
+  const tr = centres(5, 5);
+  assertEqual(tr.det.ext.join(), '-0.5,1.5', 'the frame reaches half a tile one way and a tile and a half the other');
+  const ax = tr.det.axis[0], step = tr.det.step;
+  for (const [cx] of tr.pts)
+    assert(cx >= -0.5 * step * ax - 9 && cx <= 1.5 * step * ax + 9, `a leaf stays on the panel (x ${cx.toFixed(1)})`);
+  assert(Math.max(...tr.pts.map(p => p[0])) > 0.9 * step * ax, 'and the rose is trained across it, not bunched at its foot');
+
+  game.tool = 'support'; game.supportDraft = { style: 'wire', mat: 'timber', face: 0 };
+  applyToolAt(3, 12);
+  game.tool = vine; applyToolAt(3, 12);
+  const wi = centres(3, 12), wx = Math.max(...wi.pts.map(p => p[0]));
+  assert(wx > 2 * wi.det.step * wi.det.axis[0], 'at the end of a run of wires it spreads along them');
+  const wide = PLANTS[vine].spread / TILE_IN;
+  assert(wx <= (wide - 0.5) * wi.det.step * wi.det.axis[0] + 9, 'and no further than it grows');
+
+  game.tool = 'support'; game.supportDraft = { style: 'arch', mat: 'black', face: 0 };
+  applyToolAt(10, 16);
+  game.tool = vine; applyToolAt(10, 16);
+  const ar = centres(10, 16), fh = feetToPx(supportStyle('arch').ft);
+  assertEqual(ar.det.side, -1, 'the near leg is the one it climbs');
+  assert(Math.min(...ar.pts.map(p => p[1])) < -fh * 0.85, 'up the leg and over the head');
+  assert(Math.max(...ar.pts.map(p => p[0] * ar.det.axis[0])) > 0.6 * ar.det.step * Math.abs(ar.det.axis[0]),
+    'reaching across toward the crown');
 });
 
 test('every multi-tile piece sits on its footprint at every rotation', () => {

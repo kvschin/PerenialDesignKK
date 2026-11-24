@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Support review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}header{padding:12px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}select,button{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:6px 8px}main{display:flex;flex-direction:column;gap:10px;padding:10px}article{background:#30291f;padding:8px;border-radius:6px}h2{font-size:13px;margin:0 0 4px}.row{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end}figure{margin:0;text-align:center}figcaption{font-size:10px;color:#c7b9a2}canvas{display:block;background:#6f8a4e;border-radius:4px}.chip canvas{background:#3a3027;image-rendering:pixelated}#status{padding:0 16px;font-size:12px;color:#d6c094}
+</style><body>
+<script>
+(function(){
+  window.__reviewResizeObserver=window.ResizeObserver;
+  window.ResizeObserver=class { observe(){} unobserve(){} disconnect(){} };
+  function noopCtx(){ return new Proxy({}, { get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p]; return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();},
+      getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p];
+        if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
+  window.__errs=[]; window.onerror=function(m,s,l){ window.__errs.push(m+' @'+l); };
+})();
+</script>
+<script src="../js/plants.js"></script>
+<script src="../js/core.js"></script>
+<script src="../js/draw.js"></script>
+<script src="../js/world.js"></script>
+<script src="../js/view.js"></script>
+<script src="../js/renderer.js"></script>
+<script src="../js/commands.js"></script>
+<script src="../js/input.js"></script>
+<script src="../js/io.js"></script>
+<script src="../js/collections.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/tray.js"></script>
+<script>
+window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
+window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
+</script>
+<header><h1>Support review</h1>
+<label>Material <select id="mat"><option value="0">first</option><option value="1">second</option><option value="2">third</option><option value="3">fourth</option></select></label>
+<label>Season <select id="season"><option>Summer</option><option>Spring</option><option>Fall</option><option>Winter</option></select></label>
+<label>Scale <select id="scale"><option value="1">1x</option><option value="1.6" selected>1.6x</option><option value="2">2x</option><option value="2.4">2.4x</option><option value="3">3x</option></select></label>
+<label>Face <select id="face"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+<label>Lattice <select id="pat"><option>diamond</option><option>square</option></select></label>
+<label>Climber <select id="vine"><option value="">none</option></select></label>
+<label>Growth <select id="growth"><option value="1">1</option><option value="0.6">0.6</option><option value="0.3">0.3</option><option value="0">0</option></select></label>
+</header>
+<p id="status"></p><main id="out"></main>
+<script>
+/* Every climbing frame at four camera rotations, on its own tile diamonds,
+   beside its tray chip at real size and blown up; with Climber set, that
+   climber planted on every tile of each frame, drawn through the garden's own
+   climberRenderDetail. ?only=obelisk,trellis picks frames, ?rots=0,2 picks
+   rotations, ?sheet=1 lays every frame in every material at one rotation,
+   ?bench=1 times a procedural draw of each. */
+const Q=id=>document.getElementById(id);
+const qs=new URLSearchParams(location.search);
+for (const k of PLANT_KEYS) if (PLANTS[k].type==='vine'){ const o=document.createElement('option'); o.value=k; o.textContent=PLANTS[k].name; Q('vine').appendChild(o); }
+function tileDiamonds(c,cx,cy,ax,ay,sz){
+  c.strokeStyle='rgba(255,255,255,.28)'; c.lineWidth=1;
+  for (let i=0;i<sz.w;i++) for (let j=0;j<sz.h;j++){
+    const u=i-(sz.w-1)/2, v=j-(sz.h-1)/2;
+    const px=cx+ax[0]*u+ay[0]*v, py=cy+ax[1]*u+ay[1]*v;
+    c.beginPath(); c.moveTo(px,py-TILE_H/2); c.lineTo(px+TILE_W/2,py); c.lineTo(px,py+TILE_H/2); c.lineTo(px-TILE_W/2,py); c.closePath(); c.stroke();
+  }
+}
+/* A tiny garden with the frame at 6,6 and the climber on each of its tiles, so
+   the climber gets the detail the scene would hand it. Drawn in depth order:
+   the frame, then each climber on the depth buildScene gives it. */
+function figure(d,r,season,k,w,h,vine,growth){
+  const W=Math.round(w*k), H=Math.round(h*k);
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const c=cv.getContext('2d');
+  c.save(); c.translate(W/2,H*0.8); c.scale(k,k);
+  const axes=isoAxes(r);
+  const sz=supportTileSize(d);
+  tileDiamonds(c,0,0,axes[0],axes[1],sz);
+  game.rot=r; setWorldSize(16,16); game.supports={}; game.plants={}; game.fences={};
+  game.supports['6,6']=Object.assign({},d,{t:1});
+  // camera so that the frame's ground centre lands at the canvas origin
+  const VWx=800, VHx=600; cam.x=0; cam.y=0;
+  const [gx,gy]=groundCenterRot(6,6,sz,VWx,VHx);
+  const ox=-gx, oy=-gy;
+  c.save(); c.translate(ox,oy);
+  drawSupport(c,VWx,VHx,season,game.supports['6,6'],6,6);
+  if (vine){
+    const recs=[];
+    for (let i=0;i<sz.w;i++) for (let j=0;j<sz.h;j++){
+      if (supportTileOpen(d,i+j,Math.max(sz.w,sz.h))) continue;   // an arch's way through
+      const x=6+i, y=6+j, p={s:vine,d:0}; game.plants[`${x},${y}`]=p;
+      recs.push({x,y,p,d:viewDepth(x,y)});
+    }
+    recs.sort((a,b)=>a.d-b.d);
+    for (const rc of recs){
+      const det=climberRenderDetail(rc.x,rc.y,rc.p,VWx,VHx);
+      const [px,py]=plantScreenOf(rc.x,rc.y,rc.p,VWx,VHx);
+      drawPlant(c,px,py,vine,growth,season,tileSeed(rc.x,rc.y),0,undefined,1,det);
+    }
+  }
+  c.restore(); c.restore();
+  return cv;
+}
+function render(){
+  const out=Q('out'); out.innerHTML='';
+  const mi=+Q('mat').value, season=Q('season').value, k=+Q('scale').value, face=+Q('face').value;
+  const vine=Q('vine').value, growth=+Q('growth').value, pat=Q('pat').value;
+  const only=(qs.get('only')||'').split(',').filter(Boolean);
+  const rots=(qs.get('rots')||'0,1,2,3').split(',').map(Number);
+  if (qs.get('sheet')){
+    const art=document.createElement('article'), row=document.createElement('div'); row.className='row';
+    for (const s of SUPPORT_STYLES){ if (only.length && !only.includes(s.id)) continue;
+      for (const m of s.materials){
+        const fg=document.createElement('figure'); fg.append(figure({style:s.id,mat:m,face,pat},rots[0],season,k,170,260,vine,growth));
+        const cap=document.createElement('figcaption'); cap.textContent=supportLabelFor({style:s.id,mat:m}); fg.append(cap); row.appendChild(fg);
+      } }
+    art.appendChild(row); out.appendChild(art); return;
+  }
+  for (const s of SUPPORT_STYLES){
+    if (only.length && !only.includes(s.id)) continue;
+    const mat=s.materials[Math.min(mi,s.materials.length-1)], d={style:s.id,mat,face,pat};
+    const art=document.createElement('article');
+    const h2=document.createElement('h2'); h2.textContent=supportLabelFor(d)+`  (${s.wIn}x${s.dIn} in, ${s.ft} ft)`; art.appendChild(h2);
+    const row=document.createElement('div'); row.className='row';
+    for (const r of rots){
+      const fg=document.createElement('figure'); fg.append(figure(d,r,season,k,190,260,vine,growth));
+      const cap=document.createElement('figcaption'); cap.textContent='rot '+r; fg.append(cap); row.appendChild(fg);
+    }
+    if (typeof drawSupportChip==='function'){
+      const chipFig=document.createElement('figure'); chipFig.className='chip';
+      const chip=document.createElement('canvas'); chip.width=48; chip.height=44;
+      drawSupportChip(chip.getContext('2d'),{style:s.id,mat,face:0},48,44);
+      const big=document.createElement('canvas'); big.width=144; big.height=132;
+      const bc=big.getContext('2d'); bc.imageSmoothingEnabled=false; bc.drawImage(chip,0,0,144,132);
+      chipFig.append(chip,big); const cc=document.createElement('figcaption'); cc.textContent='chip'; chipFig.append(cc);
+      row.appendChild(chipFig);
+    }
+    art.appendChild(row); out.appendChild(art);
+  }
+  game.rot=0;
+}
+['mat','season','scale','face','vine','growth','pat'].forEach(id=>Q(id).onchange=render);
+['mat','season','scale','face','vine','growth','pat'].forEach(id=>{ if (!qs.has(id)) return; const el=Q(id), v=qs.get(id);
+  if (![...el.options].some(o=>o.value===v)){ const o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o); } el.value=v; });
+render();
+if (qs.get('bench')){
+  const cv=document.createElement('canvas'); cv.width=400; cv.height=500; const c=cv.getContext('2d');
+  const flush=document.createElement('canvas').getContext('2d',{willReadFrequently:true});
+  const rows=[];
+  for (const s of SUPPORT_STYLES) for (const m of s.materials){ let best=1e9;
+    for (let r=0;r<7;r++){ const t0=performance.now();
+      for (let i=0;i<20;i++){ c.clearRect(0,0,400,500); drawSupportArt(c,200,420,{style:s.id,mat:m,face:i%4},'Summer',isoAxes(i%4),7); }
+      flush.drawImage(cv,0,0,1,1,0,0,1,1); flush.getImageData(0,0,1,1);
+      best=Math.min(best,(performance.now()-t0)/20); }
+    rows.push(s.id+'/'+m+' '+best.toFixed(3)+'ms'); }
+  Q('status').textContent=rows.join('  |  '); window.__bench=rows;
+}
+</script>
+</body></html>

@@ -345,7 +345,8 @@ function actHere(opts){
     if (game.tool==='water' && ornamentAt(x,y)){ toast('Move the ornament before making water.'); return; }
     if (firepitAt(x,y)){ toast('Move the fire pit before changing the ground.'); return; }
     if (waterFeatureAt(x,y)){ toast('Move the water feature before changing the ground.'); return; }
-  if (structureSupportAt(x,y)){ toast('Move the support before changing the ground.'); return; }
+  if (supportHoldsGround(x,y)){ toast('Move the support before changing the ground.'); return; }
+    if (game.tool==='water' && structureSupportAt(x,y)){ toast('Move the arch before making water.'); return; }
     if (pergolaAt(x,y) && game.tool==='water'){ toast('Move the pergola before making water.'); return; }
     if (boulderAt(x,y)){ toast('Move the boulder before changing the ground.'); return; }
     const wasSame=terr===game.tool;
@@ -427,6 +428,8 @@ function actHere(opts){
      rule is symmetric (placePlantAt) and neither half is guessable. */
   const supHere=supportAt(x,y);
   if (def.type==='vine' && !supHere){ rejectPlacement('A climber needs something to climb — a fence, a support or a pergola.'); return; }
+  if (def.type==='vine' && supHere.way){ rejectPlacement('That is the way through the arch. Plant the climber at a leg.'); return; }
+  if (supHere && supHere.way && isWoodyDef(def)){ rejectPlacement('That is the way through the arch: keep it to low planting.'); return; }
   if (supHere && def.type!=='vine' && !supHere.open){
     rejectPlacement(supHere.kind==='pergola' ? 'A pergola post stands there — only a climber goes at its foot.'
       : 'That frame is for a climber.'); return; }
@@ -596,7 +599,7 @@ function placeTerrainAt(x,y){
   if (game.tool==='water' && (potAt(x,y) || seatAt(x,y) || ornamentAt(x,y) || pergolaAt(x,y))) return null;
   if (firepitAt(x,y)) return null;
   if (waterFeatureAt(x,y)) return null;
-  if (structureSupportAt(x,y)) return null;
+  if (supportHoldsGround(x,y) || (game.tool==='water' && structureSupportAt(x,y))) return null;
   if (boulderAt(x,y)) return null;
   if (game.tool==='water' && eb && !eb.removed) return null;
   /* Merge over whatever the tile already carried, never replace it: edging rides
@@ -692,6 +695,8 @@ function placePlantAt(x,y,opts){
   // a non-plant tool, but this used to be the first line to dereference def
   const sup=supportAt(x,y), isVine=!!def && def.type==='vine';
   if (isVine && !sup) return null;
+  if (isVine && sup.way) return null;              // an arch's way through: a climber goes at a leg
+  if (sup && sup.way && isWoodyDef(def)) return null;
   // a pergola's roof is open ground except where a post stands (supportAt)
   if (sup && !isVine && !sup.open) return null;
   if (sup && sup.kind==='pergola' && isTreeDef(def)) return null;   // it would grow through the roof
@@ -2092,8 +2097,11 @@ function supportAt(x,y){
   const st=structureSupportAt(x,y);
   if (st){
     const spec=supportStyle(st.style), sz=supportTileSize(st);
+    /* An arch's middle tiles are the way through it: open ground, like a
+       pergola's roof between its posts, and no place for a climber. */
+    const way=supportTileOpen(st,(x-st.x)+(y-st.y),Math.max(sz.w,sz.h));
     return {kind:spec.form, ft:spec.ft, style:st.style, mat:st.mat, face:st.face,
-      w:sz.w, h:sz.h, x:st.x, y:st.y, key:st.key};
+      w:sz.w, h:sz.h, x:st.x, y:st.y, key:st.key, open:way, way};
   }
   const f=fenceAt(x,y);
   if (f && !f.gate) return {kind:'fence', ft:fenceHeightFor(f.style,f.height), fence:f, w:1, h:1, x, y};
@@ -2112,6 +2120,12 @@ function supportAt(x,y){
   }
   return null;
 }
+// a frame whose ground is its own: every tile of it but an arch's way through
+function supportHoldsGround(x,y){
+  const st=structureSupportAt(x,y); if (!st) return false;
+  const sz=supportTileSize(st);
+  return !supportTileOpen(st,(x-st.x)+(y-st.y),Math.max(sz.w,sz.h));
+}
 function supportFootprint(x,y,s){
   const sz=supportTileSize(s), tiles=[];
   for (let dy=0;dy<sz.h;dy++) for (let dx=0;dx<sz.w;dx++) tiles.push([x+dx,y+dy]);
@@ -2120,14 +2134,23 @@ function supportFootprint(x,y,s){
 /* Under a pergola its posts are the climbing frame already. As a pot does, it
    refuses a planting: the structure goes down first, then the climber goes on it. */
 function supportBlocker(x,y,ignoreKey){
-  return footprintBlocker(supportFootprint(x,y,supportDraft()),'support',ignoreKey,{roof:'support'});
+  const d=supportDraft(), sz=supportTileSize(d), n=Math.max(sz.w,sz.h);
+  /* An arch goes up over a path or a low planting already there: its way
+     through is open ground, so only its legs need clear ground. */
+  const plantOk=(tx,ty)=>{
+    if (!supportTileOpen(d,(tx-x)+(ty-y),n)) return false;
+    const p=game.plants[tx+','+ty];
+    return !(p && !p.removed && PLANTS[p.s] && (isWoodyDef(plantDef(p.s,p.v))||PLANTS[p.s].type==='vine'));
+  };
+  return footprintBlocker(supportFootprint(x,y,d),'support',ignoreKey,{roof:'support',plantOk});
 }
 function canPlaceSupport(x,y,ignoreKey){ return !supportBlocker(x,y,ignoreKey); }
 function placeSupportAt(x,y){
   if (!game.supports) game.supports={};
   const d=normalizeSupportDraft(supportDraft()), k=`${x},${y}`;
   const cur=game.supports[k];
-  if (cur && !cur.removed && cur.style===d.style && cur.mat===d.mat && cur.face===d.face) return null;
+  if (cur && !cur.removed && cur.style===d.style && cur.mat===d.mat && cur.face===d.face
+    && (normalizeSupportDraft(cur).pat||'')===(d.pat||'')) return null;
   if (!canPlaceSupport(x,y,k)) return null;
   setTile('supports',k,Object.assign({},d,{t:Date.now()}));
   return 'support';
@@ -2876,7 +2899,9 @@ function selectionStayingWaterAt(x,y,ctx){
    frame, a fence that is not a gate, or a pergola roof. The supportAt rule,
    asked of the arrangement after the move. */
 function selectionSupportAt(x,y,ctx){
-  if (selectionObjectAt(x,y,ctx,'support')) return {kind:'frame', open:false};
+  const so=selectionObjectAt(x,y,ctx,'support');
+  if (so){ const sz=supportTileSize(so), way=supportTileOpen(so,(x-so.x)+(y-so.y),Math.max(sz.w,sz.h));
+    return {kind:'frame', open:way, way}; }
   const f=selectionFenceAt(x,y,ctx);
   if (f && !f.gate) return {kind:'fence', open:false};
   const pg=selectionPergolaAt(x,y,ctx);
@@ -2900,9 +2925,10 @@ function selectionPlantDestValid(rec,x,y,ctx,isBulb){
   if (!P) return true;
   const isVine=P.type==='vine', tree=isTreeDef(P);
   const pot=selectionObjectAt(x,y,ctx,'pot'), sup=selectionSupportAt(x,y,ctx);
-  if (isVine && !sup) return false;
+  if (isVine && (!sup || sup.way)) return false;
   if (sup && !isVine && !sup.open) return false;
   if (sup && sup.kind==='pergola' && tree) return false;
+  if (sup && sup.way && isWoodyDef(P)) return false;
   if (selectionLightAt(x,y,ctx)) return false;
   for (const f of ['firepit','waterFeature','boulder','seat','ornament'])
     if (selectionObjectAt(x,y,ctx,f)) return false;

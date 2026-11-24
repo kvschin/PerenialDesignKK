@@ -7183,6 +7183,10 @@ function drawPalmSedge(ctx,P,L,S,H,sway,rnd,stemFor,a2,head,drawSeed,snow){
   }
   return anchors;
 }
+/* How far either side of its foot a climber may spread on a frame, as a share
+   of its drawn height: plantDrawBox keeps a climber's sprite wide and deep
+   enough for exactly this, so a wide frame can never clip the plant on it. */
+const CLIMB_REACH = 0.72;
 function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail, leafStage){
   // Every plant starts with empty floret and thread batches. Each batch resets
   // only when it is FLUSHED, so a draw that threw between a push and its flush
@@ -7250,12 +7254,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     // the SAME growth ramp plantDrawBox uses, so the box cannot be outgrown
     const top = -climbPx * (0.25 + 0.75*growth);
     const ax = (sup && sup.axis) ? sup.axis : [1,0];
-    const round = kind==='obelisk';
-    // half-width at the base, and how the envelope closes toward the top
-    const w0 = round ? -top*0.30 : TILE_W*0.46;
-    const env = u => round ? (1-0.66*u) : (kind==='arch' ? 1-0.18*u : 1-0.10*u);
-    // an arch leans its top growth back toward the opening it spans
-    const lean = kind==='arch' ? 0.55 : 0;
+    /* How far across its frame a climber has got: a young plant covers the
+       middle of what it will cover, and the reach is held inside the sprite box
+       plantDrawBox keeps for a climber (CLIMB_REACH), whatever the frame. */
+    const gS = 0.35+0.65*growth, reachMax = plantVisualH(P)*(0.25+0.75*growth)*CLIMB_REACH;
+    let widthPx = TILE_W*0.92;          // what the leaf and flower counts are scaled by
     /* A PERGOLA is climbed up one post and then over the roof: the lower
        third of every (u,s) the leaf and flower passes ask for lands on the
        post, the rest on a disc lying on the rafters around it. One mapping, so
@@ -7263,16 +7266,63 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const onPergola = kind==='pergola';
     const post = (onPergola && sup.post) ? sup.post : [0,0];
     const roofR = TILE_W*0.66*(0.45+0.55*growth), roofY = top-5;
-    const at = onPergola ? (u,s) => {
+    let at;
+    if (onPergola) at = (u,s) => {
       if (u<0.3){ const f=u/0.3;
         return [post[0]+s*3.2, post[1]+(top-post[1])*0.92*f]; }
       const f=Math.sqrt((u-0.3)/0.7), ang=s*Math.PI;
       return [post[0]*0.5+Math.cos(ang)*roofR*f, roofY+post[1]*0.5+Math.sin(ang)*roofR*0.5*f];
-    } : (u,s) => {
-      const hw = w0*env(u), lx = ax[0]*hw*s + ax[0]*lean*w0*u*u;
-      const ly = ax[1]*hw*s + ax[1]*lean*w0*u*u;
-      return [lx, top*u + ly];
     };
+    else if (kind==='arch' && sup.run){
+      /* Up its own leg and over the head to the crown, the way an arch is
+         planted: one climber each side, meeting at the top. The path is the
+         drawing's own -- legs to SUPPORT_ARCH_SPRING, a round head above -- and
+         the plant covers as much of it as its real reach and its age allow.
+         Across the path it spans the arch's depth, a little proud of it. */
+      const run=sup.run, dep=sup.dep, side=sup.side, off=sup.off, hw=sup.hw;
+      const spring=sup.fh*sup.sp, rise=sup.fh-spring, legU=side*hw-off;
+      const arcAt=th=>[run[0]*(side*hw*Math.cos(th)-off), run[1]*(side*hw*Math.cos(th)-off)-(spring+rise*Math.sin(th))];
+      let arcLen=0, prev=arcAt(0);
+      for (let k=1;k<=8;k++){ const q=arcAt(Math.PI/2*k/8); arcLen+=Math.hypot(q[0]-prev[0],q[1]-prev[1]); prev=q; }
+      const total=spring+arcLen;
+      const cover=Math.min(1, feetToPx((P.heightIn||P.h*12)/12)/total)*(0.25+0.75*growth);
+      at = (u,s) => {
+        const q=u*cover*total, k=s*1.15;
+        if (q<=spring) return [run[0]*legU+dep[0]*k, run[1]*legU+dep[1]*k-q];
+        const [gx,gy]=arcAt(Math.min(1,(q-spring)/arcLen)*Math.PI/2);
+        return [gx+dep[0]*k, gy+dep[1]*k];
+      };
+      widthPx = TILE_W*1.25;
+    } else if (sup && sup.r0!==undefined){
+      /* Round a cone or a post: the frame's own radius at the height reached,
+         so a young clematis on an obelisk is as wide as the obelisk is there. */
+      const r=u=>{ const z=Math.min(1,(-top*u)/(sup.fh||-top)); return (sup.r0+(sup.r1-sup.r0)*z)*1.08; };
+      at = (u,s) => [s*r(u), top*u];
+      widthPx = sup.r0*2;
+    } else if (sup && sup.ext){
+      /* Along a flat frame: the plant's own spread, kept on the frame. The
+         window is as centred on the plant as the frame allows, so a rose at the
+         end of a run of wires is trained out along them rather than off the
+         end. A fan's foot is narrower than its top. */
+      const step=sup.step||TILE_W*0.56, spreadT=(P.spread||48)/TILE_IN;
+      const win=(lo,hi)=>{
+        const span=Math.min(spreadT, hi-lo), wlo=Math.max(lo, Math.min(-span/2, hi-span));
+        return [Math.max(-reachMax, wlo*gS*step), Math.min(reachMax, (wlo+span)*gS*step)];
+      };
+      const [L1,R1]=win(sup.ext[0],sup.ext[1]);
+      const mid=(L1+R1)/2, [L0,R0]=sup.ext0 ? win(sup.ext0[0],sup.ext0[1]) : [L1,R1];
+      const Lt=sup.ext0?L1:mid+(L1-mid)*0.9, Rt=sup.ext0?R1:mid+(R1-mid)*0.9;
+      at = (u,s) => {
+        const f=(s+1)/2, w=(L0+(R0-L0)*f)*(1-u)+(Lt+(Rt-Lt)*f)*u;
+        return [ax[0]*w, top*u+ax[1]*w];
+      };
+      widthPx = Math.max(R0-L0, Rt-Lt);
+    } else {
+      /* No frame: the tray chip and the library card, the only places a
+         climber is drawn without one. The implied frame they always had. */
+      const w0 = TILE_W*0.46;
+      at = (u,s) => { const hw=w0*(1-0.10*u); return [ax[0]*hw*s, top*u+ax[1]*hw*s]; };
+    }
     const twigCol = S.twig || '#6f6046';
     // stems first: a climber reads as stems with leaves ON them, and in winter
     // the bare stems on the frame are the whole plant
@@ -7300,7 +7350,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.stroke();
     }
     if (S.fol){
-      const leafN = Math.round((L.leafN||18) * (0.35+0.65*growth));
+      // as many leaves again on a frame twice the width, so a wide one is not threadbare
+      const dens=Math.max(0.8,Math.min(2.2,widthPx/(TILE_W*0.92)));
+      const leafN = Math.round((L.leafN||18) * (0.35+0.65*growth) * dens);
       const lw = (L.leafW||0.14)*climbPx*0.5, lh = (L.leafH||0.11)*climbPx*0.5;
       for (let i=0;i<leafN;i++){
         const u=0.06+rnd()*0.94, s=(rnd()*2-1)*0.95;
@@ -7330,7 +7382,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
     if (blooming){
-      const fN = Math.round((L.flowerN||12) * blv * (0.4+0.6*growth));
+      const fN = Math.round((L.flowerN||12) * blv * (0.4+0.6*growth) * Math.sqrt(Math.max(0.8,Math.min(2.2,widthPx/(TILE_W*0.92)))));
       const fr = Math.max(1.6, climbPx*0.030);
       for (let i=0;i<fN;i++){
         const u=0.15+rnd()*0.85, s=(rnd()*2-1)*0.88;
@@ -15792,112 +15844,256 @@ function drawSupport(ctx,W,H,season,sup,x,y){
   const [cx,cy]=groundCenterRot(x,y,supportTileSize(d),W,H);
   drawSupportArt(ctx,cx,cy,d,season,isoAxes(),tileSeed(x,y));
 }
-function drawSupportArt(ctx,cx,cy,sup,season,axes,seed){
-  if (!sup) return;
-  const d=normalizeSupportDraft(sup), spec=supportStyle(d.form||d.style), mat=supportMaterial(d.mat);
-  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,d.face);
-  const rs=mulberry(((seed||0)^0x1f33)>>>0);
-  const hh=feetToPx(spec.ft);
-  /* Half the ground span in TILES, because ax/ay are already a full tile step
-     in screen pixels — the drawSeatArt basis. The root-2 x TILE_W/2 form is the
-     ROUND-vessel semi-axis from drawPotArt and belongs to ellipses; used here
-     it multiplied a tile step by a pixel count and drew the trellis as a 200px
-     line across the garden. */
-  const halfW=inchesToTiles(spec.wIn)/2;
-  const halfD=inchesToTiles(spec.dIn)/2;
-  const P=(u,v,up)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-(up||0)];
-  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
-  drawSoftShadow(ctx,cx,cy,halfW*0.9,Math.max(4,halfD*0.7),0.16);
-  const post=(u,v,h,w)=>{
-    const a=P(u,v,0), b=P(u,v,h);
-    ctx.strokeStyle=mat.dark; ctx.lineWidth=w+1.1;
-    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
-    ctx.strokeStyle=mat.wood; ctx.lineWidth=w;
-    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
-  };
-  const rung=(u0,v0,u1,v1,h,w)=>{
-    const a=P(u0,v0,h), b=P(u1,v1,h);
-    ctx.strokeStyle=mat.wood; ctx.lineWidth=w;
-    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
-  };
+/* Rebuilt in 0.9.158. Every frame is a list of MEMBERS -- a post, a rail, a
+   lath, a wire, a cane -- laid out in the frame's own space (u along its run, v
+   across it, both in tiles; z up, in px through PX_PER_FT), projected through
+   the turned axes, and painted far to near by the ground under each member's
+   middle. It used to be a fixed painting order of strokes, and three things
+   came of that: the trellis lattice was drawn as V's from the ground that ran
+   past both posts and over the top rail, the arch was one flat hoop where the
+   plan (and every real arch) has two with rungs between them, and the shadow
+   was sized in TILES (about one pixel). Sizes are real inches throughout. */
+// a lattice lath every this many inches, measured along the panel
+const SUP_LATH_IN = 6;
+function supportWireColor(mat){ return mat.id==='black' ? '#3a3a3f' : '#b6bcbd'; }
+function supportMembers(spec,mat,d,hh){
+  const T=inchesToTiles, Z=inch=>feetToPx(inch/12);
+  const halfW=T(spec.wIn)/2, halfD=T(spec.dIn)/2;
+  const metal=!!mat.metal, rod=!!mat.rod;
+  const postW=metal?2.6:rod?2.9:3.6, railW=metal?1.8:rod?2.3:2.4, lathW=metal?1.1:rod?1.6:1.35;
+  const body=mat.wood, edge=mat.dark, lath=metal?mat.wood:mat.light;
+  const M=[], seg=(pts,w,col,o)=>M.push(Object.assign({pts,w,col,edge},o||{}));
+  const dot=(p,r,col)=>M.push({dot:p,r,col,edge});
+  // a post finished at the top the way that material is: a ball on wood or paint
+  const capPost=(u,v,z)=>{ if (!rod) dot([u,v,z+Z(1.5)], metal?2.0:2.4, metal?mat.light:mat.light); };
   if (spec.form==='obelisk'){
-    /* Four legs leaning to a point — the taper IS the obelisk, so the legs are
-       drawn to a shared apex rather than as a box with a lid. */
-    const legs=[[-1,-1],[1,-1],[1,1],[-1,1]];
-    const apex=P(0,0,hh);
-    for (const [su,sv] of legs){
-      const foot=P(su*halfW,sv*halfD,0);
-      const top =P(su*halfW*0.14,sv*halfD*0.14,hh*0.94);
-      ctx.strokeStyle=mat.dark; ctx.lineWidth=3.2;
-      ctx.beginPath(); ctx.moveTo(foot[0],foot[1]); ctx.lineTo(top[0],top[1]); ctx.stroke();
-      ctx.strokeStyle=mat.wood; ctx.lineWidth=2.2;
-      ctx.beginPath(); ctx.moveTo(foot[0],foot[1]); ctx.lineTo(top[0],top[1]); ctx.stroke();
+    /* Four legs leaning in to a spire, rails round it tightening as it narrows,
+       a lath up the middle of each face and a finial: drawn corner-on it read
+       as a transmission tower, which is what legs and rings alone are. */
+    const legs=[[-1,-1],[1,-1],[1,1],[-1,1]], top=hh*0.88, kTop=0.16;
+    const at=(su,sv,z)=>{ const k=1-(1-kTop)*(z/top); return [su*halfW*k, sv*halfD*k, z]; };
+    for (const [su,sv] of legs) seg([at(su,sv,0),at(su,sv,top)], postW*0.85, body);
+    const nb=5;
+    for (let i=1;i<=nb;i++){
+      const z=top*(i-0.35)/nb;
+      for (let j=0;j<4;j++){ const a=legs[j], b=legs[(j+1)%4];
+        seg([at(a[0],a[1],z),at(b[0],b[1],z)], railW*0.8, lath, {snow:true}); }
     }
-    // horizontal bands, tightening as the frame narrows
-    for (let i=1;i<=4;i++){
-      const t=i/5, k=1-0.86*t, h=hh*t;
-      ctx.strokeStyle=mat.wood; ctx.lineWidth=1.4;
-      ctx.beginPath();
-      legs.forEach(([su,sv],j)=>{ const p=P(su*halfW*k,sv*halfD*k,h);
-        j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); });
-      ctx.closePath(); ctx.stroke();
-    }
-    ctx.fillStyle=mat.light;
-    ctx.beginPath(); ctx.ellipse(apex[0],apex[1],2.6,2.6,0,0,7); ctx.fill();
+    for (let j=0;j<4;j++){ const a=legs[j], b=legs[(j+1)%4], mu=(a[0]+b[0])/2, mv=(a[1]+b[1])/2;
+      seg([at(mu,mv,top*0.06),at(mu,mv,top*0.96)], lathW, lath); }
+    seg([[0,0,top*0.96],[0,0,hh*0.97]], postW*(metal?0.8:1.1), body);
+    dot([0,0,hh], metal?2.6:3.3, rod?mat.wood:mat.light);
   } else if (spec.form==='panel'){
-    /* A flat trellis: two posts and a lattice between them, standing in the
-       plane of its own long axis so it turns with the garden. */
-    post(-halfW,0,hh,3);
-    post(halfW,0,hh,3);
-    rung(-halfW,0,halfW,0,hh,2.4);
-    rung(-halfW,0,halfW,0,hh*0.5,1.6);
-    const bays=5;
-    ctx.strokeStyle=mat.light; ctx.lineWidth=1.2;
-    for (let i=0;i<=bays;i++){
-      const u=-halfW+(i/bays)*halfW*2;
-      for (const dir of [1,-1]){
-        const a=P(u,0,0), b=P(u+dir*halfW*0.5,0,hh);
-        ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
-      }
+    /* Two posts, a bottom rail lifted off the soil and a top rail, and the
+       lattice INSIDE them: two layers of laths, one each way, clipped to the
+       frame. Square is laths upright and across. */
+    const zb=Z(6), zt=hh-Z(4), off=T(1.75);
+    const Win=spec.wIn-3.5, Hin=spec.ft*12-10, s=SUP_LATH_IN;
+    const L=(ui,zi)=>[-halfW+off+T(ui), 0, zb+Z(zi)];
+    const lathMem=(a,b)=>seg([L(a[0],a[1]),L(b[0],b[1])], lathW, lath, {role:'lath'});
+    if (d.pat==='square'){
+      const ph=(Win%s)/2||s/2;
+      for (let u=ph;u<Win-0.5;u+=s) lathMem([u,0],[u,Hin]);
+      for (let z=s;z<Hin-0.5;z+=s) lathMem([0,z],[Win,z]);
+    } else {
+      const ph=(Win%s)/2;
+      for (let c=-Hin+ph;c<Win;c+=s){            // rising to the right: u = z + c
+        const z0=Math.max(0,-c), z1=Math.min(Hin,Win-c); if (z1-z0>0.5) lathMem([z0+c,z0],[z1+c,z1]); }
+      for (let c=ph;c<Win+Hin;c+=s){             // and to the left, laid over them: u = c - z
+        const z0=Math.max(0,c-Win), z1=Math.min(Hin,c); if (z1-z0>0.5) lathMem([c-z0,z0],[c-z1,z1]); }
     }
+    seg([[-halfW,0,zb],[halfW,0,zb]], railW, body);
+    seg([[-halfW,0,zt],[halfW,0,zt]], railW, body, {snow:true});
+    for (const su of [-1,1]){ seg([[su*halfW,0,0],[su*halfW,0,hh]], postW, body); capPost(su*halfW,0,hh); }
+  } else if (spec.form==='fan'){
+    /* Slats fanning from one foot -- the shape is for ONE plant, a clematis or a
+       rose trained out across it -- with a stake into the ground and three arcs
+       holding the slats apart. */
+    const n=spec.slats, hub=Z(9);
+    seg([[0,0,0],[0,0,hub+Z(6)]], postW*0.85, body);
+    const slats=[];
+    for (let i=0;i<n;i++){
+      const f=-1+2*i/(n-1), tu=halfW*f, tz=hh-Z(11)*f*f;
+      slats.push([[tu*0.08,0,hub],[tu,0,tz]]);
+    }
+    const on=(sl,t)=>[sl[0][0]+(sl[1][0]-sl[0][0])*t, 0, sl[0][2]+(sl[1][2]-sl[0][2])*t];
+    for (const sl of slats) seg(sl, lathW*1.35, lath, {role:'lath'});
+    [0.34,0.63,0.93].forEach((t,k)=>seg(slats.map(sl=>on(sl,t)), railW*0.8, body, {snow:k===2}));
+  } else if (spec.form==='wire'){
+    /* The cheapest support there is and the one a climbing rose is really
+       trained on: two strainer posts, each braced against the pull, and
+       tensioned wires between them. */
+    const wc=supportWireColor(mat), nw=spec.wires, z0=Z(14), z1=hh-Z(8);
+    for (const su of [-1,1]){
+      seg([[su*halfW,0,0],[su*halfW,0,hh]], postW*1.05, body); capPost(su*halfW,0,hh);
+      seg([[su*halfW,0,hh*0.62],[su*(halfW-T(15)),0,0]], railW*0.95, body);
+    }
+    for (let k=0;k<nw;k++){ const z=z0+(z1-z0)*k/(nw-1);
+      seg([[-halfW,0,z],[halfW,0,z]], 0.95, wc, {role:'wire'}); }
   } else if (spec.form==='arch'){
-    /* Two legs and a curve you walk under, so the opening has to READ as an
-       opening: nothing is drawn between the posts below the springing line. */
-    post(-halfW,0,hh*0.72,3.4);
-    post(halfW,0,hh*0.72,3.4);
-    const spring=hh*0.72;
-    for (const w of [4.2,2.8]){
-      ctx.strokeStyle = w>3 ? mat.dark : mat.wood; ctx.lineWidth=w;
-      ctx.beginPath();
-      for (let i=0;i<=16;i++){
-        const t=i/16, u=-halfW+t*halfW*2;
-        const h=spring+Math.sin(t*Math.PI)*(hh-spring);
-        const p=P(u,0,h); i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);
+    /* Two hoops, front and back, rungs across the top and a ladder up each
+       side: a tunnel you walk through, which is how the plan has always drawn
+       it (four legs). A round head, springing at SUPPORT_ARCH_SPRING, which the
+       climber's path reads too. Each hoop is cut into its legs and a dozen
+       pieces of arc so the near and far halves sort with the rungs. */
+    const spring=hh*SUPPORT_ARCH_SPRING, rise=hh-spring, N=12;
+    const arcPt=(th,v)=>[halfW*Math.cos(th), v, spring+rise*Math.sin(th)];
+    for (const v of [-halfD,halfD]){
+      for (const su of [-1,1]) seg([[su*halfW,v,0],[su*halfW,v,spring]], postW, body);
+      for (let i=0;i<N;i++){ const a=Math.PI*i/N, b=Math.PI*(i+1)/N;
+        seg([arcPt(a,v),arcPt(b,v)], postW*0.92, body, {snow:true}); }
+    }
+    for (let k=1;k<=7;k++){ const th=Math.PI*k/8;
+      seg([arcPt(th,-halfD),arcPt(th,halfD)], railW*0.8, body, {snow:true}); }
+    for (const su of [-1,1]){
+      for (let z=Z(10);z<spring-Z(4);z+=Z(11))
+        seg([[su*halfW,-halfD,z],[su*halfW,halfD,z]], railW*0.75, lath, {snow:true});
+      seg([[su*halfW,0,Z(5)],[su*halfW,0,spring]], lathW, lath, {role:'lath'});
+    }
+  } else if (spec.form==='wigwam'){
+    /* Canes pushed in round a circle and tied near the top, their ends crossing
+       above the tie, with two rings of twine to tie the climber in to. */
+    const n=spec.poles, r=halfW, tie=hh*0.84, over=1.15;
+    const twine='#bba97a';
+    const foot=i=>{ const a=6.2832*i/n+0.4; return [r*Math.cos(a), r*Math.sin(a)]; };
+    for (let i=0;i<n;i++){ const [fu,fv]=foot(i);
+      seg([[fu,fv,0],[fu*(1-over),fv*(1-over),tie*over]], postW*0.78, body, {cane:true}); }
+    for (const zf of [0.34,0.64]){ const z=tie*zf, k=1-zf;
+      for (let i=0;i<n;i++){ const a=foot(i), b=foot((i+1)%n);
+        seg([[a[0]*k,a[1]*k,z],[b[0]*k,b[1]*k,z]], 0.8, twine, {role:'wire'}); } }
+    dot([0,0,tie], 2.6, twine);
+  } else if (spec.form==='pillar'){
+    /* A single post a rose or a clematis is wound up -- the oldest climbing
+       frame there is. Wood and paint: a square post, a cap and a ball, and a
+       wire spiralling up it to tie in to. Metal: three rods held by rings. */
+    if (metal){
+      const r=T(3), as=[1.571,3.665,5.76];
+      for (const a of as) seg([[r*Math.cos(a),r*Math.sin(a),0],[r*Math.cos(a),r*Math.sin(a),hh*0.97]], 1.7, body);
+      for (let z=Z(14);z<hh*0.96;z+=Z(16))
+        for (let i=0;i<3;i++){ const a=as[i], b=as[(i+1)%3];
+          seg([[r*Math.cos(a),r*Math.sin(a),z],[r*Math.cos(b),r*Math.sin(b),z]], 1.2, body, {snow:true}); }
+      dot([0,0,hh+Z(1.5)], 2.8, mat.light);
+    } else {
+      seg([[0,0,0],[0,0,hh*0.95]], postW*1.55, body, {lit:true});
+      const wc=supportWireColor(mat), r=T(2.4), turns=3.2, n=36;
+      for (let i=0;i<n;i++){ const t0=i/n, t1=(i+1)/n, a0=t0*turns*6.2832, a1=t1*turns*6.2832;
+        const z0=Z(8)+(hh*0.9-Z(8))*t0, z1=Z(8)+(hh*0.9-Z(8))*t1;
+        seg([[r*Math.cos(a0),r*Math.sin(a0),z0],[r*Math.cos(a1),r*Math.sin(a1),z1]], 0.8, wc, {role:'wire'}); }
+      seg([[0,0,hh*0.95],[0,0,hh]], postW*2.3, body, {snow:true});
+      dot([0,0,hh+Z(3)], 3.3, mat.light);
+    }
+  }
+  return M;
+}
+/* The ground a frame casts its shadow on: soft dots at its feet, which is what a
+   few thin members standing on grass really leave. */
+function supportFeet(spec,hh){
+  const T=inchesToTiles, halfW=T(spec.wIn)/2, halfD=T(spec.dIn)/2;
+  if (spec.form==='obelisk') return [[-halfW,-halfD],[halfW,-halfD],[halfW,halfD],[-halfW,halfD]];
+  if (spec.form==='wigwam'){ const out=[]; for (let i=0;i<spec.poles;i++){ const a=6.2832*i/spec.poles+0.4; out.push([halfW*Math.cos(a),halfW*Math.sin(a)]); } return out; }
+  if (spec.form==='pillar') return [[0,0]];
+  if (spec.form==='arch') return [[-halfW,-halfD],[-halfW,halfD],[halfW,-halfD],[halfW,halfD]];
+  if (spec.form==='fan') return [[0,0]];
+  const out=[]; for (let i=0;i<=4;i++) out.push([-halfW+2*halfW*i/4,0]); return out;
+}
+/* `thick` (a chip) draws every member that much heavier: at a chip's scale a
+   lath is half a pixel and a black frame on the dark tray vanishes. */
+function drawSupportArt(ctx,cx,cy,sup,season,axes,seed,thick){
+  if (!sup) return;
+  thick=thick||1;
+  const d=normalizeSupportDraft(sup), spec=supportStyle(d.style), mat=supportMaterial(d.mat);
+  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,d.face);
+  const hh=feetToPx(spec.ft);
+  const P=(u,v,up)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-(up||0)];
+  const depth=(u,v)=>ax[1]*u+ay[1]*v;
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  const round=spec.form==='obelisk'||spec.form==='wigwam';
+  if (round){
+    const r=inchesToTiles(spec.wIn)/2*TILE_W*0.78;
+    drawSoftShadow(ctx,cx,cy,r,r*0.5,0.10);
+  }
+  for (const [u,v] of supportFeet(spec,hh)){ const p=P(u,v,0); drawSoftShadow(ctx,p[0],p[1]+1,6,3,0.26); }
+  const M=supportMembers(spec,mat,d,hh);
+  if (thick!==1) for (const m of M){ if (m.dot) m.r*=Math.sqrt(thick); else m.w*=thick; }
+  M.forEach((m,i)=>{
+    m.i=i;
+    if (m.dot){ m.dk=depth(m.dot[0],m.dot[1]); return; }
+    let s=0; for (const p of m.pts) s+=depth(p[0],p[1]); m.dk=s/m.pts.length;
+  });
+  M.sort((a,b)=>(a.dk-b.dk)||(a.i-b.i));
+  const snow=!!AMBIENCE[season].snow, wob=!!mat.rod;
+  for (const m of M){
+    if (m.dot){
+      const p=P(m.dot[0],m.dot[1],m.dot[2]);
+      ctx.fillStyle=m.edge; ctx.beginPath(); ctx.ellipse(p[0],p[1],m.r+0.6,m.r+0.6,0,0,7); ctx.fill();
+      ctx.fillStyle=m.col; ctx.beginPath(); ctx.ellipse(p[0],p[1],m.r,m.r,0,0,7); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.ellipse(p[0]-m.r*0.32,p[1]-m.r*0.32,m.r*0.38,m.r*0.38,0,0,7); ctx.fill();
+      if (snow){ ctx.fillStyle='rgba(242,246,250,0.9)'; ctx.beginPath(); ctx.ellipse(p[0],p[1]-m.r*0.55,m.r*0.85,m.r*0.45,0,0,7); ctx.fill(); }
+      continue;
+    }
+    let pts=m.pts.map(p=>P(p[0],p[1],p[2]));
+    /* Natural rods wander: each segment is broken into a few pieces nudged
+       across itself, seeded by the member's place in the BUILD order, so a rod
+       keeps its kinks as the view turns. */
+    if (wob && m.role!=='wire'){
+      const rs=mulberry(((seed||0)^(0x51a7+m.i*977))>>>0), out=[pts[0]];
+      for (let i=1;i<pts.length;i++){
+        const a=pts[i-1], b=pts[i], len=Math.hypot(b[0]-a[0],b[1]-a[1]), k=Math.max(1,Math.round(len/9));
+        const nx=-(b[1]-a[1])/(len||1), ny=(b[0]-a[0])/(len||1);
+        for (let j=1;j<=k;j++){ const t=j/k, jit=j<k?(rs()-0.5)*1.5:0;
+          out.push([a[0]+(b[0]-a[0])*t+nx*jit, a[1]+(b[1]-a[1])*t+ny*jit]); }
       }
+      pts=out;
+    }
+    const path=()=>{ ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); };
+    if (m.role!=='wire'){
+      ctx.strokeStyle=m.edge; ctx.lineWidth=m.w+(m.role==='lath'?0.7:1.1); path(); ctx.stroke();
+    }
+    ctx.strokeStyle=m.col; ctx.lineWidth=m.w; path(); ctx.stroke();
+    /* A metal bar is round and catches the light along its top: without it a
+       black frame is one flat silhouette and vanishes on the dark tray. */
+    if (mat.sheen && m.role!=='wire' && m.w>=1.5){
+      ctx.save(); ctx.translate(-m.w*0.18,-m.w*0.2);
+      ctx.strokeStyle=mat.sheen; ctx.lineWidth=Math.max(0.6,m.w*0.32); path(); ctx.stroke(); ctx.restore();
+    }
+    if (m.lit){                       // a square post's lit face
+      ctx.save(); ctx.translate(-m.w*0.22,0);
+      ctx.strokeStyle=mat.light; ctx.lineWidth=m.w*0.34; path(); ctx.stroke(); ctx.restore();
+    }
+    if (mat.nodes && m.cane){         // the joints of a bamboo cane
+      const a=pts[0], b=pts[pts.length-1], len=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      const nx=-(b[1]-a[1])/(len||1), ny=(b[0]-a[0])/(len||1), h=m.w*0.8;
+      ctx.strokeStyle=m.edge; ctx.lineWidth=0.9; ctx.beginPath();
+      for (let t=0.12;t<0.98;t+=18/(len||1)){ const x=a[0]+(b[0]-a[0])*t, y=a[1]+(b[1]-a[1])*t;
+        ctx.moveTo(x-nx*h,y-ny*h); ctx.lineTo(x+nx*h,y+ny*h); }
       ctx.stroke();
     }
-    // side rails on the legs, which is what a climber is actually tied to
-    ctx.strokeStyle=mat.light; ctx.lineWidth=1.1;
-    for (const s of [-1,1]) for (let i=1;i<=3;i++){
-      const h=spring*(i/4), a=P(s*halfW,-halfD*0.5,h), b=P(s*halfW,halfD*0.5,h);
-      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+    if (snow && m.snow){
+      ctx.save(); ctx.translate(0,-(m.w*0.5+0.7));
+      ctx.strokeStyle='rgba(242,246,250,0.88)'; ctx.lineWidth=1.5; path(); ctx.stroke(); ctx.restore();
     }
-  }
-  if (mat.id==='willow'){
-    // a woven frame is irregular; a few seeded slubs are what says "hazel rods"
-    ctx.strokeStyle=shade(mat.dark,10); ctx.lineWidth=1;
-    for (let i=0;i<7;i++){
-      const h=hh*(0.15+rs()*0.75), u=(rs()*2-1)*halfW*0.8;
-      const a=P(u,0,h), b=P(u+halfW*0.3,0,h+3);
-      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
-    }
-  }
-  if (AMBIENCE[season].snow){
-    ctx.strokeStyle='rgba(240,244,250,0.6)'; ctx.lineWidth=1.8;
-    const t=P(0,0,hh*0.98), l=P(-halfW,0,hh*0.7), r=P(halfW,0,hh*0.7);
-    ctx.beginPath(); ctx.moveTo(l[0],l[1]-2); ctx.quadraticCurveTo(t[0],t[1]-3,r[0],r[1]-2); ctx.stroke();
   }
   ctx.restore();
+}
+/* Where a frame's ink reaches, in draw units round its ground centre, at the
+   chip's basis (ISO_AXES_FLAT turned by its facing): every member and finial
+   and the shadow at its feet. The tray chip and the card fit this, as the
+   ornament chip fits ornamentArtExtent -- the old chip scaled a run by its
+   width as if it ran along the tile DIAGONAL, so a 6 ft frame came out a
+   third of the size the chip had room for. */
+function supportArtExtent(sup,thick){
+  thick=thick||1;
+  const d=normalizeSupportDraft(sup), spec=supportStyle(d.style), mat=supportMaterial(d.mat);
+  const [ax,ay]=turnAxes(ISO_AXES_FLAT,d.face), hh=feetToPx(spec.ft);
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  const add=(u,v,z,r)=>{ const x=ax[0]*u+ay[0]*v, y=ax[1]*u+ay[1]*v-z;
+    if (x-r<x0) x0=x-r; if (x+r>x1) x1=x+r; if (y-r<y0) y0=y-r; if (y+r>y1) y1=y+r; };
+  for (const m of supportMembers(spec,mat,d,hh)){
+    if (m.dot) add(m.dot[0],m.dot[1],m.dot[2],m.r*Math.sqrt(thick)+1.2);
+    else for (const p of m.pts) add(p[0],p[1],p[2],m.w*thick/2+2);
+  }
+  for (const [u,v] of supportFeet(spec,hh)) add(u,v,0,6);
+  return {x0,x1,y0,y1};
 }
 function drawWaterFeature(ctx,W,H,season,wf,x,y){
   if (!wf) return;

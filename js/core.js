@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.157';
+const APP_VERSION = '0.9.158';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1978,24 +1978,65 @@ function boulderTakeoffText(d,n){
 
    `form` names the drawing branch; `ft` is the real height a climber may reach
    on it, drawn through PX_PER_FT like a fence, so a 6ft obelisk and a 6ft
-   fence hold their plants at the same height. `face:true` marks the two that
-   read differently when turned. */
+   fence hold their plants at the same height. `face:true` marks the ones that
+   read differently when turned.
+
+   0.9.158 rebuilt them and filled the gaps (docs: §12e). The trellis panel is a
+   framed lattice now, diamond or square (`pattern:true` offers the choice), in a
+   3 ft and a 6 ft width (`family`, the bench's idiom). New frames: a FAN trellis
+   (one plant at its foot, `footIn` its ground and `wIn` its spread at the top),
+   a WIRE trellis (posts and `wires` tensioned wires, what a rose is trained along
+   and what a wisteria blurb asks for), a WIGWAM of `poles` canes, and a ROSE
+   PILLAR. An arch's middle tiles are the way through it (`supportTileOpen`), so
+   a path runs under it. Every number a drawing lays out (wires, poles) is read
+   off this row by the drawing, the plan and the planting list alike. */
 const SUPPORT_STYLES = [
   {id:'obelisk', label:'Obelisk',       short:'Obelisk', form:'obelisk', wIn:22, dIn:22, ft:7,
-   materials:['timber','black','willow']},
-  {id:'trellis', label:'Trellis panel', short:'Trellis', form:'panel',   wIn:34, dIn:4,  ft:6, face:true,
-   materials:['timber','black','willow']},
+   materials:['timber','black','willow','white','sage','corten']},
+  {id:'trellis', label:'Trellis panel', short:'Trellis', form:'panel',   wIn:36, dIn:4,  ft:6, face:true,
+   family:'trellis', pattern:true, materials:['timber','white','sage','black','willow']},
+  {id:'trellis6',label:'Trellis panel', short:'Trellis', form:'panel',   wIn:72, dIn:4,  ft:6, face:true,
+   family:'trellis', pattern:true, materials:['timber','white','sage','black','willow']},
+  {id:'fan',     label:'Fan trellis',   short:'Fan',     form:'fan',     wIn:32, footIn:18, dIn:4, ft:6, face:true,
+   slats:7, materials:['timber','white','bamboo','willow']},
+  {id:'wire',    label:'Wire trellis',  short:'Wires',   form:'wire',    wIn:72, dIn:4,  ft:6, face:true,
+   wires:5, materials:['timber','black','corten']},
   {id:'arch',    label:'Garden arch',   short:'Arch',    form:'arch',    wIn:46, dIn:20, ft:8, face:true,
-   materials:['black','timber','willow']},
+   materials:['black','timber','white','willow','corten']},
+  {id:'wigwam',  label:'Wigwam',        short:'Wigwam',  form:'wigwam',  wIn:26, dIn:26, ft:7,
+   poles:6, materials:['bamboo','willow']},
+  {id:'pillar',  label:'Rose pillar',   short:'Pillar',  form:'pillar',  wIn:8,  dIn:8,  ft:8,
+   materials:['timber','white','black','corten']},
 ];
+/* `wood` is the member, `dark` its edge and shadow side, `light` its lit face
+   and a lattice lath, `sheen` the light along a metal bar. `rod` marks a
+   material that is a run of natural rods (drawn with a little seeded wander);
+   `nodes` the joints a bamboo cane has. */
 const SUPPORT_MATERIALS = [
   {id:'timber', label:'Timber',      wood:'#8a6a44', dark:'#5f4526', light:'#a8865c'},
-  {id:'black',  label:'Black metal', wood:'#2c2c30', dark:'#191919', light:'#4a4a50'},
-  {id:'willow', label:'Woven willow',wood:'#a58b5c', dark:'#7a6339', light:'#c0a878'},
+  {id:'black',  label:'Black metal', wood:'#2c2c30', dark:'#191919', light:'#4a4a50', metal:true, sheen:'#74747c'},
+  {id:'willow', label:'Woven willow',wood:'#a58b5c', dark:'#7a6339', light:'#c0a878', rod:true},
+  {id:'white',  label:'Painted white',wood:'#e4dfd1', dark:'#9f998a', light:'#f8f5ec'},
+  {id:'sage',   label:'Painted sage', wood:'#8a9d84', dark:'#566553', light:'#aebca7'},
+  {id:'corten', label:'Corten',      wood:'#8b4b2a', dark:'#57301b', light:'#b06a3e', metal:true, sheen:'#c27a4c'},
+  {id:'bamboo', label:'Bamboo',      wood:'#c2a964', dark:'#86703a', light:'#ddca8c', rod:true, nodes:true},
+];
+// the lattice patterns a panel is sold in
+const SUPPORT_PATTERNS = [
+  {id:'diamond', label:'Diamond'},
+  {id:'square',  label:'Square'},
 ];
 function supportStyle(id){ return SUPPORT_STYLES.find(s=>s.id===id)||SUPPORT_STYLES[0]; }
 function supportStyleId(id){ return supportStyle(id).id; }
 function supportMaterial(id){ return SUPPORT_MATERIALS.find(m=>m.id===id)||SUPPORT_MATERIALS[0]; }
+// the sizes a frame is sold in: the two trellis panels are one panel with a Size row
+function supportFamily(id){
+  const s=supportStyle(id);
+  return s.family ? SUPPORT_STYLES.filter(x=>x.family===s.family) : [s];
+}
+function supportSizeText(s){ return fmtFeet(s.wIn/12); }
+// the screen and ground the drawing and the climber agree on: the arch springs here
+const SUPPORT_ARCH_SPRING = 0.70;
 // the materials a support is really made in — the potStyleSizes idiom, ordered
 // by the FORM so the first one listed is its default (see waterFeatureFinishes)
 function supportMaterials(id){
@@ -2007,19 +2048,48 @@ function supportMaterialFor(styleId,matId){
   const opts=supportMaterials(styleId);
   return opts.some(m=>m.id===matId) ? matId : opts[0].id;
 }
+/* `pat` rides only a panel's record, so an obelisk never carries one into its
+   sprite key or its planting-list line. A record from before 0.9.158 has none
+   and is the diamond lattice every panel was drawn in. */
 function normalizeSupportDraft(d){
   d=d&&typeof d==='object'?d:{};
-  const style=supportStyleId(d.style);
-  return {style, mat:supportMaterialFor(style,d.mat), face:normalizeFacing(d.face)};
+  const style=supportStyleId(d.style), out={style, mat:supportMaterialFor(style,d.mat), face:normalizeFacing(d.face)};
+  if (supportStyle(style).pattern) out.pat=SUPPORT_PATTERNS.some(p=>p.id===d.pat) ? d.pat : SUPPORT_PATTERNS[0].id;
+  return out;
 }
+// the ground a frame claims: a fan's foot is narrower than its top
 function supportTileSize(d){
   const s=supportStyle(d&&d.style);
-  const tw=Math.max(1,Math.round(s.wIn/TILE_IN)), td=Math.max(1,Math.round(s.dIn/TILE_IN));
+  const tw=Math.max(1,Math.round((s.footIn||s.wIn)/TILE_IN)), td=Math.max(1,Math.round(s.dIn/TILE_IN));
   return normalizeFacing(d&&d.face)%2 ? {w:td,h:tw,spec:s} : {w:tw,h:td,spec:s};
 }
+/* An arch is the one frame you walk THROUGH: its legs stand on the end tiles of
+   its run and every tile between them is the way through -- open ground that
+   takes a path, a lawn or a low planting, and no climber. `i` is the tile's
+   place along the run (0..n-1), `n` the run's length in tiles. */
+function supportTileOpen(d,i,n){
+  return supportStyle(d&&d.style).form==='arch' && n>2 && i>0 && i<n-1;
+}
+// "Timber obelisk", "3 ft painted white square trellis panel": size first where there is a choice of one
 function supportLabelFor(d){
   d=normalizeSupportDraft(d);
-  return `${supportMaterial(d.mat).label} ${supportStyle(d.style).label.toLowerCase()}`;
+  const s=supportStyle(d.style), m=supportMaterial(d.mat).label;
+  const noun=(d.pat?d.pat+' ':'')+lowerFirst(s.label);
+  return supportFamily(s.id).length>1 ? `${supportSizeText(s)} ${lowerFirst(m)} ${noun}` : cap(`${m} ${noun}`);
+}
+/* What the planting list says under a frame's line: what it IS, in the numbers
+   a supplier or a builder asks for, read off the same row the drawing reads. */
+function supportTakeoffText(d,n){
+  d=normalizeSupportDraft(d); n=Math.max(1,n|0);
+  const s=supportStyle(d.style);
+  if (s.form==='wire'){
+    const run=s.wIn/12, wire=run*s.wires*n;
+    return `${s.wires} wires on ${fmtFeet(run)} between posts, ${fmtFeet(Math.ceil(wire))} of wire${n>1?' in all':''}`;
+  }
+  if (s.form==='wigwam') return `${s.poles} canes, ${fmtFeet(Math.ceil(s.ft+1))} long${n>1?`, ${s.poles*n} in all`:''}`;
+  if (s.form==='panel'||s.form==='fan') return `${fmtFeet(s.wIn/12)} wide, ${fmtFeet(s.ft)} tall`;
+  if (s.form==='arch') return `${fmtFeet(s.wIn/12)} wide, ${fmtFeet(s.ft)} tall, ${fmtLengthIn(s.dIn)} deep`;
+  return `${fmtFeet(s.ft)} tall`;
 }
 
 /* ---------- water features ----------

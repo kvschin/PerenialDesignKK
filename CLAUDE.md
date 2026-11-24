@@ -5041,9 +5041,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     could have a 6ft fence, a house wall and a pergola-shaped gap in the middle
     of it and nothing to put against any of them. Vertical is the one dimension
     a small garden has spare, and it is most of what a boundary is FOR.
-    Three frames — **obelisk** (7ft, 1x1), **trellis panel** (6ft, 2x1) and
-    **garden arch** (8ft, 3x1) — in timber, black metal and woven willow, plus
-    the fence the garden already has. `form` names the drawing branch the way a
+    It shipped three frames — **obelisk** (7ft, 1x1), **trellis panel** (6ft,
+    2x1) and **garden arch** (8ft, 3x1) — in timber, black metal and woven
+    willow, plus the fence the garden already has; 0.9.158 added four more and
+    four materials (below). `form` names the drawing branch the way a
     plant names its `form` and a fence its `infill`; each style declares its
     real `wIn`/`dIn`/`ft` and the materials it is really built in.
     Structurally it is the fire pit and the water feature: an origin tile, a
@@ -5139,6 +5140,73 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     DO reach the client documents: the frame is a line on the planting list
     naming its material and is drawn on the plan over its climber
     (`drawPlanSupport`, 0.9.150), and the climber is an ordinary plant on it.
+    **0.9.158 rebuilt the frames, added the missing ones, and made a climber fit
+    its frame.** *What was wrong*: the trellis lattice was a row of V's standing
+    on the soil, every lath running past both posts and over the top rail; the
+    arch was ONE flat hoop where the plan (and every real arch) has four legs;
+    the shadow was sized in tiles, about a pixel; and every climber was the same
+    1.6 tiles wide whatever it was on, so two roses on a 3 ft trellis spilled a
+    tile past both posts and a wisteria on an arch leaned the same way on both
+    legs. *The painter* (`supportMembers`, `drawSupportArt`, draw.js) builds a
+    frame as MEMBERS in its own space (u along the run, v across, in tiles; z up
+    in px through `PX_PER_FT`), projects them through the turned axes and paints
+    far to near by the ground under each member's middle, so an arch's near rungs
+    and far hoop sort. Natural rods (`rod`: willow, bamboo) wander a little,
+    seeded by BUILD order so a kink keeps its place as the view turns; bamboo has
+    `nodes`; metal has a `sheen` along each bar. *The frames* (`SUPPORT_STYLES`):
+    the **trellis panel** is two posts, a bottom rail 6 in off the soil, a top
+    rail and the lattice clipped inside them, `pat` diamond or square
+    (`SUPPORT_PATTERNS`; a panel's record only, a record without one is the
+    diamond it was drawn as), in a 3 ft and a 6 ft width (`family`, the bench's
+    idiom; `trellis` widened 34 to 36 in, still two tiles); a **fan trellis**
+    stands on one tile (`footIn`) and spreads to 32 in (`slats`); a **wire
+    trellis** is two braced posts and `wires` tensioned wires, 6 ft long; the
+    **arch** has two hoops, rungs over its round head (springing at
+    `SUPPORT_ARCH_SPRING`) and a ladder up each side; a **wigwam** is `poles`
+    canes tied near the top with two rings of twine; a **rose pillar** is a post
+    with a cap, a ball and a wire spiralling up it (three rods and rings in
+    metal); the **obelisk** gained a lath up each face and a finial. New
+    materials: painted white, painted sage, Corten and bamboo, each frame naming
+    the ones it is really made in, in its own order (snap, not reset).
+    *An arch is walked through* (`supportTileOpen`, core.js; `supportHoldsGround`,
+    commands.js): the tiles between its legs are open ground, like a pergola's
+    roof between posts (`supportAt` answers `open` and `way`). A path can be laid
+    or painted under it, an arch can go up over a path or a low planting already
+    there (`supportBlocker`'s `plantOk`), a perennial or bulb may stand there,
+    and a climber, shrub or tree may not ("Plant the climber at a leg"). Water is
+    still refused under it. The selection rules ask the same
+    (`selectionSupportAt`). *The climber fits its frame* (`climberSupportDetail`,
+    world.js, pure, so the guidebook's stage calls it with its own axes and its
+    climbers now take their frames' shapes too). A flat frame (fence, panel,
+    wires, fan) hands over `axis`, `step` (px per tile along the run) and `ext`
+    (how far the frame reaches either side of this tile, in tiles; along a fence,
+    as far as the run goes, up to four tiles, stopping at a gate), and the plant
+    spreads by its own real `spread` inside that, its window as centred as the
+    frame allows, so a rose at the end of a run of wires is trained along them;
+    a fan's foot is narrower (`ext0`). A round frame hands over its radius at the
+    foot and the top and its height (`r0`, `r1`, `fh`). An arch hands over its
+    run, its depth, which leg this tile is (`side`, `off`, `hw`) and the arch's
+    height and springing, and the climber goes up that leg and over the head
+    toward the crown, as far as its real reach allows. The reach is held to
+    `CLIMB_REACH` (0.72 of the drawn height) and `plantDrawBox` keeps a climber's
+    sprite wide and deep enough for exactly that, both ways along an iso run.
+    With no frame (the tray chip, the library card) the drawing is the implied
+    frame it always was. *Woody climbers keep their stems*: rose, wisteria,
+    honeysuckle, crossvine, climbing hydrangea, Virginia creeper and star jasmine
+    carry `noCutback`, so they stand on their frames in spring instead of being
+    cut to a stub like a perennial; golden hops and Italian clematis still start
+    again. *Documents*: the planting list splits a panel by its lattice and says
+    what each frame is (`supportTakeoffText`: wires and their length, canes and
+    their length, width and height); the plan draws wires dashed, a wigwam's ring
+    of canes, a fan's line and a pillar's post. *Chips* fit `supportArtExtent`
+    (`drawSupportChip`, tray.js) and draw their members heavier (`thick`): the
+    old chip scaled a run as if it ran along the tile diagonal, a third of the
+    size it had room for, and black metal vanished on the dark tray. Measured:
+    `measureStructBoxes` 0 escaping, `measureFootprintCentres` within the
+    boulders' 3.8px, `verifyStructureSprites({rot:true})` 0.49-0.72% with nothing
+    clipped. `dev/support-review.html` shows every frame at four rotations beside
+    its chip (`?sheet=1`, `?only=`, `?vine=<climber>`, `?growth=`, `?pat=`,
+    `?bench=1`).
 
 12f. **Pergolas** (`PERGOLA_MATERIALS`/`PERGOLA_HEIGHTS`/`PERGOLA_SPEC`,
     `pergolaRegions`/`pergolaFrameIn`/`pergolaFrameAt`, world.js;

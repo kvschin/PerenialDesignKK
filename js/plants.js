@@ -8503,19 +8503,23 @@ const PLANTS = {
      wisteria on a 6ft obelisk fills the obelisk and stops; `h` is the px-art
      figure the tray chip and the library card draw at, where there is no
      support to ask.
+     `noCutback` marks the WOODY climbers (0.9.158): a rose, a wisteria or a
+     honeysuckle keeps its stems on the frame through winter, so it is not cut
+     to the ground each spring as a perennial is. Golden hops dies down and
+     Italian clematis is pruned hard in late winter, so those two start again.
      Deliberately absent: Chinese and Japanese wisteria, sweet autumn clematis,
      Japanese honeysuckle and English ivy. They are the four climbers a
      gardener is most likely to be sold and among the worst invasives in the
      eastern US, so the catalog does not offer them. The natives here do the
      same job. */
-  virginiacreeper:{ name:'Virginia Creeper', latin:'Parthenocissus quinquefolia', form:'climber', type:'vine',
+  virginiacreeper:{ name:'Virginia Creeper', latin:'Parthenocissus quinquefolia', form:'climber', type:'vine', noCutback:true,
     h:100, heightIn:360, space:60, spread:72, zones:[3,10], nativeTo:['north-america'], provenance:'species',
     sun:'part', moist:'medium', phen:'mid',
     roles:['native','woodland','fall','fruit','structure'],
     look:{leafN:60, leafW:0.16, leafH:0.13, lobes:5, tendrils:true, twine:'tendril'},
     blurb:'The native answer to Boston ivy: five-fingered leaves that turn scarlet before anything else in the garden, and blue-black berries the birds strip. It climbs by adhesive pads and will go up a wall unaided, which is a virtue on masonry and a nuisance on painted timber. Vigorous — give it a fence run rather than a small obelisk.',
     sea:{Spring:{fol:'#6f8f52'}, Summer:{fol:'#4e7440'}, Fall:{fol:'#c0392b',seed:'#2f3b52'}, Winter:{twig:'#6b5a45',seed:'#2b3549'}}},
-  trumpethoneysuckle:{ name:'Trumpet Honeysuckle', latin:'Lonicera sempervirens', form:'climber', type:'vine',
+  trumpethoneysuckle:{ name:'Trumpet Honeysuckle', latin:'Lonicera sempervirens', form:'climber', type:'vine', noCutback:true,
     h:100, heightIn:180, space:48, spread:48, zones:[4,9], nativeTo:['north-america'], provenance:'species',
     sun:'full', moist:'medium', phen:'mid',
     roles:['native','nectar','hummingbird','structure'],
@@ -8528,14 +8532,14 @@ const PLANTS = {
       johnclayton:{name:"'John Clayton'", note:'the yellow-flowered form, repeating through summer into fall',
         heightIn:120, sea:{Spring:{bloom:'#e8bf3f',eye:'#f2dc8a'}, Summer:{bloom:'#e4b93c',eye:'#efd685'}, Fall:{bloom:'#ddb03a',seed:'#c0392b'}}},
     }},
-  crossvine:{ name:'Crossvine', latin:'Bignonia capreolata', form:'climber', type:'vine',
+  crossvine:{ name:'Crossvine', latin:'Bignonia capreolata', form:'climber', type:'vine', noCutback:true,
     h:100, heightIn:420, space:60, spread:60, zones:[5,9], nativeTo:['north-america'], provenance:'species',
     sun:'full', moist:'medium', phen:'mid',
     roles:['native','nectar','hummingbird','structure'],
     look:{leafN:48, leafW:0.15, leafH:0.11, flowerN:14, flowerShape:'tube', tubeLen:3.0, twine:'tendril'},
     blurb:'A southeastern native that covers a wall in orange-red trumpets in mid spring, weeks before trumpet creeper starts. It climbs by tendrils with adhesive discs, holds its leaves through mild winters in a plum-purple, and is far less thuggish than the Campsis it is often mistaken for.',
     sea:{Spring:{fol:'#63855a',bloom:'#d4622c',eye:'#f0c063'}, Summer:{fol:'#4f7448'}, Fall:{fol:'#59704a'}, Winter:{fol:'#6b5563',twig:'#75634c'}}},
-  americanwisteria:{ name:'American Wisteria', latin:'Wisteria frutescens', form:'climber', type:'vine',
+  americanwisteria:{ name:'American Wisteria', latin:'Wisteria frutescens', form:'climber', type:'vine', noCutback:true,
     h:100, heightIn:360, space:72, spread:96, zones:[5,9], nativeTo:['north-america'], provenance:'species',
     sun:'full', moist:'medium', phen:'mid',
     roles:['native','nectar','structure','fragrant'],
@@ -8557,14 +8561,14 @@ const PLANTS = {
       etoileviolette:{name:"'Étoile Violette'", note:'deep violet saucers with cream stamens, smothering a frame from midsummer; a Viticella Group hybrid',
         provenance:'hybrid', nativeTo:[], sea:{Summer:{bloom:'#4f2f78',eye:'#e8dca0'}, Fall:{bloom:'#4c2d74'}}},
     }},
-  climbinghydrangea:{ name:'Climbing Hydrangea', latin:'Hydrangea anomala subsp. petiolaris', form:'climber', type:'vine',
+  climbinghydrangea:{ name:'Climbing Hydrangea', latin:'Hydrangea anomala subsp. petiolaris', form:'climber', type:'vine', noCutback:true,
     h:100, heightIn:480, space:72, spread:96, zones:[4,8], nativeTo:['asia'], provenance:'species',
     sun:'part', moist:'moist', phen:'cool',
     roles:['shade','woodland','structure','nectar'],
     look:{leafN:66, leafW:0.15, leafH:0.13, flowerN:8, flowerShape:'lacecap', twine:'root'},
     blurb:'The best climber for a shaded wall, and the slowest — it sulks for three years and then goes up forty feet, clinging by aerial roots with no help. Flat white lacecaps in early summer over glossy heart-shaped leaves, and cinnamon peeling bark that earns its keep in winter. Give it something permanent; it is not a plant you move.',
     sea:{Spring:{fol:'#5f8a55'}, Summer:{fol:'#47713f',bloom:'#f0efe0'}, Fall:{fol:'#c9b354'}, Winter:{twig:'#8a6047'}}},
-  climbingrose:{ name:'Climbing Rose', latin:'Rosa', synonyms:['Rosa hybrid'], form:'climber', type:'vine',
+  climbingrose:{ name:'Climbing Rose', latin:'Rosa', synonyms:['Rosa hybrid'], form:'climber', type:'vine', noCutback:true,
     h:100, heightIn:180, space:48, spread:60, zones:[5,9], nativeTo:[], provenance:'hybrid',
     sun:'full', moist:'medium', phen:'mid',
     roles:['nectar','structure','fragrant','longbloom'],
@@ -8584,7 +8588,7 @@ const PLANTS = {
     look:{leafN:60, leafW:0.17, leafH:0.14, lobes:3, flowerN:10, flowerShape:'cone', twine:'twine'},
     blurb:'A herbaceous climber — it dies to the ground every winter and is back over an arch by July, which makes it the one to plant where you want summer screening and winter light. Rough bristly stems twine clockwise; the papery green cones hang in late summer. The golden-leaved forms scorch in full afternoon sun.',
     sea:{Spring:{fol:'#8faa54'}, Summer:{fol:'#93a94e'}, Fall:{fol:'#b8a94f',seed:'#ddd6ac'}, Winter:{}}},
-  starjasmine:{ name:'Star Jasmine', latin:'Trachelospermum jasminoides', form:'climber', type:'vine',
+  starjasmine:{ name:'Star Jasmine', latin:'Trachelospermum jasminoides', form:'climber', type:'vine', noCutback:true,
     h:100, heightIn:240, space:48, spread:60, zones:[8,10], nativeTo:['asia'], provenance:'species',
     sun:'part', moist:'medium', phen:'mid',
     roles:['fragrant','evergreen','structure','nectar'],
