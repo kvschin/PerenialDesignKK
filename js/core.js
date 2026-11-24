@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.155';
+const APP_VERSION = '0.9.156';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -306,6 +306,25 @@ function stepsName(w,tread){
   const st=wallStyle(w), t=PATH_COLORS.find(c=>c.id===tread);
   return `${(st.short||st.label)} steps${t?` with ${lowerFirst(t.label)} treads`:''}`;
 }
+/* BERMS AND SWALES (0.9.156). Raise and Lower built earth in 5 in steps, each a
+   vertical bank, so a berm drew as a stack of terraces. Ground shaped as earth
+   is now SOFT: its elevation record carries `m` (mounded), and a soft tile is
+   drawn as a surface, four slanted triangles meeting at its centre, with no
+   face anywhere (softTileTris, world.js). Heights stay whole levels, because a
+   berm sloping a level a tile is a 3.5:1 bank, which is what one is built to.
+   A berm is laid whole by the Berm tool: an oval in the box dragged out, its
+   crown broad and its sides falling away (bermProfile), or a swale dug the same
+   way. Its sides may fall at most BERM_SLOPE_MAX levels in a tile, to any of the
+   eight neighbours, which keeps the drawn surface from ever folding over itself
+   and is about a 1.75:1 bank on the square. */
+const BERM_LEVELS = [7,5,4,3,2,-1,-2];
+const BERM_SLOPE_MAX = 2;
+function normalizeBermDraft(d){
+  d=d||{};
+  return {h:BERM_LEVELS.includes(+d.h) ? +d.h : 3};
+}
+// "15 in high", "10 in deep"
+function bermHeightText(h){ return `${terraceInches(h)} ${h<0?'deep':'high'}`; }
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
 /* Which hardiness zones the app can offer, DERIVED FROM THE CATALOG rather

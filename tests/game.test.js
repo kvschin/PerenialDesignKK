@@ -5620,7 +5620,14 @@ test('elevation tools raise, lower, level, and clamp grade', () => {
   setup(11, 11);
   game.tool = 'raise';
   for (let i = 0; i < ELEV_MAX + 2; i++) applyToolAt(5, 5);
+  // shaped earth (0.9.156): a lone tile is a mound, and stops at the slope limit
+  assertEqual(elevationAt(5, 5), BERM_SLOPE_MAX, 'a lone tile of shaped earth stops at the slope limit');
+  assert(isSoftTile(5, 5), 'and it is soft ground');
+  // built ground (a bank the Terrace tool laid) is raised as built ground, to the top
+  setElevationAt(5, 5, 1, false);
+  for (let i = 0; i < ELEV_MAX + 2; i++) applyToolAt(5, 5);
   assertEqual(elevationAt(5, 5), ELEV_MAX, 'raise clamps at max elevation');
+  assert(!isSoftTile(5, 5), 'built ground stays built');
   assertEqual(applyToolAt(5, 5), null, 'raise refuses a no-op at max elevation');
   game.tool = 'lower';
   for (let i = 0; i < ELEV_MAX - ELEV_MIN + 2; i++) applyToolAt(5, 5);
@@ -9953,11 +9960,11 @@ test('the Grade tab says what each tool does, and opens the armed one\'s options
   try {
     let kids = page('hand');
     const rows = kids.filter(c => /\blt-row\b/.test(c.className));
-    assertEqual(rows.map(r => r.dataset.k).join(), 'terrace,steps,raise,lower,level', 'a row per tool, Terrace first, then Steps; Wall only while armed');
+    assertEqual(rows.map(r => r.dataset.k).join(), 'terrace,steps,berm,raise,lower,level', 'a row per tool, Terrace first, then Steps; Wall only while armed');
     assert(rows.every(r => r.children[1].children[1].textContent.length > 20), 'each with the sentence its tooltip used to hold');
     const heads = kids.filter(c => /\blg-head\b/.test(c.className));
-    assertEqual(heads.map(h => h.children[0].textContent).join(), 'Shape the ground', 'Raise, Lower and Level under their own heading');
-    assertEqual(kids.indexOf(heads[0]), kids.indexOf(rows[2]) - 1, 'directly above Raise');
+    assertEqual(heads.map(h => h.children[0].textContent).join(), 'Shape the ground', 'Berm, Raise, Lower and Level under their own heading');
+    assertEqual(kids.indexOf(heads[0]), kids.indexOf(rows[2]) - 1, 'directly above Berm');
     assertEqual(kids.length, rows.length + 1, 'and nothing else until one is armed');
     assertEqual(rows[0].children[1].children[2].textContent, terraceLabel(), 'Terrace says the height and wall it will build');
     kids = page('terrace');
@@ -10362,8 +10369,8 @@ test('a retaining wall needs a level change to hold up', () => {
   game.tool = 'wall'; game.wallDraft = 'drystone';
   assertEqual(applyToolAt(5, 5), null, 'flat ground has no face to face');
 
-  game.tool = 'raise'; setBrushSize(1);
-  for (let n = 0; n < 3; n++) for (let x = 4; x <= 8; x++) for (let y = 4; y <= 8; y++) applyToolAt(x, y);
+  // a bank, as the Terrace tool lays one (Raise shapes soft earth, which has no face)
+  for (let x = 4; x <= 8; x++) for (let y = 4; y <= 8; y++) setElevationAt(x, y, 3, false);
   assertEqual(elevationAt(6, 8), 3, 'a three-level terrace');
   assert(elevationDropDirs(6, 8).length, 'its front edge falls away');
   assert(!elevationDropDirs(6, 6).length, 'its middle does not');
@@ -17707,7 +17714,8 @@ test('one raise drag raises each tile exactly one level', () => {
    thing the record is NAMED for silently destroyed the thing riding along. */
 test('changing a level keeps its wall, and changing a material keeps its edging', () => {
   setup(21, 21);
-  game.tool = 'raise'; setBrushSize(1); applyToolAt(10, 10);
+  // a built bank (Raise shapes soft earth, which takes no wall)
+  setElevationAt(10, 10, 1, false);
   game.tool = 'wall'; game.wallDraft = 'stone'; applyToolAt(10, 10);
   assertEqual(wallStyleAt(10, 10), 'stone', 'the terrace is faced');
   game.tool = 'raise'; applyToolAt(10, 10);
@@ -17744,8 +17752,8 @@ test('a wall traces as continuous runs, not one face per tile', () => {
   const wallAll = (tiles, style) => {
     setup(30, 30);
     game.edgeStyle = 'organic'; setBrushSize(1);
-    game.tool = 'raise';
-    for (const [x, y] of tiles) applyToolAt(x, y);
+    // built ground, as the Terrace tool lays it: Raise shapes soft earth, which takes no wall
+    for (const [x, y] of tiles) setElevationAt(x, y, elevationAt(x, y) + 1, false);
     game.tool = 'wall'; game.wallDraft = style || 'stone';
     for (const [x, y] of tiles) applyToolAt(x, y);
     wallRunCache.sig = null;
@@ -17796,8 +17804,7 @@ test('a wall traces as continuous runs, not one face per tile', () => {
 test('wall feet are what the list bills, and do not depend on the camera', () => {
   setup(30, 30);
   game.edgeStyle = 'organic'; setBrushSize(1);
-  game.tool = 'raise';
-  for (let x = 6; x <= 15; x++) for (let y = 8; y <= 12; y++) applyToolAt(x, y);
+  for (let x = 6; x <= 15; x++) for (let y = 8; y <= 12; y++) setElevationAt(x, y, 1, false);
   game.tool = 'wall'; game.wallDraft = 'stone';
   for (let x = 6; x <= 15; x++) for (let y = 8; y <= 12; y++) applyToolAt(x, y);
 
@@ -17825,8 +17832,7 @@ test('wall feet are what the list bills, and do not depend on the camera', () =>
      bills it twice. Those are the two sides of one wall. */
   setup(30, 30);
   game.edgeStyle = 'organic'; setBrushSize(1);
-  game.tool = 'raise';
-  for (let x = 6; x <= 15; x++) applyToolAt(x, 10);
+  for (let x = 6; x <= 15; x++) setElevationAt(x, 10, 1, false);
   game.tool = 'wall'; game.wallDraft = 'stone';
   for (let x = 6; x <= 15; x++) applyToolAt(x, 10);
   wallRunCache.sig = null;
@@ -27654,4 +27660,256 @@ test('the Site tab offers Existing or proposed, with what to mark under it', () 
   assert(toolMeta('survey').sizable && toolMeta('survey').paints, 'the brush size, and Fill for a whole patio');
   assert(landscapeSearchItems('existing').some(i => i.tool === 'survey'), 'the search finds it');
   assertEqual(brushTrayCatForTool('survey'), 'house', 'and the rail brings it back to the Site tab');
+});
+
+/* ---- berms and swales (0.9.156) ---- */
+function bermGarden(h){
+  setup(31, 31);
+  game.edgeStyle = 'organic';
+  const plan = bermPlan({ x0: 5, y0: 5, x1: 16, y1: 12 }, h === undefined ? 4 : h);
+  buildBerm(plan);
+  return plan;
+}
+function softSlopeWorst(){
+  let worst = 0;
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++){
+    if (!isSoftTile(x, y)) continue;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){
+      if ((!dx && !dy) || x + dx < 0 || y + dy < 0 || x + dx >= GW || y + dy >= GH) continue;
+      worst = Math.max(worst, Math.abs(drawnLevelAt(x, y) - drawnLevelAt(x + dx, y + dy)));
+    }
+  }
+  return worst;
+}
+
+test('a berm is soft earth laid whole: an oval in its box, crowned, and held to the slope limit', () => {
+  const plan = bermGarden(4);
+  assertEqual(plan.peak, 4, 'it reaches the height asked for');
+  assertEqual(elevationAt(10, 8), 4, 'at its crown');
+  assert(isSoftTile(10, 8) && game.elevation['10,8'].m === true, 'as soft earth');
+  assert(Number.isFinite(game.elevation['10,8'].z), 'carrying the exact height its profile drew');
+  assert(!isSoftTile(5, 5) && !elevationAt(5, 5), 'the box corner is outside the oval');
+  const toe = plan.tiles.filter(t => t[2] === 0);
+  assert(toe.length > 4, 'its toe is soft ground at grade');
+  for (const [x, y] of toe){ assertEqual(elevationAt(x, y), 0, 'the rules read a toe as grade'); assert(isSoftTile(x, y), 'and it is drawn soft'); }
+  assert(softSlopeWorst() <= BERM_SLOPE_MAX + 1e-6, 'no tile stands more than the slope limit off a neighbour: ' + softSlopeWorst());
+  // a box too small for the height asked keeps it lower, and says so
+  setup(31, 31);
+  const small = bermPlan({ x0: 5, y0: 5, x1: 7, y1: 7 }, 7);
+  assert(Math.abs(small.peak) < 7, 'a 4.5 ft box holds no 36 in berm: ' + small.peak);
+  buildBerm(small);
+  assert(/wider one/.test(bermBuiltText(small)), 'and the toast says why: ' + bermBuiltText(small));
+  assert(softSlopeWorst() <= BERM_SLOPE_MAX + 1e-6, 'still within the slope limit');
+});
+
+test('a swale is a berm dug, and a berm leaves built ground, water and buildings alone', () => {
+  setup(31, 31);
+  const sw = bermPlan({ x0: 4, y0: 4, x1: 14, y1: 10 }, -2);
+  buildBerm(sw);
+  assertEqual(sw.peak, -2, 'a swale reaches its depth');
+  assertEqual(elevationAt(9, 7), -2, 'at the middle');
+  assert(isSoftTile(9, 7), 'as soft earth');
+  assert(/^Dug a swale 10 in deep/.test(withUnits('imperial', () => bermBuiltText(sw))), withUnits('imperial', () => bermBuiltText(sw)));
+  setup(31, 31);
+  setTerraceTile(10, 8, { h: 2, w: 'stone' });
+  game.tool = 'water'; game.waterStyle = 'pond'; placeTerrainAt(12, 8);
+  buildBerm(bermPlan({ x0: 5, y0: 5, x1: 16, y1: 12 }, 4));
+  assertEqual(elevationAt(10, 8), 2, 'a terrace is left at its own height');
+  assert(!isSoftTile(10, 8) && wallStyleAt(10, 8) === 'stone', 'and stays built');
+  assertEqual(elevationAt(12, 8), 0, 'water is left flat');
+  // two berms laid over each other make one: each tile the higher
+  setup(31, 31);
+  buildBerm(bermPlan({ x0: 5, y0: 5, x1: 14, y1: 12 }, 3));
+  const before = elevationAt(13, 8);
+  buildBerm(bermPlan({ x0: 10, y0: 5, x1: 21, y1: 12 }, 3));
+  assert(elevationAt(13, 8) >= before, 'a second berm never lowers the first');
+  assertEqual(softComponents().length, 1, 'and they are one berm');
+});
+
+test('soft ground has no face: no bank, no wall run, and Wall refuses it', () => {
+  bermGarden(4);
+  wallRunCache.sig = null;
+  assertEqual(buildElevationRuns().length, 0, 'no wall runs round a berm');
+  assertEqual(elevationDropDirs(10, 8).length, 0, 'no face on it');
+  assertEqual(elevationDropDirs(9, 8).length, 0, 'nor between two of its tiles');
+  let fills = 0;
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.fill = () => { fills++; };
+  for (let y = 4; y <= 13; y++) for (let x = 4; x <= 17; x++) drawElevationSides(ctx, 800, 600, x, y, '#7a9a5a');
+  assertEqual(fills, 0, 'and no bank is drawn anywhere on or round it');
+  assertEqual(wallTargetAt(10, 8), null, 'Wall has nothing to face');
+  game.tool = 'wall'; game.wallDraft = 'stone';
+  assertEqual(faceTerraceAt(10, 8), null, 'a tap faces nothing');
+  assert(/berm/i.test(wallTapText(false)), 'and says a berm takes no wall: ' + wallTapText(false));
+  assertEqual(terraceRegionAt(10, 8), null, 'a berm is not a terrace');
+  assertEqual(raisedBedSoil().tiles, 0, 'nor a raised bed');
+  // a stone terrace with a berm built against it: its wall runs on down to the berm's foot
+  setup(31, 31);
+  for (let x = 4; x <= 7; x++) for (let y = 4; y <= 12; y++) setTerraceTile(x, y, { h: 2, w: 'stone' });
+  buildBerm(bermPlan({ x0: 6, y0: 4, x1: 20, y1: 12 }, 3));   // its box takes in the terrace, which it leaves alone
+  assert(isSoftTile(8, 8) && elevationAt(8, 8) < 2, 'the berm reaches the terrace, lower than it: ' + elevationAt(8, 8));
+  assert(softCornerAt(8, 8) < 1.5 && softCornerAt(8, 9) < 1.5, 'and meets it at the foot of its wall, not its top: ' + softCornerAt(8, 8));
+  wallRunCache.sig = null;
+  const faces = buildElevationRuns().flatMap(r => r.edges || []);
+  const toBerm = faces.filter(e => { const [x, y] = e.tile.split(',').map(Number); return isSoftTile(x + e.n[0], y + e.n[1]); });
+  assert(toBerm.length >= 3 && toBerm.every(e => e.drop >= 1 && e.wall === 'stone'), 'the stone wall stands along the berm: ' + toBerm.map(e => e.drop).join());
+  assert(elevationDropDirs(7, 8).length, 'and the Wall tool sees its face');
+  // where the berm stands higher than the terrace, it comes down onto the terrace's top
+  setup(31, 31);
+  for (let x = 4; x <= 7; x++) for (let y = 4; y <= 12; y++) setTerraceTile(x, y, { h: 1, w: 'stone' });
+  for (let x = 8; x <= 10; x++) for (let y = 4; y <= 12; y++) setElevationAt(x, y, 2, true);
+  assertEqual(softCornerAt(8, 8), 1, 'a higher berm meets a lower terrace at its top');
+});
+
+test('Raise and Lower shape soft earth; a terrace built over it is built', () => {
+  setup(21, 21);
+  game.tool = 'raise'; setBrushSize(1);
+  applyToolAt(10, 10);
+  assert(isSoftTile(10, 10), 'a Raise stroke at grade is soft earth');
+  assert(!('z' in game.elevation['10,10']), 'with no profile height: it is eased toward its neighbours');
+  applyToolAt(10, 10); assertEqual(elevationAt(10, 10), 2, 'raised twice');
+  assertEqual(applyToolAt(10, 10), null, 'a third would stand too steep over the lawn');
+  setTerraceTile(10, 10, { h: 2, w: 'none' });
+  assert(!isSoftTile(10, 10) && !game.elevation['10,10'].m, 'built by Terrace, it is a terrace');
+  // a berm's toe goes with Level
+  bermGarden(3);
+  const toe = Object.keys(game.elevation).find(k => game.elevation[k].m && game.elevation[k].h === 0);
+  assert(toe, 'a toe');
+  const [tx, ty] = toe.split(',').map(Number);
+  game.tool = 'level'; assertEqual(applyToolAt(tx, ty), 'elevation', 'Level takes a toe up');
+  assert(!game.elevation[toe] || game.elevation[toe].removed, 'leaving no record');
+});
+
+test('the soft surface meets flat ground, is continuous, and never folds', () => {
+  bermGarden(4);
+  // a corner touching grade is at grade
+  let pinned = 0;
+  for (let cy = 4; cy <= 14; cy++) for (let cx = 4; cx <= 18; cx++){
+    const touch = [[cx - 1, cy - 1], [cx, cy - 1], [cx - 1, cy], [cx, cy]];
+    if (!touch.some(([x, y]) => isSoftTile(x, y))) continue;
+    if (touch.some(([x, y]) => !isSoftTile(x, y))){ assertEqual(softCornerAt(cx, cy), 0, `corner ${cx},${cy} meets the lawn`); pinned++; }
+  }
+  assert(pinned > 10, 'the toe is pinned all round');
+  for (let y = 5; y <= 12; y++) for (let x = 5; x <= 16; x++){
+    if (!isSoftTile(x, y)) continue;
+    assert(Math.abs(groundHeightAt(x + 0.5, y + 0.5) - drawnLevelAt(x, y)) < 1e-6, 'the centre is the drawn level');
+    // the shared edge with the next tile agrees from both sides
+    if (isSoftTile(x + 1, y)) for (const v of [0.1, 0.5, 0.9]){
+      const a = softTileHeight(x, y, 1, v), b = softTileHeight(x + 1, y, 0, v);
+      assert(Math.abs(a - b) < 1e-5, `edge ${x}|${x + 1},${y} at ${v}: ${a} vs ${b}`);
+    }
+    for (const t of softTileTris(x, y, 1200, 800)){
+      // the shear carries the flat triangle onto the lifted one
+      for (let j = 0; j < 3; j++){
+        const [fx, fy] = t.f[j], m = t.m;
+        assert(Math.abs(m[1] * fx + m[3] * fy + m[5] - t.l[j][1]) < 1e-6 && Math.abs(fx - t.l[j][0]) < 1e-9, 'the transform lifts each point');
+      }
+      const cr = p => (p[1][0] - p[0][0]) * (p[2][1] - p[0][1]) - (p[1][1] - p[0][1]) * (p[2][0] - p[0][0]);
+      assert(Math.sign(cr(t.f)) === Math.sign(cr(t.l)), `tile ${x},${y} folds over itself`);
+    }
+  }
+});
+
+test('a press finds the soft tile whose surface is under it', () => {
+  bermGarden(4);
+  const W = 1200, H = 800;
+  let hits = 0;
+  // three quarters of the way from the centre to each edge's middle, on every soft tile
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++){
+    if (!isSoftTile(x, y)) continue;
+    for (const t of softTileTris(x, y, W, H)){
+      const mx = (t.l[1][0] + t.l[2][0]) / 2, my = (t.l[1][1] + t.l[2][1]) / 2;
+      const px = t.l[0][0] * 0.25 + mx * 0.75, py = t.l[0][1] * 0.25 + my * 0.75;
+      assertEqual(tileAt(px, py, W, H).join(), x + ',' + y, `a press near the edge of ${x},${y}`); hits++;
+    }
+  }
+  assert(hits > 200, 'every triangle of every soft tile: ' + hits);
+});
+
+test('a bed over a berm and on past it is one bed, drawn over the slope', () => {
+  bermGarden(3);
+  game.tool = 'bed'; game.bedStyle = 'mulch';
+  for (let x = 3; x <= 18; x++) for (let y = 3; y <= 14; y++) placeTerrainAt(x, y);
+  terrainLoopCache.sig = null;
+  const beds = buildTerrainRegions().filter(r => r.kind === 'bed');
+  assertEqual(beds.length, 1, 'one bed, not one a level');
+  assert(beds[0].soft && beds[0].elev === 0, 'on soft ground, counted at grade');
+  // its outline follows the surface between its corners
+  const proj = softDrapeProj(1200, 800);
+  let n = 0; const ctx = { moveTo(){ n++; }, lineTo(){ n++; }, quadraticCurveTo(){ n++; }, closePath(){} };
+  for (const loop of beds[0].loops) terrainLoopPath(ctx, loop, proj);
+  assert(n > 40, 'sampled along its length: ' + n);
+});
+
+test('the list bills a berm by its earth and a swale by what it takes out', () => {
+  bermGarden(4);
+  buildBerm(bermPlan({ x0: 6, y0: 18, x1: 18, y1: 26 }, -2));
+  // a bed over the berm: its earth is the berm's line, not raised-bed soil
+  game.tool = 'bed'; game.bedStyle = 'mulch';
+  for (let x = 6; x <= 15; x++) for (let y = 6; y <= 11; y++) placeTerrainAt(x, y);
+  const rows = withUnits('imperial', () => hardscapeRows());
+  const fill = rows.find(r => r.name === 'Berm fill'), cut = rows.find(r => r.name === 'Swale dug out');
+  assert(fill && cut, 'both lines: ' + rows.map(r => r.name).join());
+  // the berm's earth sits between a cone and the box it stands in
+  const box = 12 * 8 * 324 * 4 * ELEV_RISER_IN / 46656;
+  assert(fill.n > box * 0.2 && fill.n < box * 0.7, `${fill.n.toFixed(2)} cu yd against a ${box.toFixed(2)} cu yd box`);
+  assert(/up to 21 in high/.test(fill.detail), fill.detail);
+  assert(/up to 10 in deep.*build the berm with/.test(cut.detail), cut.detail);
+  assert(!rows.some(r => r.name === 'Raised bed soil'), 'a bed on a berm is not a raised bed');
+});
+
+test('the plan draws a berm in contours, with one height at its crown', () => {
+  bermGarden(4);
+  const loops = planContourLoops();
+  for (let L = 0; L <= 4; L++) assertEqual(loops.filter(c => c.L === L).length, 1, `one ring at level ${L}`);
+  // each ring lies inside the one below it
+  const inside = (p, ring) => { let c = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++){
+      const a = ring[i], b = ring[j];
+      if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c; }
+    return c; };
+  for (let L = 1; L <= 4; L++){
+    const outer = loops.find(c => c.L === L - 1).pts, inner = loops.find(c => c.L === L).pts;
+    assert(inner.every(p => inside(p, outer)), `ring ${L} inside ring ${L - 1}`);
+  }
+  assertEqual(planSite().softCount, 1, 'the sheet knows there is a berm to key');
+  assertEqual(planTerraceSpots().length, 0, 'and gives it no terrace spot heights');
+  const c = softComponents()[0];
+  assertEqual(c.up, 4, 'its crown is 4 levels up');
+});
+
+test('a berm is saved, survives an import, and its fields must make sense', () => {
+  bermGarden(3);
+  const env = { pocketPrairie: 1, v: 1, world: buildSaveBlob() };
+  const k = Object.keys(env.world.elevation).find(q => env.world.elevation[q].m && env.world.elevation[q].h);
+  assert(k, 'a mounded record in the save');
+  assertEqual(gardenFileProblem(env), null, 'a valid garden');
+  const rec = env.world.elevation[k];
+  rec.m = 'yes';
+  assert(/elevation/.test(gardenFileProblem(env) || ''), 'a mark that is not true or false is refused');
+  rec.m = true; rec.z = rec.h + 3;
+  assert(/elevation/.test(gardenFileProblem(env) || ''), 'a profile height far from its level is refused');
+});
+
+test('the Grade tab offers Berm with its heights and swales, and a tap shapes one', () => {
+  setup(31, 31);
+  const tray = document.getElementById('toolTray');
+  game.trayCat = 'leveling'; game.traySearch = ''; game.drill = null; tray.children.length = 0; setTool('berm', null); buildToolTray(true);
+  const chips = tray.children.filter(c => c.dataset && c.dataset.bermH);
+  assertEqual(chips.map(c => c.dataset.bermH).join(), BERM_LEVELS.join(), 'a chip per height and depth');
+  chips.find(c => c.dataset.bermH === '-1').onclick();
+  assertEqual(bermDraft().h, -1, 'a chip sets it');
+  assert(toolMeta('berm').rect && !toolMeta('berm').paints, 'dragged out as a box, with nothing for Fill to add');
+  assert(landscapeSearchItems('swale').some(i => i.tool === 'berm'), 'the search finds it by swale');
+  assertEqual(brushTrayCatForTool('berm'), 'leveling', 'and the rail brings it back to the Grade tab');
+  // a tap
+  game.bermDraft = { h: 3 };
+  const said = saidBy(() => { game.actX = 15; game.actY = 15; actHere(); });
+  assert(/^Shaped a berm 15 in high over/.test(said[0]), said[0]);
+  assert(isSoftTile(15, 15), 'there');
+  // the eyedropper takes it up
+  game.bermDraft = { h: -2 }; setTool('pick', null);
+  pickAt(15, 15);
+  assertEqual(game.tool, 'berm', 'picked into the Berm tool');
+  assertEqual(bermDraft().h, 3, 'at its height');
 });

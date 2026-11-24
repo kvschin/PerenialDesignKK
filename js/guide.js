@@ -3007,7 +3007,7 @@ function guideChapters(){
             'Tap a terrace to change it: only what you pick changes, so a new wall keeps its height and a new height keeps its wall. A bank is a real answer too.',
             'For a curved raised bed, lay the bed first, turn on Fill and tap it with Terrace. Its wall follows the bed’s curve.',
             'The eyedropper picks a terrace up to build another like it.',
-            'Under Shape the ground, Raise, Lower and Level shape berms and swales by the brush.']},
+            'Under Shape the ground, Berm lays a soft mound, or a swale for rain, in one drag: no walls, its sides falling away gently. Raise, Lower and Level shape soft earth by the brush.']},
      ]},
 
     {id:'hardscape', title:'Everything else that stands there',

@@ -472,6 +472,7 @@ const game = {
   ornamentDraft:{kind:'sphere',finish:'granite',face:0}, // settings for the next garden ornament
   wallDraft:'drystone',                              // material the wall brush paints onto a terrace face
   terraceDraft:{h:3,w:'drystone',top:'bed'},        // the height, facing and top the next terrace is built with
+  bermDraft:{h:3},                                   // the height (or a swale's depth) the next berm is laid to
   edgingDraft:'steel',                               // material the edging brush paints onto a bed or path edge
   crossingDraft:'stepping',                          // what the Crossing tool lays over water (CROSSING_TYPES)
   surveyDraft:'existing',                            // what the Existing tool marks: 'existing' or 'proposed'
@@ -2063,8 +2064,255 @@ function elevationGrid(){
      every pointermove of a garden that has none. Only the LAST write per tile
      lands in g, so a duplicate key could in principle widen this range beyond
      what g holds — harmless, since a wider range only probes more. */
-  elevGrid={rev:game.terrainRev, ref:src, gw:GW, gh:GH, g, empty, sunken, lo, hi};
+  /* Soft ground (0.9.156): a tile whose record is mounded (`m`), with no wall
+     facing, no step and no water on it. Water stays flat at the bottom of a
+     swale, and a faced or stepped tile is built, not shaped. */
+  /* A berm's TOE is soft ground at grade: its level is 0, which is what every
+     rule reads, and its record keeps only the little height (`z`) the drawing
+     needs to feather the berm out into the lawn. */
+  let soft=null, anySoft=false;
+  for (const k in src||{}){
+    const e=src[k]; if (!e || e.removed || !e.m || e.s || wallStyleId(e.w)!=='none') continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (!(x>=0 && y>=0 && x<GW && y<GH)) continue;
+    if (!g[y*GW+x] && !(Number.isFinite(+e.z) && e.z!==null && +e.z)) continue;
+    const t=game.terrain && game.terrain[k];
+    if (t && !t.removed && t.k==='water') continue;
+    if (!soft) soft=new Uint8Array(GW*GH);
+    soft[y*GW+x]=1; anySoft=true;
+  }
+  elevGrid={rev:game.terrainRev, ref:src, gw:GW, gh:GH, g, empty:empty && !anySoft, sunken, lo, hi, soft, anySoft, cz:null, sc:null};
+  if (anySoft){ elevGrid.sc=softCentreGrid(g,soft,src); elevGrid.cz=softCornerGrid(g,soft,elevGrid.sc); }
   return elevGrid;
+}
+/* The height a soft tile is DRAWN at, at its centre. A berm's tiles carry the
+   exact height of its profile (`z`, in levels), which the rules round to the
+   whole level they read. A tile shaped by hand (Raise, Lower) has only its level,
+   which is eased toward its eight neighbours' (weights 4 / 2 / 1): levels are
+   whole 5 in steps, and held at them a slope is a run of little plateaus with a
+   kink at every step. Everything that stands on the tile stands at this height
+   (drawnLevelAt), so nothing floats. Built tiles keep their level. */
+function softCentreGrid(g,soft,src){
+  const sc=Float32Array.from(g);
+  for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+    const i=y*GW+x; if (!soft[i]) continue;
+    const e=src[x+','+y], z=e && +e.z;
+    if (Number.isFinite(z) && e.z!==undefined && e.z!==null){ sc[i]=Math.max(ELEV_MIN,Math.min(ELEV_MAX,z)); continue; }
+    let sum=0, wt=0;
+    for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
+      const nx=x+dx, ny=y+dy, w=(dx?1:2)*(dy?1:2);
+      const v=(nx<0||ny<0||nx>=GW||ny>=GH) ? g[i] : g[ny*GW+nx];
+      sum+=v*w; wt+=w;
+    }
+    sc[i]=sum/wt;
+  }
+  return sc;
+}
+/* The height of every tile CORNER a soft tile touches, in levels. Where all four
+   tiles round it are soft it is their mean. Where a built or flat tile touches
+   it, the surface comes down to that tile's level, so it meets the lawn with no
+   face and no gap, but only to ground at or below it: a terrace standing higher
+   keeps its wall, and the berm runs to the wall's foot (the mean again). Of two
+   such tiles, the higher. NaN where no soft tile touches it. */
+function softCornerGrid(g,soft,sc){
+  const W1=GW+1, cz=new Float32Array(W1*(GH+1)).fill(NaN);
+  for (let cy=0;cy<=GH;cy++) for (let cx=0;cx<=GW;cx++){
+    let n=0, sum=0, hard=null;
+    for (let j=0;j<4;j++){
+      const tx=cx-1+(j&1), ty=cy-1+(j>>1);
+      if (tx<0||ty<0||tx>=GW||ty>=GH) continue;
+      const i=ty*GW+tx;
+      if (soft[i]){ n++; sum+=sc[i]; } else (hard||(hard=[])).push(g[i]);
+    }
+    if (!n) continue;
+    const m=sum/n;
+    let best=null;
+    if (hard) for (const h of hard) if (h<=m+0.5 && (best===null || h>best)) best=h;
+    cz[cy*W1+cx]=best===null ? m : best;
+  }
+  return cz;
+}
+/* The berms and swales of a garden: each 8-connected run of soft ground, with its
+   crown (the tile standing highest, or lowest for a swale), its level there, and
+   the earth it holds in cubic inches, worked out from the surface as drawn: a
+   tile's four triangles, each a prism standing on grade under its three heights.
+   Kept with the elevation grid, so it is redone only when the ground changes. */
+let softComponentCache={grid:null, list:[], at:null};
+function softComponents(){
+  const E=game.elevation ? elevationGrid() : null;
+  if (!E || !E.anySoft) return [];
+  if (softComponentCache.grid===E) return softComponentCache.list;
+  const at=new Int32Array(GW*GH).fill(-1), list=[];
+  const tileIn2=TILE_IN*TILE_IN, levelIn=ELEV_RISER_IN;
+  for (let i=0;i<GW*GH;i++){
+    if (!E.soft[i] || at[i]>=0) continue;
+    const id=list.length, tiles=[], q=[i]; at[i]=id;
+    let up=0, down=0, crown=null, crownV=0, fill=0, cut=0;
+    while (q.length){
+      const j=q.pop(), x=j%GW, y=(j/GW)|0; tiles.push([x,y]);
+      const v=E.sc[j];
+      if (Math.abs(v)>Math.abs(crownV)){ crownV=v; crown=[x,y]; }
+      if (E.g[j]>up) up=E.g[j];
+      if (E.g[j]<down) down=E.g[j];
+      // the earth under (over, for a swale) the tile's four triangles: a third of each one's heights
+      const c00=softCornerAt(x,y), c10=softCornerAt(x+1,y), c11=softCornerAt(x+1,y+1), c01=softCornerAt(x,y+1);
+      const mean=(v/3+(c00+c10+c11+c01)/6)*levelIn;
+      if (mean>0) fill+=mean*tileIn2; else cut-=mean*tileIn2;
+      for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
+        const nx=x+dx, ny=y+dy; if (nx<0||ny<0||nx>=GW||ny>=GH) continue;
+        const k=ny*GW+nx; if (!E.soft[k] || at[k]>=0) continue;
+        at[k]=id; q.push(k);
+      }
+    }
+    list.push({id, tiles, crown, crownV, up, down, swale:Math.abs(down)>up, fillCuIn:fill, cutCuIn:cut});
+  }
+  softComponentCache={grid:E, list, at};
+  return list;
+}
+function softComponentAt(x,y){
+  if (!isSoftTile(x,y)) return null;
+  const list=softComponents(), id=softComponentCache.at[y*GW+x];
+  return id>=0 ? list[id] : null;
+}
+function isSoftTile(x,y){
+  if (!game.elevation || !(x>=0 && y>=0 && x<GW && y<GH)) return false;
+  const E=elevationGrid();
+  return E.anySoft && E.soft[y*GW+x]===1;
+}
+function anySoftGround(){ return !!(game.elevation && elevationGrid().anySoft); }
+function softCornerAt(cx,cy){
+  const E=elevationGrid(); if (!E.cz || cx<0 || cy<0 || cx>GW || cy>GH) return 0;
+  const v=E.cz[cy*(GW+1)+cx];
+  return Number.isNaN(v) ? 0 : v;
+}
+/* The drawn height of a soft tile at a point in it, (u,v) from its corner (x,y)
+   in tile units: the triangle of its four that holds the point, centre at the
+   tile's own level and corners from softCornerGrid. */
+/* The level a tile is drawn at, at its centre: its own, or a soft tile's eased
+   height (softCentreGrid). screenOf stands everything on this. */
+function drawnLevelAt(x,y){
+  if (!game.elevation) return 0;
+  const gx=Math.round(x), gy=Math.round(y);
+  if (gx>=0 && gy>=0 && gx<GW && gy<GH){
+    const E=elevationGrid(); if (E.empty) return 0;
+    const i=gy*GW+gx;
+    return E.anySoft && E.soft[i] ? E.sc[i] : E.g[i];
+  }
+  return elevationAt(x,y);
+}
+function softTileHeight(x,y,u,v){
+  const h=drawnLevelAt(x,y);
+  const c00=softCornerAt(x,y), c10=softCornerAt(x+1,y), c01=softCornerAt(x,y+1), c11=softCornerAt(x+1,y+1);
+  const d1=u-v, d2=u+v-1;
+  if (d1>=0 && d2<=0) return c00+(c10-c00)*u+(2*h-c00-c10)*v;            // the edge y = 0
+  if (d1>=0)          return c10+(c11-c10)*v+(2*h-c10-c11)*(1-u);        // x = 1
+  if (d2>=0)          return c01+(c11-c01)*u+(2*h-c01-c11)*(1-v);        // y = 1
+  return c00+(c01-c00)*v+(2*h-c00-c01)*u;                                // x = 0
+}
+/* The height the ground is DRAWN at, at a point in tile-corner space: a tile's
+   level, or a soft tile's surface. On a tile edge, a soft tile beside it answers
+   first when asked (soft), so a soft region's own outline stays on its surface. */
+function groundHeightAt(px,py,soft){
+  let tx=Math.floor(px), ty=Math.floor(py);
+  if (soft && !isSoftTile(tx,ty)){
+    const ex=px===tx, ey=py===ty;
+    if (ex && isSoftTile(tx-1,ty)) tx--;
+    else if (ey && isSoftTile(tx,ty-1)) ty--;
+    else if (ex && ey && isSoftTile(tx-1,ty-1)){ tx--; ty--; }
+  }
+  if (tx<0||ty<0||tx>=GW||ty>=GH) return 0;
+  return isSoftTile(tx,ty) ? softTileHeight(tx,ty,px-tx,py-ty) : elevationAt(tx,ty);
+}
+/* A soft tile on screen: its four triangles, each the centre and one edge, as the
+   flat points (the tile at grade), the lifted points, and the canvas transform
+   that carries the first onto the second (x stays, y is sheared by the height).
+   A painter that draws a tile at grade draws it on the slope through this. */
+function softTileTris(x,y,W,H){
+  const h=drawnLevelAt(x,y), flat=screenOfFlat(x,y,W,H), ctr=[flat[0],flat[1]+TILE_H/2];
+  /* Light from the eased slope, not from each triangle's own plane, and per
+     VERTEX: the light at a tile's centre comes from its central differences, at a
+     corner from the mean of the four tiles round it, so two triangles sharing an
+     edge agree along it and the light runs across a berm without a facet. A tile
+     is then filled with the linear ramp that fits its five (softTileFill), one
+     canvas linear gradient. */
+  const D=(tx,ty)=>(tx<0||ty<0||tx>=GW||ty>=GH) ? h : drawnLevelAt(tx,ty);
+  const grad=(tx,ty)=>[(D(tx+1,ty)-D(tx-1,ty))/2,(D(tx,ty+1)-D(tx,ty-1))/2];
+  const gC=grad(x,y);
+  /* At a corner on built or flat ground the light is flat ground's (none), so a
+     berm fades into the lawn round it rather than stopping at a lit edge. */
+  const gCorner=(cx,cy)=>{ let gx=0, gy=0;
+    for (const [tx,ty] of [[cx-1,cy-1],[cx,cy-1],[cx-1,cy],[cx,cy]]){
+      if (tx>=0 && ty>=0 && tx<GW && ty<GH && !isSoftTile(tx,ty)) return [0,0];
+      const q=grad(tx,ty); gx+=q[0]; gy+=q[1]; }
+    return [gx/4,gy/4]; };
+  const cs=[[x,y],[x+1,y],[x+1,y+1],[x,y+1]].map(([cx,cy])=>({c:[cx,cy], f:screenOfCorner(cx,cy,W,H), z:softCornerAt(cx,cy)}));
+  const out=[];
+  for (let i=0;i<4;i++){
+    const a=cs[i], b=cs[(i+1)%4], P=[ctr,a.f,b.f], Z=[h,a.z,b.z];
+    // the plane z = A x + B y + C through the three flat points
+    const x1=P[1][0]-P[0][0], y1=P[1][1]-P[0][1], z1=Z[1]-Z[0];
+    const x2=P[2][0]-P[0][0], y2=P[2][1]-P[0][1], z2=Z[2]-Z[0];
+    const det=(x1*y2-x2*y1)||1e-9, A=(z1*y2-z2*y1)/det, B=(x1*z2-x2*z1)/det, C=Z[0]-A*P[0][0]-B*P[0][1];
+    const k=ELEV_STEP;
+    const ga=gCorner(...a.c), gb=gCorner(...b.c);
+    const vl=[softSlopeLight(gC[0],gC[1]), softSlopeLight(ga[0],ga[1]), softSlopeLight(gb[0],gb[1])];
+    out.push({f:P, l:P.map((p,j)=>[p[0],p[1]-Z[j]*k]), z:Z, m:[1,-k*A,0,1-k*B,0,-k*C], vl, light:(vl[0]+vl[1]+vl[2])/3});
+  }
+  /* The plane that fits the tile's centre and four corners best (least squares),
+     as a shear like each triangle's: the tile's marks (grass blades, grain) are
+     drawn ONCE through it, clipped to the tile, where drawing them once a triangle
+     cost four times the flat tile. A blade lands within a fraction of a level of
+     the surface, which a blade's own height hides. */
+  const pts=[[ctr[0],ctr[1],h]].concat(cs.map(c=>[c.f[0],c.f[1],c.z]));
+  let sx=0,sy=0,sz=0,sxx=0,syy=0,sxy=0,sxz=0,syz=0;
+  const mx=ctr[0], my=ctr[1];
+  for (const [px,py,pz] of pts){ const u=px-mx, v=py-my; sx+=u; sy+=v; sz+=pz; sxx+=u*u; syy+=v*v; sxy+=u*v; sxz+=u*pz; syz+=v*pz; }
+  const n=pts.length, d=sxx*syy-sxy*sxy;
+  const A=d ? (sxz*syy-syz*sxy)/d : 0, B=d ? (syz*sxx-sxz*sxy)/d : 0, C0=sz/n-A*sx/n-B*sy/n;
+  const k=ELEV_STEP;
+  out.plane=[1,-k*A,0,1-k*B,0,-k*(C0-A*mx-B*my)];
+  out.outline=cs.map((c)=>[c.f[0],c.f[1]-c.z*k]);
+  // the light at the centre and the four corners, lifted, for a single ramp across the tile
+  out.lights=[[ctr[0],ctr[1]-h*k,out[0].vl[0]]].concat(out.map((t,i)=>[out.outline[i][0],out.outline[i][1],t.vl[1]]));
+  return out;
+}
+/* Light on a soft triangle, from the upper left of the SCREEN as every structure
+   here is lit: positive where it faces the light more than flat ground does. */
+const SOFT_LIGHT=(()=>{ const v=[-0.55,-0.22,0.8], n=Math.hypot(...v); return v.map(c=>c/n); })();
+function softSlopeLight(gx,gy){
+  const zs=ELEV_RISER_IN/TILE_IN, [vx,vy]=worldDirToView(-gx*zs,-gy*zs,game.rot);
+  const L=Math.hypot(vx,vy,1);
+  return (vx*SOFT_LIGHT[0]+vy*SOFT_LIGHT[1]+SOFT_LIGHT[2])/L - SOFT_LIGHT[2];
+}
+// a colour lit or shaded by softSlopeLight, in whole steps (shade's cache is keyed on them)
+const SOFT_SHADE_K=300;
+function softShade(col,light){ const a=Math.round(light*SOFT_SHADE_K); return a ? shade(col,a) : col; }
+/* One fill for a whole soft tile: the linear ramp that best fits the light at its
+   centre and its four corners (least squares), so a tile costs one gradient where
+   one a triangle cost four; neighbours share their corners' light, so the ramps
+   meet nearly level across an edge. */
+function softTileFill(ctx,tris,col,over){ return softRampFill(ctx,tris.lights,over ? softWashTone : v=>softShade(col,v)); }
+/* The linear ramp of `tone` that fits lights at points [x,y,light], as a canvas
+   gradient: exact on a triangle's three, the least-squares fit on a tile's five. */
+function softRampFill(ctx,L,tone){
+  let sx=0,sy=0,sv=0,sxx=0,syy=0,sxy=0,sxv=0,syv=0;
+  const mx=L[0][0], my=L[0][1];
+  for (const [px,py,v] of L){ const u=px-mx, w=py-my; sx+=u; sy+=w; sv+=v; sxx+=u*u; syy+=w*w; sxy+=u*w; sxv+=u*v; syv+=w*v; }
+  const n=L.length, d=sxx*syy-sxy*sxy;
+  const A=d ? (sxv*syy-syv*sxy)/d : 0, B=d ? (syv*sxx-sxv*sxy)/d : 0, c0=sv/n-A*sx/n-B*sy/n;
+  let lo=Infinity, hi=-Infinity;
+  for (const [px,py] of L){ const v=c0+A*(px-mx)+B*(py-my); if (v<lo) lo=v; if (v>hi) hi=v; }
+  const g2=A*A+B*B;
+  if (hi-lo<0.004 || g2<1e-12) return tone((lo+hi)/2);
+  const t0=(lo-c0)/g2, t1=(hi-c0)/g2;
+  const gr=ctx.createLinearGradient(mx+A*t0,my+B*t0,mx+A*t1,my+B*t1);
+  gr.addColorStop(0,tone(lo)); gr.addColorStop(1,tone(hi));
+  return gr;
+}
+// the wash over a material's grain (softShadeOverlay): white lightens, black darkens, through soft-light
+function softWashTone(v){
+  v*=2;
+  return v>0 ? `rgba(255,255,255,${Math.min(0.6,v*1.4).toFixed(3)})` : `rgba(0,0,0,${Math.min(0.7,-v*1.6).toFixed(3)})`;
 }
 /* Does this garden hold any ground BELOW grade? The face of a hollow belongs
    to the tiles AROUND it, which sit at grade and carry no elevation record, so
@@ -2088,9 +2336,15 @@ function elevationAt(x,y){
   const e=src[gx+','+gy];
   return (e && !e.removed && Number.isFinite(+e.h)) ? Math.max(ELEV_MIN,Math.min(ELEV_MAX,+e.h|0)) : 0;
 }
-function setElevationAt(x,y,h){
+/* `soft` true marks the tile as shaped earth (a berm, a swale, a Raise stroke),
+   false makes it built ground; left out, the tile keeps what it was. */
+function setElevationAt(x,y,h,soft,z){
   const k=`${x},${y}`, n=Math.max(ELEV_MIN,Math.min(ELEV_MAX,+h|0));
-  if (n===elevationAt(x,y)) return false;
+  const was=game.elevation && game.elevation[k], wasSoft=!!(was && !was.removed && was.m);
+  const zz=Number.isFinite(z) ? Math.round(Math.max(ELEV_MIN,Math.min(ELEV_MAX,z))*100)/100 : undefined;
+  if (n===elevationAt(x,y) && (soft===undefined || wasSoft===!!soft)
+      && (zz===undefined || (was && !was.removed && was.z===zz))
+      && (n!==0 || soft!==true || wasSoft) && !(n===0 && soft===undefined && wasSoft)) return false;
   if (!game.elevation) game.elevation={};
   /* Merge, never replace: the retaining-wall facing rides this record (w), so
      writing a bare {h,t} silently stripped the wall off a terrace the moment its
@@ -2106,8 +2360,13 @@ function setElevationAt(x,y,h){
   const keepWall=n===0 && live && wallStyleId(live.w)!=='none'
     && ELEV_DIRS.some(([dx,dy])=>{ const nx=x+dx, ny=y+dy;
       return nx>=0 && ny>=0 && nx<GW && ny<GH && elevationAt(nx,ny)<0; });
-  if (n===0 && !keepWall) clearTile('elevation',k);
+  // a berm's toe: grade, shaped, with only its drawn height (elevationGrid)
+  const toe=n===0 && soft===true && zz!==undefined && Math.abs(zz)>=0.1;
+  if (n===0 && !keepWall && !toe) clearTile('elevation',k);
   else { const rec=Object.assign({},live,{h:n,t:Date.now()}); delete rec.s;   // a step raised or lowered is a step no longer
+    if (soft===true) rec.m=true; else if (soft===false) delete rec.m;
+    // a berm's exact height goes with its level: a new level by hand drops it
+    if (zz!==undefined && rec.m) rec.z=zz; else if (!live || live.h!==n || !rec.m) delete rec.z;
     setTile('elevation',k,rec); }
   tidyGradeWallsAround(x,y);
   return true;
@@ -2120,7 +2379,7 @@ function tidyGradeWallsAround(x,y){
   if (!game.elevation) return;
   for (const [dx,dy] of ELEV_DIRS){
     const nx=x+dx, ny=y+dy, nk=`${nx},${ny}`, ne=game.elevation[nk];
-    if (!ne || ne.removed || elevationAt(nx,ny)!==0) continue;
+    if (!ne || ne.removed || ne.m || elevationAt(nx,ny)!==0) continue;
     if (!elevationDropDirs(nx,ny).length) clearTile('elevation',nk);
   }
 }
@@ -2145,18 +2404,40 @@ function stepDirAt(x,y){
 // the directions this tile actually falls away in — where a wall has a face
 function elevationDropDirs(x,y){
   const h=elevationAt(x,y), out=[];
+  if (isSoftTile(x,y)) return out;
   ELEV_DIRS.forEach(([dx,dy],i)=>{
     if (x+dx<0||y+dy<0||x+dx>=GW||y+dy>=GH) return;
+    // soft ground beside it: a face only down to where the surface meets it
+    if (isSoftTile(x+dx,y+dy)){ if (softFaceDrop(x,y,dx,dy,h)>=0.5) out.push(i); return; }
     if (h-elevationAt(x+dx,y+dy) > 0) out.push(i);
   });
   return out;
 }
 function applyElevationTool(x,y){
   const h=elevationAt(x,y);
-  if (game.tool==='raise') return setElevationAt(x,y,h+1);
-  if (game.tool==='lower') return setElevationAt(x,y,h-1);
   if (game.tool==='level') return setElevationAt(x,y,0);
-  return false;
+  if (game.tool!=='raise' && game.tool!=='lower') return false;
+  const n=h+(game.tool==='raise'?1:-1);
+  /* Shaped earth (0.9.156). Ground at grade, or ground already shaped, comes up
+     soft; a built terrace or bank (a record without `m`) stays built, and a
+     faced or stepped tile is not shaped. */
+  const e=game.elevation && game.elevation[x+','+y], live=e && !e.removed ? e : null;
+  const built=!!(live && (live.s || wallStyleId(live.w)!=='none'));
+  const soft=!built && (!live || !live.h || !!live.m);
+  if (soft && !softSlopeOk(x,y,n)){ lastElevationSteep=true; return false; }
+  return setElevationAt(x,y,n,soft?true:undefined);
+}
+/* Would this tile, at level n, stand within BERM_SLOPE_MAX of every one of its
+   eight neighbours? (A neighbour off the plot does not count.) */
+let lastElevationSteep=false;
+function softSlopeOk(x,y,n){
+  for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
+    if (!dx && !dy) continue;
+    const nx=x+dx, ny=y+dy;
+    if (nx<0||ny<0||nx>=GW||ny>=GH || !onPlot(nx,ny)) continue;
+    if (Math.abs(n-elevationAt(nx,ny))>BERM_SLOPE_MAX) return false;
+  }
+  return true;
 }
 
 /* ---------- isometric math + view rotation ----------
@@ -2232,7 +2513,7 @@ function screenOfFlat(x,y,W,H){ const [vx,vy]=worldToView(x,y); return viewScree
    functions in the renderer, so a pair of allocations saved here is thousands
    a frame. Do NOT copy this pattern onto a function that can return a shared or
    cached array. */
-function screenOf(x,y,W,H){ const p=screenOfFlat(x,y,W,H); p[1]-=elevationAt(x,y)*ELEV_STEP; return p; }
+function screenOf(x,y,W,H){ const p=screenOfFlat(x,y,W,H); p[1]-=drawnLevelAt(x,y)*ELEV_STEP; return p; }
 function plantOffset(p){
   const ox=Number(p&&p.ox), oy=Number(p&&p.oy);
   return {ox:Number.isFinite(ox)?ox:0, oy:Number.isFinite(oy)?oy:0};
@@ -2263,6 +2544,8 @@ function plantScreenOf(x,y,p,W,H){
   const b=plantWallBounds(x,y);
   if (b){ wx=b.lx>b.hx ? 0 : Math.max(b.lx,Math.min(b.hx,wx));
           wy=b.ly>b.hy ? 0 : Math.max(b.ly,Math.min(b.hy,wy)); }
+  // on soft ground a free-planted clump stands on the surface where it is, not at the centre
+  if ((wx||wy) && isSoftTile(x,y)){ const sp=screenOfFlat(x+wx,y+wy,W,H); sp[1]-=softTileHeight(x,y,0.5+wx,0.5+wy)*ELEV_STEP; return sp; }
   return screenOf(x+wx, y+wy, W, H);
 }
 /* A plant on a tile with a capped wall face stands IN the bed, clear of the
@@ -2344,7 +2627,7 @@ function raisedBedSoil(keys,surfaceIn=BED_DEPTH_IN){
   for (const k of (keys || Object.keys(game.terrain||{}))){
     const t=game.terrain[k]; if (!t || t.removed || t.k!=='bed' || t.ex) continue;   // an existing bed is filled already
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-    if (stepDirAt(x,y)) continue;
+    if (stepDirAt(x,y) || isSoftTile(x,y)) continue;   // a berm's earth is its own line (Berm fill)
     const v=raisedBedFillCuIn(x,y,surfaceIn); if (!(v>0)) continue;
     const d=elevationAt(x,y)*ELEV_RISER_IN-surfaceIn;
     raised.add(k); out.tiles++;
@@ -2484,8 +2767,43 @@ function tileAtElevation(sx,sy,W,H,h){
    runs zero times instead of six. Every canvas pointermove (evPlacement) and
    the renderer's corner inversions come through here. A test compares it with
    the full six-level probe over a grid of screen points at all four rotations. */
+/* The soft tile whose drawn surface holds a screen point, nearest the camera, or
+   null (0.9.156). A soft tile is drawn as four triangles off its own level, so
+   the level probe below finds it only near its centre. */
+function softTileAtScreen(sx,sy,W,H){
+  const [pvx,pvy]=viewPointAt(sx,sy,W,H).map(Math.round);
+  let best=null, bestD=-Infinity;
+  const inTri=(t)=>{ const [a,b,c]=t.l;
+    const s1=(b[0]-a[0])*(sy-a[1])-(b[1]-a[1])*(sx-a[0]);
+    const s2=(c[0]-b[0])*(sy-b[1])-(c[1]-b[1])*(sx-b[0]);
+    const s3=(a[0]-c[0])*(sy-c[1])-(a[1]-c[1])*(sx-c[0]);
+    return (s1>=0&&s2>=0&&s3>=0)||(s1<=0&&s2<=0&&s3<=0); };
+  for (let vy=pvy-5;vy<=pvy+2;vy++) for (let vx=pvx-5;vx<=pvx+2;vx++){
+    const [x,y]=viewToWorld(vx,vy);
+    if (!isSoftTile(x,y)) continue;
+    const d=viewDepth(x,y); if (d<=bestD) continue;
+    // the tile's flat diamond, lifted anywhere from its lowest to its highest corner
+    const [fx,fy]=screenOfFlat(x,y,W,H), lv=drawnLevelAt(x,y);
+    if (sx<fx-TILE_W/2 || sx>fx+TILE_W/2) continue;
+    if (sy<fy-(lv+BERM_SLOPE_MAX)*ELEV_STEP || sy>fy+TILE_H-(lv-BERM_SLOPE_MAX)*ELEV_STEP) continue;
+    if (softTileTris(x,y,W,H).some(inTri)){ best=[x,y]; bestD=d; }
+  }
+  return best;
+}
 function tileAt(sx,sy,W,H){
   const E=game.elevation ? elevationGrid() : null;
+  if (E && E.anySoft){
+    const soft=softTileAtScreen(sx,sy,W,H), hard=tileAtBuilt(sx,sy,W,H,E);
+    if (!soft) return hard;
+    const [hx,hy]=hard;
+    // a built raised tile drawn in front of the slope still wins where it is drawn
+    if (inWorldTile(hx,hy) && !isSoftTile(hx,hy) && elevationAt(hx,hy)!==0
+        && pointInTileDiamond(sx,sy,hx,hy,W,H) && viewDepth(hx,hy)>viewDepth(soft[0],soft[1])) return hard;
+    return soft;
+  }
+  return tileAtBuilt(sx,sy,W,H,E);
+}
+function tileAtBuilt(sx,sy,W,H,E){
   const hi=E ? Math.min(E.hi,ELEV_MAX) : 0, lo=E ? Math.max(E.lo,ELEV_MIN) : 0;
   for (let h=hi; h>=lo; h--){
     if (h===0) continue;
@@ -2503,12 +2821,13 @@ function tileAt(sx,sy,W,H){
    paintWallAt will accept. */
 function wallFaceQuads(x,y,W,H){
   const h=elevationAt(x,y), out=[];
+  if (isSoftTile(x,y)) return out;
   const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
   const right=[sx+TILE_W/2,cy], bottom=[sx,sy+TILE_H], left=[sx-TILE_W/2,cy];
   [[1,0,right,bottom],[0,1,bottom,left]].forEach(([dvx,dvy,a,b])=>{
     const [dx,dy]=viewDirToWorld(dvx,dvy), nx=x+dx, ny=y+dy;
     if (!inWorldTile(nx,ny)) return;
-    const diff=h-elevationAt(nx,ny);
+    const diff=isSoftTile(nx,ny) ? softFaceDrop(x,y,dx,dy,h) : h-elevationAt(nx,ny);
     if (diff>0) out.push({a,b,drop:diff*ELEV_STEP,depth:viewDepth(x,y)+0.5});
   });
   return out;
@@ -3153,6 +3472,20 @@ function drawStepNosing(ctx,pts,sgn,closed,st,tread,proj,snow,ends){
   for (let i=0;i<segs;i++) if (facing[i]){ const j=(i+1)%n, a=proj(O[i][0],O[i][1],0), b=proj(O[j][0],O[j][1],0); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
   ctx.stroke();
 }
+/* How far a built tile at level h falls to a SOFT neighbour (dx,dy), in levels:
+   to the mean of the two corners of the edge they share, which is where the soft
+   surface meets it (softCornerGrid). 0 where the soft ground came up to it. */
+function softFaceDrop(x,y,dx,dy,h){
+  const [a,b]=sideCorners(x,y,dx,dy), d=h-(softCornerAt(a[0],a[1])+softCornerAt(b[0],b[1]))/2;
+  return d>0.25 ? d : 0;
+}
+// the two corners of the edge a tile shares with its neighbour (dx,dy)
+function sideCorners(x,y,dx,dy){
+  if (dx===1) return [[x+1,y],[x+1,y+1]];
+  if (dx===-1) return [[x,y],[x,y+1]];
+  if (dy===1) return [[x,y+1],[x+1,y+1]];
+  return [[x,y],[x+1,y]];
+}
 /* A bank, per tile; a faced wall is drawn as a run (paintWallRuns). */
 function drawElevationSides(ctx,W,H,x,y,base){
   const h=elevationAt(x,y);
@@ -3164,6 +3497,7 @@ function drawElevationSides(ctx,W,H,x,y,base){
      keep the overwhelmingly common case — a garden with no earthworks — at one
      comparison per tile inside the ground bake. */
   if (h<=0 && !elevationHasSunken()) return;
+  if (isSoftTile(x,y)) return;                      // shaped earth has no face
   const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
   const right=[sx+TILE_W/2,cy], bottom=[sx,sy+TILE_H], left=[sx-TILE_W/2,cy];
   const wall=wallStyle(wallStyleAt(x,y));
@@ -3175,6 +3509,20 @@ function drawElevationSides(ctx,W,H,x,y,base){
   };
   [[1,0,right,bottom,-18],[0,1,bottom,left,-28]].forEach(([dvx,dvy,a,b,shadeAmt])=>{
     const [dx,dy]=viewDirToWorld(dvx,dvy), nh=elevationAt(x+dx,y+dy), diff=h-nh;
+    if (isSoftTile(x+dx,y+dy)){
+      /* Soft ground beside a built tile meets it at the height its corners were
+         given (softCornerGrid), so the bank falls to that, end by end. */
+      if (wall.face) return;
+      const ends=sideCorners(x,y,dx,dy).map(([cx,cy])=>({p:screenOfCorner(cx,cy,W,H), d:(h-softCornerAt(cx,cy))*ELEV_STEP}));
+      if (ends[0].d<=0.01 && ends[1].d<=0.01) return;
+      // which end is a and which b: the nearer on screen, in x (the corners are lifted, a and b are not)
+      const first=Math.abs(ends[0].p[0]-a[0])<=Math.abs(ends[1].p[0]-a[0]) ? 0 : 1;
+      const A=Math.max(0,ends[first].d), B=Math.max(0,ends[1-first].d);
+      ctx.fillStyle=toneColor(base,shadeAmt);
+      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
+      ctx.lineTo(b[0],b[1]+B); ctx.lineTo(a[0],a[1]+A); ctx.closePath(); ctx.fill();
+      return;
+    }
     if (diff<=0) return;
     const drop=diff*ELEV_STEP;
     /* Bare earth is still the default — a grass bank is a real answer to a
@@ -4125,7 +4473,7 @@ function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs,terrObj,skipBase)
   // read as gravel — it reads as a tilemap. Its relief comes from the grain,
   // which does not know where the tile edges are. Under snow nothing else is
   // visible, so the bevel is all the relief there is and every tile keeps it.
-  if (!mat || amb.snow){
+  if ((!mat || amb.snow) && skipBase!=='marks'){
     const top=toneColor(base,amb.snow?12:9), bottom=toneColor(base,-9);
     fillDiamondFace(ctx,sx,sy,[[sx,sy],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H/2]],top);
     fillDiamondFace(ctx,sx,sy,[[sx,sy+TILE_H/2],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2]],bottom);

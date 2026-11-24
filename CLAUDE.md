@@ -4863,6 +4863,79 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     step carries no spot height. Not done: the guidebook has no Steps demo, and a
     terrace whose height changes after its flight is laid leaves the flight at the
     old heights (lay it again).
+    **0.9.156: berms and swales are SOFT EARTH** (`BERM_LEVELS`, `BERM_SLOPE_MAX`,
+    `normalizeBermDraft`, core.js; `softCentreGrid`/`softCornerGrid`/`isSoftTile`/
+    `drawnLevelAt`/`softTileHeight`/`groundHeightAt`/`softTileTris`/`softSlopeLight`/
+    `softTileFill`/`softComponents`, world.js; `bermPlan`/`buildBerm`/`tapBermAt`/
+    `finishBermDrag`, commands.js; `paintSoftTile`/`softShadeOverlay`/`drapedEmitter`/
+    `softDrapeProj`/`drawBermGhost`, renderer.js; `planContourLoops`/`marchContours`/
+    `drawPlanContours`, io.js). Raise and Lower built earth in 5 in steps, each a
+    vertical bank, so a berm drew as a stack of terraces. An elevation record may
+    now carry `m` (mounded): a tile with it and no wall, no step and no water is
+    SOFT, drawn as a surface with no face anywhere. **The rules still read whole
+    levels** (`elevationAt`); only the drawing is continuous, so nothing about
+    placement, shade, steps or saves changed shape.
+    *The surface*: a soft tile is four triangles meeting at its centre. The centre
+    stands at the tile's DRAWN level (`drawnLevelAt`): a berm's exact profile height
+    `z`, or for a hand-shaped tile its level eased 4/2/1 toward its eight
+    neighbours. A corner is the mean of the soft tiles round it, PINNED to the flat
+    tile's level where a built or flat tile touches it, so soft ground meets the
+    lawn with no face and no gap, but only to ground at or below it (within half a
+    level): against a terrace standing higher the corner stays the soft mean, and
+    the terrace's wall runs on down to the berm's foot (`softFaceDrop`, which the
+    wall runs, `elevationDropDirs` and `wallFaceQuads` all read). `screenOf` stands everything on the drawn level,
+    and a free-planted clump on the surface where it is (`plantScreenOf`).
+    `BERM_SLOPE_MAX` (2 levels a tile, to any of 8 neighbours) is what keeps a
+    triangle from FOLDING over its neighbour; with no fold nothing overlaps, so the
+    tile pass's world order is still safe. Raise and Lower refuse a step past it
+    (`softSlopeOk`, "Too steep there").
+    *Drawing*: the light is per VERTEX: the centre from central differences of
+    drawn heights, a corner from the mean of its four tiles, zero at a corner on
+    flat ground (so a berm fades into the lawn). `paintSoftTile` fills the tile's
+    lifted outline with the linear ramp that best fits its five lights, one canvas
+    gradient (`softTileFill`), then draws its marks (blades, grain: the `'marks'`
+    form of `drawGroundTexture`, no base and no bevel) ONCE, clipped to the tile,
+    through the least-squares plane of its five heights (`tris.plane`). Flat
+    shading per triangle read as facets, a binned translucent overlay as seams, and
+    marks drawn once a triangle cost four flat tiles. A material's grain covers its
+    base, so a region on soft ground gets a `soft-light` wash over the grain, one
+    ramp a tile (`softShadeOverlay`); a wash a triangle was most of the cost.
+    Measured on a software canvas: a soft tile 44 µs against 17 for a flat one, and
+    a 31x31 garden with 179 soft tiles (two berms, a swale, a bed and a path on
+    them) bakes in 20 ms against 18 without them. A berm's TOE is soft
+    ground at grade (`{h:0, m:true, z}`), so it feathers out rather than starting
+    half a level up; `tidyGradeWallsAround` leaves it alone and Level takes it.
+    *Regions*: a soft tile counts as grade to the terrain trace (`regionLevelAt`),
+    so a bed over a berm and on past its foot is ONE bed, `region.soft`, and its
+    outline is DRAPED: a projector marked `drape` makes `terrainLoopPath`,
+    `terrainArcPath`, `terrainSkirtPath` and `edgingCurvePoints` walk the curve in
+    TILE space and lift a sample every third of a tile. Projected only at its
+    corners, a path across a swale stayed straight while its gravel dipped (a bed's
+    outline can be four points). Wall runs, banks, `elevationDropDirs`,
+    `wallFaceQuads`, `terraceRegionAt`, `wallTargetAt` and `raisedBedSoil` all see
+    no face, terrace or raised bed in soft ground. Picking finds the soft triangle
+    under the pointer (`softTileAtScreen`), nearest the camera.
+    *The tool*: **Berm** on the Grade tab under Shape the ground, heights 10-36 in
+    and swales 5 and 10 in deep. A drag lays the oval inscribed in its box, a tap a
+    box sized for its height (`bermTapRect`); the profile is a broad crown
+    (`BERM_CROWN` 0.25) falling on a cosine, held to the slope limit by relaxing
+    against neighbours, and a box too small for the height asked keeps it lower and
+    says so. It leaves built ground, water, buildings and doorways alone, adds to a
+    berm already there (each tile the higher), and lifts what is planted or laid on
+    it. The ghost is its contours over the ground as it is. Pick takes a berm up
+    into the tool at its crown height. Terrace and Steps make ground built again
+    (`m` and `z` dropped). A record's `m` must be a boolean and `z` within a
+    level of `h` (`gardenFileProblem`).
+    *Documents*: the list bills **Berm fill** (the earth under the surface as drawn,
+    four triangular prisms a tile, `softComponents().fillCuIn`) and **Swale dug
+    out**, which says it can build the berm when there is one. The plan draws a
+    berm in CONTOURS, one a level, by marching squares over the drawn heights at the
+    tile centres (a tile outline per level, smoothed each on its own, crossed), the
+    toe dashed, Chaikin-smoothed and drawn over the ground; one spot height at the
+    crown and a key line. Not done: formal edging on a soft tile is not drawn; a
+    flagstone on a slope is clipped per triangle; the wall a terrace keeps against a
+    berm is drawn to the nearest whole level, so its foot may sit a little off the
+    slope; the guidebook has no berm demo.
 12d. **Water features** (`WATER_FEATURES`/`WATER_FINISHES`, `drawWaterFeature`) —
     pond, river and lake are AREAS: you paint them, they shelve from a bank, and
     until 0.8.71 they were the only water the app could draw. The water that

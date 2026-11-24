@@ -277,6 +277,7 @@ function actHere(opts){
     return;
   }
   if (game.tool==='terrace'){ tapTerraceAt(x,y); return; }
+  if (game.tool==='berm'){ tapBermAt(x,y); return; }
   if (game.tool==='steps'){ tapStepsAt(x,y,opts); return; }
   if (game.tool==='pet'){
     const r=applyToolAt(x,y,opts);
@@ -293,7 +294,9 @@ function actHere(opts){
       toast(game.tool==='level' || after===0 ? 'Back to grade.'
         : `Ground ${after>before?'raised':'lowered'} to ${terraceInches(after)} ${after>0?'above':'below'} grade.`);
     } else {
-      rejectPlacement(game.tool==='raise' ? 'Already at the highest elevation.'
+      const steep=lastElevationSteep; lastElevationSteep=false;
+      rejectPlacement(steep ? `Too steep there: earth stands at most ${terraceInches(BERM_SLOPE_MAX)} above the ground beside it. ${game.tool==='raise'?'Raise':'Lower'} the ground round it first, or lay a berm.`
+        : game.tool==='raise' ? 'Already at the highest elevation.'
         : game.tool==='lower' ? 'Already at the lowest elevation.'
         : 'Already level.');
     }
@@ -1356,7 +1359,7 @@ function wallRefusalText(x,y){
    terrace beside it, whose facing its gardener chose: setTerraceTile's rule).
    A tap on a hollow's rim, which is grade ground with a face, means the hollow. */
 function wallTargetAt(x,y){
-  if (!onPlot(x,y)) return null;
+  if (!onPlot(x,y) || isSoftTile(x,y)) return null;      // shaped earth has no face to wall
   if (elevationAt(x,y)===0){
     const dirs=elevationDropDirs(x,y);
     if (!dirs.length) return null;
@@ -1386,7 +1389,7 @@ function wallTargetSides(t){
 let lastWallFace=null;
 function faceTerraceAt(x,y){
   const t=wallTargetAt(x,y);
-  lastWallFace={t, why:null};
+  lastWallFace={t, why:null, soft:!t && isSoftTile(x,y)};
   if (!t) return null;
   const want=wallDraft(); let n=0;
   for (const [ox,oy] of t.owners){
@@ -1405,6 +1408,7 @@ function wallTapText(ok){
   if (ok) return wallDraft()==='none' ? `Back to bare earth round the ${noun}.`
     : `${wallLabel()} round the ${noun}: ${fmtFeet(wallTargetSides(t)*TILE_IN/12)}.`;
   if (!t){
+    if (r && r.soft) return 'A berm is earth, with no face to wall. Build a terrace for a walled bed.';
     const any=game.elevation && Object.keys(game.elevation).some(k=>{ const e=game.elevation[k]; return e && !e.removed && +e.h; });
     return any ? 'Tap a terrace or a sunken patio to face its walls.'
       : 'A wall needs a level change to hold up — build one with Terrace first.';
@@ -1475,10 +1479,11 @@ function setTerraceTile(x,y,d){
   d=normalizeTerraceDraft(d);
   const k=`${x},${y}`, cur=game.elevation && game.elevation[k], live=(cur && !cur.removed) ? cur : null;
   let changed=false;
-  if (elevationAt(x,y)!==d.h || wallStyleAt(x,y)!==d.w){
+  if (elevationAt(x,y)!==d.h || wallStyleAt(x,y)!==d.w || (live && live.m)){
     if (!game.elevation) game.elevation={};
     const rec=Object.assign({},live,{h:d.h,w:d.w,t:Date.now()});
     if (elevationAt(x,y)!==d.h) delete rec.s;   // a step built to another height is a terrace
+    delete rec.m;                               // and a terrace is built, not shaped
     setTile('elevation',k,rec);
     changed=true;
   }
@@ -1531,14 +1536,14 @@ function buildTerraceRect(r,d){
 /* The terrace a tile belongs to: the 4-connected run of tiles standing at its
    height. Ground at grade belongs to none. */
 function terraceRegionAt(x,y){
-  if (!onPlot(x,y)) return null;
+  if (!onPlot(x,y) || isSoftTile(x,y)) return null;      // a berm is not a terrace
   const h=elevationAt(x,y); if (!h) return null;
   const seen=new Set([x+','+y]), q=[[x,y]], tiles=[];
   while (q.length){
     const [tx,ty]=q.pop(); tiles.push([tx,ty]);
     for (const [dx,dy] of ELEV_DIRS){
       const nx=tx+dx, ny=ty+dy, nk=nx+','+ny;
-      if (seen.has(nk) || !onPlot(nx,ny) || elevationAt(nx,ny)!==h) continue;
+      if (seen.has(nk) || !onPlot(nx,ny) || elevationAt(nx,ny)!==h || isSoftTile(nx,ny)) continue;
       seen.add(nk); q.push([nx,ny]);
     }
   }
@@ -1598,6 +1603,116 @@ function finishTerraceDrag(x0,y0,x1,y1){
   const n=buildTerraceRect(r,d);
   if (n){ hapticFeedback('place'); toast(terraceBuiltText(r,d)); }
   else toast('That terrace is already there.');
+  return n;
+}
+
+/* ---------- berms and swales (0.9.156) ----------
+   A berm is laid WHOLE, an oval in the box dragged out (or the box a tap lays),
+   as soft earth (setElevationAt's `soft`): a broad crown, sides falling away
+   on a cosine, quantised to whole levels, and held to BERM_SLOPE_MAX against
+   every neighbour. A swale is the same, dug. It leaves built ground alone (a
+   terrace, a wall, a step), and water, a building or a doorway; it lifts
+   whatever is planted or laid on the ground it shapes. Laid over a berm, a
+   berm adds where it is higher, so two make one. */
+function bermDraft(){ return game.bermDraft=normalizeBermDraft(game.bermDraft); }
+function bermLabel(d){
+  d=normalizeBermDraft(d||bermDraft());
+  return `${d.h<0?'Swale':'Berm'} · ${bermHeightText(d.h)}`;
+}
+const BERM_CROWN = 0.25;                         // the flat of the crown, as a share of the way out
+function bermProfile(r){
+  if (r>=1) return 0;
+  if (r<=BERM_CROWN) return 1;
+  return 0.5*(1+Math.cos(Math.PI*(r-BERM_CROWN)/(1-BERM_CROWN)));
+}
+/* What a tap lays: wide enough for its height to come down at under two levels a
+   tile with a crown on top, half as long again, centred on the tap. */
+function bermTapRect(x,y,h){
+  const a=Math.abs(h), short=Math.max(5,Math.ceil(2.4*a)), long=Math.max(7,Math.round(short*1.4));
+  const w=Math.min(long,GW), d=Math.min(short,GH);
+  const x0=Math.max(0,Math.min(GW-w,x-((w-1)>>1))), y0=Math.max(0,Math.min(GH-d,y-((d-1)>>1)));
+  return {x0, y0, x1:x0+w-1, y1:y0+d-1};
+}
+// a tile a berm leaves as it is
+function bermSkipsTile(x,y){
+  if (!onPlot(x,y) || siteStructureAt(x,y) || isDoor(x,y)) return true;
+  const t=terrainAt(x,y); if (t && t.k==='water') return true;
+  const e=game.elevation && game.elevation[x+','+y], live=e && !e.removed ? e : null;
+  return !!(live && (live.s || wallStyleId(live.w)!=='none' || (live.h && !live.m)));
+}
+/* The levels a berm lays over a box: {tiles:[[x,y,level,z]], peak, want}, where
+   z is the exact height of the profile there (the drawing follows it, the rules
+   read the whole level), peak the highest (deepest) level reached and want what
+   was asked. Out to where the profile is a seventh of a level, the toe. */
+function bermPlan(r,h){
+  r=pergolaRect(r.x0,r.y0,r.x1,r.y1);
+  const sign=h<0?-1:1, H=Math.abs(h);
+  const cx=(r.x0+r.x1+1)/2, cy=(r.y0+r.y1+1)/2, a=(r.x1-r.x0+1)/2, b=(r.y1-r.y0+1)/2;
+  const lay=new Map();
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    const dx=(x+0.5-cx)/a, dy=(y+0.5-cy)/b, lv=H*bermProfile(Math.sqrt(dx*dx+dy*dy));
+    if (lv<0.15 || bermSkipsTile(x,y)) continue;
+    const cur=drawnLevelAt(x,y), v=sign>0 ? Math.max(cur,lv) : Math.min(cur,-lv);
+    if (v!==cur || !isSoftTile(x,y)) lay.set(x+','+y,v);
+  }
+  // held to the slope limit against the eight neighbours, as they will be
+  const at=(x,y)=>{ const k=x+','+y; return lay.has(k) ? lay.get(k) : drawnLevelAt(x,y); };
+  for (let pass=0, moved=true; moved && pass<64; pass++){
+    moved=false;
+    for (const [k,v] of lay){
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), cur=drawnLevelAt(x,y);
+      let lim=v;
+      for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
+        if (!dx && !dy) continue;
+        const nx=x+dx, ny=y+dy;
+        if (nx<0||ny<0||nx>=GW||ny>=GH || !onPlot(nx,ny)) continue;
+        lim = sign>0 ? Math.min(lim,at(nx,ny)+BERM_SLOPE_MAX) : Math.max(lim,at(nx,ny)-BERM_SLOPE_MAX);
+      }
+      lim = sign>0 ? Math.max(lim,Math.min(cur,v)) : Math.min(lim,Math.max(cur,v));
+      if (Math.abs(lim-v)>1e-6){ lay.set(k,lim); moved=true; }
+    }
+  }
+  const tiles=[]; let peak=0;
+  for (const [k,v] of lay){
+    const n=Math.round(v); if (Math.abs(v)<0.15) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (Math.abs(v-drawnLevelAt(x,y))<0.005 && isSoftTile(x,y)) continue;
+    tiles.push([x,y,n,Math.round(v*100)/100]);
+    if (Math.abs(n)>peak) peak=Math.abs(n);
+  }
+  return {tiles, peak:sign*peak, want:h, rect:r};
+}
+function buildBerm(plan){
+  let n=0;
+  for (const [x,y,v,z] of plan.tiles) if (setElevationAt(x,y,v,true,z)) n++;
+  return n;
+}
+// "Shaped a berm 15 in high over 10.5 x 15 ft."
+function bermBuiltText(plan){
+  const r=plan.rect, size=pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1), dug=plan.want<0;
+  const got=Math.abs(plan.peak), asked=Math.abs(plan.want);
+  const what=dug ? `Dug a swale ${bermHeightText(plan.peak)}` : `Shaped a berm ${bermHeightText(plan.peak)}`;
+  const short=got<asked ? ` That box holds no more at an even slope: drag out a wider one for ${terraceInches(plan.want)}.` : '';
+  return `${what} over ${size}.${short}`;
+}
+function bermRefusedText(r){
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    if (!onPlot(x,y)) continue;
+    if (!bermSkipsTile(x,y)) return 'That ground is shaped like that already.';
+  }
+  return 'Nothing there to shape: a berm leaves terraces, walls, steps, water and buildings as they are.';
+}
+function tapBermAt(x,y){
+  const d=bermDraft(), plan=bermPlan(bermTapRect(x,y,d.h),d.h);
+  if (!plan.tiles.length){ rejectPlacement(bermRefusedText(plan.rect)); return; }
+  if (buildBerm(plan)){ hapticFeedback('place'); toast(bermBuiltText(plan)+' Drag out a box for another size.'); }
+}
+// a drag shapes the oval in the box between its two corners (input.js, at pointerup)
+function finishBermDrag(x0,y0,x1,y1){
+  const d=bermDraft(), plan=bermPlan({x0,y0,x1,y1},d.h);
+  if (!plan.tiles.length){ rejectPlacement(bermRefusedText(plan.rect)); return 0; }
+  const n=buildBerm(plan);
+  if (n){ hapticFeedback('place'); toast(bermBuiltText(plan)); }
   return n;
 }
 

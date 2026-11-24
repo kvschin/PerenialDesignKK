@@ -301,6 +301,11 @@ function drawSiteUnderlay(ctx,W,H){
   }
 }
 const smoothableTerrain = t2 => t2==='path'||t2==='bed'||t2==='water'||t2==='lawn';
+/* The level a tile counts as when its material is traced: a soft tile counts as
+   grade (0.9.156). A berm is shaped from the ground round it, so a bed laid over
+   a berm and on past its foot is ONE bed, drawn over the slope (paintTerrainBlobs
+   projects it through groundHeightAt), and not a bed cut at every level. */
+function regionLevelAt(x,y){ return isSoftTile(x,y) ? 0 : (elevationAt(x,y)||0); }
 /* Under organic edges a terrain tile paints a whole grass tile, bevel and blades
    included, and the region silhouette then covers it. Where all eight neighbours
    are terrain at the same height nothing of that grass can ever show, so the tile
@@ -315,7 +320,9 @@ let innerTerrainCache={rev:-1, plot:-1, ref:null, gw:-1, gh:-1, g:null};
 function innerTerrainGrid(){
   const c=innerTerrainCache, src=game.terrain;
   if (c.rev===game.terrainRev && c.plot===game.plotRev && c.ref===src && c.gw===GW && c.gh===GH) return c.g;
-  const laid=new Uint8Array(GW*GH), g=new Uint8Array(GW*GH), level=elevationGrid().g;
+  const laid=new Uint8Array(GW*GH), g=new Uint8Array(GW*GH), E=elevationGrid();
+  let level=E.g;
+  if (E.anySoft){ level=Int8Array.from(E.g); for (let i=0;i<level.length;i++) if (E.soft[i]) level[i]=0; }
   for (const k in src){ const t=src[k];
     if (!t || t.removed || !smoothableTerrain(t.k)) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
@@ -342,6 +349,7 @@ function paintGradeUnder(ctx,x,y,W,H,amb){
   drawGroundTexture(ctx,gx,gy,x,y,null,false,amb,shade(amb.grass[(x+y)%2],(rg()-0.5)*14),rg,null);
 }
 function paintGroundTile(ctx,x,y,W,H,amb,showLand,organic){
+  if (isSoftTile(x,y)){ paintSoftTile(ctx,x,y,W,H,amb,showLand,organic); return; }
   const [sx,sy]=screenOf(x,y,W,H);
   const terrObj=showLand?terrainAt(x,y):null, terrRaw=terrObj&&terrObj.k;
   const terr = (organic && smoothableTerrain(terrRaw)) ? null : terrRaw;  // organic: grass base under blobs
@@ -382,6 +390,50 @@ function paintGroundTile(ctx,x,y,W,H,amb,showLand,organic){
   if (amb.snow && !path && !water && !buried && rs()>0.4){ ctx.fillStyle='rgba(238,242,248,0.7)';
     ctx.beginPath(); ctx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); ctx.fill(); }
 }
+// a projector that lays tile-corner points on the drawn ground, marked for drapedEmitter
+function softDrapeProj(W,H){
+  const f=([gx,gy])=>{ const p=screenOfCorner(gx,gy,W,H); return [p[0],p[1]-groundHeightAt(gx,gy,true)*ELEV_STEP]; };
+  f.drape=true; return f;
+}
+/* A soft tile (0.9.156): the tile's own ground, drawn by the same painter a flat
+   tile uses, once into each of its four triangles through softTileTris' shear,
+   then each triangle lit by how it faces the light. The base is laid first over
+   the whole tile, bled a little, so the seams between triangles and between
+   tiles show ground and not the canvas. No sides, no rim, no tile grid: the
+   surface is continuous, and it meets flat ground at that ground's own height. */
+function paintSoftTile(ctx,x,y,W,H,amb,showLand,organic){
+  const terrObj=showLand?terrainAt(x,y):null, terrRaw=terrObj&&terrObj.k;
+  const terr = (organic && smoothableTerrain(terrRaw)) ? null : terrRaw;
+  const buried = organic && smoothableTerrain(terrRaw) && innerTerrainGrid()[y*GW+x]===1;
+  const path=terr==='path', seed=tileSeed(x,y);
+  // the same draws paintGroundTile makes before the texture, so the grain is this tile's own
+  let col, pre=0;
+  { const rs=mulberry(seed);
+    if (path) col = pathFill(terrObj,amb.snow);
+    else if (showLand && isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';
+    else if (terr==='bed'){ rs(); pre=1; col = bedFill(terrObj,amb); }
+    else if (terr==='lawn') col = lawnFill(terrObj,amb);
+    else { col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14); pre=1; } }
+  const tris=softTileTris(x,y,W,H), [fx,fy]=screenOfFlat(x,y,W,H), ol=tris.outline;
+  const outline=()=>{ ctx.beginPath(); ol.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); };
+  /* The ground in its own light: the tile's ramp (softTileFill), bled a little so
+     no seam shows between tiles. Then the tile's marks, its blades or grain, once,
+     through the tile's plane and clipped to it. */
+  const lit=softTileFill(ctx,tris,col);
+  outline(); ctx.fillStyle=lit; ctx.fill(); ctx.strokeStyle=lit; ctx.lineWidth=1.2; ctx.stroke();
+  if (!buried){
+    ctx.save(); outline(); ctx.clip(); ctx.transform(...tris.plane);
+    const rs=mulberry(seed); for (let i=0;i<pre;i++) rs();
+    drawGroundTexture(ctx,fx,fy,x,y,terr,path,amb,col,rs,terrObj,'marks');
+    ctx.restore();
+    // the faint edge a flat lawn tile has
+    if (!terr && !amb.snow){ outline(); ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1; ctx.stroke(); }
+  }
+  // the snow patch a flat tile carries, on the surface at the tile's centre
+  if (amb.snow && !path && !buried){ const rs=mulberry(seed); for (let i=0;i<pre;i++) rs();
+    if (rs()>0.4){ const [sx,sy]=screenOf(x,y,W,H); ctx.fillStyle='rgba(238,242,248,0.7)';
+      ctx.beginPath(); ctx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); ctx.fill(); } }
+}
 /* `rect` (optional, draw units [x0,y0,x1,y1]) bounds the tile LOOP the way a
    canvas clip bounds the raster. A partial bake already clips, which is what
    saves the pixels — but a clip does not save the per-path SETUP, and a thin
@@ -411,7 +463,7 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex,rect){
      later tile's ground landed on an earlier tile's lifted top and its faces.
      Only RAISED tiles: under a hollow's floor is where the far rim's face hangs. */
   if (showLand && elevationGrid().hi>0) for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
-    if (!onPlot(x,y) || !(elevationAt(x,y)>0)) continue;
+    if (!onPlot(x,y) || !(elevationAt(x,y)>0) || isSoftTile(x,y)) continue;
     const [sx,sy]=screenOfFlat(x,y,W,H);
     if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ELEV_MAX*ELEV_STEP-ex||sy>H+TILE_H*2+ex) continue;
     if (rect && (sx<rx0||sx>rx1||sy<ry0||sy>ry1)) continue;
@@ -908,7 +960,7 @@ function terrainUnitEdges(loop, set, solid, myRank, rankAt, myElev, elevAt, drop
   let drop=false;
   const classify=(key)=>{
     const ci=key.indexOf(','), ox=+key.slice(0,ci), oy=+key.slice(ci+1);
-    drop=onPlot(ox,oy) && (elevationAt(ox,oy)||0)!==(myElev||0);
+    drop=onPlot(ox,oy) && regionLevelAt(ox,oy)!==(myElev||0);
     if (drop) return dropSoft ? SOFT : HARD;
     if (solid[key]){
       const r=rankAt[key];
@@ -1177,9 +1229,34 @@ function exposeSkirtTiles(regions){
 function terrainSkirtPath(ctx, s, proj){
   ctx.beginPath();
   for (const ring of s.rings){
+    if (proj.drape){ const em=drapedEmitter(ctx,proj,true); em.move(ring[0]);
+      for (let i=1;i<=ring.length;i++) em.line(ring[i%ring.length]); ctx.closePath(); continue; }
     ring.forEach((p,i)=>{ const q=proj(p); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); });
     ctx.closePath();
   }
+}
+/* An outline laid over SOFT ground (0.9.156). A projector marked `drape` lifts
+   each point to the surface under it, and the outline is then walked in TILE
+   space, the same curve the flat one makes, sampled every third of a tile and
+   each sample lifted. Projected only at its corners, a straight edge across a
+   swale stayed straight while the ground under it dipped, and a path's gravel
+   fell out of its own outline. */
+const DRAPE_STEP=0.34;
+function drapedEmitter(ctx, lift, moveFirst){
+  let last=null;
+  const step=p=>{
+    const n=Math.max(1,Math.ceil(Math.hypot(p[0]-last[0],p[1]-last[1])/DRAPE_STEP));
+    for (let i=1;i<=n;i++){ const t=i/n, q=lift([last[0]+(p[0]-last[0])*t, last[1]+(p[1]-last[1])*t]); ctx.lineTo(q[0],q[1]); }
+    last=p;
+  };
+  return {
+    move:p=>{ last=p; if (moveFirst!==false){ const q=lift(p); ctx.moveTo(q[0],q[1]); } },
+    line:p=>step(p),
+    // sampled by its length: a four-point bed outline is four quads of ten tiles each
+    quad:(from,c,p)=>{ const K=Math.max(4,Math.ceil((Math.hypot(c[0]-from[0],c[1]-from[1])+Math.hypot(p[0]-c[0],p[1]-c[1]))/0.4));
+      for (let k=1;k<=K;k++){ const t=k/K, u=1-t;
+      step([u*u*from[0]+2*u*t*c[0]+t*t*p[0], u*u*from[1]+2*u*t*c[1]+t*t*p[1]]); } },
+  };
 }
 /* The corner radius comes from TERRAIN_FILLET (core.js) — per MATERIAL, because
    a bed edge and a paving edge want opposite things. Unbounded reproduces the
@@ -1242,6 +1319,12 @@ function ctxEmitter(ctx, moveFirst){
 // One arc onto the current path. Hard arcs are exact lines; soft arcs are
 // bounded-fillet curves pinned to their endpoints.
 function terrainArcPath(ctx, arc, proj, moveFirst){
+  if (proj.drape){
+    const em=drapedEmitter(ctx,proj,!!moveFirst);
+    if (arc.hard || arc.pts.length<3){ em.move(arc.pts[0]); for (let i=1;i<arc.pts.length;i++) em.line(arc.pts[i]); return; }
+    terrainCurveWalk(arc.pts, arc.pts, false, em, arc.fillet);
+    return;
+  }
   const pts=arc.pts.map(proj);
   if (arc.hard || pts.length<3){
     if (moveFirst) ctx.moveTo(pts[0][0],pts[0][1]);
@@ -1255,6 +1338,12 @@ function terrainArcPath(ctx, arc, proj, moveFirst){
    lift) and the plan sheet (flat paper) draw the SAME geometry. This is the
    SILHOUETTE, used for the fill and the clip: every arc, closed. */
 function terrainLoopPath(ctx, loop, proj){
+  if (loop.closed && proj.drape){
+    const em=drapedEmitter(ctx,proj,true);
+    if (loop.hard || loop.pts.length<3){ em.move(loop.pts[0]); for (let i=1;i<=loop.pts.length;i++) em.line(loop.pts[i%loop.pts.length]); }
+    else terrainCurveWalk(loop.pts, loop.pts, true, em, loop.fillet);
+    ctx.closePath(); return;
+  }
   if (loop.closed){
     const pts=loop.pts.map(proj);
     if (loop.hard || pts.length<3){
@@ -1307,7 +1396,7 @@ function wallRunKey(){ return game.terrainRev+'|'+GW+'x'+GH+'|'+game.edgeStyle; 
    the one not in the set is out — but the question asked is the drop, not the
    hardness. */
 function elevationUnitEdges(loop, set, h){
-  const out=[];
+  const out=[], kx=k=>+k.slice(0,k.indexOf(',')), ky=k=>+k.slice(k.indexOf(',')+1);
   for (let i=0;i<loop.length;i++){
     const a=loop[i], b=loop[(i+1)%loop.length];
     const dx=Math.sign(b[0]-a[0]), dy=Math.sign(b[1]-a[1]);
@@ -1321,7 +1410,8 @@ function elevationUnitEdges(loop, set, h){
       else { const ty=Math.min(y,ny);
         if (set.has((x-1)+','+ty)){ inK=(x-1)+','+ty; outX=x; outY=ty; }
         else { inK=x+','+ty; outX=x-1; outY=ty; } }
-      const drop=h-elevationAt(outX,outY);
+      // to soft ground: down to where its surface meets the face, in whole levels
+      const drop=isSoftTile(outX,outY) ? Math.round(softFaceDrop(kx(inK),ky(inK),outX-kx(inK),outY-ky(inK),h)) : h-elevationAt(outX,outY);
       const ci=inK.indexOf(','), ix=+inK.slice(0,ci), iy=+inK.slice(ci+1);
       const n=[outX-ix, outY-iy];
       /* A RIDGE face: the far side of this same tile also falls away, so the
@@ -1365,10 +1455,11 @@ function buildElevationRuns(){
     const e=game.elevation[k]; if (!e||e.removed) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     const h=elevationAt(x,y);
+    if (isSoftTile(x,y)) continue;              // shaped earth has no face
     if (h>0) addLevel(x,y);
     else if (h<0) for (const [dx,dy] of ELEV_DIRS){
       const nx=x+dx, ny=y+dy;
-      if (nx>=0&&ny>=0&&nx<GW&&ny<GH && elevationAt(nx,ny)>h) rim.add(nx+','+ny);
+      if (nx>=0&&ny>=0&&nx<GW&&ny<GH && elevationAt(nx,ny)>h && !isSoftTile(nx,ny)) rim.add(nx+','+ny);
     }
   }
   for (const k of rim){
@@ -1609,7 +1700,7 @@ function buildTerrainRegions(){
     solid[k]=true;
     if (o.k==='water' && waterStyle(o.c).crisp) crispAt[k]=true;
     rankAt[k]=terrainRank(o.k);
-    elevAt[k]=elevationAt(x,y)||0;
+    elevAt[k]=regionLevelAt(x,y);
     keyOf[k]=o.k+'|'+(o.c||'')+'|'+elevAt[k];
   }
   const seen={}, regions=[];
@@ -1648,7 +1739,8 @@ function buildTerrainRegions(){
     // a raised bed's corners round by a tile at most, so a rectangle keeps its
     // straight walls (built walls are straight) and a curved bed still curves
     const fillet=raised ? Math.min(terrainFillet(o.k),RAISED_BED_FILLET) : terrainFillet(o.k);
-    regions.push({ kind:o.k, c:o.c, rank, elev, tiles:set, paintTiles:tilesInPaintOrder(set),
+    let soft=false; for (const t of set){ const ci=t.indexOf(','); if (isSoftTile(+t.slice(0,ci),+t.slice(ci+1))){ soft=true; break; } }
+    regions.push({ kind:o.k, c:o.c, rank, elev, soft, tiles:set, paintTiles:tilesInPaintOrder(set),
       loops:unit.map(es=>{ const L=terrainLoopArcs(es,useCount,saddle,fillet);
         /* Which hand the outside is on as the loop is walked: the sign of
            direction x outward normal, the same for every edge of a traced loop,
@@ -1769,14 +1861,44 @@ function tileReachesRect(sx,sy,rect){
    The flagstone scratch lives for one pass and not for the region, because a
    stone the region drew under its own clip still has to be drawn under the
    skirt's. */
+/* Light and shade over a material's grain on soft ground: its grain covers most
+   of its base, so a lit base would barely show. A translucent wash a TRIANGLE,
+   the exact ramp of its three corners' light, which its neighbours share, so it
+   runs on across the slope; a ramp fitted a tile met its neighbour a shade off
+   and drew the tiles as a mosaic over a dark mulch. */
+function softShadeOverlay(ctx,tiles){
+  if (!tiles.length) return;
+  /* soft-light, so a dark mulch darkens and lightens as itself rather than being
+     washed with cream or green; the ramp is doubled to carry through it */
+  const was=ctx.globalCompositeOperation; ctx.globalCompositeOperation='soft-light';
+  for (const tris of tiles) for (const t of tris){
+    ctx.fillStyle=softRampFill(ctx,t.l.map((p,j)=>[p[0],p[1],t.vl[j]]),softWashTone);
+    ctx.beginPath(); ctx.moveTo(t.l[0][0],t.l[0][1]); ctx.lineTo(t.l[1][0],t.l[1][1]); ctx.lineTo(t.l[2][0],t.l[2][1]); ctx.closePath();
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation=was;
+}
 function paintRegionGrain(ctx,tiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,rect){
   flagRegionBegin();
+  const softTris=[];
   try{
     for (const kk of tiles){ const c=kk.indexOf(',');
       const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
       if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
       const [sx,sy]=screenOf(tx,ty,W,H);
       if (rect && !tileReachesRect(sx,sy,rect)) continue;
+      if (!isWater && isSoftTile(tx,ty)){
+        // on the slope: each triangle, through its shear (paintSoftTile)
+        // its grain once, through the tile's plane, clipped to the tile (paintSoftTile)
+        const [fx,fy]=screenOfFlat(tx,ty,W,H), tris=softTileTris(tx,ty,W,H), ol=tris.outline;
+        ctx.save();
+        ctx.beginPath(); ol.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); ctx.clip();
+        ctx.transform(...tris.plane);
+        drawGroundTexture(ctx,fx,fy,tx,ty,region.kind,region.kind==='path',amb,base,mulberry(tileSeed(tx,ty)),o,'marks');
+        ctx.restore();
+        softTris.push(tris);
+        continue;
+      }
       const rs=mulberry(tileSeed(tx,ty));
       if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,true);
       // skipBase: the region silhouette above already laid this material's base
@@ -1784,6 +1906,7 @@ function paintRegionGrain(ctx,tiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,re
       // repaint it — a full-tile fill on every tile of every bed.
       else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
     }
+    softShadeOverlay(ctx,softTris);
   } finally { flagRegionEnd(); }
 }
 function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect){
@@ -1804,8 +1927,11 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect){
     // missed elevation entirely for fractional corners, so raised beds drew flat)
     const lift=region.elev*ELEV_STEP;
     // traceOutlines works on the tile-CORNER lattice, so it needs the corner
-    // transform, not the tile one (they only agree at rot 0 — see cornerToView)
-    const proj=([gx,gy])=>{ const p=screenOfCorner(gx,gy,W,H); return [p[0],p[1]-lift]; };
+    // transform, not the tile one (they only agree at rot 0 — see cornerToView).
+    // A region on soft ground follows the surface, point by point.
+    const proj=region.soft
+      ? softDrapeProj(W,H)
+      : ([gx,gy])=>{ const p=screenOfCorner(gx,gy,W,H); return [p[0],p[1]-lift]; };
     // fill the silhouette
     ctx.beginPath();
     for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
@@ -1908,6 +2034,16 @@ function regionEdging(region){
    a closed ring as an open polyline left one side of every bed unedged and a
    tail hanging off the start. */
 function edgingCurvePoints(arc, proj){
+  if (proj.drape){
+    // the curve in tile space, sampled finely enough to follow the slope, then lifted
+    const flat=edgingCurvePoints(arc, p=>p), out=[];
+    for (let i=0;i<flat.length;i++){
+      if (!i){ out.push(proj(flat[0])); continue; }
+      const a=flat[i-1], b=flat[i], n=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/DRAPE_STEP));
+      for (let k=1;k<=n;k++) out.push(proj([a[0]+(b[0]-a[0])*k/n, a[1]+(b[1]-a[1])*k/n]));
+    }
+    return out;
+  }
   const pts=arc.pts.map(proj);
   if (arc.hard || pts.length<3) return arc.closed ? pts.concat([pts[0]]) : pts;
   const SEG=5, out=[];
@@ -4857,6 +4993,7 @@ function render(t){
   drawRulerOverlay(cx,W,H);
   drawPergolaGhost(cx,W,H,cal.season);
   drawTerraceGhost(cx,W,H);
+  drawBermGhost(cx,W,H);
   drawStepsGhost(cx,W,H);
   drawEdgingGhost(cx,W,H);
   drawWallFaceHover(cx,W,H);
@@ -5266,6 +5403,60 @@ function terraceGhostRegion(x,y){
     c.reg=terraceRegionAt(x,y); c.regRev=game.rev;
   }
   return c.reg && c.reg.has.has(x+','+y) ? c.reg : null;
+}
+/* The berm a drag (or a tap) will shape, before it is shaped: its contours, one
+   for every level it climbs (or falls), traced over the ground as it is now, the
+   way a grading plan draws one. Red dashes round the box where there is nothing
+   it can shape. The plan is worked out once per box and garden revision. */
+let bermGhostCache={key:'', plan:null, rings:null};
+function drawBermGhost(cx,W,H){
+  if (game.tool!=='berm' || !layerShown('landscape')) return;
+  const td=typeof toolDrag!=='undefined'?toolDrag:null, d=bermDraft();
+  let r=null;
+  if (td && td.rect && td.active) r=pergolaRect(td.sx,td.sy,td.cx,td.cy);
+  else if (!td && game.hoverTile) r=bermTapRect(game.hoverTile[0],game.hoverTile[1],d.h);
+  if (!r) return;
+  const key=[r.x0,r.y0,r.x1,r.y1,d.h,game.rev,GW,GH].join(',');
+  if (bermGhostCache.key!==key){
+    const plan=bermPlan(r,d.h), lv=new Map(plan.tiles.map(([x,y,v])=>[x+','+y,v]));
+    const rings=[];
+    for (let L=1;L<=Math.abs(plan.peak);L++){
+      const set=new Set();
+      for (const [k,v] of lv) if (Math.abs(v)>=L) set.add(k);
+      if (set.size) rings.push({L, loops:traceOutlines(set)});
+    }
+    bermGhostCache={key, plan, rings};
+  }
+  const {plan,rings}=bermGhostCache;
+  const P=([gx,gy])=>{ const p=screenOfCorner(gx,gy,W,H); return [p[0],p[1]-groundHeightAt(gx,gy)*ELEV_STEP]; };
+  cx.save();
+  if (!plan.tiles.length){
+    const q=[[r.x0,r.y0],[r.x1+1,r.y0],[r.x1+1,r.y1+1],[r.x0,r.y1+1]].map(P);
+    cx.beginPath(); q.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1])); cx.closePath();
+    cx.fillStyle='rgba(196,58,44,0.12)'; cx.fill();
+    cx.setLineDash([6,4]); cx.lineWidth=1.6; cx.strokeStyle='rgba(230,118,92,0.9)'; cx.stroke();
+    cx.restore(); return;
+  }
+  const n=rings.length;
+  for (const ring of rings){
+    cx.beginPath();
+    for (const loop of ring.loops){
+      const pts=simplifyClosedLoop(loop,0.9);
+      const sp=(pts.length>=3?pts:loop).map(P), m=sp.length;
+      for (let i=0;i<m;i++){
+        const a=sp[i], b=sp[(i+1)%m], mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+        if (!i){ const z=sp[m-1]; cx.moveTo((z[0]+a[0])/2,(z[1]+a[1])/2); }
+        cx.quadraticCurveTo(a[0],a[1],mid[0],mid[1]);
+      }
+      cx.closePath();
+    }
+    if (ring.L===1){ cx.fillStyle=d.h<0?'rgba(40,62,78,0.16)':'rgba(243,236,221,0.14)'; cx.fill(); }
+    cx.setLineDash(ring.L===1?[6,4]:[]);
+    cx.lineWidth=ring.L===1?1.6:1.1;
+    cx.strokeStyle=`rgba(243,236,221,${(0.5+0.4*ring.L/n).toFixed(2)})`;
+    cx.stroke();
+  }
+  cx.restore();
 }
 function drawTerraceGhost(cx,W,H){
   if (game.tool!=='terrace' || game.fillMode || !layerShown('landscape')) return;

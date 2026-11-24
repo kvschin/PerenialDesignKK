@@ -632,7 +632,7 @@ function buildSaveBlob(){
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,lawnStyle:game.lawnStyle,
-    fenceDraft:game.fenceDraft,pergolaDraft:game.pergolaDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,supportDraft:game.supportDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,ornamentDraft:game.ornamentDraft,wallDraft:game.wallDraft,terraceDraft:game.terraceDraft,edgingDraft:game.edgingDraft,
+    fenceDraft:game.fenceDraft,pergolaDraft:game.pergolaDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,supportDraft:game.supportDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,ornamentDraft:game.ornamentDraft,wallDraft:game.wallDraft,terraceDraft:game.terraceDraft,bermDraft:game.bermDraft,edgingDraft:game.edgingDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
@@ -904,7 +904,10 @@ function gardenFileProblem(env){
         if (!isTerrainKind(p.k) || !string(p,'c') || !string(p,'e') || !string(p,'x')) return 'This garden contains invalid ground material data.';
       } else if (layer==='elevation'){
         if (!Number.isInteger(p.h) || p.h<ELEV_MIN || p.h>ELEV_MAX || !string(p,'w') ||
-            (p.s!==undefined && !(Number.isInteger(p.s) && p.s>=1 && p.s<=4))) return 'This garden contains invalid elevation data.';
+            (p.s!==undefined && !(Number.isInteger(p.s) && p.s>=1 && p.s<=4)) ||
+            // a berm (0.9.156): mounded, and the exact height its profile drew, within a level of its own
+            (p.m!==undefined && typeof p.m!=='boolean') ||
+            (p.z!==undefined && !(Number.isFinite(p.z) && Math.abs(p.z-p.h)<=1))) return 'This garden contains invalid elevation data.';
       } else {
         // Material IDs can have legacy aliases; their existing normalizers own
         // that migration. Their types must still be safe for the renderers.
@@ -1034,6 +1037,7 @@ async function loadSolo(id){
   game.ornamentDraft=normalizeOrnamentDraft(s.ornamentDraft);
   game.wallDraft=wallStyleId(s.wallDraft);
   game.terraceDraft=normalizeTerraceDraft(s.terraceDraft);
+  game.bermDraft=normalizeBermDraft(s.bermDraft);
   game.edgingDraft=edgingStyleId(s.edgingDraft);
   game.rot=s.rot||0;
   const migratedElapsed = s.elapsedMs!==undefined
@@ -1291,6 +1295,87 @@ function drawPlanSupport(ctx,x0,y0,cell,s){
   }
   ctx.restore();
 }
+/* Contours for berms and swales (0.9.156), the way a grading plan draws them: a
+   line round the ground standing at or above each level (at or below, in a
+   swale), one level (ELEV_RISER_IN) apart, on the heights as drawn, smoothed
+   as a bed outline is. Brown up, blue-grey down; the outermost is the toe. */
+/* Traced by marching squares over the heights as drawn at the tile centres, the
+   ground round a berm counting as grade, so the lines nest the way the ground
+   does; the outermost (L 0, dashed) is the toe. A tile outline per level, the
+   first cut, smoothed each one on its own and two of them crossed. */
+function planContourLoops(){
+  const out=[], E=game.elevation ? elevationGrid() : null;
+  for (const c of softComponents()){
+    const sign=c.swale?-1:1, top=Math.abs(c.swale?c.down:c.up);
+    let x0=GW, y0=GH, x1=0, y1=0;
+    for (const [x,y] of c.tiles){ if (x<x0) x0=x; if (y<y0) y0=y; if (x>x1) x1=x; if (y>y1) y1=y; }
+    x0--; y0--; x1++; y1++;
+    const own=new Set(c.tiles.map(([x,y])=>x+','+y));
+    const val=(x,y)=>own.has(x+','+y) ? sign*E.sc[y*GW+x] : 0;
+    for (let L=0;L<=top;L++){
+      const lv=L ? L-0.02 : 0.08;
+      for (const pts of marchContours(val,x0,y0,x1,y1,lv)) out.push({L, sign, pts});
+    }
+  }
+  return out;
+}
+/* The closed contour lines at `lv` of a field sampled at tile centres over
+   [x0,x1] x [y0,y1], in tile-corner space (a centre is at +0.5), each a ring of
+   points with the field higher on its inside. The box's border is outside. */
+function marchContours(val,x0,y0,x1,y1,lv){
+  const segs=new Map(), key=p=>p[0].toFixed(3)+','+p[1].toFixed(3);
+  const at=(x,y)=>(x<x0||y<y0||x>x1||y>y1) ? -Infinity : val(x,y);
+  const lerp=(xa,ya,va,xb,yb,vb)=>{ const t=(lv-va)/(vb-va); return [xa+(xb-xa)*t+0.5, ya+(yb-ya)*t+0.5]; };
+  const add=(a,b)=>{ const ka=key(a); (segs.get(ka)||segs.set(ka,[]).get(ka)).push({a,b}); };
+  for (let y=y0-1;y<=y1;y++) for (let x=x0-1;x<=x1;x++){
+    const v00=at(x,y), v10=at(x+1,y), v11=at(x+1,y+1), v01=at(x,y+1);
+    const c=(v00>=lv?8:0)|(v10>=lv?4:0)|(v11>=lv?2:0)|(v01>=lv?1:0);
+    if (!c || c===15) continue;
+    const fin=v=>Number.isFinite(v) ? v : lv-1;
+    const e={t:lerp(x,y,fin(v00),x+1,y,fin(v10)), r:lerp(x+1,y,fin(v10),x+1,y+1,fin(v11)),
+             b:lerp(x,y+1,fin(v01),x+1,y+1,fin(v11)), l:lerp(x,y,fin(v00),x,y+1,fin(v01))};
+    // each case as the segment(s) with the high side on the left of a->b
+    const C={1:[['l','b']],2:[['b','r']],3:[['l','r']],4:[['r','t']],5:[['l','t'],['r','b']],6:[['b','t']],7:[['l','t']],
+             8:[['t','l']],9:[['t','b']],10:[['t','r'],['b','l']],11:[['t','r']],12:[['r','l']],13:[['r','b']],14:[['b','l']]}[c];
+    for (const [p,q] of C) add(e[p],e[q]);
+  }
+  // chain the segments into rings
+  const rings=[];
+  for (const [k0,list] of segs){
+    while (list.length){
+      let {a,b}=list.pop(); const ring=[a];
+      for (let guard=0; guard<100000; guard++){
+        ring.push(b);
+        const next=segs.get(key(b));
+        if (!next || !next.length) break;
+        ({a,b}=next.pop());
+        if (key(b)===key(ring[0])){ ring.push(b); break; }
+      }
+      if (ring.length>3) rings.push(ring.slice(0,-1));
+    }
+  }
+  return rings;
+}
+function drawPlanContours(ctx,X,Y){
+  const loops=planContourLoops(); if (!loops.length) return;
+  ctx.save(); ctx.lineWidth=0.9; ctx.setLineDash([]);
+  for (const c of loops){
+    if (c.pts.length<3) continue;
+    let pts=c.pts;
+    for (let it=0;it<2;it++){                      // Chaikin: corners cut, twice
+      const n=pts.length, nx=[];
+      for (let i=0;i<n;i++){ const a=pts[i], b=pts[(i+1)%n];
+        nx.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]); }
+      pts=nx;
+    }
+    ctx.beginPath();
+    pts.forEach(([gx,gy],i)=>i?ctx.lineTo(X(gx),Y(gy)):ctx.moveTo(X(gx),Y(gy)));
+    ctx.closePath();
+    ctx.strokeStyle = c.sign>0 ? 'rgba(122,90,44,0.7)' : 'rgba(63,100,120,0.75)';
+    ctx.setLineDash(c.L ? [] : [4,3]); ctx.stroke();
+  }
+  ctx.restore();
+}
 /* One spot height per terrace or sunken patio, in inches above or below grade,
    at the tile nearest its middle, biggest first. The sheet printed the elevation
    STEP on every raised tile ("+3" forty times over a bed), a unit nothing else in
@@ -1398,6 +1483,24 @@ function hardscapeRows(opts){
     add('Soil', 'Raised bed soil', count, soil.cuYd,
       `${soil.beds>1?`${soil.beds} beds, `:''}${fmtAreaSqFt(soil.sqFt)}${soil.walled?' inside the walls':''}, `+
       `${deep} deep under ${top}`+(count!==bag && soil.cuYd<2 ? ` (${bag})` : ''));
+  }
+  /* Berms and swales (0.9.156): the earth a berm is built of, measured under its
+     surface as drawn (softComponents), and what a swale takes out, which is the
+     earth a berm next to it is usually made of. */
+  if (!want){
+    const comps=softComponents(), berms=comps.filter(c=>!c.swale), swales=comps.filter(c=>c.swale);
+    const cuYd=cuIn=>cuIn/46656;
+    if (berms.length){
+      const fill=cuYd(berms.reduce((t,c)=>t+c.fillCuIn,0)), hi=Math.max(...berms.map(c=>c.up));
+      const count=fmtVolumeFit(fill), bag=fmtVolumeBagCuYd(fill);
+      add('Soil','Berm fill',count,fill,
+        `${berms.length>1?`${berms.length} berms, `:''}up to ${terraceInches(hi)} high, firmed in layers`+(count!==bag && fill<2 ? ` (${bag})` : ''));
+    }
+    if (swales.length){
+      const cut=cuYd(swales.reduce((t,c)=>t+c.cutCuIn,0)), lo=Math.max(...swales.map(c=>-c.down));
+      add('Soil','Swale dug out',fmtVolumeFit(cut),cut,
+        `${swales.length>1?`${swales.length} swales, `:''}up to ${terraceInches(lo)} deep: earth to move${berms.length?', or to build the berm with':''}`);
+    }
   }
   // a formal pool's coping is ordered by the foot, round every pool
   let copeFt=0;
@@ -2959,7 +3062,7 @@ function planSite(){
   return {lightsLive:live(game.lights), bouldersLive:live(game.boulders),
     treesLive:Object.keys(game.plants).filter(k=>{ const p=game.plants[k];
       return p && !p.removed && !p.ex && isTreeDef(plantDef(p.s,p.v)); }),
-    existingCount:existingTiles().length};
+    existingCount:existingTiles().length, softCount:softComponents().length};
 }
 /* Where the schedule page's table starts. One row below the drawing sheets'
    padT, because a drawing has nothing at the top of its field while this table
@@ -2967,7 +3070,7 @@ function planSite(){
    drawPlanPaper puts the over-page warning on. */
 const PLAN_SCHED_TOP=PLAN_PAD_T+PLAN_ROW_H;
 function planSiteRows(site){
-  return (site.lightsLive.length?1:0)+(site.bouldersLive.length?1:0)+(site.treesLive.length?1:0)+(site.existingCount?1:0);
+  return (site.lightsLive.length?1:0)+(site.bouldersLive.length?1:0)+(site.treesLive.length?1:0)+(site.existingCount?1:0)+(site.softCount?1:0);
 }
 function planSheetIds(shared,sheet){
   if (sheet.layer==='all') return shared.ids;   // the schedule page holds the set
@@ -3101,6 +3204,7 @@ function drawPlanGround(ctx,g,site){
   for (const k in game.elevation){ const e=game.elevation[k];
     if (!e || e.removed || !e.h) continue;
     const [x,y]=k.split(',').map(Number);
+    if (isSoftTile(x,y)) continue;                       // a berm is drawn in contours
     ctx.fillStyle=e.h>0?'rgba(145,119,70,0.16)':'rgba(73,112,140,0.18)';
     ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
   }
@@ -3378,6 +3482,8 @@ function drawPlanGround(ctx,g,site){
     ctx.moveTo(cx2,cy2-r*1.8); ctx.lineTo(cx2,cy2+r*1.8); ctx.stroke();
     ctx.restore();
   });
+  // berms and swales over the ground they shape, as a grading plan draws them
+  drawPlanContours(ctx,X,Y);
 }
 // the site OVER the planting: pergolas, footprints, houses, and the deeded lot line
 function drawPlanStructures(ctx,g){
@@ -3478,6 +3584,14 @@ function drawPlanKeyRows(ctx,g,y0,site){
     ctx.beginPath(); ctx.ellipse(cx2+5,cy2-3,5,3.2,0,0,7); ctx.fill(); ctx.stroke();
     ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
     ctx.fillText(`BOULDER - stone feature (${bouldersLive.length})`, cx2+14, cy2);
+  }
+  if (site.softCount){
+    const cy2=y0+row++*PLAN_ROW_H, cx2=padL;
+    ctx.save(); ctx.strokeStyle='rgba(122,90,44,0.75)'; ctx.lineWidth=0.9;
+    for (const r of [3,6,9]){ ctx.beginPath(); ctx.ellipse(cx2+11,cy2-3.5,r*1.2,r*0.5,0,0,7); ctx.stroke(); }
+    ctx.restore();
+    ctx.fillStyle='#6e5f48'; ctx.font='10px IBM Plex Sans'; ctx.textAlign='left';
+    ctx.fillText(`Berms and swales in contours every ${fmtLengthIn(ELEV_RISER_IN)}; the height is at the crown.`, cx2+28, cy2);
   }
   if (site.existingCount){
     const cy2=y0+row++*PLAN_ROW_H, cx2=padL;
@@ -3720,6 +3834,13 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
     const text=planTerraceSpotText(sp.h), fs=9;
     const at=place.place(X(sp.at[0]+0.5),Y(sp.at[1]+0.5)+3,planLabelBox(ctx,text,0,fs),bounds);
     queued.push({kind:'tree',code:text,qty:0,fs,ink:sp.h>0?'#7a5a2c':'#3f6478',at});
+  });
+  // one per berm or swale, at its crown
+  softComponents().forEach(c=>{
+    const v=c.swale?c.down:c.up; if (!v) return;
+    const text=planTerraceSpotText(v), fs=9;
+    const at=place.place(X(c.crown[0]+0.5),Y(c.crown[1]+0.5)+3,planLabelBox(ctx,text,0,fs),bounds);
+    queued.push({kind:'tree',code:text,qty:0,fs,ink:v>0?'#7a5a2c':'#3f6478',at});
   });
   // UP at the foot of every flight, where its arrow starts
   planStepFlights().forEach(f=>{

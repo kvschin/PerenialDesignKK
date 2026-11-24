@@ -19,7 +19,7 @@ const TRAY_CATS=[
   {id:'house',    label:'Site',             tools:['building','house','survey']},
   {id:'landscape',label:'Ground',           tools:['lawn','path','bed','water','crossing','edging']},
   // Terrace leads: it is what most people opening this tab came to build
-  {id:'leveling', label:'Grade',            tools:['terrace','steps','raise','lower','level','wall']},
+  {id:'leveling', label:'Grade',            tools:['terrace','steps','berm','raise','lower','level','wall']},
   /* What stands, what you look at, and what you use (0.9.153). These were
      Hardscape, Lighting and Decor, which split things no gardener would: a
      birdbath under Hardscape and a bird feeder under Decor, boulders under one
@@ -111,6 +111,11 @@ const TOOLS={
      no `once`. */
   terrace: {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, measure:'rect',
     apply:(x,y,o)=>buildTerraceTile(x,y,terraceDraft()), rect:(x0,y0,x1,y1)=>finishTerraceDrag(x0,y0,x1,y1)},
+  /* A berm (or a swale) is laid whole: an oval in the box a drag makes, or the
+     box a tap lays (bermPlan, commands.js). Nothing for Fill to add. */
+  berm:    {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, measure:'rect',
+    apply:(x,y,o)=>{ const d=bermDraft(), p=bermPlan(bermTapRect(x,y,d.h),d.h); return buildBerm(p)?'berm':null; },
+    rect:(x0,y0,x1,y1)=>finishBermDrag(x0,y0,x1,y1)},
   /* Steps are laid a whole flight per tap, on the edge where they go (tapStepsAt),
      so there is nothing to drag and nothing for Fill to add. */
   steps:   {layer:'landscape', brush:false, placement:true,  paints:false, material:false,
@@ -651,9 +656,10 @@ function drawBrushSwatchCanvas(c,includeLast){
   if (k==='boulder'){ drawBoulderChip(g,boulderDraft(),c.width,c.height,0.4); return true; }
   if (k==='pergola'){ drawPergolaChip(g,pergolaDraft(),c.width,c.height); return true; }
   // both chip artworks are 48x44; the swatch is whatever size this canvas is
-  if (k==='terrace'||k==='wall'||k==='steps'){ const s=Math.min(c.width/48,c.height/44);
+  if (k==='terrace'||k==='wall'||k==='steps'||k==='berm'){ const s=Math.min(c.width/48,c.height/44);
     g.save(); g.translate((c.width-48*s)/2,(c.height-44*s)/2); g.scale(s,s);
-    if (k==='terrace') drawTerraceIcon(g,terraceDraft()); else if (k==='steps') drawStepsIcon(g,stepDraft()); else drawWallIcon(g,wallDraft());
+    if (k==='terrace') drawTerraceIcon(g,terraceDraft()); else if (k==='steps') drawStepsIcon(g,stepDraft());
+    else if (k==='berm') drawBermIcon(g,bermDraft()); else drawWallIcon(g,wallDraft());
     g.restore(); return true; }
   if (k==='pet'){ drawPet(g,c.width/2,c.height-3,petDraft(),0.62); return true; }
   if (k==='edging'){ drawEdgingIcon(g,edgingDraft(),c.width,c.height); return true; }
@@ -790,6 +796,39 @@ function drawTerraceIcon(tc,d){
   face(W,N,'#5d4e3b'); face(N,E,'#6b5a44');
   tc.restore();
   drawChipWallCap(tc,st,[[0,0],[1,0],[1,1],[0,1]],-1,true,24,cy,ihw,ihh);   // round the rim
+}
+/* A berm chip: a lawn diamond with a mound on it, lit from the upper left and
+   shaded away from it, taller the higher the berm; a swale is a hollow in it. */
+function drawBermIcon(tc,d){
+  d=normalizeBermDraft(d);
+  const k=Math.abs(d.h)/7, cx=24, cy=24, hw=21, hh=10.5;
+  tc.fillStyle='#7d9358'; tc.beginPath();
+  tc.moveTo(cx,cy-hh); tc.lineTo(cx+hw,cy); tc.lineTo(cx,cy+hh); tc.lineTo(cx-hw,cy); tc.closePath(); tc.fill();
+  const rx=15, ry=7.5;
+  if (d.h>0){
+    const top=cy-(5+15*k);
+    // the mound: the base ellipse's near half, and a dome over the far one
+    tc.beginPath(); tc.moveTo(cx-rx,cy);
+    tc.bezierCurveTo(cx-rx*0.55,top,cx+rx*0.55,top,cx+rx,cy);
+    tc.ellipse(cx,cy,rx,ry,0,0,Math.PI);
+    tc.closePath(); tc.fillStyle='#8aa363'; tc.fill();
+    tc.save(); tc.clip();
+    // shade on the right, light on the left
+    tc.fillStyle='rgba(18,24,14,0.28)'; tc.beginPath(); tc.ellipse(cx+rx*0.55,cy-1,rx*0.75,ry+10,0,0,Math.PI*2); tc.fill();
+    tc.fillStyle='rgba(255,246,222,0.22)'; tc.beginPath(); tc.ellipse(cx-rx*0.45,(cy+top)/2,rx*0.5,(cy-top)*0.55+2,0,0,Math.PI*2); tc.fill();
+    tc.restore();
+    tc.strokeStyle='rgba(239,230,211,0.5)'; tc.lineWidth=1; tc.beginPath();
+    tc.moveTo(cx-rx,cy); tc.bezierCurveTo(cx-rx*0.55,top,cx+rx*0.55,top,cx+rx,cy); tc.stroke();
+    return;
+  }
+  // the hollow: its far side catches the light, its near side is in shade
+  const dep=3+5*k;
+  tc.save(); tc.beginPath(); tc.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); tc.clip();
+  tc.fillStyle='#66804a'; tc.fillRect(cx-rx,cy-ry,rx*2,ry*2);
+  tc.fillStyle='rgba(255,246,222,0.16)'; tc.beginPath(); tc.ellipse(cx-2,cy+dep*0.6,rx*0.9,ry*0.75,0,0,Math.PI*2); tc.fill();
+  tc.fillStyle='rgba(18,24,14,0.32)'; tc.beginPath(); tc.ellipse(cx,cy-ry*0.55,rx,ry*0.6,0,0,Math.PI*2); tc.fill();
+  tc.restore();
+  tc.strokeStyle='rgba(239,230,211,0.45)'; tc.lineWidth=1; tc.beginPath(); tc.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); tc.stroke();
 }
 /* A steps chip: three steps of a flight two tiles wide, coming down toward the
    left, each a block with its tread on top and its riser and side in the riser's
@@ -1130,6 +1169,20 @@ function pickAt(x,y){
     game.fillMode=false; game.trayCat='house'; game.buildingStyleDraft=normalizeBuildingStyle(building);
     setTool('building',null); buildToolTray();
     toast(`Picked ${building.status==='proposed'?'proposed':'existing'} building footprint style.`);
+  } else if (isSoftTile(x,y) && softComponentAt(x,y)){
+    /* A berm or a swale: its height at the crown, the nearest the Berm tool lays,
+       so another can be shaped to match; what is laid on it goes into that
+       material's own choice, as a terrace's top does. */
+    const c=softComponentAt(x,y), v=c.swale ? c.down : c.up;
+    const h=BERM_LEVELS.reduce((b,l)=>Math.abs(l-v)<Math.abs(b-v)?l:b, BERM_LEVELS[0]);
+    if (terr){
+      if (terr.k==='path') game.pathColor=pathColorId(terr.c||game.pathColor);
+      if (terr.k==='bed') game.bedStyle=bedStyleId(terr.c||game.bedStyle);
+      if (terr.k==='lawn') game.lawnStyle=lawnStyleId(terr.c||game.lawnStyle);
+    }
+    game.bermDraft=normalizeBermDraft({h}); game.fillMode=false; game.trayCat='leveling';
+    setTool('berm', null); buildToolTray();
+    toast(`Picked ${bermLabel()}.`);
   } else if (isStepTile(x,y)){
     // a step: its riser, tread and the flight's width, into the Steps tool
     const f=stepFlightAt(x,y), h=elevationAt(x,y), t=terr&&terr.k==='path'?pathColorId(terr.c):null;
@@ -2040,7 +2093,8 @@ const TOOL_SEARCH={
   survey: {label:'Existing or proposed',kind:'brush',drill:null,hay:'existing proposed survey site keep keeping retain remain already there mark hatch'},
   crossing:{label:'Crossing',kind:'fill',hay:'crossing cross bridge footbridge plank boardwalk slab stepping stones over water pond stream creek ground'},
   edging: {label:'Edging',kind:'fill', hay:'edging edge restraint mowing strip mow strip lawn border spade cut steel corten aluminium brick setts soldier course sawtooth dogtooth rope-top victorian tile fieldstone stone concrete timber log roll willow wattle ground'},
-  raise:  {label:'Raise',kind:'layers',hay:'raise elevation grade berm terrace hill leveling'},
+  berm:   {label:'Berm or swale',kind:'layers',hay:'berm berms mound mounds hill hillock knoll earth soil swale swales rain garden bioswale ditch hollow dip depression soft slope bank grade leveling'},
+  raise:  {label:'Raise',kind:'layers',hay:'raise elevation grade berm mound terrace hill leveling'},
   lower:  {label:'Lower',kind:'layers',hay:'lower elevation grade swale basin depression leveling'},
   level:  {label:'Level',kind:'layers',hay:'level elevation grade flatten reset leveling'},
   terrace:{label:'Terrace / raised bed',kind:'layers',
@@ -3588,7 +3642,7 @@ function trayStateSig(ignoreDiscoverySearch=false){
     g.challenge?j([g.challenge.id,g.challenge.title,g.challenge.match,g.challenge.palette,g.challenge.paletteFree]):'-',
     // every draft the tray paints a chip from
     j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.waterFeatureDraft,g.supportDraft,g.boulderDraft,g.petDraft,g.potDraft,
-       g.seatDraft,g.ornamentDraft,g.edgingDraft,g.crossingDraft,g.surveyDraft,g.surveyLayer,g.wallDraft,g.terraceDraft,g.stepDraft,g.buildingStyleDraft,g.buildingDraft,
+       g.seatDraft,g.ornamentDraft,g.edgingDraft,g.crossingDraft,g.surveyDraft,g.surveyLayer,g.wallDraft,g.terraceDraft,g.bermDraft,g.stepDraft,g.buildingStyleDraft,g.buildingDraft,
        g.houseDraft]),
     g.lastBrushTool||'', g.lastBrushVar||'', g.lastBrushTrayCat||'', g.lastBrushDrill||'',
     // tray-module state that changes what is drawn
@@ -3772,6 +3826,7 @@ function verifyTrayCache(){
     ['wallDraft',   ()=>{ const o=g.wallDraft; g.wallDraft=(o==='stone'?'brick':'stone'); return ()=>{ g.wallDraft=o; }; }],
     ['stepDraft',   ()=>{ const o=g.stepDraft; g.stepDraft={w:(o&&o.w)==='brick'?'sleeper':'brick',tread:'slate',width:(o&&o.width)===2?4:2}; return ()=>{ g.stepDraft=o; }; }],
     ['terraceDraft',()=>{ const o=g.terraceDraft; g.terraceDraft={h:(o&&o.h)===1?4:1,w:(o&&o.w)==='brick'?'gabion':'brick'}; return ()=>{ g.terraceDraft=o; }; }],
+    ['bermDraft',   ()=>{ const o=g.bermDraft; g.bermDraft={h:(o&&o.h)===5?-2:5}; return ()=>{ g.bermDraft=o; }; }],
     ['discoveryOpenSpecies',()=>{ const o=discoveryOpenSpecies; discoveryOpenSpecies=o?null:'coneflower'; return ()=>{ discoveryOpenSpecies=o; }; }],
     ['sourceMenuOpen',()=>{ const o=sourceMenuOpen; sourceMenuOpen=!o; return ()=>{ sourceMenuOpen=o; }; }],
     ['catalogView', ()=>{ const o=catalogViewPref; catalogViewPref=catalogView()==='grid'?'list':'grid'; return ()=>{ catalogViewPref=o; }; }],
@@ -3932,8 +3987,9 @@ const GRADE_TOOLS=[
   // a function, for the riser in the reader's units
   {k:'steps',  name:'Steps',  desc:()=>`A flight down from a terrace or into a sunken patio, a step for every ${fmtLengthIn(ELEV_RISER_IN)}. Tap the edge where it goes.`},
   {k:'wall',   name:'Wall',   desc:'Face a whole terrace or sunken patio with stone, brick or timber. Tap it.', armedOnly:true},
-  {k:'raise',  name:'Raise',  desc:'Lift the ground a step. Drag to shape a berm.', shape:true},
-  {k:'lower',  name:'Lower',  desc:'Dig the ground down a step, for a swale or a basin.', shape:true},
+  {k:'berm',   name:'Berm',   desc:'A soft mound of earth, or a swale dug to catch rain. Drag out its size, or tap.', shape:true},
+  {k:'raise',  name:'Raise',  desc:'Lift the ground a step by hand, as soft earth.', shape:true},
+  {k:'lower',  name:'Lower',  desc:'Dig the ground down a step by hand.', shape:true},
   {k:'level',  name:'Level',  desc:'Put the ground back to grade.', shape:true}
 ];
 function drawGradeIcon(tc,kind){
@@ -3963,15 +4019,15 @@ function renderGradeTools(tray,cat){
   let shaped=false;
   GRADE_TOOLS.filter(t=>cat.tools.includes(t.k) && (!t.armedOnly || game.tool===t.k)).forEach(t=>{
     if (t.shape && !shaped){ shaped=true;
-      const head=trayEl('div','lg-head'); head.append(trayEl('b',null,'Shape the ground'),trayEl('span',null,'Berms, swales and banks, a step at a time'));
+      const head=trayEl('div','lg-head'); head.append(trayEl('b',null,'Shape the ground'),trayEl('span',null,'Berms and swales, as soft earth with no walls'));
       tray.appendChild(head); }
     const on=game.tool===t.k, b=trayEl('button','lt-row'+(on?' sel':'')); b.type='button'; b.dataset.k=t.k;
     b.setAttribute('aria-pressed',on?'true':'false');
     const {c,x}=trayCanvas(48,44,true);
     if (t.k==='terrace') drawTerraceIcon(x,terraceDraft()); else if (t.k==='steps') drawStepsIcon(x,stepDraft());
-    else if (t.k==='wall') drawWallIcon(x,wallDraft()); else drawGradeIcon(x,t.k);
+    else if (t.k==='wall') drawWallIcon(x,wallDraft()); else if (t.k==='berm') drawBermIcon(x,bermDraft()); else drawGradeIcon(x,t.k);
     const text=trayEl('span','lt-text'); text.append(trayEl('b',null,t.name),trayEl('small',null,typeof t.desc==='function'?t.desc():t.desc));
-    const cur=t.k==='terrace'?terraceLabel():t.k==='steps'?stepsLabel():t.k==='wall'?wallLabel():'';
+    const cur=t.k==='terrace'?terraceLabel():t.k==='steps'?stepsLabel():t.k==='wall'?wallLabel():t.k==='berm'?bermLabel():'';
     if (cur) text.appendChild(trayEl('em',null,cur));
     b.append(c,text); b.onclick=()=>{ setTool(t.k,null); buildToolTray(); };
     tray.appendChild(b);
@@ -3996,6 +4052,16 @@ function renderGradeTools(tray,cat){
         tp.id==='keep' ? 'Leave the top as it is'
           : `Lay the top with ${terraceTopText(tp.id).replace(/^a |^paved in |^laid to /,'')}: the ${tp.label.toLowerCase()} you last chose under Ground`).dataset.terraceTop=tp.id);
       tray.appendChild(trayEl('p','lg-note','Tap a terrace to change it to what you pick here. What you have not picked stays as it is.'));
+    }
+    if (on&&t.k==='berm'){
+      const bd=bermDraft(), arm=h=>{ game.bermDraft=normalizeBermDraft({h}); setTool('berm',null); buildToolTray(); };
+      sep('Height');
+      BERM_LEVELS.filter(h=>h>0).forEach(h=>optionBtn('berm',terraceInches(h),bd.h===h,tc=>drawBermIcon(tc,{h}),()=>arm(h),
+        `A berm ${bermHeightText(h)} at its crown`).dataset.bermH=String(h));
+      sep('Swale');
+      BERM_LEVELS.filter(h=>h<0).forEach(h=>optionBtn('berm',terraceInches(h),bd.h===h,tc=>drawBermIcon(tc,{h}),()=>arm(h),
+        `A swale ${bermHeightText(h)} in the middle`).dataset.bermH=String(h));
+      tray.appendChild(trayEl('p','lg-note',`Drag out the box it fills, corner to corner: the berm is the oval inside it, with a broad top and sides that fall away gently. A small box keeps it lower. Beds, paths and plants on the ground ride up with it.`));
     }
     if (on&&t.k==='steps'){
       const sd=stepDraft(), arm=next=>{ game.stepDraft=normalizeStepDraft(Object.assign({},sd,next)); setTool('steps',null); buildToolTray(); };
@@ -5066,6 +5132,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (isElevationTool(k)) hay+=' elevation grade grading raised lowered berm swale terrace level';
     if (k==='wall') hay+=' grade retaining wall terrace bank sleeper gabion drystone dry stone facing '+WALL_STYLES.map(w=>w.label).join(' ');
     if (k==='terrace') hay+=' grade terrace raised bed planter sunken patio retaining wall bank '+WALL_STYLES.map(w=>w.label).join(' ');
+    if (k==='berm') hay+=' grade berm mound hill earth swale rain garden hollow soft slope';
     if (k==='steps') hay+=' grade stairs flight treads risers '+STEP_RISERS.map(w=>wallStyle(w).label).join(' ')+' '+STEP_TREADS.map(t=>pathColor(t).label).join(' ');
     if (k==='edging') hay+=' ground edging edge restraint mowing strip lawn border spade steel corten setts soldier course '+EDGING_STYLES.map(e=>e.label).join(' ');
     if (k==='fence') hay+=' hardscape structures fence gate door arbor wall screen deer privacy '
@@ -5416,6 +5483,7 @@ function sheetContextLabel(){
   if (game.tool==='survey') return surveyLabel();
   if (game.tool==='wall') return wallLabel();
   if (game.tool==='terrace') return terraceLabel();
+  if (game.tool==='berm') return bermLabel();
   if (game.tool==='steps') return stepsLabel();
   if (game.tool==='pot') return potLabel();
   if (game.tool==='seat') return seatLabel();
@@ -5468,6 +5536,7 @@ function toolGuide(){
     terrace:{k:terraceLabel(),v:game.fillMode?'Tap a bed or area to build all of it to this height'
       :`Drag corner to corner, or tap for a ${pergolaSizeText(TERRACE_TAP_W,TERRACE_TAP_H)} raised bed — tap a terrace to change what you picked`},
     steps:{k:stepsLabel(),v:'Tap the edge of a terrace or sunken patio where the steps go — tap a flight to change it'},
+    berm:{k:bermLabel(),v:`Drag out the box it fills, or tap for a ${(()=>{ const r=bermTapRect(0,0,bermDraft().h); return pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1); })()} ${bermDraft().h<0?'swale':'berm'}`},
     raise:{k:'Raise grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
     lower:{k:'Lower grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
     level:{k:'Level grade',v:`Tap or drag — ${game.brushSize}-tile brush`},

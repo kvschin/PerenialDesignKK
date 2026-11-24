@@ -1938,6 +1938,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='survey') label=surveyLabel();
   else if (game.tool==='wall') label='Face the terrace';
   else if (game.tool==='terrace') label='Build terrace';
+  else if (game.tool==='berm') label=bermDraft().h<0?'Dig a swale':'Shape a berm';
   else if (game.tool==='pot') label='Set down a pot';
   else if (game.tool==='seat') label='Place seating';
   else if (game.tool==='pot') label='Set down a pot';
@@ -2048,6 +2049,8 @@ function actionHintText(){
     ? `Tap or drag to place ${seatLabel().toLowerCase()}`
     : game.tool==='terrace'
     ? (game.fillMode ? 'Tap a bed to build all of it to this height' : 'Drag corner to corner for a terrace, or tap for a raised bed')
+    : game.tool==='berm'
+    ? (bermDraft().h<0 ? 'Drag out the box a swale fills, or tap for one' : 'Drag out the box a berm fills, or tap for one')
     : game.tool==='wall'
     ? 'Tap a terrace or sunken patio to face all of it'
     : game.tool==='pet'
