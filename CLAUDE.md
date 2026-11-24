@@ -8546,6 +8546,48 @@ Excluded: the desert rosettes (flower stalk drawn) and the stonecrops. **A mat t
 width at a fixed size keeps `h:8`** (aubrieta, moss phlox) or clips its sprite. Record and
 the full table: `docs/plant-data/meadow-audit.md`; `dev/meadow-review.html`.
 
+**Burnets, Joe Pye weeds and salvias (0.9.160)**: three plants that drew as other plants,
+each on a grammar of its own, all opt-in (every other plant draws as before; the shared
+loop's new `stemW` and `whorlLeaves` keys are read only where set). **Burnets**
+(`habit:'burnet'` on `drumstick`; `drawBurnetLeaves`, `drawBurnetStems`) were a few bare
+stalks with one bead each over lance blades. Now: a low rosette of pinnate leaves round the
+crown (`leafPairs`, `leafletLen`, `leafletW`, `leafTeeth`; one fill a leaf), and wiry stems
+fanning out (`fan`) that fork (`branches` from `branchAt`, `branchAngle`, `branchReach`, a
+second fork at the rate `fork`), so a great burnet carries 25-40 heads, with a small
+three-leaflet leaf where a branch leaves. A head is a ribbon along a spine, by `headShape`
+('egg' a button, 'cylinder' a bottlebrush) and `nod`: 0 upright, about 0.55 held level and
+turning down, from 0.75 arching over and hanging below its stalk ('Lilac Squirrel'). Stamens
+(`stamens`, in the season's `eye`) are a fuzz of short threads both sides; a head opens from
+`openFrom` 'top' or 'bottom', the unopened part in `budCol` (fol and bloom mixed by default);
+past the bloom heads stand in seed colour into winter. Everything of one colour is one path.
+Head sizes scale with the plant (`hk`). **Joe Pye** (`umbelStyle:'joepye'`, `drawJoePyeHead`,
+`jpDome`) was a dozen dots on a thin stem. Now a dome (`head` radius, `dome` height, `domeFlat`)
+of `clusters` puffs of three florets in three lights over a dark underside, with the styles as
+fuzz, `sideHeads` smaller domes on side branches, a tight dome of buds on a stem not yet open,
+fluffy tan in seed; snow caps the dome. Its leaves are whorls in the round (`whorlLeaves` 3-7,
+`whorlDroop`) batched into two flat fills a node: the old three-leaf whorl stands one leaf
+straight up and stacked into a fir tree. `stemW` thickens a stem of the shared loop. A Joe Pye
+has no basal leaves and no stem leaves in winter. **Salvias** (`spikeStyle:'salvia'`,
+`drawSalviaSpike`, `salviaSpikeAt`) were stacks of round florets. Now whorls of `whorlN`
+flowers round the axis, crowded toward the tip (`whorlGap`), each a calyx in the season's
+`bract` colour, an optional corolla `tube`, a broad rounded lower lip (`lowerLip`: 0.45 a
+meadow sage, 1.3 a pitcher or autumn sage) and a falcate hood (`hood`, `hoodLen`) lighter than
+the lip. They open from the bottom, buds above; after the bloom the calyces stand alone, which
+is the colour of a spent meadow sage. `spikeBranches` adds side spikes (a meadow sage's
+candelabra; 'Caradonna' has none). drawPlant's closing highlight strokes skip all three.
+**Added**: S. obtusa and S. tenuifolia (with 'Alba', 'Pink Elephant', 'Burr Blanc'), and on the
+great burnet 'Arnhem', 'Chocolate Tip', 'Morning Select', 'Pink Tanna' and 'Blackthorn' (the
+last two hybrids with no wild range), menziesii 'Wake Up'; the four straight Joe Pyes
+(E. maculatum with 'Riesenschirm', E. purpureum with 'Little Red', E. fistulosum with
+'Atropurpurea', E. dubium with 'Little Joe') and 'Phantom'. 'Gateway' and 'Baby Joe' keep their
+keys. Every Joe Pye is browse-resistant (MBG lists deer on every page), and spotted, sweet and
+coastal plain earn the Rain garden role from the lists already in `rain-sources.json`.
+Every choice draws within 8% of its sourced height. Bakes (headless Chrome, software raster):
+burnets 0.1-0.4 ms, Joe Pye 0.4-0.9, salvias 0.1-0.8, against 0.1-0.6 for comparable forbs and
+0.06-0.2 before. Sources and estimates: `docs/plant-data/burnet-joepye-salvia-sources.json`;
+`dev/burnet-joepye-salvia-review.html` shows every choice in four seasons, its heads close up
+and at true scale, with `?check` and `?bench`.
+
 **Flowering mats and pussytoes (0.9.122).** *The mossphlox habit drew a stem a full plant
 height for every flower* (moss phlox, aubretia, rock rose, periwinkle, trailing bellflower,
 blue-eyed Mary), ending nowhere near the flower, which it sited down in the mat beside it:

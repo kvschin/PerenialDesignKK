@@ -1063,6 +1063,16 @@
         "by": "two lists"
       }
     },
+    "coastaljoepye": {
+      "north-america": {
+        "lists": [
+          "psu"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "basin + moist record"
+      }
+    },
     "coffeetree": {
       "north-america": {
         "lists": [
@@ -2155,6 +2165,20 @@
         "earns": false
       }
     },
+    "spottedjoepye": {
+      "north-america": {
+        "lists": [
+          "bbg",
+          "umn",
+          "ildnr",
+          "waukesha",
+          "unl"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
+      }
+    },
     "stinkinghellebore": {
       "europe": {
         "lists": [
@@ -2268,6 +2292,19 @@
         ],
         "wet": true,
         "earns": false
+      }
+    },
+    "sweetjoepye": {
+      "north-america": {
+        "lists": [
+          "madison",
+          "bbg",
+          "mobot",
+          "waukesha"
+        ],
+        "wet": true,
+        "earns": true,
+        "by": "two lists"
       }
     },
     "switchgrass": {

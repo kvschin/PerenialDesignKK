@@ -929,14 +929,15 @@ const STYLE_RECOMMEND_MIN={
 const RAIN_GARDEN_KEYS={
   'north-america':new Set(['americanelder','americansweetflag','arrowhead','arrowwood','awlfruitedsedge','babyjoe','baldcypress',
     'bigbluestem','bluebells','blueflagiris','bluemistflower','bottlebrushgrass','bristlysedge','broomsedgecarex','buttonbush',
+    'coastaljoepye',
     'canadawildrye','cardinallobelia','chokeberry','cinnamonfern','cranberrybush','culvers','easternbluestar','falsesunflower',
     'filipendula','foamflower','foxsedge','fringedsedge','goldenalexander','goldenragwort','grayssedge','greatbluelobelia',
     'helenium','indiangrass','inkberry','interruptedfern','jackinthepulpit','joepye','lakesedge','liatrispycnostachya',
     'liatrisspicata','marshfern','marshmarigold','monarda','monkeyflower','newengland','northernblueflag','northernseaoats',
     'obedientplant','ostrichfern','palmsedge','penstemon','pickerelweed','porcupinesedge','prairiecordgrass','prairiedock',
     'prairieironweed','redbud','redmaple','redtwig','riverbirch','riverbirchmulti','royalfern','rudbeckiatriloba',
-    'scarletbeebalm','sensitivefern','softrush','softstembulrush','spicebush','summersweet','swampmilkweed','swamprosemallow',
-    'swampwhiteoak','sweetbaymagnolia','switchgrass','tussocksedge','virginiamountainmint','virginiasweetspire',
+    'scarletbeebalm','sensitivefern','softrush','softstembulrush','spicebush','spottedjoepye','summersweet','swampmilkweed','swamprosemallow',
+    'swampwhiteoak','sweetbaymagnolia','sweetjoepye','switchgrass','tussocksedge','virginiamountainmint','virginiasweetspire',
     'virginiawaterleaf','waterblueflag','whiteturtlehead','wildgeranium','willowamsonia','winterberry','woodlandphlox',
     'yauponholly','zigzaggoldenrod']),
   europe:new Set(['bugle','callalily','cardinallobelia','miscanthus','siberianiris','softrush','weepingsedge','yellowflag']),
@@ -988,6 +989,7 @@ function roleMatches(text,terms){
 const BROWSE_RESIST_GROUPS=new Set([
   'allium','alliumbulb','milkweed','iris','baptisia','amsonia','liatris',
   'coreopsis','burnet','blueeyedgrass','boxwood','rudbeckia','camassia','lilac',
+  'joepye',   // MBG lists deer among what every Eutrochium page tolerates (0.9.160)
 ]);
 const BROWSE_RESIST_KEYS=new Set([
   // toxic or bitter forbs

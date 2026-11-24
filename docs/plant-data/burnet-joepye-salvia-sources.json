@@ -1,0 +1,40 @@
+{
+  "reviewed": "2026-11-24",
+  "note": "The burnets, Joe Pye weeds and salvias audited for 0.9.160. The burnets and Joe Pyes were redrawn and filled out; the salvias were redrawn only. Sizes are a nursery's or a garden's figure; where two disagree, the estimate says which was taken and why. heightIn is the plant in flower.",
+  "sources": {
+    "ddog": "Digging Dog Nursery, Sanguisorba listing (every selection's own page, e.g. https://www.diggingdog.com/plant/P-2193), read 2026-11-24",
+    "mbg": "Missouri Botanical Garden Plant Finder, https://plantfinder.mobot.org/PlantFinderDetails.aspx?taxonid=<id>, read 2026-11-24",
+    "rhs": "RHS Find a Plant, https://www.rhs.org.uk/plants/<id>/details",
+    "gardenia": "Gardenia.net plant pages (USDA zones and heights), seen in search results 2026-11-24; the site refuses fetches"
+  },
+  "plants": {
+    "greatburnet|arnhem": {"source": "ddog P-2193; rhs 129750", "heightIn": 66, "spread": 27, "zones": "4 (ddog hardy to zone 4)", "bloom": "Jul-Oct", "estimates": "DD 5-6 ft x 2-2.5 ft; RHS 1.5-2.5 m. Took DD's midpoint. 'Lean branching stems ... a see-through froth of snug ovoid blooms'."},
+    "greatburnet|chocolatetip": {"source": "ddog P-1786", "heightIn": 27, "spread": 16, "bloom": "Jul-Oct", "estimates": "DD 2.25 ft x 16 in. Egg-shaped maroon heads that open from the bottom up; blue-green foliage burnished chocolate."},
+    "greatburnet|morningselect": {"source": "ddog P-2251", "heightIn": 36, "spread": 17, "bloom": "Jun-Aug", "estimates": "DD 2.5-3.5 ft x 16-18 in; early blooming."},
+    "greatburnet|pinktanna": {"source": "ddog P-2021; rhs 318232; gardenia", "heightIn": 24, "spread": 18, "provenance": "hybrid", "estimates": "DD 18-24 in, gardenia 2-3 ft, RHS 0.5-1 m. Took DD's upper figure. Listed both as Sanguisorba 'Pink Tanna' (RHS, DD) and as S. officinalis 'Pink Tanna' (RHS Plants); recorded as a hybrid with no wild range. Muted pink catkins with pale rose stamens, russet with age; canary-yellow autumn leaves."},
+    "greatburnet|blackthorn": {"source": "ddog P-2013; rhs 204883; gardenia", "heightIn": 60, "spread": 27, "provenance": "hybrid", "estimates": "DD 5-6 ft, RHS 1-1.5 m, gardenia 36-60 in. Took 5 ft, between DD and the others. Long upright rosy-red heads with black-tipped stamens."},
+    "greatburnet|redthunder": {"source": "ddog P-1542", "estimates": "Existing record (42 in) kept; DD 3-4 ft. Note now says bobbles, DD's word, not bottlebrushes."},
+    "greatburnet|tanna": {"source": "ddog P-0864", "estimates": "Existing record (16 in) kept; DD 18 in x 12 in."},
+    "menziesburnet|wakeup": {"source": "ddog P-2192", "heightIn": 30, "spread": 17, "bloom": "May-Jul", "estimates": "DD 2-3 ft x 16-18 in. Tassels longer and fluffier than the species, pinkish maroon, over blue-grey leaves."},
+    "obtusaburnet": {"source": "ddog P-1400; rhs 65212; gardenia", "heightIn": 30, "spread": 18, "zones": [4, 8], "bloom": "Jul-Sep", "nativeTo": ["asia"], "estimates": "DD 2.5 ft x 18 in, gardenia 2-3 ft, RHS 1-1.5 m (a UK figure). Zones 4-8 from gardenia and DD's hardy to zone 4. Endemic to Japan's mountains. Soft pink fluffy fingers nodding on arching stems."},
+    "narrowleafburnet": {"source": "rhs 109876 (S. tenuifolia 'Purpurea'); ddog P-1465, P-2077", "heightIn": 48, "spread": 24, "zones": [4, 8], "bloom": "Aug-Oct", "nativeTo": ["asia"], "estimates": "No source read gives the straight species' size: taken from its forms, DD 'Alba' 4-5 ft and 'Pink Elephant' 3-5 ft, RHS 'Purpurea' 1-1.5 m. Japan, Korea, China and the Russian Far East. Drawn in the red-purple of the type."},
+    "narrowleafburnet|alba": {"source": "ddog P-1465; rhs 263267", "heightIn": 54, "spread": 21, "bloom": "Sep-Oct", "estimates": "DD 4-5 ft x 18-24 in; RHS 1.5-2.5 m. White, drooping, cylindrical; RHS treats it as var. alba."},
+    "narrowleafburnet|pinkelephant": {"source": "ddog P-2077", "heightIn": 48, "spread": 30, "bloom": "Jul-Oct", "estimates": "DD 3-5 ft x 2-3 ft. Raspberry heads held near level, curving down with age; light pink stamens."},
+    "narrowleafburnet|burrblanc": {"source": "ddog P-2207", "heightIn": 54, "spread": 21, "provenance": "hybrid", "bloom": "Jul-Oct", "estimates": "DD 4-5 ft x 18-24 in. A seedling selected at Marchants from S. tenuifolia var. parviflora plants, called a hybrid there; recorded with no wild range."},
+    "spottedjoepye": {"source": "mbg 292659", "heightIn": 66, "spread": 42, "zones": [4, 8], "nativeTo": ["north-america"], "estimates": "MBG 4-7 ft x 3-4 ft. Purple-speckled stems, leaves in whorls of 3-6, flat-topped heads. Tolerates deer, clay, wet soil (MBG)."},
+    "spottedjoepye|riesenschirm": {"source": "mbg 302489", "heightIn": 66, "spread": 30, "estimates": "MBG 5-6 ft x 2-3 ft; deep purple stems."},
+    "sweetjoepye": {"source": "mbg 292660", "heightIn": 72, "spread": 36, "zones": [4, 9], "nativeTo": ["north-america"], "estimates": "MBG 5-7 ft x 2-4 ft, sun to part shade, medium water; green stems purple at the nodes, leaves in whorls of 3-4, vanilla-scented domed heads."},
+    "sweetjoepye|littlered": {"source": "mbg 257400", "heightIn": 42, "spread": 30, "estimates": "MBG 3-4 ft x 2-3 ft; pink-purple."},
+    "hollowjoepye": {"source": "mbg 257404", "heightIn": 66, "spread": 36, "zones": [4, 8], "nativeTo": ["north-america"], "estimates": "MBG 4-7 ft x 2-4 ft, dusky rose. Took MBG's midpoint although the species is often said to be the tallest Joe Pye: no other source was read."},
+    "hollowjoepye|atropurpurea": {"source": "mbg 257405", "heightIn": 66, "zones": [3, 8], "estimates": "MBG files 'Atropurpurea' under E. fistulosum: 4-7 ft, rose-purple, zones 3-8."},
+    "coastaljoepye": {"source": "mbg 363936", "heightIn": 48, "spread": 36, "zones": [3, 9], "nativeTo": ["north-america"], "estimates": "MBG 3-5 ft x 2-4 ft, pale pink to dark purple."},
+    "coastaljoepye|littlejoe": {"source": "mbg 299845", "heightIn": 42, "spread": 24, "estimates": "MBG 3-4 ft x 1-3 ft; mauve purple."},
+    "phantomjoepye": {"source": "mbg 457105", "heightIn": 36, "spread": 18, "zones": [4, 8], "provenance": "hybrid", "estimates": "MBG 2-4 ft x 1-2 ft, wine red. MBG names it Eutrochium 'Phantom' with no species: recorded as a hybrid with no wild range."},
+    "joepye": {"source": "mbg 302488", "estimates": "Existing record kept (54 in; MBG 4-5 ft)."},
+    "babyjoe": {"source": "mbg 299844", "estimates": "Existing record kept (30 in; MBG 2-3 ft)."}
+  },
+  "roles": {
+    "browse": "MBG lists Deer under Tolerate on every Eutrochium page read (the four species, 'Gateway', 'Baby Joe', 'Little Joe', 'Phantom'), so the whole joepye group joined BROWSE_RESIST_GROUPS.",
+    "rain": "The rain garden lists already read for 0.9.132 (rain-sources.json) name E. maculatum (5 lists), E. purpureum (4) and E. dubium (1, in the basin); spotted, sweet and coastal plain Joe Pye take the Rain garden role by its rule. No list names E. fistulosum."
+  }
+}

@@ -2811,6 +2811,74 @@ test('prairie smoke is a rosette all year, with plumes only after it flowers', (
     assertEqual(plume(season).length,0,`${season}: no plumes`);
   }
 });
+/* 0.9.160: burnets were bare stalks with one bead each, Joe Pye a dozen dots on a
+   thin stem, and the salvias stacks of round florets. Each now has a grammar of
+   its own (draw.js: drawBurnetStems, drawJoePyeHead, salviaSpikeAt). */
+test('the burnets, Joe Pye weeds and salvias keep their own grammars in the data', () => {
+  const members=g=>PLANT_KEYS.filter(k=>PLANTS[k].group===g);
+  for (const k of members('burnet')) assertEqual(PLANTS[k].look.habit,'burnet',`${k}: forking stems of heads over pinnate leaves`);
+  for (const k of members('joepye')){
+    const L=PLANTS[k].look;
+    assertEqual(L.umbelStyle,'joepye',`${k}: a domed corymb`);
+    assert(L.whorlLeaves>=3 && L.leaves===0,`${k}: leaves in whorls up the stem, no basal fan`);
+  }
+  for (const k of members('salvia')){
+    assertEqual(PLANTS[k].look.spikeStyle,'salvia',`${k}: whorls of two-lipped flowers`);
+    assertEqual(PLANTS[k].look.a2Florets,undefined,`${k}: no round-floret spike keys left`);
+  }
+  for (const latin of ['Eutrochium maculatum','Eutrochium purpureum','Eutrochium fistulosum','Eutrochium dubium']){
+    const k=PLANT_KEYS.find(k=>PLANTS[k].latin===latin);
+    assert(k && PLANTS[k].provenance==='species' && PLANTS[k].nativeTo.includes('north-america'),`${latin}: the straight native species`);
+  }
+  for (const [k,v] of [['greatburnet','arnhem'],['greatburnet','pinktanna'],['greatburnet','blackthorn'],['greatburnet','chocolatetip'],
+    ['greatburnet','morningselect'],['menziesburnet','wakeup'],['narrowleafburnet','alba'],['narrowleafburnet','pinkelephant'],['narrowleafburnet','burrblanc']])
+    assert(PLANTS[k].cv && PLANTS[k].cv[v],`${k}:${v} is in the catalog`);
+  assert(PLANTS.obtusaburnet && PLANTS.narrowleafburnet.latin==='Sanguisorba tenuifolia','the Japanese and narrow-leaved burnets are in the catalog');
+});
+/* A head is one ribbon of BN_N+1 points a side in the batched fill of its colour,
+   so a fill's points over 18 is its count of heads. */
+function burnetHeads(key,variant,season){
+  const P=plantDef(key,variant), S=P.sea[season];
+  const op=recordPlant(key,season,variant,1).find(o=>o.fill===shade(S.bloom,-14));
+  const out=[]; if (!op) return out;
+  for (let j=0;j+18<=op.pts.length;j+=18){
+    const p=op.pts.slice(j,j+18);
+    out.push({baseY:(p[0][1]+p[17][1])/2, tipY:(p[8][1]+p[9][1])/2});
+  }
+  return out;
+}
+test('a great burnet forks into a froth of heads; a squirrel tail hangs', () => {
+  const great=burnetHeads('greatburnet',null,'Summer'), stems=PLANTS.greatburnet.look.stems;
+  assert(great.length>=stems*3,`about ${stems*5} heads on ${stems} stems, not one each (${great.length})`);
+  assert(great.every(h=>h.tipY<h.baseY),'great burnet buttons stand up from their stalks');
+  const tails=burnetHeads('lilacsquirrel',null,'Summer');
+  assert(tails.length>=PLANTS.lilacsquirrel.look.stems*2,`Lilac Squirrel carries its tails (${tails.length})`);
+  assert(tails.filter(h=>h.tipY>h.baseY).length>=tails.length*0.8,'its tails hang below the stalks they leave');
+  assertEqual(burnetHeads('greatburnet',null,'Spring').length,0,'no heads in spring');
+});
+test('a Joe Pye head is a broad dome of florets at full bloom, and tight buds before', () => {
+  for (const k of ['joepye','spottedjoepye','sweetjoepye','hollowjoepye','coastaljoepye']){
+    const P=PLANTS[k], col=P.sea.Summer.bloom;
+    const tones=new Set([shade(col,-18),col,shade(col,16)].map(c=>shade(c,-10)));
+    const florets=recordPlant(k,'Summer',null,1).filter(o=>tones.has(o.fill)).flatMap(o=>o.pts.filter(p=>p.length===3));
+    assert(florets.length>=P.look.stems*P.look.clusters*2,`${k}: a dome of florets on every stem (${florets.length})`);
+    const xs=florets.map(p=>p[0]), w=Math.max(...xs)-Math.min(...xs);
+    assert(w>=P.look.head*2,`${k}: the heads together are wider than one dome (${w.toFixed(1)} px)`);
+  }
+  // half way into the bloom some stems are still a tight dome of buds
+  const P=PLANTS.joepye, bud=mixHex(P.sea.Summer.fol,P.sea.Summer.bloom,0.45);
+  const budTones=new Set([shade(bud,-18),bud,shade(bud,16)].map(c=>shade(c,-10)));
+  assert(recordPlant('joepye','Summer',null,0.3).some(o=>budTones.has(o.fill)),'a stem not yet open carries buds');
+});
+test('a salvia flower is a hood over a lip, not a round floret', () => {
+  for (const k of ['meadowsage','mealycupsage','autumnsage']){
+    const col=PLANTS[k].sea.Summer.bloom, ops=recordPlant(k,'Summer',null,1);
+    const hoods=ops.filter(o=>o.fill===shade(col,14)), lips=ops.filter(o=>o.fill===col);
+    assert(hoods.length>=PLANTS[k].look.stems*0.8,`${k}: hooded upper lips on the spikes (${hoods.length})`);
+    assert(lips.reduce((n,o)=>n+o.pts.filter(p=>p.length===3).length,0)>=hoods.reduce((n,o)=>n+o.pts.length,0)/6,`${k}: a lower lip under every hood`);
+    assertEqual(ops.filter(o=>o.fill===shade(col,-15)).length,0,`${k}: no batch of round florets`);
+  }
+});
 test('every forb draws at its sourced height', () => {
   // The px-art h is the drawn height in inches; heightIn is what the card quotes.
   // They had drifted apart by half again (pale coneflower drawn at 55 in for a
