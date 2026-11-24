@@ -7203,13 +7203,28 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // onions must not repeat their one seasonal flower cycle year-round).
   const bloomS=(bloomLvl===undefined || (detail&&detail.bloomFallback))
     ? bloomAppearanceFor(P,season) : null;
-  const S=bloomS&&!baseS.bloom ? Object.assign({},baseS,{bloom:bloomS.bloom,
+  let S=bloomS&&!baseS.bloom ? Object.assign({},baseS,{bloom:bloomS.bloom,
     eye:baseS.eye||bloomS.eye, bract:baseS.bract||bloomS.bract}) : baseS;
   const rnd = mulberry(seed);
   // how far into its bloom window this species is (1 = forced full bloom,
   // used by tray icons / previews); gates and thins the flower pass
   const blv = bloomLvl!==undefined ? bloomLvl : (S.bloom ? bloomLevel(key,variant) : 0);
   const blooming = !!S.bloom && blv>0.08;
+  /* After the bloom (world.js, "after the bloom"). `spent` says the stems that
+     are not flowering have finished, so where the season has a seed colour they
+     carry a seedhead rather than a bud; and a season with no seed colour of its
+     own borrows the one a later season authors, so the head stands from the day
+     the flower fades. The garden reads the clock, a sprite bake is told
+     (detail.spent), and a picture with no clock shows a season with no flowers
+     as it stands at its middle. A plant in full bloom is left alone. */
+  let spent=false;
+  if ((!blooming || blv<BLOOM_FULL) && bloomAfterMatters(P,season)){
+    const aft = bloomLvl===undefined ? bloomAfterNow(P,season)
+      : (detail&&detail.spent!==undefined) ? detail.spent
+      : blooming ? 0 : bloomAfterMid(P,season);
+    if (aft===2 && !S.seed) S=seedCarriedSlot(P,season,S);
+    spent = !!aft && !!S.seed;
+  }
   if ((P.type==='bulb'||(P.look&&P.look.dormantWhenBare))&&!S.fol&&!S.seed&&!blooming) return; // previews cannot invent organs during dormancy
   // trees: display-rescaled height (T10) — and a LOWER growth floor, because
   // 25% of a rescaled oak (~480px) reads as a 20-ft "sapling"; day-one trees
@@ -8647,13 +8662,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         }
       }
       else if (P.form==='globe' && L.globeStyle==='monarda'){
-        // a stem whose turn to flower has not come yet carries a bud
-        const ph=headOn?1:blooming?0:S.seed?-1:null;
+        // a stem whose turn to flower has not come yet carries a bud; one that
+        // has finished (spent) carries its seed ball
+        const ph=headOn?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawMonardaHead(ctx,hx,hy,1,L,S,ph,rnd);
       }
       else if (P.form==='globe' && (L.globeStyle==='cyme'||L.globeStyle==='collar')){
         // the Eryngiums: the snow goes on the heads, not on the stem tip
-        const ph=headOn&&S.bloom?1:blooming?0:S.seed?-1:null;
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (snowAnchors && AMBIENCE[season].snow) snowAnchors.pop();
         const snow=AMBIENCE[season].snow?snowAnchors:null;
         if (ph!==null){
@@ -8818,7 +8834,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           } } }
       }
       else if (P.form==='umbel'){ // flat-to-domed corymb of tiny florets
-        const col=(headOn?S.bloom:null)||((L.bractN&&blooming)?null:S.seed);
+        const col=(headOn?S.bloom:null)||((L.bractN&&blooming&&!spent)?null:S.seed);
         if (col){ ctx.fillStyle=col;
           const rad=L.head||6, dome=(L.dome===undefined?0.4:L.dome), dots=Math.round(rad*2);
           if(!headOn && S.seed && L.seedStyle==='milkweedPods'){
@@ -8950,19 +8966,19 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             ctx.fill(); } }
       }
       else if (L.spikeStyle==='blazingstar'){ // Liatris; a later stem is a spike in bud
-        const ph=headOn&&S.bloom?1:blooming?0:S.seed?-1:null;
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawBlazingStar(ctx,hx,hy,L,S,ph,blv,i,rec);
       }
       else if (L.spikeStyle==='dalea'){ // prairie clover thimble; a later stem is in bud
-        const ph=headOn&&S.bloom?1:blooming?0:S.seed?-1:null;
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawDaleaHead(ctx,hx,hy,L,S,ph,blv,i,rec);
       }
       else if (L.spikeStyle==='betony'){ // whorled labiate spike; a later stem is in bud
-        const ph=headOn&&S.bloom?1:blooming?0:S.seed?-1:null;
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawBetonySpike(ctx,hx,hy,L,S,ph,i,rec);
       }
       else if (L.spikeStyle==='torch'){ // Kniphofia; a later stem is a spike in bud
-        const ph=headOn&&S.bloom?1:blooming?0:S.seed?-1:null;
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawTorchLily(ctx,hx,hy,L,S,ph,blv,rnd);
       }
       else { // spike
@@ -9421,7 +9437,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       if (!mature) continue;
       for (let tr=tiers-1;tr>=0;tr--){              // the lowest whorl first
         const fromBottom=tiers-1-tr;
-        const ph=blooming?(fromBottom<shown?1:0):S.seed?-1:(S.bract?0:null);
+        const ph=blooming?(fromBottom<shown?1:spent?-1:0):S.seed?-1:(S.bract?0:null);
         if (ph===null) continue;
         at(1-gap*tr);
         drawMonardaHead(ctx,_spX,_spY,0.8+0.2*tr/Math.max(1,tiers-1),L,S,ph,rnd);
@@ -9648,9 +9664,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     if (mature && phase){
       const sn=stemFor(L.stems||7), stemCol=P.stem||shade(S.fol||'#7a5a50',-20);
       for (let i=0;i<sn;i++){
-        if (phase===1 && i>=Math.max(1,Math.ceil(sn*blv))) continue;
+        // a stem past the flowering ones has finished: it stands up as a plume
+        // (spent), or is not up yet
+        const done=phase===1 && i>=Math.max(1,Math.ceil(sn*blv));
+        if (done && !spent) continue;
         const ox=(hash01(i,7)-0.5)*(L.stemSpread||14), len=H*((L.lenBase||0.72)+hash01(7,i)*(L.lenJitter||0.25));
-        drawAvensStem(ctx,ox,len,L,S,phase,i,sway,stemCol);
+        drawAvensStem(ctx,ox,len,L,S,done?-1:phase,i,sway,stemCol);
       }
     }
   }
@@ -12481,7 +12500,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const heads=r.heads, hr=mulberry((seed^0x4ead5)>>>0), headR=(L.headR||7)*(0.6+0.4*growth);
     if (blooming && mature && S.bloom){
       const n=Math.max(1,Math.ceil(heads.length*blv));
-      for (let t=0;t<heads.length;t++) hydrangeaHeadB(L,heads[t][0],heads[t][1],S.bloom,headR,hr,t<n);
+      // a head that has finished dries where it stands (spent); before that it is not open yet
+      for (let t=0;t<heads.length;t++){
+        if (t>=n && spent) hydrangeaHeadB(L,heads[t][0],heads[t][1],S.seed,headR*0.8,hr,true);
+        else hydrangeaHeadB(L,heads[t][0],heads[t][1],S.bloom,headR,hr,t<n);
+      }
     } else if (S.seed && mature){                  // dried heads hold through winter
       for (let t=0;t<heads.length;t++) hydrangeaHeadB(L,heads[t][0],heads[t][1],S.seed,headR*0.8,hr,true);
     }

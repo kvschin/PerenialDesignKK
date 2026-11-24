@@ -435,6 +435,12 @@ See §13a.
   onto a scratch canvas to read it: sprites have been ImageBitmaps since 0.9.38,
   which have no `getContext`, and calling it threw on every older page until
   they were changed to match.
+- `dev/afterbloom-review.html` draws a plant through one year, a column every
+  few garden days, the way the garden draws it off the clock: the page to open
+  for anything about WHEN a flower or seedhead stands (§14c2). `?ab=1` puts the
+  pre-0.9.159 behaviour above each strip, `?only=key,key:cultivar` picks the
+  plants, `?sheet=1` is a contact sheet of every species that carries a
+  seedhead, as the Plant Library draws it.
 - `node dev/plant-blit-bench.cjs` splits the plant sprite pass into BAKING and
   BLITTING, which the `draw` phase and a profile's `drawPlantMaybeCached` share
   as one number while wanting opposite fixes — baking is driven by how fast the
@@ -6185,6 +6191,74 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     reuses the same `bloomMonths` timing for discovery; renderer bloom color is
     considered only in an authored bloom season, so foliage or plan colors never
     create false flower-color matches.
+14c2. **After the bloom: spent heads** (0.9.159; `bloomSpansFor`, `bloomAfterAt`,
+    `seedCarryTable`, `seedCarriedSlot`, `bloomAfterBucket`, world.js; `spent` in
+    `drawPlant`; `plantBloomKey`, `bloomAfterForFrame`, renderer.js). A flower
+    that finishes becomes its seedhead, and the drawing had no way to say so:
+    seedheads were drawn only from the season's own `seed` colour. So prairie
+    smoke (flowers April and May, plumes authored for Summer) thinned to a bare
+    rosette through late May and came back as full plumes on June 1, which reads
+    as "about to bloom, goes back down, blooms in summer"; and a plant whose
+    flowers end a season or more before its seed is authored (candytuft, wild
+    geranium, astilbe, baptisia, the alliums, the hydrangeas) stood headless for
+    weeks or a whole season and then grew dead heads. A survey counted 290-odd
+    herbaceous choices with one gap or the other.
+    Two facts, both a pure function of the record and the day of the year:
+    **AFTER** — the plant is past the peak of its latest bloom THIS year (fading,
+    or finished and not started again), so a stem that is not flowering has
+    finished: where the season has a seed colour it carries a seedhead, not a
+    bud. **CARRY** — after the bloom, a season with no `seed` of its own borrows
+    the one a later season of the same year authors, so the head stands from the
+    day the flower fades until its own season takes over.
+    Four rules it has to keep, each of which was wrong first. *Not last year's
+    bloom* (`sinceFade>d`): "after" is cyclic, so every summer bloomer was
+    "after" its last bloom all spring and bugbane stood seed spikes in March;
+    the spring cutback ends it. *Never across the cutback*: the lending season
+    is later in the same year, or a Colchicum's spring capsules become a winter
+    seedhead. *Never past another bloom*: a flush starting before the lending
+    season blocks the carry. *Herbaceous plants and the hydrangeas only*
+    (`seedCarries`): a tree's or shrub's `seed` is fruit, which colours months
+    after the blossom (red crabapples in June); the climber form draws no seed;
+    a record opts out with `look.seedCarry:false`.
+    **Colour**: a head carried from the very next season keeps that colour (the
+    same head a few days earlier); one carried further back sits 30% toward the
+    leaf colour; FRUIT is carried 80% toward it, green until its own season
+    (`fruitStyle`, the berry seed styles, or `look.seedCarry:'unripe'` on the six
+    records whose berries the drawing has no style for), or a jack-in-the-pulpit
+    held red berries in May. The carried colour is a hex string, since season
+    slots are hex by contract and `mixHex` reads nothing else.
+    **Most forms needed no change**, because a stem that is not flowering was
+    already drawn as `(headOn?S.bloom:null)||S.seed`: handing the slot a seed
+    colour is the whole fix there. The ones that drew a BUD on such a stem take
+    `spent` (the monarda, eryngium, blazing star, dalea, betony and torch-lily
+    phases, the tiered bee balms, a bracted umbel), prairie smoke's finished
+    stems stand up as plumes, and a hydrangea head that has finished dries where
+    it stands. Forms that switch the whole plant at once (the grasses, a mound's
+    scapes) still thin through the fade and then show the carried head.
+    **A plant in full bloom is untouched** (`BLOOM_FULL`, 5/6, the level at which
+    the bloom bucket reaches 3), and so is every forced-bloom picture: a test
+    walks the catalog and holds both, and that only a carried head changes a
+    picture with no clock. Such a picture (a Library season tile, a catalog
+    card) shows a season with no flowers as it stands at its middle
+    (`bloomAfterMid`); about twenty species' tiles gained heads.
+    **Cost.** The state rides the sprite key as part of the bloom bucket: the
+    key's bloom number is the bucket (0-3) plus four times `bloomAfterBucket`
+    (0-2), 0 wherever it changes nothing drawn, so the fade passes through the
+    same three keys it always did (3, then 2, 1, 0 with the flag) and costs no
+    extra bakes. `rec.seedAfter` (baked with the key parts) lets every plant
+    with nothing to show skip the question, the answer is one per species per
+    frame and kept while the clock stands still, like bloom, and the carried
+    slot object is made once per plant and season. The look-ahead builds the
+    same number (`tests/browser-skips.cjs`: 0 stale sprites on every Skip).
+    Measured with `dev/ff-bench.cjs` on the demo garden against
+    `--query afterbloom=0`: sprites 3.92 -> 4.02ms a frame on desktop and 3.93 ->
+    4.03 on the phone viewport, bakes a frame 4.7/6.4/4.8/4.7 -> 4.8/6.5/4.8/4.8
+    by season, cache size identical: all inside run-to-run noise. The
+    procedural path (small gardens) draws the extra heads, which is the point.
+    `?afterbloom=0` (`BLOOM_AFTER.on`) draws the old way for an A/B.
+    `dev/afterbloom-review.html` draws any plant through a year, a column every
+    few days, old over new (`?ab=1&only=key,key:cv&step=2&zoom=1.6&from=&to=`),
+    and `?sheet=1` shows every species whose Library tile changed.
 14d. **Plant photographs + image attribution** (`photos.js`, `credits.html`) —
     the Plant Library's four seasonal illustrations say how a plant BEHAVES
     across a year, which is what this app is for and what a photograph cannot

@@ -33,6 +33,10 @@
            through spring: crocus 1, daffodil 3, muscari 4, tulip 6,
            camassia 9); species without it peak by phen (cool 5, mid 8,
            warm 11)
+   look.seedCarry optional: a herbaceous plant's seedhead stands from the day its
+           flower fades, borrowing the seed colour a later season of the same
+           year authors (world.js, "after the bloom"). false opts a record
+           out; 'unripe' marks a seed that is a berry, carried green.
    bloomMonths optional: real-world bloom months as numbers 1-12. This powers
            the Bloom Calendar export and, unless a precise `bloomDay` is
            supplied, the annually continuous in-game bloom window. Missing
@@ -4305,7 +4309,7 @@ const PLANTS = {
     }},
   solomonsseal:{ name:"Great Solomon's Seal", latin:'Polygonatum biflorum', group:'solomonsseal', groupLabel:"Solomon's Seal", chip:'Great', form:'archbell', type:'forb', h:38, heightIn:24,
     space:18, spread:24, zones:[3,8], _legacyNative:true, sun:'part', moist:'medium', phen:'cool',
-    look:{stems:4, leaves:9, bells:5},
+    look:{seedCarry:'unripe', stems:4, leaves:9, bells:5},
     blurb:'Arching shade stems with paired cream bells underneath, then blue-black berries and straw-yellow fall structure.',
     sea:{Spring:{fol:'#6f8f6e',bloom:'#ece8d8'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#c2a85a',seed:'#384058'}, Winter:{seed:'#5e5240'}},
     cv:{
@@ -8874,7 +8878,7 @@ const PLANTS = {
   mayapple:{ name:'Mayapple', latin:'Podophyllum peltatum', form:'cone', type:'forb', h:16, heightIn:15,
     space:12, spread:12, zones:[3,8], nativeTo:['north-america'], provenance:'species', sun:'part', moist:'medium', phen:'cool',
     roles:['woodland','groundcover'], bloomMonths:[4,5],
-    look:{sideScale:0.66, art2:true, dormantWhenBare:true, leafStyle:'parasol', leaves:6, parasolR:0.34, parasolFlat:0.42, petioles:0.86, leafSpread:0.5,
+    look:{seedCarry:'unripe', sideScale:0.66, art2:true, dormantWhenBare:true, leafStyle:'parasol', leaves:6, parasolR:0.34, parasolFlat:0.42, petioles:0.86, leafSpread:0.5,
       lobes:7, lobeDepth:0.55, lobeCut:1.3, stalkW:1.1, stems:3, stemSpread:6, lenBase:0.3, lenJitter:0.06,
       rays:6, rayLen:3.2, rayW:2, rayShape:'round', droop:0.6, discW:1.1, discH:1, seedW:2.4, seedH:3.2},
     blurb:'A colony of green umbrellas a foot or so high, each stem one or two deeply lobed leaves; a waxy white flower nods under the fork in May and ripens into a yellow fruit. Dormant by midsummer. Leaves, roots and unripe fruit are poisonous; only the ripe fruit is edible.',
@@ -8900,7 +8904,7 @@ const PLANTS = {
     group:'solomonsseal', groupLabel:"Solomon's Seal", chip:'Variegated', form:'archbell', type:'forb', h:36, heightIn:24,
     space:12, spread:12, zones:[3,8], nativeTo:['asia'], provenance:'selection', sun:'part', moist:'medium', phen:'cool',
     roles:['woodland'], bloomMonths:[4,5],
-    look:{dormantWhenBare:true, stems:5, leaves:9, bells:5, leafEdge:true, sideScale:0.62},
+    look:{seedCarry:'unripe', dormantWhenBare:true, stems:5, leaves:9, bells:5, leafEdge:true, sideScale:0.62},
     blurb:"Arching stems of white-edged leaves, fragrant white bells hanging beneath them in spring and blue-black berries after. The Perennial Plant Association's 2013 plant of the year; spreads slowly into a colony and copes with dry shade once settled. All parts upset the stomach if eaten.",
     sea:{Spring:{fol:'#7f9c64',edge:'#e3e8cc',bloom:'#f1eee2'}, Summer:{fol:'#6f8f58',edge:'#dde2c6'}, Fall:{fol:'#c8b05e',edge:'#ddd1a0',seed:'#3a4258'}, Winter:{}}},
   fringedbleedingheart:{ name:'Fringed Bleeding Heart', latin:'Dicentra eximia', synonyms:['Turkey Corn','Wild Bleeding Heart'],
@@ -8923,7 +8927,7 @@ const PLANTS = {
     form:'archbell', type:'forb', h:45, heightIn:30,
     space:18, spread:24, zones:[3,8], nativeTo:['north-america'], provenance:'species', sun:'part', moist:'medium', phen:'cool',
     roles:['woodland'], bloomMonths:[4,5],
-    look:{dormantWhenBare:true, archStyle:'plume', stems:5, leaves:9, plumeN:18},
+    look:{seedCarry:'unripe', dormantWhenBare:true, archStyle:'plume', stems:5, leaves:9, plumeN:18},
     blurb:"Arching stems of broad, ribbed leaves like a Solomon's seal, each ending in a fluffy plume of creamy flowers in spring, then speckled berries that ripen red. Spreads slowly into colonies in rich, moist woods and resents being disturbed.",
     sea:{Spring:{fol:'#73945e',bloom:'#efe9d2'}, Summer:{fol:'#5f8250',seed:'#b9b178'}, Fall:{fol:'#c6ad5a',seed:'#b8382e'}, Winter:{}}},
   bugbane:{ name:'Bugbane', latin:'Actaea simplex', synonyms:['Cimicifuga simplex','Kamchatka Bugbane','Japanese Bugbane'], form:'spike', type:'forb', h:60, heightIn:60,
@@ -9074,7 +9078,7 @@ const PLANTS = {
     group:'aralia', groupLabel:'Spikenard', chip:'American', form:'shrub', type:'forb', h:48, heightIn:48, stem:'#5a2f36',
     space:36, spread:48, zones:[3,8], nativeTo:['north-america'], provenance:'species', sun:'part', moist:'medium', phen:'mid',
     roles:['woodland','architectural'], bloomMonths:[6,7,8],
-    look:{habit:'leafystems', mass:'dome', stems:10, spread:1.3, arch:0.3, baseW:10, leaves:5, leafSpan:[0.2,0.9],
+    look:{seedCarry:'unripe', habit:'leafystems', mass:'dome', stems:10, spread:1.3, arch:0.3, baseW:10, leaves:5, leafSpan:[0.2,0.9],
       leaflets:3, leafL:5.6, leafH:2.8, leafAscend:0.5, sheen:10, stemW:1.4, faceLeaves:16, dormantWhenBare:true,
       headStyle:'haze', flowerStems:8, branchlets:6, hazeSpan:0.42, branchLen:7, branchFlorets:4, floretR:1.1, sideScale:0.78,
       art2:true, leafShape:'ovate', leafHW:0.62},
@@ -9221,7 +9225,7 @@ const PLANTS = {
   lilyofthevalley:{ name:'Lily of the Valley', latin:'Convallaria majalis', form:'leafmound', type:'forb', h:9, heightIn:9,
     space:8, spread:12, zones:[3,8], nativeTo:['europe','asia'], provenance:'species', sun:'part', moist:'medium', phen:'cool',
     roles:['groundcover','woodland','cottage'], bloomMonths:[4,5],
-    look:{art2:true, dormantWhenBare:true, leafStyle:'hosta', leafShape:'lance', leaves:8, leafLen:0.62, leafWR:0.4, cup:0.25, leafRise:1.0, petioleLen:0.2, veins:5,
+    look:{seedCarry:'unripe', art2:true, dormantWhenBare:true, leafStyle:'hosta', leafShape:'lance', leaves:8, leafLen:0.62, leafWR:0.4, cup:0.25, leafRise:1.0, petioleLen:0.2, veins:5,
       scapeStyle:'raceme', scapes:4, scapeH:0.85, florets:7, floretR:1.0, sideScale:0.7},
     blurb:'Pairs of broad leaves in a spreading carpet, and in spring arching stems of small, waxy, sweetly scented white bells, followed by red berries. It runs by rhizomes and in good soil will take over a bed. Every part is poisonous.',
     sea:{Spring:{fol:'#5f8a4c',bloom:'#f6f4ec'}, Summer:{fol:'#56804a',seed:'#c8352c'}, Fall:{fol:'#b0a058'}, Winter:{}}},

@@ -28138,3 +28138,246 @@ test('the guidebook steps come down a level a tile, with nosings and no coping',
   const after = d.build(); d.run(after, 0.9);
   assert(Object.values(after.terrain).filter(o => o.s).every(o => o.c === 'brick'), 'every tread changed together');
 });
+
+/* ---------- after the bloom (0.9.159) ----------
+   A flower that finishes becomes its seedhead. Seedheads used to be drawn only
+   from the season's own `seed` colour, so prairie smoke thinned to nothing
+   through late May and came back as full plumes on June 1, and a spring bloomer
+   whose seed is authored for Fall stood headless all Summer. */
+function atGardenDay(d){ game.pausedAt = Date.now(); game.elapsedMs = d * DAY_MS; game.dayOffset = 0; }
+function plantOpsAtDay(key, season, d, variant){
+  atGardenDay(d);
+  let n = 0;
+  const ctx = new Proxy({}, {
+    get(o, p){
+      if (p in o) return o[p];
+      if (p === 'createLinearGradient' || p === 'createRadialGradient' || p === 'createPattern') return () => ({ addColorStop(){} });
+      if (p === 'measureText') return () => ({ width: 0 });
+      return () => { if (p === 'fill' || p === 'stroke') n++; };
+    },
+    set(o, p, v){ o[p] = v; return true; },
+  });
+  drawPlant(ctx, 0, 0, key, 1, season, 9137, 0, variant || null, undefined);
+  return n;
+}
+function withoutAfterBloom(fn){
+  BLOOM_AFTER.on = false;
+  try { return fn(); } finally { BLOOM_AFTER.on = true; }
+}
+
+test('a faded flower stands as its seedhead: prairie smoke has no bare days before its plumes', () => {
+  setup(21, 21);
+  const P = PLANTS.prairiesmoke;
+  assert(P.sea.Spring.bloom && !P.sea.Spring.seed && P.sea.Summer.seed, 'the record this leans on: flowers in Spring, plumes authored for Summer');
+  const [w] = bloomSpansFor(P);
+  assert(w[0] < w[1] && w[1] < w[2] && w[2] <= DAYS_PER_SEASON, 'one bloom, fading inside Spring');
+  assertEqual(bloomAfterAt(P, 'Spring', 1), 0, 'before the bloom nothing has finished');
+  assertEqual(bloomAfterAt(P, 'Spring', (w[0] + w[1]) / 2), 0, 'nor while it is rising or at its peak');
+  assertEqual(bloomAfterAt(P, 'Spring', w[1] + 0.25), 2, 'once it fades, the plume authored for Summer is carried');
+  assertEqual(bloomAfterAt(P, 'Spring', DAYS_PER_SEASON - 0.1), 2, 'to the last day of Spring');
+  assertEqual(bloomAfterAt(P, 'Summer', 20), 1, 'Summer authors its own seed colour');
+  assertEqual(bloomAfterAt(P, 'Fall', 40), 0, 'and by Fall there is no seed left to carry');
+  assertEqual(seedCarryTable(P).by[0].col, P.sea.Summer.seed, 'a head carried from the very next season keeps its colour');
+  // the drawing: on the last day of Spring every stem stands as a plume, exactly
+  // the stems and plumes June 1 draws, where it used to be the rosette alone
+  const lastDay = DAYS_PER_SEASON - 0.4;
+  const carried = plantOpsAtDay('prairiesmoke', 'Spring', lastDay);
+  const bare = withoutAfterBloom(() => plantOpsAtDay('prairiesmoke', 'Spring', lastDay));
+  const june = plantOpsAtDay('prairiesmoke', 'Summer', DAYS_PER_SEASON + 0.5);
+  assert(carried > bare, `the plumes are drawn (${carried} strokes and fills against ${bare} for the bare rosette)`);
+  assertEqual(carried, june, 'and they are the plumes the first day of Summer draws');
+  // no day from the peak to the end of Summer draws only the bare rosette
+  for (let d = w[1] - 1; d < DAYS_PER_SEASON * 2; d += 0.5){
+    const season = d < DAYS_PER_SEASON ? 'Spring' : 'Summer';
+    assert(plantOpsAtDay('prairiesmoke', season, d) > bare, `day ${d}: stems are standing`);
+  }
+  // through the fade the stems that have stopped flowering are plumes, not missing
+  for (let d = w[1] + 0.6; d < DAYS_PER_SEASON - 0.6; d += 0.4){
+    const on = plantOpsAtDay('prairiesmoke', 'Spring', d), off = withoutAfterBloom(() => plantOpsAtDay('prairiesmoke', 'Spring', d));
+    // every stem still flowers until the level leaves full bloom; after that some have finished
+    if (bloomLevel('prairiesmoke', null) < BLOOM_FULL) assert(on > off, 'day ' + d.toFixed(1) + ': the finished stems stand as plumes beside the ones still in flower');
+    else assertEqual(on, off, 'day ' + d.toFixed(1) + ': full bloom is left alone');
+  }
+  // before the bloom and at its peak the drawing is the one it always was
+  for (const d of [1, 4, (w[0] + w[1]) / 2]){
+    assertEqual(plantOpsAtDay('prairiesmoke', 'Spring', d), withoutAfterBloom(() => plantOpsAtDay('prairiesmoke', 'Spring', d)),
+      `day ${d}: unchanged before the fade`);
+  }
+});
+
+test('a seedhead is carried through a whole season to the one that authors it', () => {
+  setup(21, 21);
+  // candytuft flowers in April and May; its seed is authored for Fall
+  const P = PLANTS.candytuft;
+  assert(P.sea.Spring.bloom && !P.sea.Summer.seed && !P.sea.Summer.bloom && P.sea.Fall.seed, 'the record this leans on');
+  for (const d of [16.5, 24, 31.5]) assertEqual(bloomAfterAt(P, 'Summer', d), 2, `Summer day ${d}: the head stands`);
+  assertEqual(bloomAfterAt(P, 'Fall', 40), 1, 'Fall draws its own');
+  const t = seedCarryTable(P);
+  assertEqual(t.by[1].col, P.sea.Fall.seed, 'in Summer, next to its own season, it is the Fall colour');
+  const fresh = colorParts(t.by[0].col), seed = colorParts(P.sea.Fall.seed), fol = colorParts(P.sea.Spring.fol);
+  for (let c = 0; c < 3; c++){
+    const lo = Math.min(seed[c], fol[c]) - 1, hi = Math.max(seed[c], fol[c]) + 1;
+    assert(fresh[c] >= lo && fresh[c] <= hi, 'two seasons back it is fresher: between the seed and the leaf colour');
+  }
+  assert(t.by[0].col !== P.sea.Fall.seed && /^#[0-9a-f]{6}$/.test(t.by[0].col), 'and a hex colour like every other in a season slot');
+  const withHead = plantOpsAtDay('candytuft', 'Summer', 24), without = withoutAfterBloom(() => plantOpsAtDay('candytuft', 'Summer', 24));
+  assert(withHead > without, `mid-summer draws its spent heads (${withHead} against ${without})`);
+  // the slot object is made once, not per draw
+  const a = seedCarriedSlot(P, 'Summer', P.sea.Summer), b = seedCarriedSlot(P, 'Summer', P.sea.Summer);
+  assert(a === b && a !== P.sea.Summer && a.seed === P.sea.Fall.seed && a.fol === P.sea.Summer.fol, 'one carried slot per plant and season');
+  assert(!P.sea.Summer.seed, 'and the record itself is never written to');
+});
+
+test('a head is never carried across the spring cutback, past a new bloom, or onto fruit trees', () => {
+  setup(21, 21);
+  // a fall bloomer was cut back with its seedheads: none in March, none in July
+  const F = PLANTS.bugbane;
+  assert(F.sea.Fall.bloom && F.sea.Fall.seed && !F.sea.Spring.seed && !F.sea.Summer.seed, 'the record this leans on');
+  for (const d of [0.5, 8, 15.5]) assertEqual(bloomAfterAt(F, 'Spring', d), 0, `Spring day ${d}: last year's bloom does not count`);
+  for (const d of [16.5, 24, 31.5]) assertEqual(bloomAfterAt(F, 'Summer', d), 0, `Summer day ${d}: nor here`);
+  assertEqual(bloomAfterMid(F, 'Spring'), 0, 'so its spring picture has no seedhead');
+  // a bloom in Fall whose seed is authored for the NEXT Spring (a Colchicum's capsules)
+  const colch = { type:'bulb', form:'bulbcup', bloomMonths:[9, 10], sea:{ Spring:{ fol:'#557755', seed:'#8a7a58' }, Summer:{}, Fall:{ bloom:'#c090c0' }, Winter:{} } };
+  assertEqual(bloomAfterAt(colch, 'Fall', 46), 0, 'not carried forward over the winter');
+  assertEqual(bloomAfterAt(colch, 'Winter', 56), 0, 'nor through it');
+  // two flushes: after the first, a second starting before the seed season blocks it
+  const twice = { type:'forb', form:'cone', bloomMonths:[4, 7], sea:{ Spring:{ fol:'#557755', bloom:'#c090c0' }, Summer:{ fol:'#557755', bloom:'#c090c0' }, Fall:{ fol:'#886644', seed:'#6a5a44' }, Winter:{} } };
+  assertEqual(bloomSpansFor(twice).length, 2, 'two blooms');
+  assertEqual(bloomAfterAt(twice, 'Spring', 14), 0, 'between the flushes there is no seedhead yet');
+  assertEqual(bloomAfterAt(twice, 'Summer', 30), 2, 'after the second there is');
+  // who carries: herbaceous plants and the hydrangeas; never fruit, never a climber
+  assert(seedCarries(PLANTS.candytuft) && seedCarries(PLANTS.oakleafhydrangea), 'forbs and hydrangeas do');
+  assert(!seedCarries(PLANTS.crabapple) && !seedCarries(PLANTS.lilac), 'a tree or shrub does not: its seed is fruit, months after the blossom');
+  const vine = PLANT_KEYS.find(k => PLANTS[k].form === 'climber');
+  assert(!seedCarries(PLANTS[vine]), 'nor a climber, which draws no seed');
+  assert(!seedCarries(Object.assign({}, PLANTS.candytuft, { look:{ seedCarry:false } })), 'and a record can opt out');
+  for (const s of SEASONS) assert(!bloomAfterMatters(PLANTS.crabapple, s), 'crabapple ' + s + ': nothing to ask');
+  // a berry is green until its own season
+  const J = PLANTS.jackinthepulpit, jc = colorParts(seedCarryTable(J).by[0].col);
+  assert(colorParts(J.sea.Summer.seed)[0] > colorParts(J.sea.Summer.seed)[1], 'its berries are red');
+  assert(jc[1] > jc[0], 'and carried into May they are green');
+  for (const k of PLANT_KEYS){
+    const recs = [PLANTS[k], ...Object.values(PLANTS[k].cv || {})];
+    for (const r of recs){
+      const v = r.look && r.look.seedCarry;
+      assert(v === undefined || v === false || v === 'unripe', k + ': look.seedCarry is false or unripe');
+    }
+  }
+});
+
+test('a plant in full bloom, and every plant with nothing to carry, draws as it did', () => {
+  setup(21, 21);
+  let checked = 0, changed = 0, undrawn = 0;
+  for (const k of PLANT_KEYS){
+    const P = PLANTS[k];
+    if (P.hidden) continue;
+    for (const season of SEASONS){
+      const own = (P.sea[season] || {}).bloom;
+      const on = JSON.stringify(recordPlant(k, season, null, 1));
+      const off = withoutAfterBloom(() => JSON.stringify(recordPlant(k, season, null, 1)));
+      if (own){ checked++; assert(on === off, k + ' ' + season + ': a forced full bloom is untouched'); }
+      else if (on !== off){
+        changed++;
+        assertEqual(bloomAfterMid(P, season), 2, k + ' ' + season + ': only a carried head changes a picture with no clock');
+        assert(!isWoodyDef(P) || P.form === 'hydrangea', k + ': and never a tree or shrub');
+      } else if (bloomAfterMid(P, season) === 2) undrawn++;
+    }
+  }
+  assert(checked > 300, 'the catalog was walked (' + checked + ' bloom pictures)');
+  assert(changed >= 10, 'and the season pictures show carried heads (' + changed + ')');
+  // a few forms draw no seed (a leaf mound's scapes stand only in flower), so a carried colour changes nothing there
+  assert(undrawn < changed, 'most carried heads are drawn (' + undrawn + ' are not)');
+});
+
+test('the sprite key carries the after-bloom state only where it changes the picture', () => {
+  setup(21, 21);
+  assertEqual(bloomAfterBucket(3, 2), 0, 'full bloom has no spent stem');
+  assertEqual(bloomAfterBucket(2, 2), 2, 'a fading plant with a carried head');
+  assertEqual(bloomAfterBucket(0, 2), 2, 'a finished one');
+  assertEqual(bloomAfterBucket(1, 1), 1, 'fading over its own seed colour: spent stems, not buds');
+  assertEqual(bloomAfterBucket(0, 1), 0, 'finished over its own seed colour: drawn anyway');
+  assertEqual(bloomAfterBucket(2, 0), 0, 'rising: nothing');
+  const P = PLANTS.prairiesmoke, [w] = bloomSpansFor(P);
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0; PSPRITE.off = false;
+  const ctx = document.createElement('canvas').getContext('2d'), rec = {};
+  const keyAt = d => { atGardenDay(d); pspriteFrame(); drawPlantMaybeCached(ctx, 0, 0, 'prairiesmoke', 1, 'Spring', 4242, 0, null, undefined, true, rec); return rec._kb; };
+  assertEqual(keyAt(1), 0, 'before the bloom: bucket 0');
+  assert(rec.seedAfter === true && rec.hasBloom === true, 'the record knows this plant can show spent heads in Spring');
+  assertEqual(keyAt((w[0] + w[1]) / 2 + 1), 3, 'at its peak: bucket 3, no after-bloom part');
+  assertEqual(keyAt(DAYS_PER_SEASON - 0.3), 8, 'finished, with the Summer plume carried: bucket 0 plus the carry');
+  assertEqual(rec._kk, rec.kSlot + '|' + rec._kg + '|' + rec._kb + rec.kTail, 'and it is in the key');
+  // every instant's key is the one the shared definition spells
+  for (let d = 0; d < DAYS_PER_SEASON; d += 0.37){
+    const got = keyAt(d);
+    assertEqual(got, plantBloomKey(rec, bloomLevel('prairiesmoke', null), bloomAfterNow(P, 'Spring')), 'day ' + d.toFixed(2));
+    assert(got <= 3 || (got & 3) < 3, 'a full bloom never carries the flag');
+  }
+  // the fade costs no more bakes than it did: three steps down before, three now
+  const seen = new Set();
+  for (let d = w[1]; d < DAYS_PER_SEASON; d += 0.05) seen.add(keyAt(d));
+  assert(seen.size <= 4, 'the fade passes through no more keys than it did (' + [...seen].join(',') + ')');
+  // the bake is told what the key says
+  const was = drawPlant; let got = null;
+  drawPlant = function(c, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail){ got = { bloomLvl, spent: detail && detail.spent }; };
+  try {
+    makePlantSprite('prairiesmoke', 8, 6, 'Spring', 4242, null, null);
+    assert(Math.abs(got.bloomLvl - 2 / 3) < 1e-9 && got.spent === 1, 'bucket 2, spent');
+    makePlantSprite('prairiesmoke', 8, 8, 'Spring', 4242, null, null);
+    assert(got.bloomLvl === 0 && got.spent === 2, 'bucket 0, carried');
+    makePlantSprite('prairiesmoke', 8, 3, 'Spring', 4242, null, null);
+    assert(got.bloomLvl === 1 && got.spent === 0, 'full bloom, as every older caller passes it');
+  } finally { drawPlant = was; }
+  // a plant with nothing to show never asks
+  const tree = {}, fern = {};
+  bakePlantKeyParts(tree, 'crabapple', null, 'Summer', 1, undefined);
+  bakePlantKeyParts(fern, PLANT_KEYS.find(k => PLANTS[k].form === 'fern'), null, 'Summer', 1, undefined);
+  assert(tree.seedAfter === false && fern.seedAfter === false, 'a tree and a fern skip the question');
+  const n = countCalls(['bloomAfterNow'], () => {
+    atGardenDay(24); pspriteFrame();
+    drawPlantMaybeCached(ctx, 0, 0, 'crabapple', 1, 'Summer', 77, 0, null, undefined, true, tree);
+  });
+  assertEqual(n.bloomAfterNow, 0, 'so drawing one costs no after-bloom lookup');
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0;
+});
+
+test('the after-bloom state is kept while the garden clock stands still', () => {
+  setup(21, 21);
+  atGardenDay(24);
+  let v1, v2;
+  let n = countCalls(['bloomAfterNow'], () => {
+    pspriteFrame(); v1 = bloomAfterForFrame('candytuft|', 'candytuft', null, 'Summer');
+    pspriteFrame(); bloomAfterForFrame('candytuft|', 'candytuft', null, 'Summer');
+    pspriteFrame(); v2 = bloomAfterForFrame('candytuft|', 'candytuft', null, 'Summer');
+  });
+  assert(n.bloomAfterNow <= 1, 'three frames of a paused garden ask once at most (' + n.bloomAfterNow + ')');
+  assert(v1 === 2 && v2 === 2, 'and the answer is the real one');
+  game.elapsedMs += 16 * DAY_MS;
+  n = countCalls(['bloomAfterNow'], () => { pspriteFrame(); v2 = bloomAfterForFrame('candytuft|', 'candytuft', null, 'Fall'); });
+  assertEqual(n.bloomAfterNow, 1, 'a moved clock is a new question');
+  assertEqual(v2, 1, 'answered for the new season');
+});
+
+test('while a bloom fades, a stem that has finished carries seed, not a bud', () => {
+  setup(21, 21);
+  const P = PLANTS.monarda;
+  assert(P.look.globeStyle === 'monarda' && P.sea.Summer.bloom && !P.sea.Summer.seed && P.sea.Fall.seed, 'the record this leans on');
+  const was = drawMonardaHead; let phases = [];
+  drawMonardaHead = function(ctx, x, y, sc, L, S, ph){ phases.push(ph); };
+  const ctx = document.createElement('canvas').getContext('2d');
+  try {
+    // rising: the stems still to flower are in bud
+    drawPlant(ctx, 0, 0, 'monarda', 1, 'Summer', 9137, 0, null, 1 / 3, { bloomFallback:true, spent:0 });
+    assert(phases.includes(1) && phases.includes(0) && !phases.includes(-1), 'rising: flowers and buds (' + phases.join(',') + ')');
+    // fading: the same flowers, and the rest are seed balls
+    phases = [];
+    drawPlant(ctx, 0, 0, 'monarda', 1, 'Summer', 9137, 0, null, 1 / 3, { bloomFallback:true, spent:2 });
+    assert(phases.includes(1) && phases.includes(-1) && !phases.includes(0), 'fading: flowers and seed (' + phases.join(',') + ')');
+    // finished: every stem stands in seed where there was nothing
+    phases = [];
+    drawPlant(ctx, 0, 0, 'monarda', 1, 'Summer', 9137, 0, null, 0, { bloomFallback:true, spent:2 });
+    assert(phases.length > 0 && phases.every(p => p === -1), 'finished: all seed (' + phases.join(',') + ')');
+    phases = [];
+    drawPlant(ctx, 0, 0, 'monarda', 1, 'Summer', 9137, 0, null, 0, { bloomFallback:true, spent:0 });
+    assertEqual(phases.length, 0, 'and before the bloom, no heads at all');
+  } finally { drawMonardaHead = was; }
+});

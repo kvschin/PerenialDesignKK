@@ -2444,8 +2444,11 @@ function spritePixels(img){
   const c=cv.getContext('2d',{willReadFrequently:true}); c.drawImage(img,0,0);
   return c.getImageData(0,0,w,h).data;
 }
-function makePlantSprite(key,gB,bB,season,seed,variant,detail,lB){
-  const P=plantDef(key,variant), growth=gB/8;
+/* `bK` is the bloom part of the key: the bloom bucket (0-3) plus four times the
+   after-bloom bucket (bloomAfterBucket, 0-2), so one small integer says both how
+   many stems are flowering and whether the rest have finished. */
+function makePlantSprite(key,gB,bK,season,seed,variant,detail,lB){
+  const P=plantDef(key,variant), growth=gB/8, bB=bK&3, aB=bK>>2;
   const box=plantDrawBox(P,key,growth);
   const halfW=box.halfW, top=box.top, bot=box.bot, want=pspriteScale();
   // giant woody sprites (a T10-rescaled oak is ~800 draw units tall): clamp
@@ -2458,7 +2461,7 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail,lB){
   if (pw>2600||ph>2600) return null;           // absurd size — don't cache, fall back
   const cv=spriteBakeSurface('plant',pw,ph);
   const c2=cv.getContext('2d'); c2.setTransform(s,0,0,s,halfW*s,top*s);
-  const spriteDetail=Object.assign({},detail||{},{bloomFallback:true});
+  const spriteDetail=Object.assign({},detail||{},{bloomFallback:true,spent:aB});
   drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,spriteDetail,lB>=0?lB:undefined); // still (sway 0), bucketed bloom and leaf-out
   return { cv:spriteBakeImage('plant',cv), ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4 };
 }
@@ -2478,6 +2481,8 @@ function bakePlantKeyParts(rec,key,variant,season,seed,detail){
   rec._kg=-1; rec._kk='';   // the whole key drawPlantMaybeCached keeps is built from these
   rec.sv=key+'|'+(variant||'');
   rec.hasBloom=!!bloomAppearanceFor(plantDef(key,variant),season);
+  // whether "after the bloom" can change what this plant shows this season (world.js)
+  rec.seedAfter=bloomAfterMatters(plantDef(key,variant),season);
   // a deciduous tree or shrub in spring carries its leaf-out stage
   // (woodyLeafOut) as well, and one that drops its leaves its leaf-drop stage in fall
   const lo=(season==='Spring'||season==='Fall') ? woodyLeafOut(plantDef(key,variant)) : null;
@@ -2512,6 +2517,25 @@ function bloomLevelForFrame(sv,key,variant){
   if (v===undefined){ v=bloomLevel(key,variant); bloomMemo.set(sv,v); }
   return v;
 }
+/* The bloom part of a sprite key, from a bloom level and the season it is drawn
+   in: one definition for the frame, the look-ahead and the tests. */
+function plantBloomKey(rec,level,aft){
+  const bB=rec.hasBloom?gbucket(level,4):0;
+  return bB+4*(rec.seedAfter?bloomAfterBucket(bB,aft):0);
+}
+// the after-bloom state, like bloom one answer per species per frame (and
+// season), and likewise kept while the clock stands still
+let afterMemo=new Map(), afterMemoFrame=-1, afterMemoSeason=null, afterMemoAt=NaN;
+function bloomAfterForFrame(sv,key,variant,season){
+  if (afterMemoFrame!==PSPRITE.frame || afterMemoSeason!==season){
+    const at=gardenClockStamp(), moved=at!==afterMemoAt || afterMemoSeason!==season;
+    afterMemoFrame=PSPRITE.frame; afterMemoSeason=season; afterMemoAt=at;
+    if (moved) afterMemo.clear();
+  }
+  let v=afterMemo.get(sv);
+  if (v===undefined){ v=bloomAfterNow(plantDef(key,variant),season); afterMemo.set(sv,v); }
+  return v;
+}
 // the leaf stage, like bloom one answer per species per frame (and season),
 // and likewise kept while the clock stands still
 let leafMemo=new Map(), leafMemoFrame=-1, leafMemoSeason=null, leafMemoAt=NaN;
@@ -2530,7 +2554,9 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   // a caller with no record (or one from before this frame's scene) pays the old price
   if (!rec || rec.kSlot===undefined) { rec=rec||{}; bakePlantKeyParts(rec,key,variant,season,seed,detail); }
   const gB=gbucket(growth,9);
-  const bB=rec.hasBloom?gbucket(bloomLevelForFrame(rec.sv,key,variant),4):0;
+  // bloom bucket, plus the after-bloom bucket where spent heads can show (see makePlantSprite)
+  let bB=rec.hasBloom?gbucket(bloomLevelForFrame(rec.sv,key,variant),4):0;
+  if (rec.seedAfter && bB<3) bB+=4*bloomAfterBucket(bB,bloomAfterForFrame(rec.sv,key,variant,season));
   const lB=rec.leafOut?leafStageForFrame(rec.sv,key,variant,season):-1;
   /* The key is the baked parts plus three small integers, and the integers move
      a few times a season. It was concatenated again on every frame, which made
@@ -2719,12 +2745,15 @@ function aheadBakePlant(e,prepared=false){
   const t0=performance.now();
   // growth and bloom as they will be just after the boundary: borrow the clock
   const was=game.elapsedMs, susp=game.clockSuspended;
-  let g, bl, lv;
+  let g, bl, lv, af;
+  const Pn=plantDef(e.p.s,e.p.v);
   game.elapsedMs=AHEAD.at+(prepared?0:DAY_MS*0.02); game.clockSuspended=true;
-  try{ g=displayPlantGrowth(e.p)*(e.stunt?STUNT_GROWTH:1); bl=bloomLevel(e.p.s,e.p.v); lv=leafStageNow(plantDef(e.p.s,e.p.v),next); }
+  try{ g=displayPlantGrowth(e.p)*(e.stunt?STUNT_GROWTH:1); bl=bloomLevel(e.p.s,e.p.v); lv=leafStageNow(Pn,next); af=bloomAfterNow(Pn,next); }
   finally{ game.elapsedMs=was; game.clockSuspended=susp; }
   if (e.kind===SCENE_K.BULB && g<=0.02){ e.aheadFor=AHEAD.epoch; return; }
-  const gB=gbucket(g,9), bB=bloomAppearanceFor(plantDef(e.p.s,e.p.v),next)?gbucket(bl,4):0, lB=lv===undefined?-1:lv;
+  // the bloom part of the key as the coming season will ask for it (plantBloomKey)
+  const gB=gbucket(g,9), bB0=bloomAppearanceFor(Pn,next)?gbucket(bl,4):0, lB=lv===undefined?-1:lv;
+  const bB=bB0+4*bloomAfterBucket(bB0,af);
   const cut=e.kSlot.lastIndexOf('|'), slot=e.kSlot.slice(0,cut+1)+next;
   const kk=slot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+e.kTail;
   const have=PSPRITE.map.get(kk);

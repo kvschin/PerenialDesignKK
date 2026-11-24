@@ -1253,6 +1253,161 @@ function bloomLevel(key,variant){
   for (const w of bloomWindowsFor(P)){ const l=bloomWindowLevel(annualDay,w[0],w[1]); if (l>level) level=l; }
   return level;
 }
+/* ---------- after the bloom: spent heads ----------
+   A flower does not vanish when it finishes; it becomes the seedhead. The
+   drawing had no way to say so: seedheads were drawn only from the season's own
+   `seed` colour, so a plant whose flowers fade in May and whose seed is authored
+   for Summer (prairie smoke) thinned to bare ground through late Spring and came
+   back as full plumes on June 1, and one that flowers in Spring with seed
+   authored for Fall (candytuft, wild geranium, 290-odd herbaceous choices in
+   all) stood headless all Summer and grew dead heads in September.
+
+   Two facts fix it, both a pure function of the record and the day of the year:
+
+   AFTER  the plant is past the peak of its latest bloom: fading, or finished
+          and not yet started again. The stems that have stopped flowering are
+          then spent heads, not buds, wherever the season has a seed colour.
+   CARRY  after the bloom, a season with no seed colour of its own borrows the
+          next one authored later in the SAME year, so the head stands from the
+          day the flower fades until its own season takes over. Never across the
+          spring cutback (a Colchicum's spring capsules are not a winter
+          seedhead), and never past the start of another bloom.
+
+   Herbaceous plants only, and the hydrangeas, whose dried heads are the same
+   idea. A tree's or shrub's `seed` is fruit, which colours months after the
+   blossom: red crabapples in June would be wrong. A record opts out with
+   `look.seedCarry:false`.
+
+   A head carried from the very next season keeps that season's colour (it is
+   the same head a few days earlier). One carried further back is fresher than
+   it will be, so it is drawn part-way to the foliage colour. FRUIT is green
+   until its own season: a berry or a fleshy fruit (`fruitStyle`, the berry
+   seed styles, or `look.seedCarry:'unripe'` on a record whose seed is a berry
+   the drawing has no style for) is carried most of the way to the leaf colour,
+   or a jack-in-the-pulpit would hold red berries in May.
+   The climber form draws no seed at all, so it is left out. */
+// ?afterbloom=0 (BLOOM_AFTER.on=false) draws as before 0.9.159, for an A/B; clear the plant sprite cache after flipping it live
+const BLOOM_AFTER={on: typeof location==='undefined' || !/[?&]afterbloom=0(&|$)/.test(location.search)};
+const BLOOM_FULL=5/6;            // the level at which the sprite bloom bucket reaches "all stems"
+const SEED_CARRY_FRESH=0.3;      // how far a head carried two seasons back sits toward the leaf colour
+const SEED_CARRY_UNRIPE=0.8;     // and how far an unripe fruit does, however close its season
+function seedCarries(P){
+  return !!P && (!isWoodyDef(P) || P.form==='hydrangea') && P.form!=='climber' && !(P.look && P.look.seedCarry===false);
+}
+function seedCarriesUnripe(P){
+  const L=P.look||{};
+  return L.seedCarry==='unripe' || !!L.fruitStyle || L.seedStyle==='berries' || L.seedStyle==='berryRaceme';
+}
+/* A plant's blooms as [start, fade, end] in days of the year: the fade is where
+   bloomLevel begins to fall. Month windows come from bloomWindowsFor; a
+   bloomDay plant blooms once in each season that authors a bloom, a tent 7 days
+   either side of its day, cut off at the season's own ends as drawPlant's
+   season gate cuts it. Kept per definition object, like the windows. */
+const _bloomSpans=new WeakMap();
+function bloomSpansFor(P){
+  if (!P || typeof P!=='object') return [];
+  const m=_bloomSpans.get(P);
+  if (m && m.months===P.bloomMonths && m.win===P.bloomWindow && m.sea===P.sea && m.day===P.bloomDay) return m.out;
+  const out=[];
+  if (P.bloomDay!==undefined){
+    for (let i=0;i<SEASONS.length;i++){
+      const s=P.sea&&P.sea[SEASONS[i]];
+      if (!(s&&s.bloom)) continue;
+      const b=i*DAYS_PER_SEASON, c=Math.max(0,Math.min(DAYS_PER_SEASON,P.bloomDay));
+      out.push([b+Math.max(0,Math.min(c,P.bloomDay-7)), b+c, b+Math.min(DAYS_PER_SEASON,Math.max(c,P.bloomDay+7))]);
+    }
+  } else for (const w of bloomWindowsFor(P)){
+    out.push([w[0], w[1]-Math.min(4,(w[1]-w[0])*0.34), w[1]]);
+  }
+  _bloomSpans.set(P,{months:P.bloomMonths, win:P.bloomWindow, sea:P.sea, day:P.bloomDay, out});
+  return out;
+}
+function mixColHex(a,b,t){
+  const p=colorParts(a), q=colorParts(b), u=1-t;
+  const h=v=>{ const n=Math.max(0,Math.min(255,Math.round(v))); return (n<16?'0':'')+n.toString(16); };
+  return '#'+h(p[0]*u+q[0]*t)+h(p[1]*u+q[1]*t)+h(p[2]*u+q[2]*t);
+}
+/* What each season can borrow: per season, null or {col, at} where `at` is the
+   day of the year the lending season starts. Also whether the after-bloom state
+   can change anything drawn in that season at all (`use`), which is what lets
+   every plant with nothing to show skip the question. Per definition object. */
+const _seedCarry=new WeakMap();
+function seedCarryTable(P){
+  let t=_seedCarry.get(P);
+  if (t && t.sea===P.sea && t.spans===bloomSpansFor(P)) return t;
+  const spans=bloomSpansFor(P), by=[null,null,null,null], use=[false,false,false,false];
+  if (spans.length && P.sea && seedCarries(P)){
+    const unripe=seedCarriesUnripe(P);
+    for (let i=0;i<SEASONS.length;i++){
+      const here=P.sea[SEASONS[i]]||{};
+      if (here.seed){ use[i]=true; continue; }
+      for (let k=1;i+k<SEASONS.length;k++){
+        const s=P.sea[SEASONS[i+k]];
+        if (!(s&&s.seed)) continue;
+        by[i]={col:!here.fol ? s.seed : unripe ? mixColHex(s.seed,here.fol,SEED_CARRY_UNRIPE)
+          : k===1 ? s.seed : mixColHex(s.seed,here.fol,SEED_CARRY_FRESH), at:(i+k)*DAYS_PER_SEASON, slot:null};
+        use[i]=true;
+        break;
+      }
+    }
+  }
+  t={sea:P.sea, spans, by, use};
+  _seedCarry.set(P,t);
+  return t;
+}
+function bloomAfterMatters(P,season){
+  if (!P || !P.sea || !BLOOM_AFTER.on) return false;
+  const i=SEASONS.indexOf(season);
+  return i>=0 && seedCarryTable(P).use[i];
+}
+/* 0  not after a bloom, or nothing to show for it
+   1  after, and this season authors a seed colour
+   2  after, and a later season's seed is carried here */
+function bloomAfterAt(P,season,d){
+  const i=SEASONS.indexOf(season);
+  if (i<0 || !P || !P.sea || !BLOOM_AFTER.on) return 0;
+  const t=seedCarryTable(P);
+  if (!t.use[i]) return 0;
+  const Y=YEAR_DAYS;
+  let sinceStart=Infinity, sinceFade=Infinity, next=Infinity;
+  for (const w of t.spans){
+    const a=(((d-w[0])%Y)+Y)%Y, b=(((d-w[1])%Y)+Y)%Y, n=(((w[0]-d)%Y)+Y)%Y;
+    if (a<sinceStart) sinceStart=a;
+    if (b<sinceFade) sinceFade=b;
+    if (n>0 && n<next) next=n;
+  }
+  // not after a bloom; or after LAST year's, which the spring cutback took with it
+  // (without this a summer bloomer stood seedheads in March)
+  if (!(sinceFade<sinceStart) || sinceFade>d) return 0;
+  const c=t.by[i];
+  if (!c) return 1;
+  return next>=c.at-d ? 2 : 0;       // another bloom starts before the seed's own season: no head yet
+}
+function bloomAfterNow(P,season){
+  const ms=elapsedGameMs(), day=Math.floor(ms/DAY_MS)+game.dayOffset;
+  return bloomAfterAt(P,season,(((day%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+(ms%DAY_MS)/DAY_MS);
+}
+/* A picture with no clock (the library's season tiles, a catalog card) shows a
+   season as it stands at its middle. */
+function bloomAfterMid(P,season){
+  const i=SEASONS.indexOf(season);
+  return i<0 ? 0 : bloomAfterAt(P,season,(i+0.5)*DAYS_PER_SEASON);
+}
+/* What a sprite key and its bake carry of that state: 0 wherever it changes
+   nothing drawn. Full bloom (bucket 3) has no spent stem to show; an authored
+   seed is drawn anyway once nothing is flowering. */
+function bloomAfterBucket(bB,aft){
+  return (!aft || bB>=3) ? 0 : aft===2 ? 2 : bB>0 ? 1 : 0;
+}
+/* The season's colours with the carried seed added. One object per plant and
+   season, made once: drawPlant reads it on every procedural draw. `S` is the
+   slot drawPlant already resolved (its own, or with a bridged bloom colour). */
+function seedCarriedSlot(P,season,S){
+  const c=seedCarryTable(P).by[SEASONS.indexOf(season)];
+  if (!c) return S;
+  if (S!==(P.sea[season]||null)) return Object.assign({},S,{seed:c.col});   // a bridged bloom: not worth keeping
+  return c.slot || (c.slot=Object.assign({},S,{seed:c.col}));
+}
 /* ---------- leaf-out ----------
    Leaves are authored once per season, so a deciduous tree was either in full
    leaf on March 1 (an oak, which leafs out in May) or, where its spring is

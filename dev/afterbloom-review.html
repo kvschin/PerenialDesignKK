@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>After the bloom: a year, day by day</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:13px system-ui}
+header{padding:12px 16px}h1{font-size:17px;margin:0 0 4px}p{margin:2px 0;color:#c7b9a2;font-size:12px}
+.row{padding:4px 12px}.row h2{font-size:12px;margin:6px 0 2px;font-weight:600}.row canvas{display:block;background:#5f7d58;border-radius:4px}
+.tag{font-size:10px;color:#d6c094}
+</style><body>
+<script>
+(function(){
+  window.__reviewResizeObserver=window.ResizeObserver;
+  window.ResizeObserver=class { observe(){} unobserve(){} disconnect(){} };
+  function noopCtx(){ return new Proxy({}, { get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p]; return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();},
+      getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p];
+        if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
+})();
+</script>
+<script src="../js/plants.js"></script>
+<script src="../js/core.js"></script>
+<script src="../js/draw.js"></script>
+<script src="../js/world.js"></script>
+<script src="../js/view.js"></script>
+<script src="../js/renderer.js"></script>
+<script src="../js/commands.js"></script>
+<script src="../js/input.js"></script>
+<script src="../js/io.js"></script>
+<script src="../js/collections.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/tray.js"></script>
+<script src="../js/photos.js"></script>
+<script src="../js/library.js"></script>
+<script>
+window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
+window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
+</script>
+<header><h1>After the bloom: each plant through one year</h1>
+<p>One column every <span id="stepLbl"></span> garden days, Spring to Winter, drawn the way the garden draws it (off the clock). With <code>?ab=1</code> the upper strip of each pair is the old behaviour (<code>BLOOM_AFTER.on=false</code>).</p>
+<p><code>?only=key,key:cultivar</code> · <code>?step=2</code> · <code>?zoom=1.6</code> · <code>?ab=1</code> · <code>?growth=1</code> · <code>?from=0&amp;to=64</code></p></header>
+<main id="rows"></main>
+<script>
+/* A year strip per plant, for judging what stands between the end of a bloom
+   and the season that authors its seed (world.js, "after the bloom"). Each
+   cell sets the garden clock to that day and calls drawPlant with no bloom
+   level, which is the path the garden's procedural draw takes. */
+const params=new URLSearchParams(location.search);
+const DEFAULT=['prairiesmoke','candytuft','wildgeranium','echinacea','rudbeckia','allium','baptisia','astilbe','bluestem','oakleafhydrangea','liatrisspicata','monarda'];
+const refs=(params.get('only')?params.get('only').split(','):DEFAULT).map(s=>{const [k,v]=s.split(':');return [k,v||null];}).filter(([k])=>PLANTS[k]);
+const step=+params.get('step')||2, zoom=+params.get('zoom')||1.4, ab=params.has('ab'), growth=+params.get('growth')||1;
+const from=+params.get('from')||0, to=+params.get('to')||YEAR_DAYS;
+document.getElementById('stepLbl').textContent=step;
+const MONTHS=['Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb'];
+function strip(k,v,on){
+  const P=plantDef(k,v), H=plantVisualH(P), cols=Math.ceil((to-from)/step);
+  const cellW=Math.max(46,Math.min(120,(plantDrawBox(P,k,1).halfW*2)*zoom*0.9)), top=18, cellH=Math.min(360,(H*1.25+26)*zoom)+top;
+  const c=document.createElement('canvas'); c.width=cols*cellW*2; c.height=cellH*2; c.style.width=cols*cellW+'px'; c.style.height=cellH+'px';
+  const g=c.getContext('2d'); g.scale(2,2);
+  const was=BLOOM_AFTER.on; BLOOM_AFTER.on=on;
+  try{
+    for(let i=0;i<cols;i++){
+      const d=from+i*step, season=SEASONS[Math.floor(d/DAYS_PER_SEASON)%4];
+      game.elapsedMs=(d+0.5)*DAY_MS; game.dayOffset=0; game.clockSuspended=true; game.previewMode='established';
+      g.fillStyle=['#62865a','#587a52','#7a7a50','#8d949a'][Math.floor(d/DAYS_PER_SEASON)%4]; g.fillRect(i*cellW,0,cellW,cellH);
+      g.save(); g.beginPath(); g.rect(i*cellW,0,cellW,cellH); g.clip();
+      g.translate(i*cellW+cellW/2,cellH-14*zoom); g.scale(zoom,zoom);
+      drawPlant(g,0,0,k,growth,season,tileSeed(7,11),0,v,undefined,undefined,leafStageNow(P,season));
+      g.restore();
+      g.fillStyle='rgba(20,16,12,.55)'; g.fillRect(i*cellW,0,cellW,top-4);
+      g.fillStyle='#efe6d3'; g.font='9px system-ui'; g.textAlign='center';
+      g.fillText(MONTHS[Math.floor(d/(YEAR_DAYS/12))%12]+' '+(Math.floor((d%(YEAR_DAYS/12))/(YEAR_DAYS/12)*30)+1),i*cellW+cellW/2,10);
+    }
+  } finally { BLOOM_AFTER.on=was; }
+  return c;
+}
+const host=document.getElementById('rows');
+/* ?sheet=1: every species that carries a seedhead somewhere, as the Plant
+   Library draws the first season it is carried in (libCanvas, no clock): the
+   old picture on the left of each pair, the new one on the right.
+   &types=forb,grass narrows it, &page=N&per=120 pages it, &cv=1 adds cultivars. */
+if(params.has('sheet')){
+  const types=params.get('types')?params.get('types').split(','):null, per=+params.get('per')||120, page=+params.get('page')||0;
+  const all=[];
+  for(const r of allPlantRefs()){
+    if(r.v && !params.has('cv')) continue;
+    const P=plantDef(r.s,r.v); if(!P||!P.sea||(types&&!types.includes(P.type))) continue;
+    const season=SEASONS.find(se=>bloomAfterMid(P,se)===2);
+    if(season) all.push([r.s,r.v||null,season]);
+  }
+  const grid=document.createElement('div'); grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;padding:8px';
+  for(const [k,v,season] of all.slice(page*per,(page+1)*per)){
+    const P=plantDef(k,v), cell=document.createElement('div'); cell.style.cssText='background:#30291f;border-radius:4px;padding:3px;font-size:9px;text-align:center';
+    const pair=document.createElement('div'); pair.style.cssText='display:flex;justify-content:center;gap:2px';
+    for(const on of [false,true]){ const was=BLOOM_AFTER.on; BLOOM_AFTER.on=on; try{ const c=libCanvas(k,v,season,70,92); c.style.cssText='width:70px;height:92px'; pair.append(c); } finally{ BLOOM_AFTER.on=was; } }
+    cell.append(pair, document.createTextNode(k+(v?':'+v:'')+' · '+season+' · '+P.form));
+    grid.append(cell);
+  }
+  const p=document.createElement('p'); p.style.padding='0 12px'; p.textContent=all.length+' choices carry a seedhead; showing '+Math.min(per,Math.max(0,all.length-page*per))+' from '+page*per;
+  host.append(p,grid);
+}
+else for(const [k,v] of refs){
+  const P=plantDef(k,v), row=document.createElement('div'); row.className='row';
+  const h=document.createElement('h2');
+  h.textContent=P.name+'  ·  '+k+(v?':'+v:'')+'  ·  bloom '+(P.bloomDay!==undefined?'day '+P.bloomDay:(P.bloomMonths||[]).join(','))+'  ·  seed in '+SEASONS.filter(s=>(P.sea[s]||{}).seed).join(', ');
+  row.append(h);
+  if(ab){ const t=document.createElement('div'); t.className='tag'; t.textContent='before'; row.append(t, strip(k,v,false)); const t2=document.createElement('div'); t2.className='tag'; t2.textContent='after'; row.append(t2); }
+  row.append(strip(k,v,true));
+  host.append(row);
+}
+document.title='ready';
+</script>
