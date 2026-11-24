@@ -27913,3 +27913,70 @@ test('the Grade tab offers Berm with its heights and swales, and a tap shapes on
   assertEqual(game.tool, 'berm', 'picked into the Berm tool');
   assertEqual(bermDraft().h, 3, 'at its height');
 });
+
+test('a steep swale meets the lawn round it at grade, with no gap at its rim', () => {
+  setup(31, 31);
+  buildBerm(bermPlan({ x0: 7, y0: 2, x1: 10, y1: 6 }, -2));
+  let checked = 0, deep = 0;
+  for (let cy = 1; cy <= 8; cy++) for (let cx = 6; cx <= 12; cx++){
+    const round = [[cx - 1, cy - 1], [cx, cy - 1], [cx - 1, cy], [cx, cy]];
+    const soft = round.filter(([x, y]) => isSoftTile(x, y));
+    if (!soft.length || !round.some(([x, y]) => !isSoftTile(x, y) && elevationAt(x, y) === 0)) continue;
+    assertEqual(softCornerAt(cx, cy), 0, `rim corner ${cx},${cy} is at grade`);
+    checked++;
+    if (soft.reduce((t, [x, y]) => t + drawnLevelAt(x, y), 0) / soft.length < -0.5) deep++;
+  }
+  assert(checked > 8, 'the whole rim: ' + checked);
+  assert(deep > 0, 'including where the swale falls more than half a level beside it');
+});
+
+test('the guidebook berm is the garden\'s berm, drawn as soft ground with no face', () => {
+  const d = GUIDE_DEMOS.berm, st = d.build();
+  d.run(st, 0.6);
+  const want = bermLevels({ x0: 1, y0: 1, x1: 6, y1: 6 }, 4, () => 0, (x, y) => !gsOnStage(st, x, y), (x, y) => gsOnStage(st, x, y));
+  assert(want.size > 15, 'a berm of some size');
+  for (const [k, v] of want) assert(Math.abs(st.soft[k] - v) < 1e-9, `${k}: ${st.soft[k]} is the garden's ${v}`);
+  // no faces on or beside it, and it meets the lawn at grade
+  let fills = 0;
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.fill = () => { fills++; };
+  for (let y = 0; y < st.rows; y++) for (let x = 0; x < st.cols; x++) gsElevationSides(ctx, st, x, y, '#7a9a5a');
+  assertEqual(fills, 0, 'no bank anywhere');
+  for (const [k] of want){
+    const [x, y] = k.split(',').map(Number);
+    const tris = gsSoftTris(st, x, y);
+    assertEqual(tris.length, 4, 'four triangles a tile');
+    for (const t of tris){ const cr = p => (p[1][0] - p[0][0]) * (p[2][1] - p[0][1]) - (p[1][1] - p[0][1]) * (p[2][0] - p[0][0]);
+      assert(Math.sign(cr(t.f)) === Math.sign(cr(t.l)), `${k} does not fold`); }
+  }
+  // and the swale after it, dug to its depth
+  const sw = d.build(); d.run(sw, 0.94);
+  assert(Object.values(sw.soft).some(v => v <= -1.5), 'the swale is dug');
+  assert(!Object.keys(sw.soft).some(k => +k.split(',')[0] === sw.cols - 1), 'with lawn between it and the stage edge');
+});
+
+test('the guidebook steps come down a level a tile, with nosings and no coping', () => {
+  const d = GUIDE_DEMOS.steps, st = d.build();
+  d.run(st, 0.5);
+  const flight = Object.keys(st.terrain).filter(k => st.terrain[k].s);
+  assertEqual(flight.length, 9, 'three steps three tiles wide');
+  for (const k of flight){
+    const [x, y] = k.split(',').map(Number), o = st.terrain[k];
+    assertEqual(gsElev(st, x, y), 4 - (y - 3), `${k} is a level below the one behind it`);
+    assert(o.k === 'path' && STEP_TREADS.includes(o.c) && STEP_RISERS.includes(o.w), 'a tread of paving, a riser of walling');
+    assertEqual(ELEV_DIRS[o.s - 1].join(), '0,1', 'going down toward the lawn');
+  }
+  assert(!gsWallCapEdges(st).some(e => st.terrain[gsKey(e.x, e.y)].s), 'no coping on a step');
+  assert(gsWallCapEdges(st).some(e => e.y === 3 && e.x >= 3 && e.x <= 5), 'the terrace keeps its coping over the top riser');
+  let noses = 0;
+  const ctx = document.createElement('canvas').getContext('2d');
+  const real = drawStepNosing;
+  try {
+    drawStepNosing = (...a) => { noses++; };
+    for (const k of flight){ const [x, y] = k.split(',').map(Number); gsStepNosing(ctx, st, x, y, AMBIENCE.Summer); }
+  } finally { drawStepNosing = real; }
+  assertEqual(noses, 9, 'a nosing on every step');
+  // a tap restyles the whole flight
+  const after = d.build(); d.run(after, 0.9);
+  assert(Object.values(after.terrain).filter(o => o.s).every(o => o.c === 'brick'), 'every tread changed together');
+});

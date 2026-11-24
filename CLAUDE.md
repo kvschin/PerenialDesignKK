@@ -1370,7 +1370,15 @@ logic is split across ordered modules. They map onto the section list below
   is not on it. A test now pins the mocked pill and every mocked More row
   against those two functions' own source, the way the rail is pinned against
   `buildCanvasTools`.
-  41 demos in seven chapters. Adding one is a row in `guideChapters()` plus an
+  43 demos in seven chapters. **Steps and Berms and swales** (0.9.157) sit beside
+  the Terrace demo: the stage draws a step as the garden does (its riser through
+  `gsElevationSides`, its nosing through `drawStepNosing` in `gsStepNosing`, and no
+  coping, which `gsWallCapEdges` leaves off a tile carrying `s`), and draws soft
+  ground through the garden's own `softTileGeom`, `softCornerValue` and
+  `drawSoftTileGround` (`st.soft`, `gsSoftTris`, `gsCornerView`), with the berm
+  itself laid by the garden's `bermLevels` on the stage's ground. Those three and
+  `bermLevels` were split out of the garden's code for this, pure of game state,
+  so the guidebook's mound IS the garden's. Adding one is a row in `guideChapters()` plus an
   entry in `GUIDE_DEMOS` — and a `where` on it, or the reader is shown a tool
   with no way to find it.
   The catalog now covers every tool with a gesture: the camera, rotation,
@@ -4860,9 +4868,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     flight as stairs are drawn: a line at each riser and along its sides, an arrow
     from its foot to its top tread (`planStepFlights`) and UP at its foot through
     the label placer (on the bottom tread where the foot is the plot's edge); a
-    step carries no spot height. Not done: the guidebook has no Steps demo, and a
-    terrace whose height changes after its flight is laid leaves the flight at the
-    old heights (lay it again).
+    step carries no spot height. Not done: a terrace whose height changes after
+    its flight is laid leaves the flight at the old heights (lay it again).
     **0.9.156: berms and swales are SOFT EARTH** (`BERM_LEVELS`, `BERM_SLOPE_MAX`,
     `normalizeBermDraft`, core.js; `softCentreGrid`/`softCornerGrid`/`isSoftTile`/
     `drawnLevelAt`/`softTileHeight`/`groundHeightAt`/`softTileTris`/`softSlopeLight`/
@@ -4880,8 +4887,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `z`, or for a hand-shaped tile its level eased 4/2/1 toward its eight
     neighbours. A corner is the mean of the soft tiles round it, PINNED to the flat
     tile's level where a built or flat tile touches it, so soft ground meets the
-    lawn with no face and no gap, but only to ground at or below it (within half a
-    level): against a terrace standing higher the corner stays the soft mean, and
+    lawn with no face and no gap: to ground at GRADE always (a swale's rim is the
+    lawn above it; without that a steep swale opened a gap there), and to other
+    ground only at or below it (within half a level), so against a terrace
+    standing higher the corner stays the soft mean, and
     the terrace's wall runs on down to the berm's foot (`softFaceDrop`, which the
     wall runs, `elevationDropDirs` and `wallFaceQuads` all read). `screenOf` stands everything on the drawn level,
     and a free-planted clump on the surface where it is (`plantScreenOf`).
@@ -4935,7 +4944,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     crown and a key line. Not done: formal edging on a soft tile is not drawn; a
     flagstone on a slope is clipped per triangle; the wall a terrace keeps against a
     berm is drawn to the nearest whole level, so its foot may sit a little off the
-    slope; the guidebook has no berm demo.
+    slope.
 12d. **Water features** (`WATER_FEATURES`/`WATER_FINISHES`, `drawWaterFeature`) —
     pond, river and lake are AREAS: you paint them, they shelve from a bank, and
     until 0.8.71 they were the only water the app could draw. The water that

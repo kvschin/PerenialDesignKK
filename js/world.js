@@ -2110,27 +2110,36 @@ function softCentreGrid(g,soft,src){
 }
 /* The height of every tile CORNER a soft tile touches, in levels. Where all four
    tiles round it are soft it is their mean. Where a built or flat tile touches
-   it, the surface comes down to that tile's level, so it meets the lawn with no
-   face and no gap, but only to ground at or below it: a terrace standing higher
-   keeps its wall, and the berm runs to the wall's foot (the mean again). Of two
-   such tiles, the higher. NaN where no soft tile touches it. */
+   it, the surface comes to that tile's level, so it meets the lawn with no face
+   and no gap: ground at grade always, other ground only at or below it, so a
+   terrace standing higher keeps its wall and the berm runs to the wall's foot
+   (the mean again). Of two such tiles, the higher. NaN where no soft tile
+   touches it. */
 function softCornerGrid(g,soft,sc){
-  const W1=GW+1, cz=new Float32Array(W1*(GH+1)).fill(NaN);
+  const W1=GW+1, cz=new Float32Array(W1*(GH+1)).fill(NaN), round=[];
   for (let cy=0;cy<=GH;cy++) for (let cx=0;cx<=GW;cx++){
-    let n=0, sum=0, hard=null;
+    round.length=0;
     for (let j=0;j<4;j++){
       const tx=cx-1+(j&1), ty=cy-1+(j>>1);
       if (tx<0||ty<0||tx>=GW||ty>=GH) continue;
       const i=ty*GW+tx;
-      if (soft[i]){ n++; sum+=sc[i]; } else (hard||(hard=[])).push(g[i]);
+      round.push(soft[i] ? {soft:true, v:sc[i]} : {soft:false, v:g[i]});
     }
-    if (!n) continue;
-    const m=sum/n;
-    let best=null;
-    if (hard) for (const h of hard) if (h<=m+0.5 && (best===null || h>best)) best=h;
-    cz[cy*W1+cx]=best===null ? m : best;
+    cz[cy*W1+cx]=softCornerValue(round);
   }
   return cz;
+}
+/* One corner, from the tiles round it ({soft, v}: a soft tile's drawn height or a
+   built tile's level): NaN with no soft tile, else the rule above. Pure, so the
+   guidebook's stage meets its lawn by the same rule. */
+function softCornerValue(round){
+  let n=0, sum=0, best=null;
+  for (const t of round) if (t.soft){ n++; sum+=t.v; }
+  if (!n) return NaN;
+  const m=sum/n;
+  // ground at grade is where every berm and swale starts: a swale meets the lawn above it too
+  for (const t of round) if (!t.soft && (t.v<=m+0.5 || t.v===0) && (best===null || t.v>best)) best=t.v;
+  return best===null ? m : best;
 }
 /* The berms and swales of a garden: each 8-connected run of soft ground, with its
    crown (the tile standing highest, or lowest for a swale), its level there, and
@@ -2229,23 +2238,35 @@ function groundHeightAt(px,py,soft){
    A painter that draws a tile at grade draws it on the slope through this. */
 function softTileTris(x,y,W,H){
   const h=drawnLevelAt(x,y), flat=screenOfFlat(x,y,W,H), ctr=[flat[0],flat[1]+TILE_H/2];
+  const cs=[[0,0],[1,0],[1,1],[0,1]].map(([ox,oy])=>({c:[ox,oy], f:screenOfCorner(x+ox,y+oy,W,H), z:softCornerAt(x+ox,y+oy)}));
+  const inG=(tx,ty)=>tx>=0&&ty>=0&&tx<GW&&ty<GH;
+  return softTileGeom(h,ctr,cs,
+    (dx,dy)=>inG(x+dx,y+dy) ? drawnLevelAt(x+dx,y+dy) : h,
+    (dx,dy)=>inG(x+dx,y+dy) ? isSoftTile(x+dx,y+dy) : null,
+    game.rot);
+}
+/* A soft tile's triangles, plane, outline and lights from its parts, with no game
+   state: h its drawn centre height, ctr the flat screen point of its centre, cs
+   its four corners in order ((0,0),(1,0),(1,1),(0,1): {c offset, f flat screen
+   point, z height}), D(dx,dy) the drawn height of the tile at that offset, S(dx,dy)
+   whether it is soft (null off the ground), rot the view's turn. The garden and
+   the guidebook's stage both build a tile through this. */
+function softTileGeom(h,ctr,cs,D,S,rot){
   /* Light from the eased slope, not from each triangle's own plane, and per
      VERTEX: the light at a tile's centre comes from its central differences, at a
      corner from the mean of the four tiles round it, so two triangles sharing an
      edge agree along it and the light runs across a berm without a facet. A tile
      is then filled with the linear ramp that fits its five (softTileFill), one
      canvas linear gradient. */
-  const D=(tx,ty)=>(tx<0||ty<0||tx>=GW||ty>=GH) ? h : drawnLevelAt(tx,ty);
   const grad=(tx,ty)=>[(D(tx+1,ty)-D(tx-1,ty))/2,(D(tx,ty+1)-D(tx,ty-1))/2];
-  const gC=grad(x,y);
+  const gC=grad(0,0);
   /* At a corner on built or flat ground the light is flat ground's (none), so a
      berm fades into the lawn round it rather than stopping at a lit edge. */
   const gCorner=(cx,cy)=>{ let gx=0, gy=0;
     for (const [tx,ty] of [[cx-1,cy-1],[cx,cy-1],[cx-1,cy],[cx,cy]]){
-      if (tx>=0 && ty>=0 && tx<GW && ty<GH && !isSoftTile(tx,ty)) return [0,0];
+      if (S(tx,ty)===false) return [0,0];
       const q=grad(tx,ty); gx+=q[0]; gy+=q[1]; }
     return [gx/4,gy/4]; };
-  const cs=[[x,y],[x+1,y],[x+1,y+1],[x,y+1]].map(([cx,cy])=>({c:[cx,cy], f:screenOfCorner(cx,cy,W,H), z:softCornerAt(cx,cy)}));
   const out=[];
   for (let i=0;i<4;i++){
     const a=cs[i], b=cs[(i+1)%4], P=[ctr,a.f,b.f], Z=[h,a.z,b.z];
@@ -2255,7 +2276,7 @@ function softTileTris(x,y,W,H){
     const det=(x1*y2-x2*y1)||1e-9, A=(z1*y2-z2*y1)/det, B=(x1*z2-x2*z1)/det, C=Z[0]-A*P[0][0]-B*P[0][1];
     const k=ELEV_STEP;
     const ga=gCorner(...a.c), gb=gCorner(...b.c);
-    const vl=[softSlopeLight(gC[0],gC[1]), softSlopeLight(ga[0],ga[1]), softSlopeLight(gb[0],gb[1])];
+    const vl=[softSlopeLight(gC[0],gC[1],rot), softSlopeLight(ga[0],ga[1],rot), softSlopeLight(gb[0],gb[1],rot)];
     out.push({f:P, l:P.map((p,j)=>[p[0],p[1]-Z[j]*k]), z:Z, m:[1,-k*A,0,1-k*B,0,-k*C], vl, light:(vl[0]+vl[1]+vl[2])/3});
   }
   /* The plane that fits the tile's centre and four corners best (least squares),
@@ -2279,8 +2300,8 @@ function softTileTris(x,y,W,H){
 /* Light on a soft triangle, from the upper left of the SCREEN as every structure
    here is lit: positive where it faces the light more than flat ground does. */
 const SOFT_LIGHT=(()=>{ const v=[-0.55,-0.22,0.8], n=Math.hypot(...v); return v.map(c=>c/n); })();
-function softSlopeLight(gx,gy){
-  const zs=ELEV_RISER_IN/TILE_IN, [vx,vy]=worldDirToView(-gx*zs,-gy*zs,game.rot);
+function softSlopeLight(gx,gy,rot){
+  const zs=ELEV_RISER_IN/TILE_IN, [vx,vy]=worldDirToView(-gx*zs,-gy*zs,rot===undefined ? game.rot : rot);
   const L=Math.hypot(vx,vy,1);
   return (vx*SOFT_LIGHT[0]+vy*SOFT_LIGHT[1]+SOFT_LIGHT[2])/L - SOFT_LIGHT[2];
 }
@@ -2308,6 +2329,19 @@ function softRampFill(ctx,L,tone){
   const gr=ctx.createLinearGradient(mx+A*t0,my+B*t0,mx+A*t1,my+B*t1);
   gr.addColorStop(0,tone(lo)); gr.addColorStop(1,tone(hi));
   return gr;
+}
+/* One soft tile's ground: its outline filled with the tile's ramp, bled a little
+   so no seam shows between tiles, then its marks (`marks()`, which draws the
+   tile's blades or grain at grade) once, clipped to it, through its plane. The
+   garden's paintSoftTile and the guidebook's stage both draw a tile through it. */
+function drawSoftTileGround(ctx,tris,col,marks){
+  const ol=tris.outline, outline=()=>{ ctx.beginPath(); ol.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); };
+  const lit=softTileFill(ctx,tris,col);
+  outline(); ctx.fillStyle=lit; ctx.fill(); ctx.strokeStyle=lit; ctx.lineWidth=1.2; ctx.stroke();
+  if (!marks) return;
+  ctx.save(); outline(); ctx.clip(); ctx.transform(...tris.plane);
+  marks();
+  ctx.restore();
 }
 // the wash over a material's grain (softShadeOverlay): white lightens, black darkens, through soft-light
 function softWashTone(v){

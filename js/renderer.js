@@ -415,19 +415,15 @@ function paintSoftTile(ctx,x,y,W,H,amb,showLand,organic){
     else if (terr==='lawn') col = lawnFill(terrObj,amb);
     else { col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14); pre=1; } }
   const tris=softTileTris(x,y,W,H), [fx,fy]=screenOfFlat(x,y,W,H), ol=tris.outline;
-  const outline=()=>{ ctx.beginPath(); ol.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); };
-  /* The ground in its own light: the tile's ramp (softTileFill), bled a little so
-     no seam shows between tiles. Then the tile's marks, its blades or grain, once,
-     through the tile's plane and clipped to it. */
-  const lit=softTileFill(ctx,tris,col);
-  outline(); ctx.fillStyle=lit; ctx.fill(); ctx.strokeStyle=lit; ctx.lineWidth=1.2; ctx.stroke();
-  if (!buried){
-    ctx.save(); outline(); ctx.clip(); ctx.transform(...tris.plane);
+  /* The ground in its own light, then its marks once (drawSoftTileGround). */
+  drawSoftTileGround(ctx,tris,col,buried ? null : ()=>{
     const rs=mulberry(seed); for (let i=0;i<pre;i++) rs();
     drawGroundTexture(ctx,fx,fy,x,y,terr,path,amb,col,rs,terrObj,'marks');
-    ctx.restore();
-    // the faint edge a flat lawn tile has
-    if (!terr && !amb.snow){ outline(); ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1; ctx.stroke(); }
+  });
+  // the faint edge a flat lawn tile has
+  if (!buried && !terr && !amb.snow){
+    ctx.beginPath(); ol.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath();
+    ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1; ctx.stroke();
   }
   // the snow patch a flat tile carries, on the surface at the tile's centre
   if (amb.snow && !path && !buried){ const rs=mulberry(seed); for (let i=0;i<pre;i++) rs();

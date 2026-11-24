@@ -1625,6 +1625,38 @@ function bermProfile(r){
   if (r<=BERM_CROWN) return 1;
   return 0.5*(1+Math.cos(Math.PI*(r-BERM_CROWN)/(1-BERM_CROWN)));
 }
+/* The berm itself, with no game state: over the box r, the profile at height h
+   (negative for a swale) wherever it is a seventh of a level or more and `skip`
+   does not refuse the tile, each the higher (lower) of that and `cur`, the
+   ground there now, then held to the slope limit against every neighbour that
+   `live` counts. A Map "x,y" -> height in levels. bermPlan reads the garden
+   through it, and the guidebook's stage its own ground. */
+function bermLevels(r,h,cur,skip,live){
+  const sign=h<0?-1:1, H=Math.abs(h);
+  const cx=(r.x0+r.x1+1)/2, cy=(r.y0+r.y1+1)/2, a=(r.x1-r.x0+1)/2, b=(r.y1-r.y0+1)/2;
+  const lay=new Map();
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    const dx=(x+0.5-cx)/a, dy=(y+0.5-cy)/b, lv=H*bermProfile(Math.sqrt(dx*dx+dy*dy));
+    if (lv<0.15 || skip(x,y)) continue;
+    const c=cur(x,y);
+    lay.set(x+','+y, sign>0 ? Math.max(c,lv) : Math.min(c,-lv));
+  }
+  const at=(x,y)=>{ const k=x+','+y; return lay.has(k) ? lay.get(k) : cur(x,y); };
+  for (let pass=0, moved=true; moved && pass<64; pass++){
+    moved=false;
+    for (const [k,v] of lay){
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), c=cur(x,y);
+      let lim=v;
+      for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
+        if ((!dx && !dy) || !live(x+dx,y+dy)) continue;
+        lim = sign>0 ? Math.min(lim,at(x+dx,y+dy)+BERM_SLOPE_MAX) : Math.max(lim,at(x+dx,y+dy)-BERM_SLOPE_MAX);
+      }
+      lim = sign>0 ? Math.max(lim,Math.min(c,v)) : Math.min(lim,Math.max(c,v));
+      if (Math.abs(lim-v)>1e-6){ lay.set(k,lim); moved=true; }
+    }
+  }
+  return lay;
+}
 /* What a tap lays: wide enough for its height to come down at under two levels a
    tile with a crown on top, half as long again, centred on the tap. */
 function bermTapRect(x,y,h){
@@ -1646,32 +1678,8 @@ function bermSkipsTile(x,y){
    was asked. Out to where the profile is a seventh of a level, the toe. */
 function bermPlan(r,h){
   r=pergolaRect(r.x0,r.y0,r.x1,r.y1);
-  const sign=h<0?-1:1, H=Math.abs(h);
-  const cx=(r.x0+r.x1+1)/2, cy=(r.y0+r.y1+1)/2, a=(r.x1-r.x0+1)/2, b=(r.y1-r.y0+1)/2;
-  const lay=new Map();
-  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
-    const dx=(x+0.5-cx)/a, dy=(y+0.5-cy)/b, lv=H*bermProfile(Math.sqrt(dx*dx+dy*dy));
-    if (lv<0.15 || bermSkipsTile(x,y)) continue;
-    const cur=drawnLevelAt(x,y), v=sign>0 ? Math.max(cur,lv) : Math.min(cur,-lv);
-    if (v!==cur || !isSoftTile(x,y)) lay.set(x+','+y,v);
-  }
-  // held to the slope limit against the eight neighbours, as they will be
-  const at=(x,y)=>{ const k=x+','+y; return lay.has(k) ? lay.get(k) : drawnLevelAt(x,y); };
-  for (let pass=0, moved=true; moved && pass<64; pass++){
-    moved=false;
-    for (const [k,v] of lay){
-      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), cur=drawnLevelAt(x,y);
-      let lim=v;
-      for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
-        if (!dx && !dy) continue;
-        const nx=x+dx, ny=y+dy;
-        if (nx<0||ny<0||nx>=GW||ny>=GH || !onPlot(nx,ny)) continue;
-        lim = sign>0 ? Math.min(lim,at(nx,ny)+BERM_SLOPE_MAX) : Math.max(lim,at(nx,ny)-BERM_SLOPE_MAX);
-      }
-      lim = sign>0 ? Math.max(lim,Math.min(cur,v)) : Math.min(lim,Math.max(cur,v));
-      if (Math.abs(lim-v)>1e-6){ lay.set(k,lim); moved=true; }
-    }
-  }
+  const sign=h<0?-1:1;
+  const lay=bermLevels(r,h,drawnLevelAt,bermSkipsTile,(x,y)=>x>=0&&y>=0&&x<GW&&y<GH&&onPlot(x,y));
   const tiles=[]; let peak=0;
   for (const [k,v] of lay){
     const n=Math.round(v); if (Math.abs(v)<0.15) continue;

@@ -74,6 +74,10 @@ function guideStage(opts){
     pan:opts.pan||[0,0],          // extra screen offset, in draw units
     terrain:Object.create(null),  // "x,y" -> {k,c,e}
     elev:Object.create(null),     // "x,y" -> integer level
+    /* Soft ground (0.9.156): "x,y" -> the height a berm or swale is DRAWN at, in
+       levels, as an elevation record's `z`. A tile here is drawn as the garden
+       draws soft ground (softTileGeom, drawSoftTileGround), with no face. */
+    soft:null,
     plants:Object.create(null),   // "x,y" -> {s,v,g}  (g = growth 0..1)
     /* A second layer sharing the same tiles, exactly as game.bulbs does — a
        bulb tucks UNDER a perennial rather than displacing it, and a demo that
@@ -102,6 +106,9 @@ function gsSet(map,x,y,v){ const k=gsKey(x,y); if (v===null) delete map[k]; else
 function gsGet(map,x,y){ return map[gsKey(x,y)]||null; }
 function gsTerrain(st,x,y){ const t=gsGet(st.terrain,x,y); return t?t.k:null; }
 function gsElev(st,x,y){ return gsGet(st.elev,x,y)||0; }
+function gsIsSoft(st,x,y){ return !!st.soft && gsKey(x,y) in st.soft; }
+// the height a tile is drawn at: a soft tile's surface at its centre, else its level
+function gsDrawn(st,x,y){ return gsIsSoft(st,x,y) ? st.soft[gsKey(x,y)] : gsElev(st,x,y); }
 function gsOnStage(st,x,y){ return x>=0&&y>=0&&x<st.cols&&y<st.rows; }
 /* Lawn as isLawnTile means it: bare ground, or a painted lawn material. A
    demo's edging must answer this the same way the garden does or the strip
@@ -163,7 +170,34 @@ function gsNight(ctx,st){
    drawSceneEnt places it. */
 function gsProject(st,x,y){
   const [vx,vy]=gsView(st,x,y);
-  return [isoX(vx,vy)+st.pan[0], isoY(vx,vy)+st.pan[1]-gsElev(st,x,y)*ELEV_STEP];
+  return [isoX(vx,vy)+st.pan[0], isoY(vx,vy)+st.pan[1]-gsDrawn(st,x,y)*ELEV_STEP];
+}
+/* The tile-CORNER lattice in view space, cornerToView on the stage's extent: a
+   corner is not a tile, and at rot 1-3 it rotates differently (see cornerToView). */
+function gsCornerView(st,cx,cy){
+  switch(st.rot&3){
+    case 1:  return [cy, st.cols-cx];
+    case 2:  return [st.cols-cx, st.rows-cy];
+    case 3:  return [st.rows-cy, cx];
+    default: return [cx,cy];
+  }
+}
+/* A soft tile on the stage, through the garden's own geometry: its corners by the
+   garden's rule (softCornerValue), its light by the stage's turn. */
+function gsSoftTris(st,x,y){
+  const h=gsDrawn(st,x,y), [vx,vy]=gsView(st,x,y);
+  const ctr=[isoX(vx,vy)+st.pan[0], isoY(vx,vy)+st.pan[1]+TILE_H/2];
+  const cs=[[0,0],[1,0],[1,1],[0,1]].map(([ox,oy])=>{
+    const cx=x+ox, cy=y+oy, [qx,qy]=gsCornerView(st,cx,cy), round=[];
+    for (const [tx,ty] of [[cx-1,cy-1],[cx,cy-1],[cx-1,cy],[cx,cy]])
+      if (gsOnStage(st,tx,ty)) round.push({soft:gsIsSoft(st,tx,ty), v:gsDrawn(st,tx,ty)});
+    const z=softCornerValue(round);
+    return {c:[ox,oy], f:[isoX(qx,qy)+st.pan[0], isoY(qx,qy)+st.pan[1]], z:Number.isNaN(z)?0:z};
+  });
+  return softTileGeom(h,ctr,cs,
+    (dx,dy)=>gsOnStage(st,x+dx,y+dy) ? gsDrawn(st,x+dx,y+dy) : h,
+    (dx,dy)=>gsOnStage(st,x+dx,y+dy) ? gsIsSoft(st,x+dx,y+dy) : null,
+    st.rot||0);
 }
 // Sub-tile points (a cursor between two tiles) take the same path, unrotated
 // elevation — a fractional coordinate has no record to look up.
@@ -171,7 +205,7 @@ function gsProjectAt(st,x,y){
   const [vx,vy]=gsView(st,Math.round(x),Math.round(y));
   const fx=x-Math.round(x), fy=y-Math.round(y);
   const [dx,dy]=gsViewDir(st,fx,fy);
-  return [isoX(vx+dx,vy+dy)+st.pan[0], isoY(vx+dx,vy+dy)+st.pan[1]-gsElev(st,Math.round(x),Math.round(y))*ELEV_STEP];
+  return [isoX(vx+dx,vy+dy)+st.pan[0], isoY(vx+dx,vy+dy)+st.pan[1]-gsDrawn(st,Math.round(x),Math.round(y))*ELEV_STEP];
 }
 function gsViewDir(st,dx,dy){ return worldDirToView(dx,dy,st.rot||0); }
 // Depth key: the view-space sum, exactly viewDepth's ordering at any rotation.
@@ -227,7 +261,7 @@ function gsGroundColour(st,x,y,amb){
    the stage — including the wall facing, which goes through the real
    drawWallSurface so a dry-stone wall in the guidebook is the dry-stone wall. */
 function gsElevationSides(ctx,st,x,y,base){
-  const h=gsElev(st,x,y); if (h<=0) return;
+  const h=gsElev(st,x,y); if (h<=0 || gsIsSoft(st,x,y)) return;
   const [sx,sy]=gsProject(st,x,y), cy=sy+TILE_H/2;
   const o=gsGet(st.terrain,x,y), wall=wallStyle(o&&o.w);
   const right=[sx+TILE_W/2,cy], bottom=[sx,sy+TILE_H], left=[sx-TILE_W/2,cy];
@@ -238,6 +272,7 @@ function gsElevationSides(ctx,st,x,y,base){
   const faces=[[[1,0],right,bottom],[[0,1],bottom,left]];
   faces.forEach(([[dvx,dvy],a,b])=>{
     const [dx,dy]=gsViewDir(st,dvx,dvy);
+    if (gsIsSoft(st,x+dx,y+dy)) return;
     const drop=(h-gsElev(st,x+dx,y+dy))*ELEV_STEP;
     if (drop<=0) return;
     if (wall.face){
@@ -262,7 +297,7 @@ function gsWallCapEdges(st){
   const sides=[[[1,0],[1,0],[1,1]],[[0,1],[1,1],[0,1]],[[-1,0],[0,1],[0,0]],[[0,-1],[0,0],[1,0]]];
   for (let y=0;y<st.rows;y++) for (let x=0;x<st.cols;x++){
     const h=gsElev(st,x,y); if (h<=0) continue;
-    const o=gsGet(st.terrain,x,y), wall=wallStyle(o&&o.w); if (!wall.cap) continue;
+    const o=gsGet(st.terrain,x,y), wall=wallStyle(o&&o.w); if (!wall.cap || (o&&o.s)) continue;   // a step has a nosing
     const [vx,vy]=gsView(st,x,y);
     for (const [[dvx,dvy],a,b] of sides){
       const [dx,dy]=gsViewDir(st,dvx,dvy);
@@ -277,6 +312,19 @@ function gsWallCapEdges(st){
     e.ends={n0:other(e.a), n1:other(e.b)};
   }
   return edges;
+}
+/* A step's nosing on its riser, through the garden's own drawStepNosing (0.9.151):
+   a step is a tile a level below the one behind it, `s` the way it goes down,
+   and its tread the paving on it. On the riser edge only, as the garden's step
+   runs draw it, in the view lattice gsWallCapEdges lays a wall's top in. */
+function gsStepNosing(ctx,st,x,y,amb){
+  const o=gsGet(st.terrain,x,y); if (!o || !o.s) return;
+  const h=gsElev(st,x,y), [wdx,wdy]=ELEV_DIRS[(o.s|0)-1]||[0,1], [dvx,dvy]=gsViewDir(st,wdx,wdy);
+  const sides={'1,0':[[1,0],[1,1]],'0,1':[[1,1],[0,1]],'-1,0':[[0,1],[0,0]],'0,-1':[[0,0],[1,0]]}[dvx+','+dvy];
+  if (!sides) return;
+  const [vx,vy]=gsView(st,x,y), lift=h*ELEV_STEP;
+  const proj=(cx,cy,z)=>[isoX(cx,cy)+st.pan[0], isoY(cx,cy)+st.pan[1]-lift-z*EDGE_RISE_PX];
+  drawStepNosing(ctx,[[vx+sides[0][0],vy+sides[0][1]],[vx+sides[1][0],vy+sides[1][1]]],1,false,wallStyle(o.w),o.c,proj,!!amb.snow,null);
 }
 function gsWallCaps(ctx,st,x,y,amb,edges){
   for (const e of edges){
@@ -309,12 +357,19 @@ function gsPaintGround(ctx,st,amb){
   const caps=gsWallCapEdges(st);
   tiles.forEach(([x,y])=>{
     const {col,o,k,rs}=gsGroundColour(st,x,y,amb);
+    if (gsIsSoft(st,x,y)){
+      // soft ground: the garden's surface, its marks once, through its plane
+      const [vx,vy]=gsView(st,x,y), fx=isoX(vx,vy)+st.pan[0], fy=isoY(vx,vy)+st.pan[1];
+      drawSoftTileGround(ctx,gsSoftTris(st,x,y),col,()=>drawGroundTexture(ctx,fx,fy,x,y,k,k==='path',amb,col,rs,o,'marks'));
+      return;
+    }
     const [sx,sy]=gsProject(st,x,y);
     gsElevationSides(ctx,st,x,y,col);
     if (k==='water') drawWaterTexture(ctx,sx,sy,x,y,o,amb,false,gsWaterDepth(st,x,y));
     else drawGroundTexture(ctx,sx,sy,x,y,k,k==='path',amb,col,rs,o);
     gsEdging(ctx,st,x,y);
     if (caps.length) gsWallCaps(ctx,st,x,y,amb,caps);
+    gsStepNosing(ctx,st,x,y,amb);
   });
 }
 /* The real waterField derives depth from distance to the bank and caches it on
@@ -2001,6 +2056,85 @@ grade:{ loop:12000, rest:0.92,
     }
   }},
 
+/* Steps (0.9.151): a flight down from a terrace, laid whole with one tap on the
+   edge where it goes, straight out onto the ground below, a level lower each tile
+   until it lands. Each step is a tile a level below the one behind it, faced in
+   the riser's material with its tread the paving on top, drawn by the garden's
+   own face and nosing painters. The tread row is STEP_TREADS' own names. */
+steps:{ loop:12500, rest:0.92,
+  where:{path:['Landscape','Grade','Steps']},
+  build(){ const st=guideStage({cols:8,rows:8});
+    gsFill(st,'lawn','fescue',0,0,7,7);
+    // a 21 in terrace in stone, a bed on it
+    for (let y=0;y<=3;y++) for (let x=1;x<=6;x++){ gsSet(st.elev,x,y,4); gsSet(st.terrain,x,y,{k:'bed',c:'mulch',w:'stone'}); }
+    gsScatter(st,['echinacea','bluestem','dropseed'],[[1,1],[2,0],[5,1],[6,2],[1,3],[6,0]]);
+    gsScatter(st,['dropseed','sedge'],[[0,7],[7,7],[7,5]]);
+    return st; },
+  run(st,u){
+    const treads=['bluestone','brick','deck'], restyled=u>=0.76;
+    st.chrome={options:treads.map(id=>pathColor(id).short||pathColor(id).label),on:u<0.66?0:1,tapping:gAt(u,0.6,0.68)};
+    // the flight: three tiles wide, a level lower each tile, from the front edge to the lawn
+    const rows=Math.ceil(gAt(u,0.22,0.46)*3), tread=restyled?treads[1]:treads[0];
+    for (let i=1;i<=rows;i++) for (let x=3;x<=5;x++){
+      gsSet(st.elev,x,3+i,4-i);
+      gsSet(st.terrain,x,3+i,{k:'path',c:tread,w:'stone',s:2});   // s 2: down toward +y (ELEV_DIRS)
+    }
+    if (u<0.22){
+      const tap=gTap(u,0.15), c=gPath(gAt(u,0.02,0.13),[[6.5,6.5],[4,3.45]]);
+      st.cursor={x:c[0],y:c[1],down:tap.down,press:tap.press};
+      st.notes=[{text:'Tap the edge where the steps go',at:[4,7.4],dy:28}];
+    } else if (u<0.58){
+      st.notes=[{text:`A step for every ${fmtLengthIn(ELEV_RISER_IN)}, straight down to the lawn`,at:[4,7.4],dy:28,alpha:gAt(u,0.24,0.3)}];
+    } else {
+      const tap=gTap(u,0.74);
+      st.cursor=u>=0.68?{x:4,y:5,down:tap.down,press:tap.press}:null;
+      st.notes=[{text:'Pick a tread and tap the flight: all of it changes',at:[4,7.4],dy:28,alpha:gAt(u,0.6,0.66)}];
+    }
+  }},
+
+/* Berms and swales (0.9.156): the box a drag makes is what a berm FILLS, and the
+   berm is the oval inside it, the app's own profile (bermLevels) laid on the
+   stage's own ground and drawn as the garden draws soft ground, so the mound here
+   is the mound the garden shapes. Then a swale, the same gesture dug. */
+berm:{ loop:14000, rest:0.94,
+  where:{path:['Landscape','Grade','Berm']},
+  build(){ const st=guideStage({cols:12,rows:8});
+    gsFill(st,'lawn','fescue',0,0,11,7);
+    gsScatter(st,['dropseed','bluestem'],[[0,7],[11,7],[11,0],[0,0]]);
+    return st; },
+  run(st,u){
+    // each with a margin of lawn: ground cannot meet a lawn past the stage's edge
+    const B={x0:1,y0:1,x1:6,y1:6}, S={x0:7,y0:2,x1:10,y1:6}, swale=u>=0.62;
+    st.chrome={options:[terraceInches(3),terraceInches(4),terraceInches(-2)+' swale'],on:swale?2:1,tapping:gAt(u,0.58,0.66)};
+    const lay=(r,h)=>bermLevels(r,h,(x,y)=>gsDrawn(st,x,y),(x,y)=>!gsOnStage(st,x,y),(x,y)=>gsOnStage(st,x,y));
+    const raise=(r,h,k)=>{ st.soft=st.soft||Object.create(null);
+      for (const [key,v] of lay(r,h)){ const [x,y]=key.split(',').map(Number);
+        st.soft[key]=v*k; const lv=Math.round(v*k); gsSet(st.elev,x,y,lv||null); } };
+    if (u<0.38){
+      // the box being dragged out, and the oval it fills
+      const d=gEase(gAt(u,0.06,0.34));
+      const r={x0:B.x0,y0:B.y0,x1:Math.round(B.x0+(B.x1-B.x0)*d),y1:Math.round(B.y0+(B.y1-B.y0)*d)};
+      st.marks=[];
+      for (const key of lay(r,4).keys()){ const [x,y]=key.split(',').map(Number);
+        st.marks.push({x,y,fill:'rgba(239,230,211,0.22)',stroke:'rgba(239,230,211,0.55)'}); }
+      const c=gPath(d,[[B.x0,B.y0],[B.x1,B.y1]]);
+      st.cursor={x:c[0],y:c[1],down:u>0.06&&u<0.36,press:0};
+      st.notes=[{text:'Drag out the box it fills',at:[5,7.4],dy:28}];
+      return;
+    }
+    raise(B,4,gEase(gAt(u,0.38,0.5)));
+    if (u>=0.52) gsScatter(st,['echinacea','bluestem','dropseed','echinacea'],[[3,3],[4,4],[2,4],[4,2]]);
+    if (u<0.58){
+      st.notes=[{text:'A soft mound, no walls: its sides fall away gently',at:[5,7.4],dy:28,alpha:gAt(u,0.4,0.46)}];
+      return;
+    }
+    const tap=gTap(u,0.7);
+    if (u>=0.7) raise(S,-2,gEase(gAt(u,0.72,0.82)));
+    if (u>=0.84) gsScatter(st,['sedge','sedge'],[[8,4],[9,3]]);
+    st.cursor=u>=0.64 && u<0.86 ? {x:8.5,y:4,down:tap.down,press:tap.press} : null;
+    st.notes=[{text:'Or dig a swale to catch rain',at:[5,7.4],dy:28,alpha:gAt(u,0.6,0.66)}];
+  }},
+
 /* ----- hardscape and decor ----- */
 
 fence:{ loop:10500, rest:0.92,
@@ -3007,7 +3141,20 @@ function guideChapters(){
             'Tap a terrace to change it: only what you pick changes, so a new wall keeps its height and a new height keeps its wall. A bank is a real answer too.',
             'For a curved raised bed, lay the bed first, turn on Fill and tap it with Terrace. Its wall follows the bed’s curve.',
             'The eyedropper picks a terrace up to build another like it.',
-            'Under Shape the ground, Berm lays a soft mound, or a swale for rain, in one drag: no walls, its sides falling away gently. Raise, Lower and Level shape soft earth by the brush.']},
+            'For a mound with no walls, see Berms and swales.']},
+      {id:'steps', demo:'steps', title:'Steps',
+       lead:'A flight down from a terrace or into a sunken patio, laid whole with one tap.',
+       how:['Pick a riser, a tread and a width under Steps, then tap the edge of the terrace where the flight goes.',
+            `It runs straight out onto the ground below, a step for every ${fmtLengthIn(ELEV_RISER_IN)}, until it lands: a 36 in terrace gets seven.`,
+            'Tap a flight to change its riser and tread. The eyedropper picks one up.',
+            'The planting list counts the steps; the plan draws the flight with an UP arrow.']},
+      {id:'berm', demo:'berm', title:'Berms and swales',
+       lead:'A soft mound of earth, or a swale dug to catch rain, shaped in one drag with no walls.',
+       how:['Pick a height under Berm, or a depth under Swale, then drag out the box it fills. A tap lays one sized for its height.',
+            'The berm is the oval inside the box: a broad top, and sides that fall away gently. A box too small for the height keeps it lower.',
+            'Beds, paths and plants on the ground ride up with it, and a bed laid over it stays one bed.',
+            'Raise, Lower and Level shape soft earth by the brush.',
+            'The planting list bills the fill, and the plan draws it in contours.']},
      ]},
 
     {id:'hardscape', title:'Everything else that stands there',
