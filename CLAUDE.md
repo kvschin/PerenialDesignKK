@@ -8617,6 +8617,60 @@ most within 6%. Bakes: foxgloves 0.3-0.5 ms in flower (0.3 before), zinnias 0.16
 sages unchanged, whorled clary 0.86. Sources: `docs/plant-data/foxglove-zinnia-sage-sources.json`
 (also what was left out and why); `dev/foxglove-zinnia-sage-review.html`.
 
+**Penstemons, the coneflower's cone, Culver's root and the spurges (0.9.162)**, all opt-in.
+**Beardtongues** (`spikeStyle:'beardtongue'`, `drawBeardtongue`) were a column of round blobs.
+Now a thyrse: at each of `nodes` a pair of cymes on peduncles (each pair turned a quarter from the
+last, the lowest reaching furthest, `cymeReach`), `perCyme` two-lipped tubes on each, held
+`face` 'out', 'down' or 'up'; `secund` 1 puts every cyme on one side (firecracker, pineleaf,
+Rocky Mountain, beardlip). A tube swells from a narrow base to an open throat (`tubeShape`
+'inflated', `PT_PROF_I`) or stays slim to a flared mouth ('narrow', the hummingbird ones);
+the throat is pale with guide lines in the season's `eye`. They open from the bottom node up,
+the top in bud, and leave upright capsules into winter. The tubes are painted by the foxglove's
+pass, lifted out as **`paintTubeFlowers`** (`mouth` sizes the throat; the foxglove draws call
+for call as before). Every penstemon is on the Penstemon card and has a basal `rosette` with
+opposite stem leaves, but pineleaf and foothill, which keep their narrow leaves.
+**The Echinacea cone** (`coneStyle:'spiny'`, `drawEchinaceaCone`) was a smooth glossy egg,
+taller than wide, black in winter. Now a dome, broader than tall, covered in chaff spines (dark
+at the base, orange at the tip, `spineTip`), with a gold ring of open florets part way up it
+(`pollen`, `EC_POLLEN`); in seed the dome goes dark and the spines stand out bristly, and a stem
+not yet in flower carries a small green bud of the same shape. `coneStyle:'pompom'` is a double:
+rings of short petals where the cone is, no pollen. `rayInner` (a colour) lays an inner part
+of each ray in another colour ('Green Envy'). Other daisies keep `drawConeDome`.
+**Culver's root** (`spikeStyle:'culvers'`, `drawCulversHead`) was strings of beads on bent
+wires. Now a candelabra: a central spike and `arms` side spikes rising round it
+(`armReach`), each a ribbon tapering to a point (`CV_PROF`, `spikeW`, `spikeLen`), open from
+the base up with the top in bud, fuzzy with stamens (`stamen`, a colour); brown spikes in
+winter. Its leaves are whorls in the round (`whorlLeaves`, the Joe Pye ones). The old
+candelabra* keys are gone.
+**Spurges** (`spikeStyle:'euphorbia'`, `drawEuphorbiaHead`): Mediterranean spurge was a yellow
+cylinder of beads and cushion spurge a brown blob all summer. A head is now bract cups, each
+with an `eye` (the cyathium and its glands), in one of three shapes (`euphHead`): 'column', a
+barrel of cups up the top of the stem (`headSpan`, `headW`, `rings`, `perRing`); 'umbel', rays
+each ending in a few cups (`rays`); 'cloud', flowering spurge's forked spray of tiny white
+flowers. `cupR` sizes a cup. Mediterranean spurge's bottlebrush is `whorlLeaves:7` pointing up
+(`whorlDroop` -0.3). Cushion and sweet spurge carry `seedCarry:false`, so after the bloom they
+are a green mound, not borrowed brown heads. Cushion spurge and Mrs. Robb's bonnet moved from
+the umbel form to spike (Mrs. Robb's reviewed form is recorded in shade-sources.json).
+drawPlant's closing highlight strokes skip all four styles.
+**Added**: beardlip (P. barbatus, 'Elfin Pink', 'Jingle Bells') and prairie beardtongue (P. cobaea);
+foxglove beardtongue 'Pocahontas', 'Onyx and Pearls', 'Blackbeard'; pineleaf 'Mersea Yellow';
+foothill 'Electric Blue'; Tennessee coneflower (E. tennesseensis, rays turned up, 'Rocky Top');
+coneflowers 'Ruby Star', 'Kim's Knee High', 'Fragrant Angel', Sombrero Salsa Red, 'Green Envy',
+'Harvest Moon', and the doubles 'Hot Papaya', 'Milk Shake', 'Butterfly Kisses' ('Pink Double
+Delight' became a pompom too); Culver's root 'Album', 'Apollo', 'Spring Dew', 'Temptation' and
+Siberian Culver's root (V. sibiricum); Mediterranean 'Tasmanian Tiger', cushion 'Bonfire', Martin's
+spurge (E. x martini, a natural hybrid from France, 'Ascot Rainbow', 'Blackbird'), sweet spurge
+(E. dulcis, 'Chameleon'), flowering spurge (E. corollata, 'Carolina Snow'), wood spurge
+(E. amygdaloides, 'Ruby Glow', on a Wood Spurge card with Mrs. Robb's bonnet). **'Milk and Cookies'
+is a boneset** (Eupatorium perfoliatum, MBG), so boneset came in with it, drawn with the Joe Pye
+domes made flat and white over perfoliate opposite leaves. Every choice draws within 8% of its
+sourced height, most within 3%. Bakes (headless Chrome, software raster): penstemons 0.1-0.7 ms
+(0.3-0.5 before), coneflowers 0.1-0.4 (0.06-0.3), Culver's root 0.06-0.5 (0.3-0.5), spurges
+0.2-0.7 (Mediterranean 0.31 to 0.73: it is 7 bottlebrush stems now), boneset 0.6-0.8. Sources and
+what was left out: `docs/plant-data/penstemon-coneflower-culvers-spurge-sources.json`;
+`dev/penstemon-coneflower-review.html` shows every choice in four seasons, its heads close up and
+at true scale, with `?check` and `?bench`.
+
 **Flowering mats and pussytoes (0.9.122).** *The mossphlox habit drew a stem a full plant
 height for every flower* (moss phlox, aubretia, rock rose, periwinkle, trailing bellflower,
 blue-eyed Mary), ending nowhere near the flower, which it sited down in the mat beside it:

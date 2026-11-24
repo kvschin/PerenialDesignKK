@@ -756,7 +756,7 @@
     "name": "Mrs. Robb's Bonnet",
     "latin": "Euphorbia amygdaloides subsp. robbiae",
     "type": "forb",
-    "form": "umbel",
+    "form": "spike",
     "heightIn": 20,
     "spread": 18,
     "space": 15,
@@ -787,7 +787,8 @@
     "zones": "Missouri Botanical Garden 6-8.",
     "bloomMonths": "Missouri Botanical Garden April to June.",
     "moist": "Missouri Botanical Garden dry to medium, and wet winter soil kills it. Dry.",
-    "nativeTo": "Collected near Istanbul; the subspecies is Anatolian."
+    "nativeTo": "Collected near Istanbul; the subspecies is Anatolian.",
+    "form": "Drawn as an umbel until 0.9.162, when the spurges moved to one head painter on the spike form (euphHead column)."
    },
    "batch": "add-first"
   },

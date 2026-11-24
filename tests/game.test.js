@@ -2916,6 +2916,112 @@ test('the native zinnias are flowering mounds, and the new sages and foxgloves a
   const T=plantDef('autumnsage','teresa');
   assert(recordPlant('autumnsage','Summer','teresa',1).some(o=>o.fill===T.look.hoodCol),"'Teresa' draws its hoods pink");
 });
+/* The 0.9.162 audit: the penstemons, the coneflower's cone, Culver's root and
+   the spurges, each drawn as what makes it itself. */
+const bloomSeasonOf=k=>SEASONS.find(s=>plantDef(k).sea[s]&&plantDef(k).sea[s].bloom);
+test('a beardtongue is a thyrse of two-lipped tubes, open below and in bud above', () => {
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='penstemon'))
+    assertEqual(PLANTS[k].look.spikeStyle,'beardtongue',`${k}: a thyrse of tubes, not a column of blobs`);
+  for (const k of ['penstemon','largebeardtongue','parrypenstemon','eatonpenstemon','beardlippenstemon','cobaeapenstemon']){
+    const P=plantDef(k), season=bloomSeasonOf(k), S=P.sea[season], L=P.look, ops=recordPlant(k,season,null,1);
+    const narrow=L.tubeShape==='narrow';
+    const bodies=ops.filter(o=>o.fill===shade(S.bloom,-6)||o.fill===shade(S.bloom,-26));
+    assert(bodies.length>=1 && bodies.every(o=>o.pts.length>=18),`${k}: the flowers are tubes, not round dots`);
+    const throat=L.throat||mixHex(S.bloom,'#ffffff',narrow?0.22:0.5);
+    const mouths=ops.filter(o=>o.fill===throat).reduce((n,o)=>n+o.pts.filter(p=>p.length===3).length,0);
+    assert(mouths>=L.stems*2,`${k}: the tubes open their mouths toward you (${mouths})`);
+    const bud=mixHex(S.fol,S.bloom,0.55);
+    assert(ops.some(o=>o.fill===shade(bud,-8)),`${k}: the top of the thyrse is still in bud`);
+    if (!narrow && S.eye) assert(ops.some(o=>o.stroke===S.eye&&o.pts.length>=6),`${k}: guide lines run into the throat`);
+  }
+  // after the bloom every flower leaves an upright capsule, standing into winter
+  const seed=PLANTS.penstemon.sea.Winter.seed;
+  const caps=recordPlant('penstemon','Winter',null,0).filter(o=>o.fill===shade(seed,-8)).reduce((n,o)=>n+o.pts.length,0);
+  assert(caps>=PLANTS.penstemon.look.stems*6,`foxglove beardtongue stands in seed through winter (${caps})`);
+  // the foxglove keeps its own throat and spots through the shared tube pass
+  const F=plantDef('foxglove'), fops=recordPlant('foxglove','Summer',null,1);
+  assert(fops.some(o=>o.fill===mixHex(F.sea.Summer.bloom,'#ffffff',0.55)),'the foxglove keeps its pale throats');
+  assert(fops.some(o=>o.fill===F.sea.Summer.eye),'and its spots');
+});
+test("a coneflower's cone is a spiny dome, gold-ringed in flower and bristly in seed", () => {
+  for (const k of PLANT_KEYS.filter(k=>/^Echinacea /.test(PLANTS[k].latin)))
+    assertEqual(PLANTS[k].look.coneStyle,'spiny',`${k}: a spiny cone, not a glossy egg`);
+  const E=plantDef('echinacea'), S=E.sea.Summer, ops=recordPlant('echinacea','Summer',null,1);
+  const spines=ops.filter(o=>o.stroke===shade(S.eye,34)).reduce((n,o)=>n+o.pts.length,0);
+  assert(spines>=E.look.stems*12,`purple coneflower's cones carry spines (${spines} points)`);
+  const pollen=ops.filter(o=>o.fill===shade(EC_POLLEN,-6)).reduce((n,o)=>n+o.pts.length,0);
+  assert(pollen>=E.look.stems*4,`a ring of open florets on each cone (${pollen})`);
+  const seed=E.sea.Winter.seed;
+  assert(recordPlant('echinacea','Winter',null,0).some(o=>o.stroke===shade(seed,52)&&o.pts.length>=16),'the winter seedhead is bristly');
+  // a stem not yet in flower carries a small green bud of the same dome
+  const budCol=mixHex(S.fol,S.eye,0.22);
+  assert(recordPlant('echinacea','Summer',null,0.3).some(o=>o.stroke===shade(budCol,-34)),'a later stem is in bud');
+  // the doubles are a mound of petals where the cone is, with no pollen ring
+  for (const v of ['pinkdoubledelight','hotpapaya','milkshake','butterflykisses']){
+    const D=plantDef('echinacea',v), dops=recordPlant('echinacea','Summer',v,1);
+    assertEqual(D.look.coneStyle,'pompom',`${v}: a double`);
+    const petals=dops.filter(o=>o.fill===shade(D.sea.Summer.eye,-16)).reduce((n,o)=>n+o.pts.length,0);
+    assert(petals>=20 && !dops.some(o=>o.fill===shade(EC_POLLEN,-6)),`${v}: a pompom of petals (${petals})`);
+  }
+  assertEqual(PLANTS.tennesseeconeflower.group,'coneflower','Tennessee coneflower is on the Coneflower card');
+  assert(PLANTS.tennesseeconeflower.look.droop<0,'and its rays turn up');
+});
+test("Culver's root is a candelabra of tapering, fuzzy spikes over whorled leaves", () => {
+  for (const k of ['culvers','siberianculvers']){
+    const P=plantDef(k), L=P.look, S=P.sea.Summer;
+    assertEqual(L.spikeStyle,'culvers',`${k}: a candelabra`);
+    assert(L.stemLeafArrangement==='whorled'&&L.whorlLeaves>=4,`${k}: leaves in whorls`);
+    assertEqual(P.group,'culvers',`${k}: on the Culver's Root card`);
+    const ops=recordPlant(k,'Summer',null,1);
+    const spikes=ops.filter(o=>o.fill===S.bloom);
+    assert(spikes.length>=1 && spikes.every(o=>o.pts.length>=18*(L.arms+1)),`${k}: each stem's spikes are tapering ribbons`);
+    const st=L.stamen||mixHex(S.bloom,'#8a6a4a',0.3);
+    assert(ops.some(o=>o.stroke===st&&o.pts.length>=20),`${k}: the spikes are fuzzy with stamens`);
+  }
+  const seed=PLANTS.culvers.sea.Winter.seed;
+  assert(recordPlant('culvers','Winter',null,0).some(o=>o.fill===seed&&o.pts.length>=18),'the brown spikes stand in winter');
+  assertEqual(plantDef('culvers','album').look.stamen,'#d89ab0',"'Album' has pink stamens");
+});
+test('a spurge head is bract cups: a barrel, an umbel or a white cloud', () => {
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='spurge'||PLANTS[k].group==='woodspurge')){
+    if (k==='marshspurge') continue;
+    assertEqual(PLANTS[k].look.spikeStyle,'euphorbia',`${k}: a head of bract cups`);
+  }
+  const cups=(k,season,v)=>{ const P=plantDef(k,v), S=P.sea[season];
+    return recordPlant(k,season,v,1).filter(o=>o.fill===shade(S.bloom,-2)).reduce((n,o)=>n+o.pts.length,0); };
+  const C=plantDef('euphorbiawulfenii');
+  assertEqual(C.look.euphHead,'column','Mediterranean spurge carries a barrel of cups');
+  const cc=cups('euphorbiawulfenii','Spring');
+  assert(cc>=C.look.stems*C.look.rings*2,`... many of them (${cc})`);
+  assert(recordPlant('euphorbiawulfenii','Spring',null,1).some(o=>o.fill===shade(C.sea.Spring.eye,0)),'with dark eyes');
+  assertEqual(plantDef('cushionspurge').look.euphHead,'umbel','cushion spurge carries umbels');
+  assert(cups('cushionspurge','Spring')>=20,'cushion spurge is covered in cups in spring');
+  // after the bloom it is a green mound, not a brown blob
+  const fallSeed=PLANTS.cushionspurge.sea.Fall.seed;
+  assert(!recordPlant('cushionspurge','Summer',null,0).some(o=>o.fill===shade(fallSeed,-2)||o.fill===shade(fallSeed,-20)),'no brown heads in summer');
+  assertEqual(plantDef('floweringspurge').look.euphHead,'cloud','flowering spurge is a white cloud');
+  assert(cups('floweringspurge','Summer')>=40,'of many tiny flowers');
+  assertEqual(PLANTS.mrsrobbsbonnet.group,'woodspurge',"Mrs. Robb's bonnet is on the Wood Spurge card");
+});
+test('the penstemons, coneflowers, Culver\'s roots, spurges and boneset added in 0.9.162 are in the catalog', () => {
+  for (const k of ['beardlippenstemon','cobaeapenstemon','tennesseeconeflower','siberianculvers','martinispurge','sweetspurge','floweringspurge','woodspurge','boneset'])
+    assert(PLANTS[k]&&PLANTS[k].nativeTo&&PLANTS[k].provenance,`${k}: in the catalog, its range stated`);
+  for (const [k,v] of [['penstemon','pocahontas'],['penstemon','onyxandpearls'],['penstemon','blackbeard'],['beardlippenstemon','elfinpink'],
+    ['beardlippenstemon','jinglebells'],['pineleafpenstemon','merseayellow'],['foothillpenstemon','electricblue'],
+    ['echinacea','rubystar'],['echinacea','kimskneehigh'],['echinacea','fragrantangel'],['echinacea','sombrerosalsared'],['echinacea','greenenvy'],
+    ['echinacea','harvestmoon'],['echinacea','hotpapaya'],['echinacea','milkshake'],['echinacea','butterflykisses'],['tennesseeconeflower','rockytop'],
+    ['culvers','album'],['culvers','apollo'],['culvers','springdew'],['culvers','temptation'],
+    ['euphorbiawulfenii','tasmaniantiger'],['cushionspurge','bonfire'],['martinispurge','ascotrainbow'],['martinispurge','blackbird'],
+    ['sweetspurge','chameleon'],['floweringspurge','carolinasnow'],['woodspurge','rubyglow'],['boneset','milkandcookies']])
+    assert(PLANTS[k].cv && PLANTS[k].cv[v],`${k}:${v} is in the catalog`);
+  // 'Milk and Cookies' is a boneset, not a spurge
+  assertEqual(PLANTS.boneset.latin,'Eupatorium perfoliatum','boneset');
+  assertEqual(PLANTS.boneset.look.umbelStyle,'joepye','boneset is drawn with the Joe Pye domes, flatter');
+  // 'Green Envy' flushes from the cone outward
+  const G=plantDef('echinacea','greenenvy');
+  assert(recordPlant('echinacea','Summer','greenenvy',1).length>recordPlant('echinacea','Summer','rubystar',1).length,"'Green Envy' draws a second, inner colour on its rays");
+  assert(G.look.rayInner,"'Green Envy' has an inner ray colour");
+});
 test('every forb draws at its sourced height', () => {
   // The px-art h is the drawn height in inches; heightIn is what the card quotes.
   // They had drifted apart by half again (pale coneflower drawn at 55 in for a
@@ -18543,9 +18649,14 @@ test('the slot index does not outlive the sprites it points at', () => {
   PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes = 0;
   PSPRITE.off = false;
   const ctx = document.createElement('canvas').getContext('2d');
-  const wasMem = PSPRITE.MEM;
-  for (let i = 0; i < 12; i++)
-    drawPlantMaybeCached(ctx, 0, 0, key, 0.7, 'Summer', 1000 + i, 0, null, undefined, true);
+  const wasMem = PSPRITE.MEM, wasMs = PSPRITE.BAKE_MS;
+  // the bake budget is wall time, and the sandbox is slow enough that one
+  // coneflower can spend it; this test is about eviction, so bake them all
+  PSPRITE.BAKE_MS = Infinity;
+  try {
+    for (let i = 0; i < 12; i++)
+      drawPlantMaybeCached(ctx, 0, 0, key, 0.7, 'Summer', 1000 + i, 0, null, undefined, true);
+  } finally { PSPRITE.BAKE_MS = wasMs; }
   const held = PSPRITE.map.size;
   assert(held > 1, 'several clumps are cached');
 

@@ -148,9 +148,9 @@ test('the evergreen audit\'s Tier 3: the trees that waited for the renderer', ()
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,903,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,912,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),732,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),761,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -1879,7 +1879,7 @@ test('second-wave native additions keep their distinct form and cultivar policy'
     assert(P.nativeTo.includes('north-america'), `${k}: straight species should be native`);
     assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: needs real bloom months`);
   }
-  assertEqual(PLANTS.largebeardtongue.look.spikeStyle, 'bell', 'large beardtongue needs tubular bells');
+  assertEqual(PLANTS.largebeardtongue.look.spikeStyle, 'beardtongue', 'large beardtongue needs its thyrse of inflated tubes');
   assertEqual(PLANTS.roughgoldenrod.look.spikeStyle, 'goldenrodPanicle', 'rough goldenrod needs arching panicles');
   assertEqual(PLANTS.roughgoldenrod.cv.fireworks.provenance, 'selection', 'Fireworks remains a named selection');
   assert(PLANTS.roughgoldenrod.cv.fireworks.nativeTo.includes('north-america'), 'a selection keeps its species range');

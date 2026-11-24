@@ -2764,13 +2764,22 @@ function drawFoxgloveSpike(ctx,hx,hy,H,L,S,phase,blv,stem,rec){
   if (phase>=0) fcPush(hx+((stem&1)?-1:1)*span*0.03,hy-0.5,Math.max(0.45,w*0.4),1.4);
   fcDraw(ctx,phase<0?col:bud,14,-8);
   if (!nb) return;
-  const throat=L.throat||mixHex(col,'#ffffff',0.55), spots=S.eye||shade(col,-60);
+  paintTubeFlowers(ctx,nb,col,FG_PROF,lip,L.throat||mixHex(col,'#ffffff',0.55),S.eye||shade(col,-60),L.spots!==false);
+}
+
+/* The bells of a foxglove and the tubes of a beardtongue are painted alike:
+   `nb` flowers staged in _fgB (base x,y, mouth x,y, half-width, fore) as
+   ribbons on `prof`, the far half and then the near half, the near ones lit
+   on one side, a lower lip under each mouth (`lip`), and each mouth a pale
+   throat (`throat`) marked with the guides (`spots`). */
+function paintTubeFlowers(ctx,nb,col,prof,lip,throat,spots,spotsOn,mouth){
+  const pn=prof.length-1, mk=mouth||0.92, mr=mk/0.92;
   for (let pass=0;pass<2;pass++){
     // bodies
     ctx.beginPath();
     for (let b=0;b<nb;b++){ const j=b*6; if ((_fgB[j+5]<0)!==(pass===0)) continue;
       const x0=_fgB[j],y0=_fgB[j+1],x1=_fgB[j+2],y1=_fgB[j+3],hw=_fgB[j+4];
-      ribbonPath(ctx,x0,y0,(x0+x1)/2,(y0+y1)/2,x1,y1,FG_PROF,hw,0,4,true);
+      ribbonPath(ctx,x0,y0,(x0+x1)/2,(y0+y1)/2,x1,y1,prof,hw,0,4,true);
       // the lower lip, out past the mouth on its lower side
       if (lip>0){ let dx=x1-x0, dy=y1-y0; const l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
         const nx=-dy, ny=dx, sgn=ny>0?1:-1, lx=x1+dx*hw*0.35*lip+nx*sgn*hw*0.55, ly=y1+dy*hw*0.35*lip+ny*sgn*hw*0.55;
@@ -2783,15 +2792,15 @@ function drawFoxgloveSpike(ctx,hx,hy,H,L,S,phase,blv,stem,rec){
     for (let b=0;b<nb;b++){ const j=b*6; if (_fgB[j+5]<0) continue;
       const hw=_fgB[j+4]; if (hw<0.7) continue;
       const ox=LIT.x*hw*0.35, oy=LIT.y*hw*0.35;
-      ribbonPath(ctx,_fgB[j]+ox,_fgB[j+1]+oy,(_fgB[j]+_fgB[j+2])/2+ox,(_fgB[j+1]+_fgB[j+3])/2+oy,_fgB[j+2]+ox,_fgB[j+3]+oy,FG_PROF,hw*0.5,0,4,true); }
+      ribbonPath(ctx,_fgB[j]+ox,_fgB[j+1]+oy,(_fgB[j]+_fgB[j+2])/2+ox,(_fgB[j+1]+_fgB[j+3])/2+oy,_fgB[j+2]+ox,_fgB[j+3]+oy,prof,hw*0.5,0,4,true); }
     ctx.fillStyle=shade(col,18); ctx.fill();
     // the mouths: a pale spotted throat, open as far as the bell faces you
     ctx.beginPath();
     for (let b=0;b<nb;b++){ const j=b*6; const f=_fgB[j+5]; if (f<-0.2) continue;
-      const x0=_fgB[j],y0=_fgB[j+1],x1=_fgB[j+2],y1=_fgB[j+3],hw=_fgB[j+4]*FG_PROF[FG_N];
-      const a=Math.atan2(y1-y0,x1-x0)+Math.PI/2, ry=hw*(0.25+0.6*Math.max(0,f));
-      ctx.moveTo(x1+Math.cos(a)*hw,y1+Math.sin(a)*hw); ctx.ellipse(x1,y1,hw*0.92,ry,a,0,7);
-      if (L.spots!==false && hw>0.9) for (let s=0;s<3;s++){
+      const x0=_fgB[j],y0=_fgB[j+1],x1=_fgB[j+2],y1=_fgB[j+3],hw=_fgB[j+4]*prof[pn];
+      const a=Math.atan2(y1-y0,x1-x0)+Math.PI/2, ry=hw*(0.25+0.6*Math.max(0,f))*mr;
+      ctx.moveTo(x1+Math.cos(a)*hw,y1+Math.sin(a)*hw); ctx.ellipse(x1,y1,hw*mk,ry,a,0,7);
+      if (spotsOn && hw>0.9) for (let s=0;s<3;s++){
         const t=(s-1)*0.42, q=0.2+0.25*hash01(b,s);
         fcPush(x1+Math.cos(a)*hw*t+Math.cos(a-Math.PI/2)*ry*q,y1+Math.sin(a)*hw*t+Math.sin(a-Math.PI/2)*ry*q,Math.max(0.28,hw*0.13),1);
       }
@@ -2800,6 +2809,296 @@ function drawFoxgloveSpike(ctx,hx,hy,H,L,S,phase,blv,stem,rec){
     if (_fcN){ ctx.fillStyle=spots; ctx.beginPath();
       for (let i=0;i<_fcN;i++){ ctx.moveTo(_fcX[i]+_fcR[i],_fcY[i]); ctx.arc(_fcX[i],_fcY[i],_fcR[i],0,7); }
       ctx.fill(); _fcN=0; }
+  }
+}
+
+/* ---------- beardtongues (Penstemon, 0.9.162) ----------
+   A beardtongue flowers in a thyrse. Up the top of the stem, at each node, a
+   pair of short cymes rise on peduncles from opposite sides, each pair turned a
+   quarter from the last, the lowest reaching furthest; each cyme holds a few
+   two-lipped tubes out level, or nodding. A tube is narrow at its base and
+   swells to an open throat (`tubeShape` 'inflated', the default), or stays slim
+   to a flared mouth ('narrow', the hummingbird penstemons). The throat is pale
+   and lined with guides (the season's `eye`). The nodes open from the bottom
+   up with the top in bud; after the bloom every flower leaves an upright,
+   pointed capsule that stands into winter. It was a column of round blobs on
+   both sides of a bare stalk. `nodes`, `perCyme`, `cymeReach` (a share of
+   the spike), `secund` (1: every cyme on one side, as the firecrackers and
+   pineleaf hold them), `tubeLen`, `tubeW` (px, the mouth), `lip`, `face`
+   ('out', 'down', 'up'), `spikeSpan`. The tubes go through the foxglove's
+   pass; the axis, peduncles and pedicels are one stroke, the buds or capsules
+   one batch. */
+const PT_N = 8, PT_PROF_I = new Float64Array(PT_N+1), PT_PROF_N = new Float64Array(PT_N+1);
+for (let i=0;i<=PT_N;i++){ const t=i/PT_N;
+  const q=Math.min(1,Math.max(0,(t-0.26)/0.34)), sm=q*q*(3-2*q);
+  PT_PROF_I[i]=0.28+0.56*sm+(t>0.6?0.14*(t-0.6)/0.4:0)+(t>0.9?(t-0.9)*1.1:0);
+  PT_PROF_N[i]=0.46+0.3*t+(t>0.8?(t-0.8)*1.8:0); }
+function drawBeardtongue(ctx,hx,hy,H,L,S,phase,blv,stem,rec,stemCol){
+  const col=phase===1?S.bloom:phase<0?S.seed:(S.bloom||S.fol); if (!col) return;
+  const span=H*(L.spikeSpan||0.34)*rec, nodes=Math.max(2,Math.min(9,Math.round(L.nodes||5)));
+  const per=Math.max(1,Math.min(5,Math.round(L.perCyme||3)));
+  const len=(L.tubeLen||3.4)*rec, w=(L.tubeW||2.2)*rec*0.5, lip=L.lip===undefined?0.6:L.lip;
+  const sec=L.secund||0, face=L.face||'out', reach=span*(L.cymeReach===undefined?0.16:L.cymeReach);
+  const tilt=face==='down'?0.8:face==='up'?-0.25:0.16, prof=L.tubeShape==='narrow'?PT_PROF_N:PT_PROF_I;
+  // the top of a thyrse is in bud while it flowers
+  const openFrom=phase===1?Math.min(0.9,0.3+0.8*blv):phase<0?1:0;
+  const d0=(stem&1)?-1:1, yAt=u=>hy+span*Math.pow(u,0.9);
+  const bud=L.budCol||(S.fol?mixHex(S.fol,phase===1?S.bloom:col,0.55):col);
+  ctx.strokeStyle=stemCol; ctx.lineWidth=Math.max(0.6,0.9*rec); ctx.beginPath();
+  ctx.moveTo(hx,yAt(1)+2); ctx.quadraticCurveTo(hx,hy+span*0.3,hx+d0*span*0.03,hy-0.5);
+  let nb=0;
+  for (let k=0;k<nodes;k++){
+    const u=0.08+0.92*k/(nodes-1), y=yAt(u), open=u>=1-openFrom;
+    const th=Math.PI/4+k*Math.PI/2+(hash01(k,stem+7)-0.5)*0.5, nc=sec>=0.5?1:2;
+    for (let c=0;c<nc;c++){
+      const az=sec>=0.5?(d0>0?0:Math.PI)+(hash01(k,stem+11)-0.5)*1.2:th+c*Math.PI;
+      const cx=Math.cos(az), fore=Math.sin(az);
+      const r=reach*(0.4+0.6*u)*(0.85+0.3*hash01(c,k+stem));
+      const ex=hx+cx*r, ey=y-r*0.5+fore*r*0.16;
+      ctx.moveTo(hx,y); ctx.quadraticCurveTo(hx+cx*r*0.5,y-r*0.06,ex,ey);
+      for (let f=0;f<per;f++){
+        const fa=az+(per>1?f/(per-1)-0.5:0)*1.25, fx=Math.cos(fa), ff=Math.sin(fa);
+        const pl=len*0.3, mid=per>2&&f===(per>>1);
+        const px=ex+fx*pl*(mid?0.5:1), py=ey-pl*(mid?0.45:0.12)+ff*pl*0.2;
+        ctx.moveTo(ex,ey); ctx.lineTo(px,py);
+        if (!open || phase<0){
+          // a bud held out on its pedicel; after the bloom, a capsule standing up
+          const br=Math.max(0.45,Math.min(w*0.55,len*0.17));
+          if (phase<0) fcPush(px,py-br*0.9,br,1.6);
+          else fcPush(px+fx*len*0.2,py+len*0.03,br,0.66);
+          continue;
+        }
+        if (nb>=FG_MAX) continue;
+        const k2=0.4+0.6*Math.abs(fx);
+        const vx=fx*Math.cos(tilt)*len*k2, vy=Math.sin(tilt)*len+ff*Math.cos(tilt)*len*0.3;
+        const j=nb*6; _fgB[j]=px; _fgB[j+1]=py; _fgB[j+2]=px+vx; _fgB[j+3]=py+vy; _fgB[j+4]=w; _fgB[j+5]=ff; nb++;
+      }
+    }
+  }
+  ctx.stroke();
+  if (phase>=0) fcPush(hx+d0*span*0.03,hy-0.6,Math.max(0.4,Math.min(w*0.42,len*0.13)),1.4);
+  fcDraw(ctx,phase<0?col:bud,14,-8);
+  if (!nb) return;
+  const narrow=L.tubeShape==='narrow';
+  paintTubeFlowers(ctx,nb,col,prof,lip,L.throat||mixHex(col,'#ffffff',narrow?0.22:0.5),null,false,narrow?0.7:0.64);
+  // the guides: fine lines running into each open throat that faces you
+  if (L.guides===false || narrow) return;
+  ctx.strokeStyle=S.eye||shade(col,-55); ctx.lineCap='round'; ctx.lineWidth=Math.max(0.22,w*0.09); ctx.beginPath();
+  let any=false;
+  for (let b=0;b<nb;b++){ const j=b*6, f=_fgB[j+5]; if (f<0) continue;
+    const x0=_fgB[j],y0=_fgB[j+1],x1=_fgB[j+2],y1=_fgB[j+3],hw=_fgB[j+4]*prof[PT_N]; if (hw<1) continue;
+    let dx=x1-x0, dy=y1-y0; const l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
+    const ry=hw*(0.25+0.6*f)*0.64/0.92;
+    for (let s=-1;s<=1;s++){ const ox=-dy*s*hw*0.22, oy=dx*s*hw*0.22;
+      ctx.moveTo(x1+ox+dx*ry*0.7,y1+oy+dy*ry*0.7); ctx.lineTo(x1+ox*0.6-dx*ry*0.35,y1+oy*0.6-dy*ry*0.35); }
+    any=true;
+  }
+  if (any) ctx.stroke();
+}
+
+/* ---------- coneflower cones (Echinacea, 0.9.162) ----------
+   An Echinacea's cone is a dome, broader than tall, set on the ring of rays and
+   covered in stiff chaff: spines that stand out from its surface, dark at the
+   base and orange at the tip, which is where the genus gets its name (echinos,
+   a hedgehog). In flower a ring of disc florets opens part way up it, gold with
+   pollen; after the bloom the dome goes dark and the spines stand out bristly
+   all winter. A stem not yet in flower carries a small green bud of the same
+   shape. A double ('pompom') has a mound of short petals where the cone is. It
+   was a smooth glossy egg, taller than wide, and black in winter. `coneStyle`
+   'spiny' or 'pompom' turns it on; `spineTip` and `pollen` are colours. One
+   gradient fill for the dome, two strokes for the spines, one batch for the
+   pollen or the petals. */
+const EC_POLLEN = '#e9b83a';
+function echDomePath(ctx,cx,y0,w,dh,bw){
+  ctx.beginPath(); ctx.moveTo(cx-w,y0);
+  ctx.bezierCurveTo(cx-w,y0-dh*0.72,cx-w*0.58,y0-dh,cx,y0-dh);
+  ctx.bezierCurveTo(cx+w*0.58,y0-dh,cx+w,y0-dh*0.72,cx+w,y0);
+  ctx.ellipse(cx,y0,w,bw,0,0,Math.PI);
+}
+function drawEchinaceaCone(ctx,cx,cy,w,h,col,phase,L){
+  const dh=h*(phase<0?1.08:1.12), bw=w*0.36, y0=cy+h*0.36;
+  const g=ctx.createRadialGradient(cx+LIT.x*w*0.45,y0-dh*0.7+LIT.y*dh*0.3,w*0.1,cx,y0-dh*0.45,w*1.15);
+  g.addColorStop(0,shade(col,24)); g.addColorStop(0.5,shade(col,2)); g.addColorStop(1,shade(col,-26));
+  ctx.fillStyle=g; echDomePath(ctx,cx,y0,w,dh,bw); ctx.fill();
+  // a point on the dome: h up its height, at azimuth a (sin a toward the viewer)
+  const CA=0.88, SA=0.47;                      // looking down about 28 degrees
+  if (L.coneStyle==='pompom' && phase===1){
+    // a mound of short petals: rings from the base up, the near ones over the far
+    const R=[[0.97,0.1],[0.8,0.38],[0.56,0.64],[0.3,0.86]];
+    for (let r=0;r<R.length;r++){ const rr=R[r][0], hh=R[r][1], m=Math.round(rr*11)+3;
+      for (let k=0;k<m;k++){ const a=(k+0.5*(r&1))/m*Math.PI*2, s=Math.sin(a);
+        if (rr*s*CA+hh*SA<-0.05) continue;
+        fcPush(cx+w*rr*Math.cos(a),y0-dh*hh+bw*rr*s,w*(0.17+0.1*rr),0.62); }
+      if (_fcN>FC_MAX-16) fcDraw(ctx,col,22,-16);
+    }
+    fcPush(cx,y0-dh*0.97,w*0.22,0.7);
+    fcDraw(ctx,col,22,-16);
+    return;
+  }
+  const n=Math.max(10,Math.min(42,Math.round(w*w*2.4))), sl=w*(phase<0?0.38:0.3);
+  if (phase===1 && L.pollen!==false){
+    // the open florets: a gold ring part way up the dome
+    for (let k=0;k<26;k++){ const a=k/26*Math.PI*2, s=Math.sin(a), hh=0.36+0.1*hash01(k,7), rr=Math.sqrt(1-hh*hh);
+      if (rr*s*CA+hh*SA<0) continue;
+      fcPush(cx+w*rr*Math.cos(a)*0.96,y0-dh*hh+bw*rr*s,Math.max(0.28,w*0.085),0.85); }
+    fcDraw(ctx,L.pollen||EC_POLLEN,20,-6);
+  }
+  const tip=phase<0?shade(col,52):phase===0?shade(col,30):(L.spineTip||shade(col,34)), base=shade(col,-34);
+  ctx.lineCap='round'; ctx.lineWidth=Math.max(0.3,w*(phase<0?0.08:0.1));
+  for (let pass=0;pass<2;pass++){
+    ctx.strokeStyle=pass?tip:base; ctx.beginPath();
+    for (let k=0;k<n;k++){
+      const hh=1-(k+0.5)/n, rr=Math.sqrt(1-hh*hh), a=k*2.39996, c=Math.cos(a), s=Math.sin(a);
+      if (rr*s*CA+hh*SA<0.02) continue;
+      const x=cx+w*rr*c*0.94, y=y0-dh*hh*0.94+bw*rr*s;
+      let dx=rr*c*w, dy=-hh*dh+rr*s*bw*0.6; const l=Math.sqrt(dx*dx+dy*dy)||1; dx=dx/l*sl; dy=dy/l*sl;
+      if (pass){ ctx.moveTo(x+dx*0.5,y+dy*0.5); ctx.lineTo(x+dx,y+dy); }
+      else { ctx.moveTo(x,y); ctx.lineTo(x+dx*0.55,y+dy*0.55); }
+    }
+    ctx.stroke();
+  }
+}
+
+/* ---------- Culver's root (Veronicastrum, 0.9.162) ----------
+   Culver's root ends each stem in a candelabra: a central spike with a ring of
+   side spikes rising round it from just below, every one a slender raceme that
+   tapers to a point, packed with tiny tubular flowers whose long stamens stand
+   out from it, so a spike reads as a fuzzy taper. It opens from the bottom up
+   with the top in bud; after the bloom the spikes stand brown into winter. It
+   was strings of round beads on bent wires. `arms` (side spikes), `spikeLen`
+   (the central spike, a share of the plant's height), `armReach`, `spikeW`
+   (px, the half-width where it is open), `stamen` (a colour). The spikes of a
+   stem are one fill in bud and one in flower, the stamens one stroke. */
+const CV_N = 8, CV_PROF = new Float64Array(CV_N+1), _cvP = new Float64Array(CV_N+1), _cvS = new Float64Array(8*7);
+for (let i=0;i<=CV_N;i++){ const t=i/CV_N; CV_PROF[i]=(0.55+0.45*Math.min(1,t/0.18))*(1-0.82*Math.pow(t,1.6)); }
+function drawCulversHead(ctx,hx,hy,H,L,S,phase,blv,stem,rec){
+  const col=phase===1?S.bloom:phase<0?S.seed:(S.fol||S.bloom); if (!col) return;
+  const sl=H*(L.spikeLen||0.14)*rec, arms=Math.max(0,Math.min(6,Math.round(L.arms===undefined?5:L.arms)));
+  const reach=sl*(L.armReach||0.42), hw=(L.spikeW||1.25)*rec*(phase<0?0.62:phase===0?0.55:1);
+  const open=phase===1?Math.min(0.86,0.3+0.65*blv):0;
+  const bud=L.budCol||(S.fol?mixHex(S.fol,phase===1?S.bloom:col,0.45):col);
+  // stage the spikes, far ones first: [x0,y0, cx,cy, x1,y1, fore]
+  let n=0; const lean=((stem&1)?-1:1)*sl*0.04;
+  const put=(x0,y0,cx,cy,x1,y1,f)=>{ const j=n*7; _cvS[j]=x0;_cvS[j+1]=y0;_cvS[j+2]=cx;_cvS[j+3]=cy;_cvS[j+4]=x1;_cvS[j+5]=y1;_cvS[j+6]=f; n++; };
+  put(hx,hy+1,hx+lean*0.3,hy-sl*0.5,hx+lean,hy-sl,0);
+  for (let a=0;a<arms;a++){
+    const az=(a+0.5)/arms*Math.PI*2+stem*0.7, c=Math.cos(az), f=Math.sin(az);
+    const by=hy+sl*(0.05+0.05*(a&1)), r=reach*(0.8+0.35*hash01(a,stem+3)), up=sl*(0.6+0.16*hash01(stem,a+9));
+    put(hx,by,hx+c*r*0.8,by-sl*0.14+f*r*0.2,hx+c*r,by-up+f*r*0.28,f);
+  }
+  // paint order: back, centre, front
+  const ord=[]; for (let k=0;k<n;k++) ord.push(k); ord.sort((a,b)=>_cvS[a*7+6]-_cvS[b*7+6]);
+  ctx.beginPath();
+  for (const k of ord){ const j=k*7;
+    ribbonPath(ctx,_cvS[j],_cvS[j+1],_cvS[j+2],_cvS[j+3],_cvS[j+4],_cvS[j+5],CV_PROF,hw*(phase===1?0.78:1)*(k?0.9:1),0,4,true); }
+  ctx.fillStyle=phase===1?bud:col; ctx.fill();
+  if (phase<0){
+    // the capsules: short nubs along each spike
+    ctx.strokeStyle=shade(col,-16); ctx.lineWidth=Math.max(0.3,hw*0.5); ctx.lineCap='round'; ctx.beginPath();
+    for (const k of ord){ const j=k*7;
+      for (let q=1;q<6;q++){ const t=q/6.5, u=1-t;
+        const x=u*u*_cvS[j]+2*u*t*_cvS[j+2]+t*t*_cvS[j+4], y=u*u*_cvS[j+1]+2*u*t*_cvS[j+3]+t*t*_cvS[j+5], s=(q&1)?1:-1;
+        ctx.moveTo(x,y); ctx.lineTo(x+s*hw*1.3,y-hw*0.6); } }
+    ctx.stroke();
+    return;
+  }
+  if (phase!==1) return;
+  // the open part of each spike, from its base, wider and in flower
+  ctx.beginPath();
+  for (const k of ord){ const j=k*7, x0=_cvS[j],y0=_cvS[j+1],cx=_cvS[j+2],cy=_cvS[j+3],x1=_cvS[j+4],y1=_cvS[j+5];
+    const t0=open, qx=(1-t0)*x0+t0*cx, qy=(1-t0)*y0+t0*cy, u=1-t0;
+    const ex=u*u*x0+2*u*t0*cx+t0*t0*x1, ey=u*u*y0+2*u*t0*cy+t0*t0*y1;
+    for (let i=0;i<=CV_N;i++){ const t=i/CV_N*t0; _cvP[i]=(0.55+0.45*Math.min(1,t/0.18))*(1-0.82*Math.pow(t,1.6))*(i===CV_N?0.75:1); }
+    ribbonPath(ctx,x0,y0,qx,qy,ex,ey,_cvP,hw*(k?0.9:1),0,4,true); }
+  ctx.fillStyle=col; ctx.fill();
+  // stamens: fine strokes standing out of the open part
+  ctx.strokeStyle=L.stamen||mixHex(col,'#8a6a4a',0.3); ctx.lineWidth=Math.max(0.22,hw*0.22); ctx.lineCap='round'; ctx.beginPath();
+  for (const k of ord){ const j=k*7, x0=_cvS[j],y0=_cvS[j+1],cx=_cvS[j+2],cy=_cvS[j+3],x1=_cvS[j+4],y1=_cvS[j+5];
+    const m=Math.max(3,Math.round(open*12));
+    for (let q=0;q<m;q++){ const t=(q+0.5)/m*open, u=1-t;
+      const x=u*u*x0+2*u*t*cx+t*t*x1, y=u*u*y0+2*u*t*cy+t*t*y1;
+      let dx=2*(u*(cx-x0)+t*(x1-cx)), dy=2*(u*(cy-y0)+t*(y1-cy)); const l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
+      const s=(q&1)?1:-1, w=hw*(0.85+0.4*hash01(q,k+stem))*(1-0.45*t);
+      ctx.moveTo(x-dy*s*w*0.55,y+dx*s*w*0.55); ctx.lineTo(x-dy*s*w*1.4+dx*w*0.35,y+dx*s*w*1.4+dy*w*0.35); } }
+  ctx.stroke();
+}
+
+/* ---------- spurge heads (Euphorbia, 0.9.162) ----------
+   What a spurge shows is not its flowers but the bracts round them: each tiny
+   cyathium sits in a cup of two rounded, acid-green or yellow bracts, often
+   with a dark or red eye of nectar glands in it, and the cups are carried on
+   rays in a head. `euphHead` says how: 'column' is Mediterranean spurge's tall
+   barrel of cups up the top of a stem (`headSpan`, `headW`, `rings`,
+   `perRing`); 'umbel' is a flat-topped head of rays each ending in a few cups
+   (cushion spurge, sweet spurge; `rays`, `headW`); 'cloud' is the native
+   flowering spurge's airy branched spray of tiny white flowers, a prairie
+   baby's breath. `cupR` is a cup's size in px. After the bloom the bracts go
+   to the season's seed colour, smaller; a stem not yet in flower carries a
+   small green head. Mediterranean spurge was a yellow cylinder of beads and
+   cushion spurge a brown blob all summer. The stalks are one stroke, the cups
+   two batches (far and near) and the eyes a third. */
+const EU_MAX = 120, _euX = new Float64Array(EU_MAX), _euY = new Float64Array(EU_MAX), _euF = new Float64Array(EU_MAX);
+function drawEuphorbiaHead(ctx,hx,hy,H,L,S,phase,blv,stem,rec,stemCol){
+  const col=phase===1?S.bloom:phase<0?S.seed:mixHex(S.fol||'#7a9a5a',S.bloom||'#c8d050',0.35); if (!col) return;
+  const style=L.euphHead||'umbel', k=phase===1?Math.min(1,0.75+0.35*blv):phase<0?0.62:0.6;
+  const cr=(L.cupR||1.6)*rec*k, wid=(L.headW||6)*rec*(phase===0?0.6:1);
+  let n=0;
+  const cup=(x,y,f)=>{ if (n<EU_MAX){ _euX[n]=x; _euY[n]=y; _euF[n]=f; n++; } };
+  ctx.strokeStyle=stemCol; ctx.lineWidth=Math.max(0.35,0.55*rec); ctx.lineCap='round'; ctx.beginPath();
+  if (style==='column'){
+    const span=H*(L.headSpan||0.2)*rec*(phase===0?0.6:1), rings=Math.max(3,Math.min(12,Math.round(L.rings||7)));
+    const per=Math.max(3,Math.min(8,Math.round(L.perRing||5)));
+    for (let r=0;r<rings;r++){
+      const u=(r+0.5)/rings, y=hy+span*u, rr=wid*(0.35+0.65*Math.sin(Math.PI*(0.1+0.75*u)))*(0.55+0.45*u);
+      for (let q=0;q<per;q++){
+        const az=(q+0.5*(r&1))/per*Math.PI*2+stem*0.9, c=Math.cos(az), f=Math.sin(az);
+        const x=hx+c*rr, yy=y+f*rr*0.32-rr*0.22;
+        ctx.moveTo(hx,y+rr*0.05); ctx.quadraticCurveTo(hx+c*rr*0.5,y-rr*0.02+f*rr*0.12,x,yy);
+        cup(x,yy,f);
+      }
+    }
+    cup(hx,hy-cr*0.4,1);
+  } else if (style==='cloud'){
+    // forked rays with flowers at every tip and fork
+    const rays=Math.max(3,Math.min(9,Math.round(L.rays||6)));
+    for (let r=0;r<rays;r++){
+      const az=(r+0.5)/rays*Math.PI*2+stem*0.8, c=Math.cos(az), f=Math.sin(az);
+      const ex=hx+c*wid*0.55, ey=hy-wid*0.3+f*wid*0.2;
+      ctx.moveTo(hx,hy); ctx.lineTo(ex,ey); cup(ex,ey,f);
+      for (let b=0;b<2;b++){ const s=b?1:-1, a2=az+s*0.55;
+        const tx=ex+Math.cos(a2)*wid*0.42, ty=ey-wid*(0.22+0.12*hash01(r,b+stem))+Math.sin(a2)*wid*0.16;
+        ctx.moveTo(ex,ey); ctx.lineTo(tx,ty); cup(tx,ty,Math.sin(a2));
+        for (let t=0;t<2;t++){ const a3=a2+(t?0.5:-0.5), sx=tx+Math.cos(a3)*wid*0.22, sy=ty-wid*0.12+Math.sin(a3)*wid*0.08;
+          ctx.moveTo(tx,ty); ctx.lineTo(sx,sy); cup(sx,sy,Math.sin(a3)); }
+      }
+    }
+  } else {
+    const rays=Math.max(3,Math.min(9,Math.round(L.rays||5)));
+    for (let r=0;r<rays;r++){
+      const az=(r+0.5)/rays*Math.PI*2+stem*0.8, c=Math.cos(az), f=Math.sin(az);
+      const ex=hx+c*wid, ey=hy-wid*0.28+f*wid*0.3;
+      ctx.moveTo(hx,hy); ctx.quadraticCurveTo(hx+c*wid*0.5,hy-wid*0.3,ex,ey);
+      cup(ex,ey-cr*0.4,f);
+      for (let q=0;q<3;q++){ const a=az+(q-1)*1.1;
+        cup(ex+Math.cos(a)*cr*1.25,ey+Math.sin(a)*cr*0.5+cr*0.2,f+Math.sin(a)*0.3); }
+    }
+    cup(hx,hy-wid*0.42,1);
+  }
+  ctx.stroke();
+  const sq=style==='cloud'?0.9:0.64;
+  for (let pass=0;pass<2;pass++){
+    for (let i=0;i<n;i++){ if ((_euF[i]<0)!==(pass===0)) continue;
+      fcPush(_euX[i],_euY[i],cr,sq);
+      if (_fcN>=FC_MAX) fcDraw(ctx,col,pass?22:10,pass?-2:-20); }
+    fcDraw(ctx,col,pass?22:10,pass?-2:-20);
+  }
+  // the eyes: the cyathium in each cup facing you
+  const eye=phase===1?S.eye:null;
+  if (eye && cr>0.6){
+    for (let i=0;i<n;i++){ if (_euF[i]<-0.2) continue;
+      fcPush(_euX[i],_euY[i]-cr*0.08,Math.max(0.25,cr*(style==='cloud'?0.32:0.19)),0.8);
+      if (_fcN>=FC_MAX) fcDraw(ctx,eye,0,0); }
+    fcDraw(ctx,eye,0,0);
   }
 }
 
@@ -9072,6 +9371,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
                 // out to the disc edge and shortens the ribbon to match
                 drawRay(ctx, cx+Math.cos(pa)*em, cy+Math.sin(pa)*em*0.75,
                         pa, rl-em, rw2, dr, shade(S.bloom,(o.s)*7), _rayOpt);
+                if (L.rayInner) drawRay(ctx, cx+Math.cos(pa)*em, cy+Math.sin(pa)*em*0.75,
+                        pa, (rl-em)*0.52, rw2*0.94, dr*0.4, shade(L.rayInner,(o.s)*7), _rayOpt);
               }
             }
             if (rsh==='notched' && rl>=4.2){
@@ -9106,7 +9407,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             // classic disc edge; the uncrowded heads (Echinacea among them)
             // keep the dome the prototype calibrated.
             const ds = em ? RAY_FIT.disc : 1;
-            drawConeDome(ctx,cx,cy+dy,dw*ds,dh*ds,S.eye||'#b5651d',rnd);
+            if (L.coneStyle) drawEchinaceaCone(ctx,cx,cy+dy,dw*ds,dh*ds,S.eye||'#b5651d',1,L);
+            else drawConeDome(ctx,cx,cy+dy,dw*ds,dh*ds,S.eye||'#b5651d',rnd);
             ctx.lineCap='butt';
             return;
           }
@@ -9146,7 +9448,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           if (L.seedStyle==='capsule'){ drawHypericumCapsule(ctx,cx,cy,sc,L,S.seed); return; }
           if (L.seedStyle==='berries'){ drawBerryClub(ctx,cx,cy,sc,L,S.seed); return; }
           if (art2On(L)){
-            drawConeDome(ctx,cx,cy,(L.seedW||3)*sc,(L.seedH||3.8)*sc,S.seed,rnd);
+            if (L.coneStyle) drawEchinaceaCone(ctx,cx,cy,(L.seedW||3)*sc,(L.seedH||3.8)*sc*0.85,S.seed,-1,L);
+            else drawConeDome(ctx,cx,cy,(L.seedW||3)*sc,(L.seedH||3.8)*sc,S.seed,rnd);
             return;
           }
           ctx.fillStyle=S.seed;
@@ -9158,6 +9461,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const hRec=(1+rec)/2;
         if (headOn){
           for(let h=0; h<headCount; h++){ const o=headOffset(h,headCount); drawConeHead(hx+o.x,hy+o.y,o.s*hRec); }
+        } else if (L.coneStyle && art2On(L) && blooming && !spent && S.fol){
+          drawEchinaceaCone(ctx,hx,hy,(L.discW||3.2)*0.62*hRec,(L.discH||3.6)*0.62*hRec,mixHex(S.fol,S.eye||'#b5651d',0.22),0,L);
         } else if (S.seed){
           const seedCount = Math.max(1, Math.round(L.seedHeads || Math.min(headCount,3)));
           for(let h=0; h<seedCount; h++){ const o=headOffset(h,seedCount); drawSeedHead(hx+o.x,hy+o.y,o.s*hRec); }
@@ -9483,6 +9788,18 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawFoxgloveSpike(ctx,hx,hy,H,L,S,ph,blv,i,rec);
       }
+      else if (L.spikeStyle==='euphorbia'){ // a head of bract cups; a later stem is in bud
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
+        if (ph!==null) drawEuphorbiaHead(ctx,hx,hy,H,L,S,ph,blv,i,rec,P.stem||shade(S.fol||S.seed||'#6b6248',-18));
+      }
+      else if (L.spikeStyle==='culvers'){ // a candelabra of tapering spikes; a later stem is in bud
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
+        if (ph!==null) drawCulversHead(ctx,hx,hy,H,L,S,ph,blv,i,rec);
+      }
+      else if (L.spikeStyle==='beardtongue'){ // a thyrse of two-lipped tubes; a later stem is in bud
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
+        if (ph!==null) drawBeardtongue(ctx,hx,hy,H,L,S,ph,blv,i,rec,P.stem||shade(S.fol||S.seed||'#6b6248',-18));
+      }
       else if (L.spikeStyle==='salvia'){ // whorls of two-lipped flowers; a later stem is in bud
         const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawSalviaSpike(ctx,hx,hy,H,L,S,ph,blv,i,rec,P.stem||shade(S.fol||S.seed||'#6b6248',-18));
@@ -9783,23 +10100,6 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               ctx.strokeStyle=shade(S.fol||col,-24); ctx.lineWidth=0.75; ctx.beginPath();
               ctx.moveTo(hx,rootY+tubeR*0.55); ctx.quadraticCurveTo(hx+side*1.4,rootY,tx,ty+tubeR*1.15); ctx.stroke();
               drawShrubFlower(ctx,tx,ty,tubeR,shade(col,(rnd()-0.5)*10),'starTube',rnd,side*0.18,S.eye);
-            }
-          } else if (L.spikeStyle==='culvers'){
-            const arms=Math.max(3,Math.round(L.candelabraArms||5)), buds=Math.max(3,Math.round(L.candelabraBuds||5));
-            for(let a=0;a<arms;a++){
-              const side=a%2?-1:1, f=arms===1?0.5:a/(arms-1), by=hy+f*H*0.27;
-              const ex=hx+side*(L.candelabraReach||8)*(0.65+rnd()*0.35), ey=by-(L.candelabraLift||7)*(0.70+rnd()*0.25);
-              ctx.strokeStyle=shade(S.fol||col,-22); ctx.lineWidth=0.85;
-              ctx.beginPath(); ctx.moveTo(hx,by); ctx.quadraticCurveTo(hx+side*3,by-2,ex,ey); ctx.stroke();
-              if (a2){
-                for(let b=0;b<buds;b++){ const u=b/(buds-1);
-                  fcPush(ex+(rnd()-0.5)*1.2, ey+u*(L.candelabraSpike||9), 1.35, 1.22); }
-                fcDraw(ctx,shade(col,(rnd()-0.5)*16),24,-10);
-                continue;
-              }
-              ctx.fillStyle=shade(col,(rnd()-0.5)*16);
-              for(let b=0;b<buds;b++){ const u=b/(buds-1);
-                ctx.beginPath(); ctx.ellipse(ex+(rnd()-0.5)*1.2,ey+u*(L.candelabraSpike||9),1.35,1.65,0,0,7); ctx.fill(); }
             }
           } else if (L.spikeStyle==='prairieClover'){
             const spikeLen=L.spikeLen||10, florets=Math.max(5,Math.round(L.florets||7));
@@ -13183,7 +13483,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // flowers over a low clump and a Joe Pye's leaves are whorls with air between
   // (0.9.160): over all three these floated beside the stems.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && P.type!=='bulb' && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
-      && !(P.look && (P.look.habit==='burnet' || P.look.umbelStyle==='joepye' || P.look.spikeStyle==='salvia'))
+      && !(P.look && (P.look.habit==='burnet' || P.look.umbelStyle==='joepye' || P.look.spikeStyle==='salvia' || P.look.spikeStyle==='beardtongue' || P.look.spikeStyle==='culvers' || P.look.spikeStyle==='euphorbia'))
       && !(P.look && (P.look.tuftIn || P.look.sedgeHabit==='palm'))
       && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look)) && P.form!=='palm'
       && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)
