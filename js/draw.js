@@ -1885,6 +1885,7 @@ function drawDoubleBloom(ctx,cx,cy,rad,petals,col,a2){
    a new one, because fcDraw begins its own path. */
 // where the aster heads land, so the rays and the discs can each be one batch
 const AST_MAX=160, _astX=new Float64Array(AST_MAX), _astY=new Float64Array(AST_MAX);
+const RC_MAX=240, _rcF=new Float64Array(RC_MAX*4);   // a raceme's flowers: x, y, size (signed by side), aged
 function drawStemTipHeads(ctx,L,col,m,H,sway,rnd,fol,blooming,a2,stemCol,eye){
   if (!_stN || m<=0) return;
   const step=_stN/m, style=L.headStyle||'star';
@@ -1993,6 +1994,11 @@ function drawStemTipHeads(ctx,L,col,m,H,sway,rnd,fol,blooming,a2,stemCol,eye){
   if (style==='raceme'){
     const n=Math.max(3,Math.min(14,Math.round(L.raceme||7))), rl=H*(L.racemeLen||0.26), fr=L.floretR||1.9;
     const pods=!blooming, np=pods?Math.max(2,Math.round(n*0.35)):n;
+    // a bicolour (0.9.163): the season's `eye` is the keel, a dot of it on each
+    // flower ('Twilite' violet with a yellow keel); `ageCol` the colour the
+    // older, lower flowers have turned to ('Lunar Eclipse' cream above, violet
+    // below). Both are drawn after the bloom, from the places it recorded.
+    const two=!pods && (eye || L.ageCol); let nr=0;
     ctx.lineWidth=L.stemW||1.2; ctx.beginPath();
     for (let k=0;k<m;k++){
       const i=pick(k), lean=Math.sin(_stA[i])*0.25;
@@ -2002,10 +2008,26 @@ function drawStemTipHeads(ctx,L,col,m,H,sway,rnd,fol,blooming,a2,stemCol,eye){
       for (let q=0;q<np;q++){
         const u=(q+0.5)/np, x=x0+(x1-x0)*(pods?u*0.8:u), y=y0+(y1-y0)*(pods?u*0.8:u), side=(q&1)?1:-1;
         if (pods) fcPush(x+side*fr*1.1,y+fr*0.6,fr*1.05,1.55);
-        else fcPush(x+side*fr*0.8,y,fr*(1-0.42*u)*(0.9+rnd()*0.2),1.18);
+        else {
+          const fx=x+side*fr*0.8, r=fr*(1-0.42*u)*(0.9+rnd()*0.2);
+          const aged=L.ageCol && u<(L.ageFrac||0.45);
+          if (!aged) fcPush(fx,y,r,1.18);
+          if (two && nr<RC_MAX){ _rcF[nr*4]=fx; _rcF[nr*4+1]=y; _rcF[nr*4+2]=r*side; _rcF[nr*4+3]=aged?1:0; nr++; }
+        }
       }
     }
     flushWith(pods?12:26,pods?-16:-15);
+    if (two){
+      if (L.ageCol){
+        for (let q=0;q<nr;q++) if (_rcF[q*4+3]) fcPush(_rcF[q*4],_rcF[q*4+1],Math.abs(_rcF[q*4+2]),1.18);
+        fcDraw(ctx,L.ageCol,26,-15);
+      }
+      if (eye){
+        for (let q=0;q<nr;q++){ const r=_rcF[q*4+2], s=r<0?-1:1;
+          fcPush(_rcF[q*4]+s*Math.abs(r)*0.38,_rcF[q*4+1]+Math.abs(r)*0.42,Math.abs(r)*0.46,0.9); }
+        fcDraw(ctx,eye,22,-12);
+      }
+    }
     ctx.lineCap='butt'; return;
   }
   if (style==='whorls'){
@@ -2708,6 +2730,298 @@ function drawSalviaSpike(ctx,hx,hy,H,L,S,phase,blv,stem,rec,stemCol){
       salviaSpikeAt(ctx,hx+d*span*(0.2+b*0.06),hy+span*(0.38+b*0.12),span*0.62,L,S,phase,blv,stem+b+3,rec,true); }
   }
   salviaSpikeAt(ctx,hx,hy,span,L,S,phase,blv,stem,rec,false);
+}
+
+/* ---------- lupine spikes (0.9.163) ----------
+   A lupine's raceme is a dense column of pea flowers in whorls round the stem,
+   widest at the foot and tapering to a pointed tip that is still in bud while
+   the lower flowers are open. Each flower is a banner standing up behind the
+   wings and keel; on a bicolour the banner is a colour of its own (the season's
+   `eye`: 'The Governor' blue with white banners, 'Manhattan Lights' purple with
+   yellow). After the bloom the flowers fall and hairy pods stand out along the
+   lower spike. `spikeSpan` (a share of H), `spikeW` (the half-width at the
+   foot), `florets` (how many), `floretL` (a flower's size), `whorl` (flowers in
+   a turn). Opt-in by `spikeStyle:'lupine'`; no random numbers. */
+const LP_MAX=80;
+const _lpF=new Float64Array(LP_MAX*5);           // x, y, size, side (cos), fore (sin)
+function drawLupineSpike(ctx,hx,hy,H,L,S,phase,blv,stem,rec){
+  const col=phase===1?S.bloom:phase<0?S.seed:(S.bloom||S.fol); if (!col) return;
+  const span=H*(L.spikeSpan||0.36)*rec*(phase===0?0.7:1), W=(L.spikeW||3.4)*rec, fl=(L.floretL||2.2)*rec;
+  const N=Math.max(8,Math.min(LP_MAX,Math.round(L.florets||48))), per=L.whorl||6;
+  const bend=(hash01(stem,13)-0.5)*span*0.08;
+  const yAt=u=>hy+span*u, xAt=u=>hx+bend*(1-u)*(1-u);    // u: 0 the tip, 1 the foot
+  const R=u=>W*(0.16+0.84*Math.pow(u,0.6));
+  const fol=S.fol||'#6f8a5a';
+  // the axis
+  ctx.strokeStyle=shade(fol,-16); ctx.lineWidth=Math.max(0.7,1.15*rec); ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(xAt(1),yAt(1)+1.5); ctx.quadraticCurveTo(xAt(0.5),yAt(0.5),xAt(0),yAt(0)); ctx.stroke();
+  if (phase<0){
+    // hairy pods, held out and up along the lower two thirds
+    const np=Math.round(N*0.4), pl=fl*1.5;
+    for (let pass=0;pass<2;pass++){
+      ctx.strokeStyle=pass?shade(col,22):col; ctx.lineWidth=pass?Math.max(0.35,fl*0.16):Math.max(0.6,fl*0.48); ctx.beginPath();
+      for (let k=0;k<np;k++){
+        const u=0.3+0.7*(k+0.5)/np, az=k*2.4+stem*1.7, sx=Math.cos(az), fore=Math.sin(az);
+        if (fore<-0.6) continue;
+        const x0=xAt(u)+sx*R(u)*0.3, y0=yAt(u)+fore*R(u)*0.15, x1=x0+sx*pl*0.85, y1=y0-pl*0.42;
+        if (pass){ ctx.moveTo(x0+sx*pl*0.15+LIT.x*0.2,y0-pl*0.1+LIT.y*0.2); ctx.lineTo(x1+LIT.x*0.2,y1+LIT.y*0.2); }
+        else { ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); }
+      }
+      ctx.stroke();
+    }
+    ctx.lineCap='butt';
+    return;
+  }
+  // a spike opens from the foot; its tip is always in bud while it flowers
+  const openTo=phase===1?Math.min(0.8,0.32+0.6*blv):0;
+  const bud=L.budCol||mixHex(fol,phase===1?S.bloom:col,0.45);
+  let nb=0;
+  for (let k=0;k<N;k++){
+    const u=(k+0.5)/N, az=k*(6.2832/per)+k*0.31+stem*1.7, sx=Math.cos(az), fore=Math.sin(az);
+    if (1-u>=openTo){
+      // a bud, pressed to the axis: together they taper to the point
+      if (fore<-0.5) continue;
+      fcPush(xAt(u)+sx*R(u)*0.55,yAt(u)+fore*R(u)*0.2,Math.max(0.45,R(u)*0.36),1.45);
+      continue;
+    }
+    if (nb>=LP_MAX) continue;
+    const sz=fl*(0.72+0.28*u), j=nb*5;
+    _lpF[j]=xAt(u)+sx*R(u)*0.62; _lpF[j+1]=yAt(u)+fore*R(u)*0.22; _lpF[j+2]=sz; _lpF[j+3]=sx; _lpF[j+4]=fore; nb++;
+  }
+  // the last bud on the tip, so the spike ends in a point
+  fcPush(xAt(0),yAt(0)-0.4,Math.max(0.4,W*0.14),1.6);
+  fcDraw(ctx,bud,16,-10);
+  if (!nb) return;
+  const ban=S.eye||shade(col,18);
+  for (let pass=0;pass<2;pass++){
+    // the banners, standing up behind; then the wings and keel in front of them
+    for (let part=0;part<2;part++){
+      ctx.beginPath();
+      for (let b=0;b<nb;b++){ const j=b*5, fore=_lpF[j+4]; if ((fore<0)!==(pass===0)) continue;
+        const x=_lpF[j], y=_lpF[j+1], s=_lpF[j+2], sx=_lpF[j+3], ax=Math.abs(sx);
+        if (part===0){ const rx=s*(0.3+0.24*Math.max(0,fore)), ry=s*0.44, ex=x+sx*s*0.16, ey=y-s*0.3;
+          ctx.moveTo(ex+rx,ey); ctx.ellipse(ex,ey,rx,ry,-sx*0.3,0,7); }
+        else { const rx=s*(0.34+0.18*ax), ry=s*0.3, ex=x+sx*s*0.48, ey=y+s*0.14;
+          ctx.moveTo(ex+rx,ey); ctx.ellipse(ex,ey,rx,ry,sx*0.35,0,7); }
+      }
+      const c=part?col:ban;
+      ctx.fillStyle=pass?(part?c:shade(c,6)):shade(c,-24); ctx.fill();
+    }
+    if (!pass) continue;
+    // light on the near flowers' upper left
+    ctx.beginPath();
+    for (let b=0;b<nb;b++){ const j=b*5; if (_lpF[j+4]<0.25 || _lpF[j+3]>0.2) continue;
+      const x=_lpF[j], y=_lpF[j+1], s=_lpF[j+2], sx=_lpF[j+3], ex=x+sx*s*0.4-s*0.08, ey=y+s*0.06, r=s*0.18;
+      ctx.moveTo(ex+r,ey); ctx.ellipse(ex,ey,r,r*0.7,0,0,7); }
+    ctx.fillStyle=shade(col,22); ctx.fill();
+  }
+  ctx.lineCap='butt';
+}
+
+/* ---------- pinks, Dianthus (0.9.163) ----------
+   A pink is a flower of five flat petals on a calyx tube, each petal widening
+   from a narrow claw to a toothed or fringed edge, often with a darker ring at
+   the base of the petals (the season's `eye`), sometimes edged in another
+   colour (`laceCol`: the laced pinks) or doubled into a ruff of petals
+   (`double`). It stands on a wiry grey stem with a pair or two of narrow leaves
+   at swollen nodes, over a tufted mat of grassy blue-grey leaves: a cushion for
+   the cheddar and maiden pinks (`cushion`, the mound as a share of H: the moss
+   phlox's cushion), or a loose grassy tuft for the taller ones (`tuftW`).
+   `cluster` puts several flowers on a stem: 'head' a tight knob in brown bracts
+   with a few flowers open on top (Carthusian pink), 'cyme' a flat-topped
+   cluster of many small ones (sweet William). `flowerR` sizes a flower,
+   `teeth` and `tooth` its edge (a fringed pink has many deep ones), `stems`,
+   `lenBase`, `stemLeaves` (pairs). After flowering the stems carry slim
+   capsules. Opt-in by `flowerStyle:'pink'` on a drumstick; the tuft has its own
+   stream, the stems none. */
+function pinkPetalsPath(ctx,cx,cy,R,flat,rot,teeth,tooth,half,claw){
+  // five petals as one subpath each: claw at the centre, sides out to a toothed edge
+  for (let p=0;p<5;p++){
+    const a=rot+p*1.25664, nt=Math.max(1,teeth);
+    ctx.moveTo(cx+Math.cos(a)*claw, cy+Math.sin(a)*claw*flat);
+    ctx.lineTo(cx+Math.cos(a-half*0.72)*R*0.5, cy+Math.sin(a-half*0.72)*R*0.5*flat);
+    for (let t=0;t<=nt*2;t++){
+      const th=a-half+(2*half)*t/(nt*2), r=t&1?R*(1-tooth):R*(1-tooth*0.12*Math.abs(t-nt)/nt);
+      ctx.lineTo(cx+Math.cos(th)*r, cy+Math.sin(th)*r*flat);
+    }
+    ctx.lineTo(cx+Math.cos(a+half*0.72)*R*0.5, cy+Math.sin(a+half*0.72)*R*0.5*flat);
+    ctx.closePath();
+  }
+}
+function drawPinkFlower(ctx,x,y,R,flat,rot,col,eye,L,lit){
+  const teeth=L.teeth||4, tooth=L.tooth===undefined?0.16:L.tooth, half=L.petalHalf||0.6;
+  const lace=L.laceCol||null, dbl=!!L.double;
+  ctx.beginPath(); pinkPetalsPath(ctx,x,y,R,flat,rot,teeth,tooth,half,0);
+  ctx.fillStyle=lace||shade(col,lit); ctx.fill();
+  if (lace){ ctx.beginPath(); pinkPetalsPath(ctx,x,y,R*0.78,flat,rot,teeth,tooth*0.4,half*0.94,0); ctx.fillStyle=shade(col,lit); ctx.fill(); }
+  if (dbl){
+    ctx.beginPath(); pinkPetalsPath(ctx,x,y-R*0.08,R*0.72,flat,rot+0.63,teeth,tooth,half,0);
+    ctx.fillStyle=lace||shade(col,lit-10); ctx.fill();
+    ctx.beginPath(); pinkPetalsPath(ctx,x,y-R*0.14,R*0.42,flat,rot+0.2,Math.max(2,teeth-1),tooth,half,0);
+    ctx.fillStyle=shade(col,lit+8); ctx.fill();
+    return;
+  }
+  if (eye){
+    // under about 1.3 units the ring's five lobes are a dot anyway, and a dot is cheaper
+    ctx.beginPath(); const er=R*(L.eyeR||0.48);
+    if (R<1.3) ctx.ellipse(x,y,er*0.8,er*0.8*flat,0,0,7); else pinkPetalsPath(ctx,x,y,er,flat,rot,1,0.05,half*0.86,0);
+    ctx.fillStyle=eye; ctx.fill();
+  }
+  // the two pale styles in the middle
+  if (R>=1.4){ ctx.fillStyle=L.styleCol||'#f1efe6'; ctx.beginPath(); ctx.ellipse(x,y-R*0.04,R*0.09,R*0.065,0,0,7); ctx.fill(); }
+}
+// a loose grassy tuft: narrow arching blades from the crown, three tones by the light
+function drawPinkTuft(ctx,L,fol,H,growth,sway,rnd){
+  const n=Math.max(8,Math.round((L.leaves||26)*(0.5+0.5*growth))), w=(L.tuftW||7)*(0.6+0.4*growth), ll=H*(L.leafLen||0.24);
+  const lw=L.leafW||0.85, seed=(rnd()*4294967295)>>>0;
+  ctx.lineCap='round';
+  for (let tone=0;tone<3;tone++){
+    const r0=mulberry(seed); ctx.beginPath();
+    for (let i=0;i<n;i++){
+      const bx=(r0()-0.5)*w, a=(r0()-0.5)*2.4+bx/Math.max(1,w)*0.8, l=ll*(0.6+0.5*r0()), arch=0.2+0.5*r0();
+      const ex=bx+Math.sin(a)*l+sway*l*0.05, ey=-Math.cos(a)*l*(1-arch*0.35);
+      const t=(Math.sin(a)<-0.2?2:Math.sin(a)>0.35?0:1)+(r0()<0.2?1:0);
+      if (Math.min(2,t)!==tone) continue;
+      ctx.moveTo(bx,0); ctx.quadraticCurveTo(bx+Math.sin(a)*l*0.4,-l*0.7,ex,ey+l*arch*0.25);
+      snowLeafAt(ex,ey,l*0.12);
+    }
+    ctx.strokeStyle=shade(fol,tone===0?-16:tone===1?0:16); ctx.lineWidth=lw; ctx.stroke();
+  }
+  ctx.lineCap='butt';
+}
+function drawPinkStems(ctx,P,L,S,H,phase,blv,spent,sway,growth){
+  const sn=Math.max(1,Math.min(60,Math.round(L.stems||12))), fol=S.fol||'#7d8a80';
+  const sc=P.stem||shade(fol,6), R0=L.flowerR||1.6, flat=L.flat||0.62;
+  const cush=!!L.cushion, cw=cush?matCushionW(L,growth):(L.tuftW||7)*0.5, ch=cush?matCushionH(L,H,growth):H*(L.leafLen||0.24)*0.5;
+  const open=phase===1?Math.max(1,Math.ceil(sn*blv)):0;
+  const cl=Math.max(1,Math.min(30,Math.round(L.cluster||1))), style=L.clusterStyle||'head';
+  const tips=[];
+  // 1. the stems and their leaf pairs, one stroke each
+  ctx.lineCap='round'; ctx.strokeStyle=sc; ctx.lineWidth=L.stemW||0.5; ctx.beginPath();
+  for (let i=0;i<sn;i++){
+    const u=(hash01(i,3)*2-1), bx=u*cw*(cush?0.82:0.5), by=cush?-matCushionAt(u*0.82)*ch*0.75:-1;
+    // a stem leans out by where it rises (`lean` at the rim), and arches a little outward
+    const len=H*(L.lenBase||0.85)*(0.84+0.28*hash01(7,i)), lean=u*(L.lean||0.3)+(hash01(i,11)-0.5)*0.22;
+    const sl=Math.max(1,len+by), tx=bx+Math.sin(lean)*sl*0.9+sway*len*0.05, ty=by-Math.cos(lean*0.8)*sl;
+    ctx.moveTo(bx,by); ctx.quadraticCurveTo(bx+(tx-bx)*0.3,by+(ty-by)*0.68,tx,ty);
+    tips.push(tx,ty,lean,bx,by);
+  }
+  ctx.stroke();
+  const pairs=Math.max(0,Math.min(3,Math.round(L.stemLeaves===undefined?1:L.stemLeaves)));
+  if (pairs){
+    ctx.strokeStyle=shade(fol,4); ctx.lineWidth=Math.max(0.4,(L.stemLeafW||0.55)); ctx.beginPath();
+    for (let i=0;i<sn;i++){
+      const tx=tips[i*5], ty=tips[i*5+1], bx=tips[i*5+3], by=tips[i*5+4], ll=H*(L.stemLeafLen||0.08);
+      for (let j=0;j<pairs;j++){
+        const t=0.28+j*0.22, px=bx+(tx-bx)*t*t*1.1, py=by+(ty-by)*t;
+        // a pair of narrow leaves clasping the node, held up along the stem
+        ctx.moveTo(px,py); ctx.quadraticCurveTo(px-ll*0.35,py-ll*0.3,px-ll*0.42,py-ll*0.95);
+        ctx.moveTo(px,py); ctx.quadraticCurveTo(px+ll*0.35,py-ll*0.3,px+ll*0.42,py-ll*0.95);
+      }
+    }
+    ctx.stroke();
+  }
+  // 2. the heads, back (higher) first
+  const order=Array.from({length:sn},(_, i)=>i).sort((a,b)=>tips[a*5+1]-tips[b*5+1]);
+  for (const i of order){
+    const tx=tips[i*5], ty=tips[i*5+1], lean=tips[i*5+2], rot=hash01(i,5)*1.2566;
+    const isOpen=i<open, seed=phase<0||(phase===1&&!isOpen&&spent);
+    const col=seed?(S.seed||shade(fol,-20)):isOpen?S.bloom:mixHex(fol,S.bloom||fol,0.35);
+    if (cl>1 && style==='head'){
+      // a knob of brown bracts, a few flowers open out of the top of it
+      const kr=R0*0.62, br=L.bractCol||'#7a5c42';
+      ctx.fillStyle=shade(seed?(S.seed||br):br,-6); ctx.beginPath(); ctx.ellipse(tx,ty+kr*0.2,kr*0.72,kr,0,0,7); ctx.fill();
+      ctx.fillStyle=shade(br,16); ctx.beginPath(); ctx.ellipse(tx-kr*0.25,ty-kr*0.1,kr*0.25,kr*0.55,0.2,0,7); ctx.fill();
+      if (!isOpen || seed) continue;
+      const k=Math.min(cl,3);
+      for (let f=0;f<k;f++){
+        const a=rot+f*2.1, ox=k>1?Math.cos(a)*R0*0.55:0, oy=k>1?Math.sin(a)*R0*0.22:0;
+        drawPinkFlower(ctx,tx+ox,ty-kr*0.75+oy,R0,flat,rot+f,col,S.eye,L,(f===0?6:0)-(Math.sin(a)<0?8:0));
+      }
+      continue;
+    }
+    if (cl>1){
+      // sweet William: a flat-topped cyme of small flowers, back to front
+      const cr=R0*Math.sqrt(cl)*0.62, fr=R0*0.72;
+      ctx.fillStyle=shade(fol,-22); ctx.beginPath(); ctx.ellipse(tx,ty+fr*0.3,cr*0.92,cr*0.4,0,0,7); ctx.fill();
+      for (let f=0;f<cl;f++){
+        const q=Math.sqrt((cl-f-0.5)/cl), a=f*2.39996+rot*3, ox=Math.cos(a)*q*cr, oy=Math.sin(a)*q*cr*0.42;
+        if (seed||!isOpen){ fcPush(tx+ox,ty+oy-fr*0.2,fr*0.32,1.4); continue; }
+      }
+      if (seed||!isOpen){ fcDraw(ctx,col,14,-8); continue; }
+      // a fill or two per flower, back to front. Batched into one path for the whole
+      // cluster it measured twice as slow (2.7ms against 1.3): a path of a hundred
+      // overlapping subpaths costs the rasteriser more than the fills it saves.
+      const idx=Array.from({length:cl},(_, f)=>f).sort((a,b)=>Math.sin(a*2.39996+rot*3)*Math.sqrt((cl-a-0.5)/cl)-Math.sin(b*2.39996+rot*3)*Math.sqrt((cl-b-0.5)/cl));
+      for (const f of idx){
+        const q=Math.sqrt((cl-f-0.5)/cl), a=f*2.39996+rot*3, ox=Math.cos(a)*q*cr, oy=Math.sin(a)*q*cr*0.42;
+        drawPinkFlower(ctx,tx+ox,ty+oy-(1-q*q)*fr*0.35,fr,flat,rot+f*0.7,col,S.eye,L,(ox<0||oy>0)?10:-4);
+      }
+      continue;
+    }
+    // one flower: its calyx tube under it, turned a little with the stem
+    const cl0=R0*(L.calyx||1.0);
+    ctx.strokeStyle=shade(sc,-4); ctx.lineWidth=Math.max(0.6,R0*0.42); ctx.beginPath();
+    ctx.moveTo(tx-Math.sin(lean)*cl0*0.3,ty+cl0*0.85); ctx.lineTo(tx,ty+R0*0.05); ctx.stroke();
+    if (seed){ ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(tx,ty-R0*0.2,R0*0.3,R0*0.62,lean*0.5,0,7); ctx.fill(); continue; }
+    if (!isOpen){ ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(tx,ty-R0*0.2,R0*0.26,R0*0.55,lean*0.5,0,7); ctx.fill(); continue; }
+    drawPinkFlower(ctx,tx,ty-R0*0.12,R0,flat,rot,col,S.eye,L,lean<0?8:-2);
+  }
+  ctx.lineCap='butt';
+}
+
+/* ---------- blanket flower heads, Gaillardia (0.9.163) ----------
+   A blanket flower's ray is a WEDGE, narrow at the disc and broad at its end,
+   which is cut into three teeth; most are red at the base and yellow at the tip
+   (`rayInner` the base colour, `innerFrac` how far out it runs). The disc is a
+   dome of maroon florets. 'Fanfare' and the Commotion series have TUBULAR rays,
+   a narrow tube flaring to a three-lobed trumpet (`rayForm:'tube'`). Built on
+   the cone form's head (`flowerStyle:'gaillardia'`): rays, rayLen, rayW (the
+   tip's width), droop, discW/discH, as for any daisy. */
+function gaillardiaRayPath(ctx,cx,cy,pa,r0,rl,w0,w1,dr,flat,f){
+  // the ray in its own frame (x out from the disc, y across), projected flat
+  const c=Math.cos(pa), s=Math.sin(pa), L=r0+(rl-r0)*f;
+  const P=(x,y)=>{ const k=(x-r0)/Math.max(0.01,rl-r0); return [cx+c*x-s*y, cy+(s*x+c*y)*flat+dr*k*k]; };
+  let q=P(r0,-w0); ctx.moveTo(q[0],q[1]);
+  if (f<1){ const wf=w0+(w1-w0)*f; q=P(L,-wf); ctx.lineTo(q[0],q[1]); q=P(L,wf); ctx.lineTo(q[0],q[1]); }
+  else {
+    q=P(rl*0.9,-w1); ctx.lineTo(q[0],q[1]);
+    const tips=[[rl,-w1*0.72],[rl*0.86,-w1*0.32],[rl*1.02,0],[rl*0.86,w1*0.32],[rl,w1*0.72]];
+    for (const t of tips){ q=P(t[0],t[1]); ctx.lineTo(q[0],q[1]); }
+    q=P(rl*0.9,w1); ctx.lineTo(q[0],q[1]);
+  }
+  q=P(r0,w0); ctx.lineTo(q[0],q[1]); ctx.closePath();
+}
+function drawGaillardiaHead(ctx,cx,cy,sc,L,S,rnd){
+  const rays=L.rays||14, rl=(L.rayLen||5)*sc, dr=(L.droop===undefined?0.6:L.droop)*sc;
+  const dw=(L.discW||2.5)*sc, dh=(L.discH||2.5)*sc, dy=(L.discY===undefined?-0.6:L.discY)*sc;
+  const w1=(L.rayW||2)*sc*0.44, w0=w1*0.28, r0=dw*0.55, flat=0.72;
+  const inner=L.rayInner||null, fr=L.innerFrac||0.55, tube=L.rayForm==='tube';
+  for (let pass=0;pass<2;pass++){                       // the far rays, then the near ones
+    for (let band=0;band<(inner?2:1);band++){
+      const col=band?inner:S.bloom; if (!col) continue;
+      if (tube){
+        // a tube from the disc to a flared mouth: the tube in the base colour, the mouth in the tip's
+        if (band===0 && inner) continue;
+        ctx.strokeStyle=shade(inner||S.bloom,pass?0:-14); ctx.lineWidth=Math.max(0.5,w1*0.9); ctx.lineCap='round'; ctx.beginPath();
+        for (let p=0;p<rays;p++){ const pa=p/rays*6.2832, s=Math.sin(pa); if ((s<0)!==(pass===0)) continue;
+          ctx.moveTo(cx+Math.cos(pa)*r0,cy+s*r0*flat); ctx.lineTo(cx+Math.cos(pa)*rl*0.86,cy+s*rl*0.86*flat+dr*0.74); }
+        ctx.stroke(); ctx.lineCap='butt';
+        ctx.fillStyle=shade(S.bloom,pass?4:-12); ctx.beginPath();
+        for (let p=0;p<rays;p++){ const pa=p/rays*6.2832, s=Math.sin(pa); if ((s<0)!==(pass===0)) continue;
+          const mx=cx+Math.cos(pa)*rl*0.94, my=cy+s*rl*0.94*flat+dr*0.88, mr=w1*1.2;
+          for (let l=-1;l<=1;l++){ const a=pa+l*0.9, lx=mx+Math.cos(a)*mr*0.42, ly=my+Math.sin(a)*mr*0.42*flat;
+            ctx.moveTo(lx+mr*0.44,ly); ctx.ellipse(lx,ly,mr*0.44,mr*0.34,a,0,7); } }
+        ctx.fill();
+        continue;
+      }
+      ctx.beginPath();
+      for (let p=0;p<rays;p++){ const pa=p/rays*6.2832+(L.rayTurn||0), s=Math.sin(pa); if ((s<0)!==(pass===0)) continue;
+        gaillardiaRayPath(ctx,cx,cy,pa,r0,rl,w0,w1,dr,flat,band?fr:1); }
+      ctx.fillStyle=shade(col,pass?(band?0:4):-14); ctx.fill();
+    }
+  }
+  drawConeDome(ctx,cx,cy+dy,dw,dh,S.eye||'#7a3a26',rnd);
 }
 
 /* ---------- foxglove spires (Digitalis, 0.9.161) ----------
@@ -6581,29 +6895,140 @@ function shrubLeafState(ctx,P,L,S,season,leafStage,shR,seed){
   }
   return {S:LS, la, dropping};
 }
-/* A hydrangea head, batched (floretB): a mophead is a SPHERE of florets lit by
-   where each sits on it, a lacecap a flat ring of sterile florets round a
-   beaded centre, a panicle a cone, paler and fuller toward its base. Its own
-   stream with fixed draws per head, so a head keeps its florets whether or not
-   it is out yet (`show`), and a rising bloom only adds heads. */
-function hydrangeaHeadB(L,hx,hy,col,r,hr,show){
+/* ---------- hydrangea flower heads (0.9.163) ----------
+   A hydrangea head is a mass of florets, and what makes it a hydrangea is that
+   the showy ones are FOUR broad sepals, flat, packed edge to edge. It was a
+   loose cluster of round lit beads, which read as grapes: twenty dots with
+   gaps between them and nothing to say the head was one rounded mass.
+   - a mophead ('mop') is a dome: a dark underwash, the shadow between the
+     florets, then florets set over a sphere (golden spiral over the half that
+     faces you), each foreshortened by how far it turns away and lit by its
+     normal, so the rim is narrow and dark and the crown full and pale.
+   - a panicle is a cone of them, broad at the base and tapering to a blunt
+     point, the florets smaller toward the tip. `panicleLen` and `panicleW`
+     shape it (shares of the head radius), `nod` leans an oakleaf's heavy
+     head out from the middle of the shrub, and the season's `eye`, where a
+     panicle has one, is the colour of its TIP: a panicle ages from the base,
+     so in fall it is rose below and still pale above ('Pinky Winky').
+   - a lacecap is a flat cap of tiny fertile beads (the `eye` colour, or the
+     bloom darkened) ringed by a few big sterile florets held above them.
+   Each head is drawn whole, back to front by the caller, a fill per tone, so
+   a near head overlaps the one behind it. Its own stream, fixed draws per
+   head, so a head keeps its florets whether or not it is out yet (`show`). */
+const HYD_MAX=72;
+const _hyF=new Float64Array(HYD_MAX*6);          // x, y, size, axis angle, squash, spin
+const _hyT=new Uint8Array(HYD_MAX);              // tone 0..3, +4 for the tip band
+// a quatrefoil: four rounded sepals, notched between them, as 8 quadratic
+// curves (control x,y then end x,y per curve), starting at a notch
+const HYD_Q=(()=>{ const q=[], rn=0.26, rc=1.12, sp=Math.PI*0.215, rt=0.94;
+  for (let k=0;k<4;k++){ const a=k*Math.PI/2;
+    q.push(Math.cos(a-sp)*rc, Math.sin(a-sp)*rc, Math.cos(a)*rt, Math.sin(a)*rt);
+    q.push(Math.cos(a+sp)*rc, Math.sin(a+sp)*rc, Math.cos(a+Math.PI/4)*rn, Math.sin(a+Math.PI/4)*rn); }
+  return q; })();
+const HYD_Q0=[Math.cos(-Math.PI/4)*0.26, Math.sin(-Math.PI/4)*0.26];
+function hydFloretPath(ctx,x,y,s,ang,sq,spin){
+  // the floret turned by `spin` in its own plane, squashed by `sq` across `ang`
+  const ca=Math.cos(ang), sa=Math.sin(ang), cs=Math.cos(spin), ss=Math.sin(spin), k=(1-sq)*ca*sa;
+  const a11=(ca*ca+sq*sa*sa)*s, a12=k*s, a22=(sa*sa+sq*ca*ca)*s;
+  const m11=a11*cs+a12*ss, m12=-a11*ss+a12*cs, m21=a12*cs+a22*ss, m22=-a12*ss+a22*cs;
+  const q=HYD_Q;
+  ctx.moveTo(x+m11*HYD_Q0[0]+m12*HYD_Q0[1], y+m21*HYD_Q0[0]+m22*HYD_Q0[1]);
+  for (let i=0;i<q.length;i+=4)
+    ctx.quadraticCurveTo(x+m11*q[i]+m12*q[i+1], y+m21*q[i]+m22*q[i+1], x+m11*q[i+2]+m12*q[i+3], y+m21*q[i+2]+m22*q[i+3]);
+  ctx.closePath();
+}
+// light from the upper left and toward the viewer, for a floret's normal
+const HYD_LX=-0.42, HYD_LY=-0.6, HYD_LZ=0.68;
+function hydTone(lam){ return lam<0.28?0:lam<0.52?1:lam<0.74?2:3; }
+const HYD_TONE=[-26,-11,3,17];
+function hydrangeaHead(ctx,L,hx,hy,col,r,hr,show,tip){
   const shape=L.bloomShape||'mop';
+  let n=0;
   if (shape==='panicle'){
-    for (let k=0;k<16;k++){ const f=k/16, wr=r*(1-f)*0.9, fy=hy-r*0.3-f*r*1.7;
-      const fx=hx+(hr()-0.5)*2*wr, tone=(1-f)*10-4+(hr()-0.5)*12;
-      if (show) floretB(null, fx,fy, 2.0, shade(col,tone), {squash:0.95}); }
+    // an egg drawn out to a blunt point: widest a fifth of the way up, the
+    // base rounded under it, `panicleTaper` how fast it narrows above that
+    const len=r*(L.panicleLen||2.1), W=r*(L.panicleW||1.0), taper=L.panicleTaper||0.62;
+    const side=hx<0?-1:1, nod=(L.nod||0)*len*0.6*side;
+    const x0=hx, y0=hy-r*0.1;
+    const ax=t=>x0+nod*t*t, ay=t=>y0-len*t+Math.abs(nod)*t*t*0.4;
+    const R=t=>W*Math.pow(Math.max(0,1-t),taper)*(0.62+0.38*Math.sqrt(Math.min(1,t/0.2+0.02)));
+    const N=Math.min(HYD_MAX,Math.round(L.florets||40)), ph=hr();
+    for (let k=0;k<N;k++){
+      const u=Math.min(0.995,(k+0.5)/N+(hr()-0.5)/N*1.6), t=1-Math.sqrt(1-u*0.995);
+      const s=Math.max(-0.97,Math.min(0.97,((k*0.6180339887+ph)%1)*2-1+(hr()-0.5)*0.12)), c=Math.sqrt(1-s*s);
+      const sz=r*0.31*(1-0.45*t)*(0.8+0.4*hr()), j=hr(), spin=hr()*1.57, band=t+(j-0.5)*0.34;
+      const x=ax(t)+s*R(t)*0.96, y=ay(t)+c*R(t)*0.26-sz*0.1;
+      const lam=0.5-0.36*s+0.16*c+0.18*t+(j-0.5)*0.24;
+      const i=n*6; _hyF[i]=x; _hyF[i+1]=y; _hyF[i+2]=sz; _hyF[i+3]=0; _hyF[i+4]=Math.max(0.55,c*0.95); _hyF[i+5]=spin;
+      _hyT[n]=hydTone(lam)+(tip&&band>0.5?4:0); n++;
+    }
+    if (!show) return;
+    // the cone's body, the shadow between the florets: its outline sampled up one side and down the other
+    ctx.beginPath();
+    for (let q=0;q<=12;q++){ const t=q/12*0.9; ctx.lineTo(ax(t)-R(t)*0.86,ay(t)); }
+    for (let q=12;q>=0;q--){ const t=q/12*0.9; ctx.lineTo(ax(t)+R(t)*0.86,ay(t)); }
+    ctx.quadraticCurveTo(ax(0),ay(0)+W*0.36,ax(0)-R(0)*0.86,ay(0));
+    ctx.fillStyle=shade(col,-30); ctx.fill();
   } else if (shape==='lacecap'){
-    const cy=hy-r*0.4, dot=shade(col,-46);
-    for (let k=0;k<12;k++){ const a=hr()*Math.PI*2, rr=Math.sqrt(hr())*r*0.6;
-      if (show) fbEllipse(0,dot,hx+Math.cos(a)*rr,cy+Math.sin(a)*rr*0.42,1.1,1.1,0); }
-    const ring=Math.round(7+r*0.5);
-    for (let k=0;k<ring;k++){ const a=k/ring*Math.PI*2, j=(hr()-0.5)*10;
-      if (show) floretB(null, hx+Math.cos(a)*r, cy+Math.sin(a)*r*0.45, 2.5,
-        shade(col,(Math.cos(a)*LIT.x+Math.sin(a)*0.45*LIT.y)*13+j), {squash:0.9, rot:a, pass:2}); }
+    const cy=hy-r*0.32, dR=r*0.62, M=Math.min(16,Math.round(L.ring||(6+r*0.35))), ph=hr()*6.283;
+    for (let k=0;k<M;k++){
+      const a=ph+k/M*Math.PI*2+(hr()-0.5)*0.5, rad=r*(0.74+0.18*hr()), sz=r*0.33*(0.82+0.36*hr()), spin=hr()*1.57;
+      const x=hx+Math.cos(a)*rad, y=cy+Math.sin(a)*rad*0.46-r*0.08;
+      const lam=0.52-0.3*Math.cos(a)+0.22*Math.sin(a);
+      const i=n*6; _hyF[i]=x; _hyF[i+1]=y; _hyF[i+2]=sz; _hyF[i+3]=Math.PI/2; _hyF[i+4]=0.6; _hyF[i+5]=spin;
+      _hyT[n]=hydTone(lam)+(Math.sin(a)<0?0:4); n++;
+    }
+    const B=Math.min(40,Math.round(L.beads||26)), bph=hr();
+    if (!show) return;
+    const fert=tip||shade(col,-40);
+    // the far half of the ring, then the cap of beads, then the near half
+    for (let half=0;half<2;half++){
+      if (half===1){
+        ctx.beginPath(); ctx.ellipse(hx,cy,dR,dR*0.5,0,0,7); ctx.fillStyle=shade(fert,-22); ctx.fill();
+        for (let tt=0;tt<2;tt++){
+          ctx.beginPath();
+          for (let b=0;b<B;b++){
+            const q=Math.sqrt((b+0.5)/B), a=(b*2.39996+bph*6.283), x=hx+Math.cos(a)*q*dR*0.92, y=cy+Math.sin(a)*q*dR*0.46-(1-q*q)*r*0.12;
+            const lit=(-Math.cos(a)*0.5-Math.sin(a)*0.5)*q+0.15>0;
+            if (lit!==(tt===1)) continue;
+            const br=Math.max(0.35,r*0.075);
+            ctx.moveTo(x+br,y); ctx.ellipse(x,y,br,br*0.85,0,0,7);
+          }
+          ctx.fillStyle=shade(fert,tt?16:-2); ctx.fill();
+        }
+      }
+      for (let tn=0;tn<4;tn++){
+        ctx.beginPath(); let any=false;
+        for (let k=0;k<n;k++){ if (_hyT[k]!==tn+(half?4:0)) continue; const i=k*6;
+          hydFloretPath(ctx,_hyF[i],_hyF[i+1],_hyF[i+2],_hyF[i+3],_hyF[i+4],_hyF[i+5]); any=true; }
+        if (any){ ctx.fillStyle=shade(col,HYD_TONE[tn]); ctx.fill(); }
+      }
+    }
+    return;
   } else {
-    for (let k=0;k<20;k++){ const a=hr()*Math.PI*2, rr=Math.sqrt(hr())*r, j=(hr()-0.5)*9;
-      const fx=hx+Math.cos(a)*rr, fy=hy-r*0.55+Math.sin(a)*rr*0.82;
-      if (show) floretB(null, fx,fy, 2.1, shade(col,((Math.cos(a)*rr/r)*LIT.x+(Math.sin(a)*rr*0.82/r)*LIT.y)*20+j), {squash:0.96}); }
+    const cx=hx, cy=hy-r*0.48, N=Math.min(HYD_MAX,Math.round(L.florets||30)), ph=hr()*6.283;
+    for (let k=N-1;k>=0;k--){
+      // the rim first, the crown last: z runs from the crown (1) toward the rim
+      const z=1-(k+0.5)/N*0.96, rho=Math.sqrt(1-z*z), a=ph+k*2.39996;
+      const nx=rho*Math.cos(a), ny=rho*Math.sin(a)*0.9-z*0.18;
+      const sz=r*(L.floretK||0.31)*(0.84+0.32*hr()), j=hr(), spin=hr()*1.57;
+      const x=cx+nx*r*0.9, y=cy+ny*r*0.82;
+      const lam=nx*HYD_LX+ny*HYD_LY+z*HYD_LZ+(j-0.5)*0.22;
+      const i=n*6; _hyF[i]=x; _hyF[i+1]=y; _hyF[i+2]=sz; _hyF[i+3]=Math.atan2(ny,nx); _hyF[i+4]=Math.max(0.56,z); _hyF[i+5]=spin;
+      _hyT[n]=hydTone(lam*0.5+0.5); n++;
+    }
+    if (!show) return;
+    ctx.beginPath(); ctx.ellipse(cx,cy+r*0.04,r*0.93,r*0.82,0,0,7);
+    ctx.fillStyle=shade(col,-36); ctx.fill();
+  }
+  for (let band=0;band<(tip?2:1);band++){
+    const bc=band?tip:col;
+    for (let tn=0;tn<4;tn++){
+      ctx.beginPath(); let any=false;
+      for (let k=0;k<n;k++){ if (_hyT[k]!==tn+band*4) continue; const i=k*6;
+        hydFloretPath(ctx,_hyF[i],_hyF[i+1],_hyF[i+2],_hyF[i+3],_hyF[i+4],_hyF[i+5]); any=true; }
+      if (any){ ctx.fillStyle=shade(bc,HYD_TONE[tn]); ctx.fill(); }
+    }
   }
 }
 /* ---------- a fill batch for the shrub flower and fruit passes ----------
@@ -9303,6 +9728,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const dw=(L.discW||3.2)*sc, dh=(L.discH||3.6)*sc, dy=(L.discY===undefined?-1:L.discY)*sc;
           const rw=(L.rayW||2.2)*sc;
           if (L.flowerStyle==='hypericum'){ drawHypericumFlower(ctx,cx,cy,sc,L,S,rnd); return; }
+          if (L.flowerStyle==='gaillardia'){ drawGaillardiaHead(ctx,cx,cy,sc,L,S,rnd); return; }
           if (L.flowerStyle==='spathe'){ drawJackSpathe(ctx,cx,cy,sc,L,S); return; }
           if (L.flowerStyle==='coronaria'){ drawCoronaria(ctx,cx,cy,sc,L,S); return; }
           if (L.flowerStyle==='decorativeDouble' || L.flowerStyle==='peonySemiDouble' || L.flowerStyle==='ball'){
@@ -9787,6 +10213,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       else if (L.spikeStyle==='foxglove'){ // a spire of hanging bells; a later stem is in bud
         const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
         if (ph!==null) drawFoxgloveSpike(ctx,hx,hy,H,L,S,ph,blv,i,rec);
+      }
+      else if (L.spikeStyle==='lupine'){ // a column of pea flowers; a later stem is in bud
+        const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
+        if (ph!==null) drawLupineSpike(ctx,hx,hy,H,L,S,ph,blv,i,rec);
       }
       else if (L.spikeStyle==='euphorbia'){ // a head of bract cups; a later stem is in bud
         const ph=headOn&&S.bloom?1:(blooming&&!spent)?0:S.seed?-1:null;
@@ -10486,6 +10916,13 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         drawAvensStem(ctx,ox,len,L,S,done?-1:phase,i,sway,stemCol);
       }
     }
+  }
+  else if (P.form === 'drumstick' && P.look && P.look.flowerStyle==='pink'){
+    // a pink: a grassy cushion or tuft in every season, the wiry stems only in flower and seed
+    const L=P.look;
+    if (S.fol){ _snowLeaves=snowLv; if (L.cushion) drawMatCushion(ctx,L,S.fol,H,growth,rnd); else drawPinkTuft(ctx,L,S.fol,H,growth,sway,rnd); _snowLeaves=null; }
+    const phase=blooming&&S.bloom?1:S.seed?-1:0;
+    if (mature && phase) drawPinkStems(ctx,P,L,S,H,phase,blv,spent,sway,growth);
   }
   else if (P.form === 'drumstick' && P.look && P.look.flowerStyle==='paw'){
     // pussytoes: a carpet of woolly rosettes in every season, the paws only in flower and seed
@@ -13324,16 +13761,24 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       {la:st.la, dropping:st.dropping, mix:season==='Fall' ? L.fallMix : null,
        snowy:mature && !!AMBIENCE[season].snow, season, hydr:true});
     snowAnchors=r.snow;
-    const heads=r.heads, hr=mulberry((seed^0x4ead5)>>>0), headR=(L.headR||7)*(0.6+0.4*growth);
+    const heads=r.heads, hs=(seed^0x4ead5)>>>0, headR=(L.headR||7)*(0.6+0.4*growth);
+    // back to front, each head on its own stream, so a near head overlaps the one behind it
+    const ord=heads.map((h,t)=>t).sort((a,b)=>heads[a][1]-heads[b][1]);
+    const headAt=(t,col,rr,show,tip)=>hydrangeaHead(ctx,L,heads[t][0],heads[t][1],col,rr,mulberry((hs+t*7919)>>>0),show,tip);
     if (blooming && mature && S.bloom){
       const n=Math.max(1,Math.ceil(heads.length*blv));
       // a head that has finished dries where it stands (spent); before that it is not open yet
-      for (let t=0;t<heads.length;t++){
-        if (t>=n && spent) hydrangeaHeadB(L,heads[t][0],heads[t][1],S.seed,headR*0.8,hr,true);
-        else hydrangeaHeadB(L,heads[t][0],heads[t][1],S.bloom,headR,hr,t<n);
+      for (const t of ord){
+        if (t>=n && spent) headAt(t,S.seed,headR*0.8,true,null);
+        else headAt(t,S.bloom,headR,t<n,S.eye||null);
       }
     } else if (S.seed && mature){                  // dried heads hold through winter
-      for (let t=0;t<heads.length;t++) hydrangeaHeadB(L,heads[t][0],heads[t][1],S.seed,headR*0.8,hr,true);
+      for (const t of ord) headAt(t,S.seed,headR*0.8,true,null);
+      if (AMBIENCE[season].snow && heads.length){
+        // the snow lies on the dried heads, which stand above the bare twigs
+        snowAnchors=(snowAnchors||[]).slice();
+        for (let t=0;t<Math.min(4,heads.length);t++) snowAnchors.push([heads[t][0],heads[t][1]-headR*(L.bloomShape==='panicle'?1.2:0.9),headR*0.45]);
+      }
     }
     fbFlush(ctx);
     if (sheared) ctx.restore();
@@ -13483,7 +13928,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // flowers over a low clump and a Joe Pye's leaves are whorls with air between
   // (0.9.160): over all three these floated beside the stems.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && P.type!=='bulb' && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
-      && !(P.look && (P.look.habit==='burnet' || P.look.umbelStyle==='joepye' || P.look.spikeStyle==='salvia' || P.look.spikeStyle==='beardtongue' || P.look.spikeStyle==='culvers' || P.look.spikeStyle==='euphorbia'))
+      && !(P.look && (P.look.habit==='burnet' || P.look.umbelStyle==='joepye' || P.look.spikeStyle==='salvia' || P.look.spikeStyle==='beardtongue' || P.look.spikeStyle==='culvers' || P.look.spikeStyle==='euphorbia' || P.look.spikeStyle==='lupine' || P.look.flowerStyle==='pink'))
       && !(P.look && (P.look.tuftIn || P.look.sedgeHabit==='palm'))
       && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look)) && P.form!=='palm'
       && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)

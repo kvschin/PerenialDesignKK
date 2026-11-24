@@ -8671,6 +8671,76 @@ what was left out: `docs/plant-data/penstemon-coneflower-culvers-spurge-sources.
 `dev/penstemon-coneflower-review.html` shows every choice in four seasons, its heads close up and
 at true scale, with `?check` and `?bench`.
 
+**Hydrangea heads, lupines, pinks, blanket flowers and Baptisia (0.9.163)**, all opt-in but
+the hydrangea heads, which every hydrangea draws. **Hydrangea heads** (`hydrangeaHead`,
+`hydFloretPath`, `HYD_Q`, `HYD_TONE`) were a loose cluster of round lit beads with gaps between
+them, which read as grapes. A floret is now a QUATREFOIL, four broad round sepals notched between
+(one subpath of 8 quadratic curves, no allocation), turned in its own plane and foreshortened by
+how far it faces away. A mophead is a dome: a dark underwash (the shadow between the florets) and
+`florets` (30) set on a golden spiral over the half that faces you, lit by their normals in four
+tones, the rim narrow and dark. A panicle is an egg drawn out to a blunt point (`panicleLen`,
+`panicleW`, `panicleTaper`), widest a fifth of the way up, a dark cone body under 40 florets
+smaller toward the tip; `nod` leans it out from the middle of the shrub (oakleaf: long, narrow,
+nodding), and the season's `eye`, where a panicle has one, colours its TIP: a panicle ages from
+the base, so 'Pinky Winky', 'Quick Fire' and 'Vanilla Strawberry' are rose below and pale above
+in fall. A lacecap is a cap of fertile beads (the `eye`, or the bloom darkened) ringed by sterile
+florets, the far half behind the cap and the near half over it. Each head is drawn whole, back to
+front, on its own stream (`(seed^0x4ead5)+t*7919`), so a near head overlaps the one behind it and
+a head keeps its florets whether or not it is open. Dried heads carry the winter snow. The classic
+(non-habit) hydrangea path is untouched.
+**Lupines** (`spikeStyle:'lupine'`, `drawLupineSpike`): a column of pea flowers round the stem,
+widest at the foot and tapering to a bud-tipped point, opening from the bottom; each flower a banner
+standing behind its wings and keel, the banner in the season's `eye` on a bicolour ('The Governor'
+blue with white, 'Manhattan Lights' purple with yellow). After the bloom, hairy pods out along the
+lower spike; `bloomStemsOnly:'seed'` and `dormantWhenBare` leave only the palmate leaves
+(`leafStyle:'parasol'` cut into 9-11 spokes) in fall and nothing in winter. `spikeSpan`, `spikeW`,
+`florets`, `floretL`, `whorl`. Added: wild lupine (L. perennis, the Karner blue's host), bigleaf
+lupine (L. polyphyllus, its escape in the Northeast and Europe in the blurb), Russell lupine
+(Lupinus x hybridus) with 'The Governor', 'Manhattan Lights', 'Masterpiece', 'Gladiator', 'Tequila
+Flame', 'Camelot Blue' and the dwarf Gallery series.
+**Pinks** (`flowerStyle:'pink'` on a drumstick; `drawPinkStems`, `drawPinkFlower`,
+`pinkPetalsPath`, `drawPinkTuft`): five petals, each widening from a claw to a toothed edge
+(`teeth`, `tooth`; the fringed pink is cut more than halfway, `petalHalf` leaving gaps), on a calyx
+tube, with an `eye` ring, a `laceCol` edge (the laced pinks) or a `double` ruff, on wiry stems that
+splay out from the base (`lean`) with narrow leaf pairs. Under them the moss phlox's cushion
+(`cushion`) for the mat pinks, or a grassy tuft (`tuftW`). `cluster` puts several on a stem:
+'head', a knob of brown bracts with a few flowers open (Carthusian pink, which was a drumstick of
+magenta beads), or 'cyme', sweet William's flat clusters, drawn a fill or two per flower: batched
+into one path for the whole cluster it measured twice as slow. The cheddar, cottage and border
+pinks carry `noCutback`: evergreen blue-grey cushions the winter-colour test cannot read. Added:
+cheddar pink with 'Feuerhexe', 'Bath's Pink', 'Mountain Mist', 'Tiny Rubies'; maiden pink with
+'Albus', 'Zing Rose', 'Zing Salmon', 'Arctic Fire', 'Brilliant', 'Leuchtfunk'; cottage pink with
+'Itsaul White', 'Rosish One'; Border Pink (Dianthus hybrids) with 'Neon Star', 'Devon Xera', 'Frosty
+Fire', 'Wicked Witch', 'Rubin', 'Kahori', 'Oakington', 'Dottie', and the old pinks 'Dad's
+Favourite', 'Laced Romeo', 'Inchmery', 'Musgrave's Pink', 'Pheasant's Eye', 'Pomegranate Kiss';
+sweet William with 'Sooty', 'Heart Attack' and Sweet Black Cherry; fringed pink with 'Crimsonia'.
+All on one Pink card (`group:'dianthus'`). Maiden pink 'Albus' (zones 2-9) is a zone-2 Mediterranean
+plant, so the test guarding the empty-style fallback now uses North American natives there.
+**Blanket flowers** (`flowerStyle:'gaillardia'` on the cone form; `drawGaillardiaHead`,
+`gaillardiaRayPath`): each ray a wedge, narrow at the disc and broad at its end, cut into three
+teeth, red at the base (`rayInner`, `innerFrac` how far out) and the bloom colour at the tip, round
+the maroon dome; `rayForm:'tube'` is 'Fanfare' and the Commotion series, a tube flaring to a
+three-lobed trumpet. Added: Hybrid Blanket Flower (G. x grandiflora) with 'Kobold', 'Goldkobold',
+'Sun Devil', 'Arizona Apricot', 'Oranges and Lemons', 'Fanfare', 'Frenzy', 'Tizzy', the Mesa
+series, 'Burgunder', 'Amber Wheels', 'Tokajer'; 'Arizona Red Shades' and 'Bijou' on G. aristata;
+lanceleaf blanket flower (G. aestivalis), a southeastern native. 'Arizona Sun' is now drawn red at
+the base and gold at the tips, as it is sold.
+**Baptisia**: the raceme takes the season's `eye` as a keel on each flower ('Twilite', 'Chocolate
+Chip', 'Starlite') and `ageCol`/`ageFrac` as the colour of the older, lower flowers ('Lunar Eclipse'
+cream above and violet below, 'Plum Rosy' mauve above and white below); a plain Baptisia draws as
+before. Added: white (B. alba var. macrophylla), yellow (B. sphaerocarpa) and dwarf blue (var.
+minor) wild indigo, and 'Screamin' Yellow', 'Lemon Meringue', 'Blueberry Sundae', 'Dutch
+Chocolate', 'Chocolate Chip', 'Ivory Towers', 'Lunar Eclipse', 'Twilite', 'Starlite', 'Plum Rosy'.
+The lupine, dianthus and gaillardia groups join `BROWSE_RESIST_GROUPS`. Every new choice draws
+within 6% of its sourced height (most within 2%); 'Pink Lemonade' and cream wild indigo were brought
+in too. 5,616 sprites and 1,872 previews touch no edge, nor do the real pictures (`sideScale`
+solved per choice for the pinks and the dwarf blanket flowers). Bakes (headless Chrome, software
+raster): mophead 0.68 ms (0.71 before), panicle 0.95 (0.69), oakleaf 0.91 (0.84), lupines 0.3-0.7,
+pinks 0.3-0.5, sweet William 0.84, blanket flowers 0.26-0.44, Baptisia unchanged. Sources:
+`docs/plant-data/lupine-pink-gaillardia-sources.json` (MBG, Walters, the Wildflower Center,
+Prairie Moon, RHS); `dev/lupine-pink-hydrangea-review.html` shows every choice in four seasons, its
+heads close up and at true scale, with `?check` and `?bench`.
+
 **Flowering mats and pussytoes (0.9.122).** *The mossphlox habit drew a stem a full plant
 height for every flower* (moss phlox, aubretia, rock rose, periwinkle, trailing bellflower,
 blue-eyed Mary), ending nowhere near the flower, which it sited down in the mat beside it:
@@ -9547,8 +9617,8 @@ what pays for the extra heads: the classic Turk's cap was 5.8ms a bake on
 eleven fills a flower. `_fbScale` shrinks flowers on a small shrub (a lowbush
 blueberry's bells were leaf-sized), trusses, panicles, racemes and the smoke
 scale with the shrub, stem-strung flowers are capped near 120 a shrub, and the
-hazels gained a `catkin` style. Hydrangea heads are batched too
-(`hydrangeaHeadB`), on their own seeded stream.
+hazels gained a `catkin` style. Hydrangea heads are drawn
+whole, back to front, each on its own seeded stream (`hydrangeaHead`, 0.9.163).
 **Seasons follow the trees.** `woodyLeafOut` is the one entry point the
 garden asks (`leafStageNow`, `bakePlantKeyParts`): a tree's `treeLeafOut`, or a
 shrub's cycle -- evergreen read off winter foliage being THERE, not its colour

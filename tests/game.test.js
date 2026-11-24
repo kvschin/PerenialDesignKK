@@ -1683,12 +1683,13 @@ test('a woody climber keeps its stems on its frame through spring; hops and Ital
 test('the yuccas, agaves, sotols and ocotillo keep their size through spring', () => {
   // Their winter leaves are drawn grey or blue-green, which the colour test cannot read
   // as evergreen, and ocotillo's canes are wood with no winter leaves at all. Garden
-  // sage (0.9.161) is a woody subshrub whose grey leaves stand all winter.
+  // sage (0.9.161) is a woody subshrub whose grey leaves stand all winter, and the
+  // cheddar, cottage and border pinks (0.9.163) are evergreen blue-grey cushions.
   setup();
   const ydOf=d=>{ game.dayOffset=(game.dayOffset||0)+(d-(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)); };
   ydOf(0);
   const kept=['yucca','adamsneedle','spanishdagger','beakedyucca','redyucca','gianthesperaloe','sotol','texassotol',
-    'texasbeargrass','ocotillo','parryagave','havardagave','whalestongue','gardensage'];
+    'texasbeargrass','ocotillo','parryagave','havardagave','whalestongue','gardensage','cheddarpink','cottagepink','borderpink'];
   for (const k of kept){
     assert(PLANTS[k].noCutback,k+': marked on the record');
     assertEqual(seasonEnvelope(k),1,k+': stands at full size on the first day of spring');
@@ -3021,6 +3022,137 @@ test('the penstemons, coneflowers, Culver\'s roots, spurges and boneset added in
   const G=plantDef('echinacea','greenenvy');
   assert(recordPlant('echinacea','Summer','greenenvy',1).length>recordPlant('echinacea','Summer','rubystar',1).length,"'Green Envy' draws a second, inner colour on its rays");
   assert(G.look.rayInner,"'Green Envy' has an inner ray colour");
+});
+/* The 0.9.163 audit: hydrangea heads, lupines, pinks, blanket flowers and
+   Baptisia, each drawn as what makes it itself. */
+// a hydrangea floret is a quatrefoil: a moveTo and eight quadratic curves
+const hydFlorets=(ops,col)=>ops.filter(o=>HYD_TONE.some(t=>o.fill===shade(col,t))&&o.pts.length%9===0)
+  .reduce((n,o)=>n+o.pts.length/9,0);
+test('a hydrangea head is four-sepal florets: a dome, a cone or a lacecap', () => {
+  const mop=plantDef('hydrangea'), mops=recordPlant('hydrangea','Summer',null,1), mc=mop.sea.Summer.bloom;
+  assert(hydFlorets(mops,mc)>=90,`a mophead is many four-sepal florets (${hydFlorets(mops,mc)})`);
+  assert(mops.some(o=>o.fill===shade(mc,-36)),'over a dark dome, the shadow between the florets');
+  const pan=plantDef('panniclehydrangea'), pops=recordPlant('panniclehydrangea','Summer',null,1), pc=pan.sea.Summer.bloom;
+  assert(hydFlorets(pops,pc)>=90,`a panicle is many four-sepal florets (${hydFlorets(pops,pc)})`);
+  const body=pops.filter(o=>o.fill===shade(pc,-30));
+  assert(body.length>=3 && body.every(o=>o.pts.length>=26),'each panicle has a cone body under its florets');
+  // a panicle is taller than wide; a mophead is about as wide as tall
+  const extent=o=>{ const xs=o.pts.map(p=>p[0]), ys=o.pts.map(p=>p[1]); return [Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys)]; };
+  const [bw,bh]=extent(body[0]);
+  assert(bh>bw*1.15,`the panicle is a cone, not a ball (${bw.toFixed(1)} x ${bh.toFixed(1)})`);
+  const dome=mops.find(o=>o.fill===shade(mc,-36)); assert(dome.pts[0][2]>0,'the mophead dome is an ellipse');
+  // a lacecap is a cap of fertile beads ringed by sterile florets
+  const lc=plantDef('bigleaflace'), lops=recordPlant('bigleaflace','Summer',null,1), lcol=lc.sea.Summer.bloom, fert=shade(lcol,-40);
+  const beads=lops.filter(o=>o.fill===shade(fert,16)||o.fill===shade(fert,-2)).reduce((n,o)=>n+o.pts.length,0);
+  assert(beads>=40,`the lacecap carries fertile beads (${beads})`);
+  assert(hydFlorets(lops,lcol)>=20,'ringed by sterile florets');
+  // a panicle's tip keeps its own colour as the base ages ('Pinky Winky')
+  const pw=plantDef('panniclehydrangea','pinkywinky'), pwops=recordPlant('panniclehydrangea','Fall','pinkywinky',1);
+  assert(hydFlorets(pwops,pw.sea.Fall.bloom)>=20 && hydFlorets(pwops,pw.sea.Fall.eye)>=20,"'Pinky Winky' is pink below and white at the tip");
+  // an oakleaf's panicles are long, narrow and lean out under their weight
+  const oak=plantDef('oakleafhydrangea').look;
+  assert(oak.nod>0 && oak.panicleW<0.8 && oak.panicleLen>2.4,'the oakleaf panicle is long, narrow and nodding');
+  // the dried heads stand through winter
+  const seed=pan.sea.Winter.seed;
+  assert(hydFlorets(recordPlant('panniclehydrangea','Winter',null,0),seed)>=40,'dried panicles stand in winter');
+});
+test('a lupine is a column of pea flowers, open below and in bud at the tip', () => {
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='lupine')){
+    assertEqual(PLANTS[k].look.spikeStyle,'lupine',`${k}: a column of pea flowers`);
+    assertEqual(PLANTS[k].look.leafStyle,'parasol',`${k}: palmate leaves on stalks`);
+    assert(PLANTS[k].look.lobes>=9,`${k}: the leaf is cut into spokes`);
+  }
+  for (const [k,v] of [['wildlupine',null],['russelllupine','thegovernor'],['russelllupine','manhattanlights']]){
+    const P=plantDef(k,v), S=P.sea.Spring, ops=recordPlant(k,'Spring',v,1), n=P.look.stems;
+    const count=col=>ops.filter(o=>o.fill===col).reduce((m,o)=>m+o.pts.length,0)/2;
+    assert(count(S.bloom)>=n*6,`${k}${v?':'+v:''}: wings and keels (${count(S.bloom)})`);
+    assert(count(shade(S.eye,6))>=n*6,`${k}${v?':'+v:''}: banners in their own colour (${count(shade(S.eye,6))})`);
+    const bud=mixHex(S.fol,S.bloom,0.45);
+    assert(count(shade(bud,-10))>=n*3,`${k}${v?':'+v:''}: the tip is in bud`);
+  }
+  // after the bloom, hairy pods; by fall only the leaves; nothing in winter
+  const pods=recordPlant('wildlupine','Summer',null,0).filter(o=>o.stroke===PLANTS.wildlupine.sea.Summer.seed);
+  assert(pods.length && pods[0].pts.length>=14,'wild lupine stands in pod in summer');
+  assert(!recordPlant('russelllupine','Fall',null,0).some(o=>o.stroke===shade(PLANTS.russelllupine.sea.Fall.fol,-18)),'no bare stalks in fall');
+  assertEqual(recordPlant('wildlupine','Winter',null,0).length,0,'wild lupine is dormant in winter');
+  assert(/Karner blue/.test(PLANTS.wildlupine.blurb),'wild lupine says what feeds on it');
+  assert(/invasive/.test(PLANTS.bigleaflupine.blurb),'bigleaf lupine says where it escapes');
+});
+test('a pink is five toothed petals on a stem over a cushion or a tuft', () => {
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='dianthus'))
+    assertEqual(PLANTS[k].look.flowerStyle,'pink',`${k}: a pink`);
+  // a petal path: claw, side, 2*teeth+1 edge points, side
+  const petals=(ops,col,teeth)=>ops.filter(o=>o.fill===col&&o.pts.length===5*(2*teeth+4)).length;
+  for (const [k,v] of [['cheddarpink',null],['maidenpink',null],['cottagepink',null],['borderpink','neonstar']]){
+    const P=plantDef(k,v), S=P.sea.Spring, L=P.look, ops=recordPlant(k,'Spring',v,1);
+    const flowers=petals(ops,shade(S.bloom,8),L.teeth)+petals(ops,shade(S.bloom,-2),L.teeth);
+    assert(flowers>=L.stems*0.8,`${k}${v?':'+v:''}: a flower of five toothed petals on each stem (${flowers})`);
+    assert(L.cushion>0,`${k}: over a cushion`);
+  }
+  // a dark eye zone on the maiden pink, laced edges on 'Dad's Favourite', a fringe on the fringed pink
+  const M=plantDef('maidenpink'), mops=recordPlant('maidenpink','Spring',null,1);
+  assert(mops.filter(o=>o.fill===M.sea.Spring.eye&&o.pts.length===30).length>=M.look.stems*0.8,'the maiden pink has a dark eye');
+  const D=plantDef('borderpink','dadsfavourite'), dops=recordPlant('borderpink','Spring','dadsfavourite',1);
+  assert(dops.filter(o=>o.fill===D.look.laceCol).length>=D.look.stems,"'Dad's Favourite' is laced");
+  const F=plantDef('fringedpink');
+  assert(F.look.tooth>=0.5 && F.look.teeth>=7,'the fringed pink is cut more than halfway into a fringe');
+  assert(petals(recordPlant('fringedpink','Summer',null,1),shade(F.sea.Summer.bloom,8),F.look.teeth)+petals(recordPlant('fringedpink','Summer',null,1),shade(F.sea.Summer.bloom,-2),F.look.teeth)>=F.look.stems*0.8,'and draws its fringe');
+  // Carthusian pink: a knob of brown bracts with flowers out of the top; sweet William: flat clusters
+  const C=plantDef('carthusianpink'), cops=recordPlant('carthusianpink','Summer',null,1);
+  assert(cops.filter(o=>o.fill===shade(C.look.bractCol,-6)).length>=C.look.stems,'Carthusian pink holds its flowers in brown bracts');
+  const W=plantDef('sweetwilliam'), wops=recordPlant('sweetwilliam','Spring',null,1);
+  const wf=petals(wops,shade(W.sea.Spring.bloom,10),W.look.teeth)+petals(wops,shade(W.sea.Spring.bloom,-4),W.look.teeth);
+  assert(wf>=W.look.stems*10,`sweet William carries flat clusters of small flowers (${wf})`);
+  // the cushions are evergreen; in winter they carry no flowers
+  for (const k of ['cheddarpink','cottagepink','borderpink']) assert(PLANTS[k].noCutback,`${k}: an evergreen cushion`);
+  const win=recordPlant('cheddarpink','Winter',null,0);
+  assert(win.length>0 && !win.some(o=>o.fill===shade(PLANTS.cheddarpink.sea.Spring.bloom,8)),'a cheddar pink in winter is its cushion alone');
+});
+test('a blanket flower ray is a wedge cut into three teeth, red at the base', () => {
+  for (const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='gaillardia'))
+    assertEqual(PLANTS[k].look.flowerStyle,'gaillardia',`${k}: blanket flower rays`);
+  const rays=(ops,col,n)=>ops.filter(o=>o.fill===col&&o.pts.length%n===0).reduce((m,o)=>m+o.pts.length/n,0);
+  for (const [k,v] of [['blanketflower',null],['gaillardiagrand',null],['gaillardiagrand','goblin']]){
+    const P=plantDef(k,v), S=P.sea.Summer, L=P.look, ops=recordPlant(k,'Summer',v,1);
+    const full=rays(ops,shade(S.bloom,4),9)+rays(ops,shade(S.bloom,-14),9);
+    assert(full>=L.stems*L.rays*0.8,`${k}${v?':'+v:''}: toothed wedge rays (${full})`);
+    const inner=rays(ops,shade(L.rayInner,0),4)+rays(ops,shade(L.rayInner,-14),4);
+    assert(inner>=L.stems*L.rays*0.8,`${k}${v?':'+v:''}: each ray coloured at its base (${inner})`);
+  }
+  // 'Fanfare': tubes flaring to three-lobed trumpets
+  const F=plantDef('gaillardiagrand','fanfare'), fops=recordPlant('gaillardiagrand','Summer','fanfare',1);
+  assertEqual(F.look.rayForm,'tube',"'Fanfare' has tubular rays");
+  assert(fops.some(o=>o.stroke===shade(F.look.rayInner,0)&&o.pts.length>=F.look.rays),'its tubes');
+  const mouths=fops.filter(o=>o.fill===shade(F.sea.Summer.bloom,4)).reduce((m,o)=>m+o.pts.length,0);
+  assert(mouths>=F.look.stems*F.look.rays*2,`its trumpet mouths (${mouths})`);
+});
+test('a bicolour Baptisia draws its keel, and an ageing one its older flowers', () => {
+  const T=plantDef('baptisia','twilite'), tops=recordPlant('baptisia','Spring','twilite',1);
+  assert(tops.filter(o=>o.fill===shade(T.sea.Spring.eye,-12)).reduce((n,o)=>n+o.pts.length,0)>=40,"'Twilite' has yellow keels");
+  const E=plantDef('baptisia','lunareclipse'), eops=recordPlant('baptisia','Spring','lunareclipse',1);
+  assert(eops.filter(o=>o.fill===shade(E.look.ageCol,-15)).reduce((n,o)=>n+o.pts.length,0)>=20,"'Lunar Eclipse' is violet below");
+  assert(eops.filter(o=>o.fill===shade(E.sea.Spring.bloom,-15)).reduce((n,o)=>n+o.pts.length,0)>=20,'and cream above');
+  // the plain Baptisia draws one colour
+  const B=plantDef('baptisia');
+  assert(!B.sea.Spring.eye && !B.look.ageCol,'blue false indigo is one colour');
+  assert(recordPlant('baptisia','Spring',null,1).some(o=>o.fill===shade(B.sea.Spring.bloom,-15)),'and draws it');
+});
+test('the lupines, pinks, blanket flowers and Baptisias added in 0.9.163 are in the catalog, with sources', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/lupine-pink-gaillardia-sources.json'));
+  for (const k of ['wildlupine','bigleaflupine','russelllupine','cheddarpink','maidenpink','cottagepink','borderpink','sweetwilliam','fringedpink','gaillardiagrand','lanceleafblanket'])
+    assert(PLANTS[k]&&PLANTS[k].nativeTo&&PLANTS[k].provenance,`${k}: in the catalog, its range stated`);
+  for (const [ref,row] of Object.entries(doc.plants)){
+    const [k,v]=ref.split('|'), P=plantDef(k,v||null);
+    assert(P && (!v || PLANTS[k].cv[v]),`${ref}: in the catalog`);
+    assert(row.source,`${ref}: its source`);
+    assertEqual(P.heightIn,row.heightIn,`${ref}: the height its source gives`);
+    if (row.zones) assertEqual(P.zones.join(),row.zones.join(),`${ref}: the zones its source gives`);
+  }
+  // the native lupines and Baptisias are North American; the pinks are Old World
+  for (const k of ['wildlupine','bigleaflupine','lanceleafblanket']) assertEqual(PLANTS[k].nativeTo.join(),'north-america',`${k}: native to North America`);
+  for (const v of ['whitewild','yellowwild','dwarfblue']) assertEqual(plantDef('baptisia',v).nativeTo.join(),'north-america',`baptisia ${v}: a native species`);
+  for (const k of ['cheddarpink','maidenpink','cottagepink','sweetwilliam','fringedpink']) assert(PLANTS[k].nativeTo.includes('europe'),`${k}: a European pink`);
+  for (const k of ['russelllupine','borderpink','gaillardiagrand']) assertEqual(PLANTS[k].provenance,'hybrid',`${k}: a garden hybrid`);
 });
 test('every forb draws at its sourced height', () => {
   // The px-art h is the drawn height in inches; heightIn is what the card quotes.
@@ -13838,7 +13970,9 @@ test('a family card is counted once, however many species and cultivars it holds
    and the count promised at setup has to stand down with it. */
 test('a style that recommends nothing growable hands back the whole palette', () => {
   setup(21, 21);
-  const cold = { zone: 2, nativeRegion:'north-america', nativeMode:'any' };
+  // North American natives: since 0.9.163 maiden pink 'Albus' (zones 2-9, gravel and dry)
+  // is a zone-2 Mediterranean plant when any origin is allowed
+  const cold = { zone: 2, nativeRegion:'north-america', nativeMode:'regional' };
   const eligible = paletteCount(cold);
   assert(eligible > 0, 'zone 2 still grows something');
   assertEqual(PLANT_KEYS.filter(k => !PLANTS[k].hidden
@@ -13849,7 +13983,7 @@ test('a style that recommends nothing growable hands back the whole palette', ()
     'the row promises the eligible palette rather than a 0 nobody could design from');
 
   game.filters = normalizeFilters(cold);
-  game.design = { zone: 2, type: 'mediterranean', nativeRegion:'north-america', nativeMode:'any' };
+  game.design = { zone: 2, type: 'mediterranean', nativeRegion:'north-america', nativeMode:'regional' };
   game.discovery = normalizeDiscovery({ source:'recommended', category:null, query:'', colorFamilies:[], bloomSeasons:[], limit:36 });
   const rec = discoveryRefs().length;
   game.discovery = normalizeDiscovery({ source:'all', category:null, query:'', colorFamilies:[], bloomSeasons:[], limit:36 });

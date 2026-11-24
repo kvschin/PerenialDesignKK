@@ -990,6 +990,8 @@ const BROWSE_RESIST_GROUPS=new Set([
   'allium','alliumbulb','milkweed','iris','baptisia','amsonia','liatris',
   'coreopsis','burnet','blueeyedgrass','boxwood','rudbeckia','camassia','lilac',
   'joepye',   // MBG lists deer among what every Eutrochium page tolerates (0.9.160)
+  // 0.9.163: lupines are toxic, and Rutgers rates Dianthus and Gaillardia seldom damaged
+  'lupine','dianthus','gaillardia',
 ]);
 const BROWSE_RESIST_KEYS=new Set([
   // toxic or bitter forbs
