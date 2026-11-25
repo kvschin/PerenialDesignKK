@@ -4419,7 +4419,7 @@ function plantShadowR(P, growth){
 // shadow, or a weeping conifer's cascade, whichever hangs lower.
 function plantDrawBelow(P, growth, H){
   const shR = plantShadowR(P, growth);
-  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H,growth), coniferGroundBelow(P,growth), coniferTreeBelow(P,growth,H), spikyRosetteBelow(P,H), hostaLeafBelow(P,H), palmBelow(P,growth,H));
+  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H,growth), coniferGroundBelow(P,growth), coniferTreeBelow(P,growth,H), spikyRosetteBelow(P,H), hostaLeafBelow(P,H), palmBelow(P,growth,H), clipBlockBelow(P,growth));
 }
 /* A hosta-leaf mound's front leaves come toward the viewer and so draw below the
    crown, by a share of the plant's height (0.28-0.35 measured): a fixed allowance
@@ -6562,6 +6562,412 @@ function treeSmoke(ctx,L,tips,crown,col,seed,grow,amt,spent){
    of leaves spread through the interior, and a clump's radius as a share of
    the crown's half-width; twigs/twigLen, the winter twig fringe. */
 const SHRUB_HABIT = { on: typeof location==='undefined' || !/[?&]shrub=0(&|$)/.test(location.search) };
+/* ---------- clipped evergreens and hedges as a surface of leaves (look.clipTex) ----------
+   A clipped boxwood, beech or yew was a flat shape: a ball was a plastic egg
+   with a shine on it, a cone a flat triangle, a column a glass tube with a lit
+   disc at its foot, and a hedge a smooth slab per tile, turned to the SCREEN
+   rather than the ground, so a run did not sit on its tiles and a corner
+   notched. What makes a clipped plant read is its SURFACE: a crust of small
+   leaves, each lit by the form it lies on (a lit top, a lighter left side, a
+   dark right side, a darker foot tucked into shadow), leaves standing proud of
+   the clipped plane so the outline is soft rather than cut, new growth paler
+   on top and, on a hedge, fuzzing its top before the summer clip, a tall
+   hedge thinning to stems at its foot, and snow lying on what faces up.
+   `look.clipTex` names a recipe in CLIP_TEX and is the whole switch: a clipped
+   shape without one draws as it always did, and so does every one with
+   `?art2=0`. The form is laid out in the ground's projection (a horizontal
+   circle at height z is an ellipse half as tall as it is wide): a ball, cone
+   or column as a solid of revolution whose outline is the union of those
+   ellipses and whose visible surface carries the leaves, a hedge as boxes on
+   the tile axes, its centre plus an arm to each neighbour of its hedge (the
+   renderer's hedgeDirs, snapped to the two tile axes, so any view rotation
+   and any corner or tee works), painted back to front.
+   Leaves are batched (clipMarkPush) and filled a tone at a time, darkest first
+   (clipMarksFill). Where they stand comes from the texture's own stream;
+   whether one is new growth or snow from a hash of its index, so they stand in
+   the same places whatever the season and the plant's random stream does not
+   move with or without snow.
+   Recipe fields: len/w a leaf in draw units; per leaves per 100 square units
+   of surface, max a cap; jit the light's noise; lift the tone contrast;
+   flush/flushIn the colour of new growth and its share of the upper surface
+   by season; sprig/sprigIn the length of new shoots standing above a hedge's
+   top and how many, by season; thickIn a hedge's thickness, in inches; legs
+   how much a tall hedge thins to stems at its foot; twig the colour of its
+   stems; needle a narrow leaf laid along the surface; winter {dens, lift,
+   twigs, bare} a winter override (a hornbeam's dead leaves thin and its twigs show,
+   a beech's stay on). */
+const CLIP_TEX = {
+  // boxwood: tiny, matte, crowded leaves, a fine nubbly crust; its new growth
+  // comes lime-green in late spring and darkens through summer
+  box:      {len:3.0, w:1.9, per:10, max:850, jit:0.45, lift:1, cell:5, mottle:0.42, flush:'#9dbd5a', flushIn:{Spring:0.5, Summer:0.12},
+             sprig:3.5, sprigIn:{Spring:1.6, Summer:0.9}, thickIn:22, legs:0, twig:'#5f5140'},
+  // beech: broad glossy leaves, held on into winter as a russet wall
+  beech:    {len:5.6, w:3.3, per:6, max:1000, jit:0.5, lift:1.2, cell:9, mottle:0.45, flush:'#a9c95f', flushIn:{Spring:0.25},
+             sprig:9, sprigIn:{Spring:0.5, Summer:0.9}, thickIn:24, legs:0.55, twig:'#6c6156',
+             winter:{dens:0.9, lift:1.4}},
+  // hornbeam: narrower pleated leaves, matte; its winter leaves are paler and fewer,
+  // and the grey twigs show between them
+  hornbeam: {len:5.2, w:2.5, per:6.4, max:1000, jit:0.5, lift:1, cell:8, mottle:0.4, flush:'#b2cc6c', flushIn:{Spring:0.22},
+             sprig:9, sprigIn:{Spring:0.5, Summer:0.9}, thickIn:24, legs:0.6, twig:'#77705f',
+             winter:{dens:0.62, lift:1.15, twigs:1, bare:0.5}},
+  // yew: dark fine needles laid flat along the shoots; a light flush of new
+  // shoots in late spring
+  yew:      {len:3.6, w:1.1, per:10, max:900, jit:0.4, lift:1.05, needle:true, cell:6, mottle:0.36, flush:'#6f9a4e', flushIn:{Spring:0.4, Summer:0.08},
+             sprig:4, sprigIn:{Spring:1.2, Summer:0.5}, thickIn:26, legs:0.18, twig:'#5b3f32'},
+};
+function clipTexOn(L){ return !!(L && L.clip && L.clipTex && CLIP_TEX[L.clipTex] && art2On(L)); }
+const CLIP_TONES=[-30,-17,-5,8,21];
+const CM_MAX=3200, _cmP=new Float32Array(CM_MAX*5), _cmB=new Uint8Array(CM_MAX);
+let _cmN=0;
+function clipMarkPush(x,y,a,l,w,b){
+  if (_cmN>=CM_MAX) return;
+  const k=_cmN*5; _cmP[k]=x; _cmP[k+1]=y; _cmP[k+2]=a; _cmP[k+3]=l; _cmP[k+4]=w; _cmB[_cmN++]=b;
+}
+// buckets 0-4 the light tones, 5 new growth, 6 shadow between leaves, 7 snow:
+// shadow first, snow last. A small leaf in shadow is a little square: measured, a
+// fifth of the cost of a turned triangle, and under 4 units a speckle either way
+// (a beech leaf in shadow is not, and at 200% its squares read as pixels).
+const CLIP_ORDER=[6,0,1,2,3,4,5,7];
+function clipMarksFill(ctx,cols){
+  for (let q=0;q<CLIP_ORDER.length;q++){
+    const b=CLIP_ORDER[q], col=cols[b];
+    if (!col) continue;
+    let any=false;
+    for (let n=0;n<_cmN;n++){
+      if (_cmB[n]!==b) continue;
+      if (!any){ ctx.beginPath(); any=true; }
+      const k=n*5, x=_cmP[k], y=_cmP[k+1], l=_cmP[k+3], w=_cmP[k+4]*0.5;
+      if ((b<3 || b===6) && l<4){ const d=(l+w)*0.36; ctx.rect(x-d,y-d*0.8,d*2,d*1.6); continue; }
+      // a leaf as three points: tip and the two sides of its base
+      const c=Math.cos(_cmP[k+2]), s=Math.sin(_cmP[k+2]);
+      ctx.moveTo(x+c*l*0.55, y+s*l*0.55);
+      ctx.lineTo(x-s*w-c*l*0.45, y+c*w-s*l*0.45);
+      ctx.lineTo(x+s*w-c*l*0.45, y-c*w-s*l*0.45);
+      ctx.closePath();
+    }
+    if (any){ ctx.fillStyle=col; ctx.fill(); }
+  }
+  _cmN=0;
+}
+function clipTone(g){ return g<-0.4 ? 0 : g<-0.12 ? 1 : g<0.15 ? 2 : g<0.42 ? 3 : 4; }
+// the eight fill colours of a recipe on a season's foliage
+function clipColours(fol,T,lift,snowy){
+  const c=CLIP_TONES.map(t=>shade(fol,t*lift));
+  c.push(T.flush ? mixHex(fol,T.flush,0.62) : shade(fol,30), shade(fol,-46), snowy ? '#eef2f7' : null);
+  return c;
+}
+// the season's switches for a recipe
+function clipSeason(T,season,snowy){
+  const W=season==='Winter' && T.winter ? T.winter : null;
+  return {dens:W&&W.dens||1, lift:(W&&W.lift)||T.lift||1, twigs:!!(W&&W.twigs), bare:(W&&W.bare)||0,
+    flushIn:(T.flushIn&&T.flushIn[season])||0, sprigIn:(T.sprigIn&&T.sprigIn[season])||0, snowy};
+}
+// a hash in 0..1 of a leaf's index (golden-ratio stride), for choices that
+// must not spend the stream
+function clipHash(i,k){ return (i*0.6180339887+k)%1; }
+/* Smooth value noise in -0.5..0.5 over cells, periodic over pu and pv cells
+   where those are set: the mottle of light and shade a sheared surface has. It
+   reads no stream, so it is the same in every season. */
+function clipLattice(i,j){ let h=Math.imul(i,374761393)+Math.imul(j,668265263)|0; h=Math.imul(h^(h>>>13),1274126177); return ((h^(h>>>16))>>>0)/4294967296; }
+function clipNoise(u,v,pu,pv){
+  const i=Math.floor(u), j=Math.floor(v), fu=u-i, fv=v-j, su=fu*fu*(3-2*fu), sv=fv*fv*(3-2*fv);
+  let i0=i, i1=i+1, j0=j, j1=j+1;
+  if (pu){ i0=((i0%pu)+pu)%pu; i1=((i1%pu)+pu)%pu; }
+  if (pv){ j0=((j0%pv)+pv)%pv; j1=((j1%pv)+pv)%pv; }
+  const a=clipLattice(i0,j0), b=clipLattice(i1,j0), c=clipLattice(i0,j1), d=clipLattice(i1,j1);
+  const x0=a+(b-a)*su, x1=c+(d-c)*su;
+  return x0+(x1-x0)*sv-0.5;
+}
+/* A solid of revolution: prof(v) is the radius at height v (0 foot, 1 top) as
+   a share of R, Hc the height. The outline is the union of the horizontal
+   circles' ellipses; leaves sit on the part of the surface that faces the
+   viewer, which from above includes the back of a rounded top. */
+const CLIP_LV={x:-0.55, d:0.25, u:0.8};   // to the light: left, toward the viewer, up
+const CLIP_VIEW={d:0.894, u:0.447};      // to the viewer: the projection's own tilt
+function clipRevolve(ctx,prof,R,Hc,fol,T,ss,rt,cols){
+  // the profile tabulated, with the up-facing share of each circle's normal
+  // (nuv) and the slope's horizontal share (nlv)
+  const NV=24, rv=new Float64Array(NV+1), nuv=new Float64Array(NV+1), nlv=new Float64Array(NV+1);
+  let Rm=0;
+  for (let i=0;i<=NV;i++){
+    const v=i/NV; rv[i]=R*Math.max(0,prof(v)); if (rv[i]>Rm) Rm=rv[i];
+    const s=R*(prof(Math.min(1,v+0.02))-prof(Math.max(0,v-0.02)))/(Hc*0.04);
+    nlv[i]=1/Math.sqrt(1+s*s); nuv[i]=-s*nlv[i];
+  }
+  // the outline: for each x, the highest and lowest point of any circle reaching
+  // it; cap the highest over the circles snow lies on (those facing well up)
+  let ic=NV+1; while (ic>0 && nuv[ic-1]>=0.7) ic--;
+  const capOn=ss.snowy && ic<NV-1, rc=capOn ? rv[ic] : 0;
+  const NX=24, top=new Float64Array(NX+1), bot=new Float64Array(NX+1), xs=new Float64Array(NX+1), cap=new Float64Array(NX+1);
+  for (let j=0;j<=NX;j++){
+    const x=-Rm*Math.cos(Math.PI*j/NX); xs[j]=x;
+    let t=1e9, b=-1e9, c=1e9;
+    for (let i=0;i<=NV;i++){
+      const r=rv[i]; if (r<=Math.abs(x)) continue;
+      const e=0.5*Math.sqrt(r*r-x*x), z=-Hc*i/NV;
+      if (z-e<t) t=z-e; if (z+e>b) b=z+e; if (i>=ic && z-e<c) c=z-e;
+    }
+    if (t>b){ t=b=-Hc*0.5; }
+    top[j]=t; bot[j]=b; cap[j]=c;
+  }
+  ctx.beginPath();
+  for (let j=0;j<=NX;j++) ctx[j?'lineTo':'moveTo'](xs[j],top[j]);
+  for (let j=NX;j>=0;j--) ctx.lineTo(xs[j],bot[j]);
+  ctx.closePath();
+  // the shadow between the leaves, lighter toward the light
+  litFill(ctx,0,-Hc*0.55,Math.max(Rm,Hc*0.5),shade(fol,-26),16,-22);
+  // snow lying on the top: the circles that face up, its lower edge the front
+  // of the lowest of them, a little uneven
+  if (capOn){
+    const zc=-Hc*ic/NV;
+    ctx.beginPath(); let first=true;
+    for (let j=0;j<=NX;j++){ if (Math.abs(xs[j])>=rc || cap[j]>1e8) continue;
+      ctx[first?'moveTo':'lineTo'](xs[j],cap[j]); first=false; }
+    if (!first){
+      for (let k=0;k<=12;k++){ const ph=Math.PI/2-Math.PI*k/12;
+        ctx.lineTo(rc*Math.sin(ph), zc+0.5*rc*Math.cos(ph)+Math.sin(ph*7+1.3)*Math.min(1.6,rc*0.06)); }
+      ctx.closePath(); ctx.fillStyle='#e4e9ef'; ctx.fill();
+    }
+  }
+  let area=0;
+  for (let j=0;j<NX;j++) area+=(xs[j+1]-xs[j])*((bot[j]-top[j])+(bot[j+1]-top[j+1]))*0.5;
+  const n=Math.min(T.max, Math.round(area*T.per/100*ss.dens));
+  const Lx=CLIP_LV.x, Ld=CLIP_LV.d, Lu=CLIP_LV.u, cell=T.cell||6, mot=(T.mottle||0)*2;
+  for (let i=0, tries=0; i<n && tries<n*3; tries++){
+    // a height in proportion to the radius there, then a place round it
+    const v=rt(), fi=v*NV, i0=fi|0, i1=Math.min(NV,i0+1), fr=fi-i0;
+    const r=rv[i0]+(rv[i1]-rv[i0])*fr, ph=(rt()*2-1)*Math.PI, jit=rt(), sz=0.72+rt()*0.56, ang=rt()*6.2832;
+    if (rt()*Rm>r+R*0.06) continue;
+    const nl=nlv[i0]+(nlv[i1]-nlv[i0])*fr, nu=nuv[i0]+(nuv[i1]-nuv[i0])*fr;
+    const sp=Math.sin(ph), cp=Math.cos(ph), nx=sp*nl, nd=cp*nl;
+    if (nd*CLIP_VIEW.d+nu*CLIP_VIEW.u<-0.02) continue;
+    const x=r*sp, y=-v*Hc+0.5*r*cp;
+    // the light on the form, mottled where the shearing left the surface uneven
+    const mn=clipNoise(ph*Rm/cell,v*Hc/cell,0,0);
+    let g=nx*Lx+nd*Ld+nu*Lu+(jit-0.5)*T.jit+mn*mot;
+    if (v<0.16) g-=(0.16-v)*3.2;                         // the foot, tucked into shadow
+    let b=clipTone(g);
+    if (ss.flushIn && nu>0.1 && mn>-0.08 && clipHash(i,0.137)<ss.flushIn*(0.6+nu)*1.4) b=5;
+    if (ss.snowy){
+      if (capOn && v*NV>=ic-0.5 ? clipHash(i,0.53)<0.8 : nu>0.3 && clipHash(i,0.53)<(nu-0.28)*1.1) b=7;
+    }
+    // at the outline a leaf turns out from the surface, which is what softens it
+    const a=Math.abs(sp)>0.75 ? (sp>0?0:Math.PI)+(ang-3.14)*0.35 : T.needle ? ang*0.3+(sp>0?-0.5:3.6) : ang;
+    const k=b===7 ? 1.4 : 1;
+    clipMarkPush(x,y,a,T.len*sz*k,T.w*sz*k,b);
+    i++;
+  }
+  clipMarksFill(ctx,cols);
+}
+// a clipped ball, cone and column, as radius over height
+function clipProfile(shape,R,Hc){
+  if (shape==='cone'||shape==='pyramid'){
+    // a clipped cone is a little full in the flank and rounded at the tip
+    return v=>{ const p=Math.pow(Math.max(0,1-v),0.86); return v>0.9 ? p*Math.sqrt(Math.max(0,(1-v)/0.1))*0.5+p*0.5 : p; };
+  }
+  if (shape==='column'){
+    // straight sides, a little full in the middle, a rounded top as deep as it is wide
+    const d=Math.min(0.4,R*0.95/Hc), v0=1-d;
+    return v=>v<v0 ? 0.94+0.06*Math.sin(Math.PI*v/v0) : Math.sqrt(Math.max(0,1-Math.pow((v-v0)/d,2)))*0.94;
+  }
+  // a ball or mound: widest a little below the middle, tucked under at the foot
+  return v=>{ const t=Math.max(0,Math.min(1,v)); return Math.pow(Math.sin(Math.PI*Math.pow(t,0.9)),0.8); };
+}
+/* A clipped hedge, or one square plant of it: boxes on the tile axes (a along
+   one, b along the other, in tiles from the plant's own tile), height h. In
+   screen terms +a runs down-right and +b down-left, so the faces seen are the
+   tops, the +b faces (lit, on the left) and the +a faces (shaded, on the right).
+   Each box draws only the faces of the hedge's outside, back to front. */
+function clipBox(a,b,z){ return [(a-b)*TILE_W/2, (a+b)*TILE_H/2-z]; }
+function clipBlock(ctx,boxes,h,fol,T,ss,rt,cols){
+  const twig=T.twig||'#5f5140', legs=T.legs||0;
+  // between the leaves: their shadow, or where they have thinned, the twigs
+  const bf=ss.bare && /^#[0-9a-f]{6}$/i.test(fol) ? mixHex(fol,twig,ss.bare) : fol;
+  const base=[shade(bf,-12), shade(bf,-22), shade(bf,-36)];   // top, left, right
+  // stems, shoots and twigs draw from a stream of their own, so the leaves keep
+  // their places in every season whether or not there are shoots to draw
+  const rx=mulberry(((rt()*4294967296)>>>0)^0x51f7);
+  /* The mottle is periodic over one tile along the hedge (nc cells a tile), so
+     a hedge drawn a tile at a time joins without a seam; up its faces it is not. */
+  const cell=T.cell||6, nc=Math.max(2,Math.round(TILE_W*0.56/cell)), mot=(T.mottle||0)*2;
+  boxes.sort((p,q)=>(p.a0+p.a1+p.b0+p.b1)-(q.a0+q.a1+q.b0+q.b1));
+  const quad=(pts,fill)=>{ ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+    for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); if (fill){ ctx.fillStyle=fill; ctx.fill(); } };
+  let ix=0;
+  for (const B of boxes){
+    const {a0,a1,b0,b1}=B;
+    const T0=clipBox(a0,b0,h), T1=clipBox(a1,b0,h), T2=clipBox(a1,b1,h), T3=clipBox(a0,b1,h);
+    // the faces of the hedge's outside seen from the front: the +a face (right,
+    // shaded) runs along b, the +b face (left, lit) along a
+    const faces=[];
+    if (B.r) faces.push({o:clipBox(a1,b0,0), u:[(b1-b0)*-TILE_W/2,(b1-b0)*TILE_H/2], len:b1-b0, s0:b0, g:-0.34, col:base[2]});
+    if (B.l) faces.push({o:clipBox(a0,b1,0), u:[(a1-a0)*TILE_W/2,(a1-a0)*TILE_H/2], len:a1-a0, s0:a0, g:0.08, col:base[1]});
+    quad([T0,T1,T2,T3],base[0]);
+    for (const F of faces){
+      const p0=F.o, p1=[p0[0]+F.u[0],p0[1]+F.u[1]];
+      quad([p0,p1,[p1[0],p1[1]-h],[p0[0],p0[1]-h]],F.col);
+      // the foot, in shadow
+      ctx.save(); ctx.globalAlpha=0.3;
+      quad([p0,p1,[p1[0],p1[1]-h*0.15],[p0[0],p0[1]-h*0.15]],shade(fol,-58));
+      ctx.restore();
+    }
+    // stems where a tall hedge thins at the foot
+    if (legs && h>70){
+      ctx.strokeStyle=shade(twig,-18); ctx.lineWidth=1.2; ctx.lineCap='round'; ctx.beginPath();
+      for (const F of faces){
+        const m=Math.round(F.len*TILE_W*0.55/7*legs);
+        for (let j=0;j<m;j++){
+          const u=(j+0.2+rx()*0.6)/m, x=F.o[0]+F.u[0]*u, y=F.o[1]+F.u[1]*u, top=h*(0.05+rx()*0.07), lean=(rx()-0.5)*3;
+          ctx.moveTo(x,y); ctx.lineTo(x+lean,y-top);
+        }
+      }
+      ctx.stroke();
+    }
+    // snow lies over the whole top, short of the hedge's outside edges and a
+    // little past its inside ones, so a run of tiles joins under it
+    const topA=Math.abs((a1-a0)*(b1-b0))*TILE_W*TILE_H/2;
+    if (ss.snowy){
+      const k=0.05, o=0.05, sa0=a0+(B.r0?k:-o), sa1=a1+(B.r?-k:o), sb0=b0+(B.l0?k:-o), sb1=b1+(B.l?-k:o);
+      quad([clipBox(sa0,sb0,h),clipBox(sa1,sb0,h),clipBox(sa1,sb1,h),clipBox(sa0,sb1,h)],'#e4e9ef');
+    }
+    // new shoots standing above a hedge's top before its summer clip
+    const sprigs=Math.round(topA/100*ss.sprigIn);
+    if (sprigs){
+      ctx.strokeStyle=shade(fol,-8); ctx.lineWidth=0.8; ctx.lineCap='round'; ctx.beginPath();
+      for (let j=0;j<sprigs;j++){
+        const p=clipBox(a0+(a1-a0)*rx(),b0+(b1-b0)*rx(),h), len=T.sprig*(0.5+rx()*0.8), lean=(rx()-0.5)*len*0.7;
+        ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0]+lean,p[1]-len);
+        clipMarkPush(p[0]+lean*0.9,p[1]-len*0.9,-1.57+(rx()-0.5)*1.2,T.len*0.9,T.w*0.9,5);
+        clipMarkPush(p[0]+lean*0.5,p[1]-len*0.5,(rx()<0.5?0.4:2.7),T.len*0.8,T.w*0.8,clipHash(ix+j,0.3)<0.5?4:5);
+      }
+      ctx.stroke();
+    }
+    // winter: a hornbeam's twigs between its thinning dead leaves
+    if (ss.twigs){
+      ctx.strokeStyle=shade(twig,12); ctx.lineWidth=0.6; ctx.beginPath();
+      for (const F of faces){
+        const m=Math.round(F.len*TILE_W*0.55*h/90);
+        for (let j=0;j<m;j++){
+          const u=rx(), v=0.1+rx()*0.85, x=F.o[0]+F.u[0]*u, y=F.o[1]+F.u[1]*u-h*v, l=3+rx()*5, a=-1.57+(rx()-0.5)*1.6;
+          ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);
+        }
+      }
+      ctx.stroke();
+    }
+    // the leaves of the top: the rim where the top rounds over onto a face is
+    // between the two in light, and is where snow thins
+    const rim=T.rim||0.14, nTop=Math.min(T.max, Math.round(topA*T.per/100*ss.dens));
+    for (let j=0;j<nTop;j++,ix++){
+      const u=rt(), v=rt(), jit=rt(), sz=0.72+rt()*0.56, ang=rt()*6.2832;
+      const a=a0+(a1-a0)*u, bb=b0+(b1-b0)*v, p=clipBox(a,bb,h);
+      const mn=clipNoise(a*nc,bb*nc,nc,nc);
+      let g=0.58+(jit-0.5)*T.jit+mn*mot;
+      const ea=B.r ? (a1-a)/rim : 9, eb=B.l ? (b1-bb)/rim : 9;
+      if (ea<1) g-=(1-ea)*0.5; if (eb<1) g-=(1-eb)*0.3;
+      const ba=B.r0 ? (a-a0)/0.12 : 9, bk=B.l0 ? (bb-b0)/0.12 : 9;
+      if (ba<1||bk<1) g+=0.12;                               // the back rim against the sky
+      let b=clipTone(g);
+      if (ss.flushIn && mn>-0.05 && clipHash(ix,0.137)<ss.flushIn*1.8) b=5;
+      if (ss.snowy && clipHash(ix,0.53)<(Math.min(ea,eb)<1 ? 0.45 : 0.8)) b=7;
+      clipMarkPush(p[0],p[1],T.needle ? 0.46+(ang-3.14)*0.25 : ang,T.len*sz,T.w*sz,b);
+    }
+    // the leaves of the faces: lighter as the face rounds over into the top,
+    // darker at the foot, and fewer at the foot of a tall hedge
+    for (const F of faces){
+      const area=F.len*TILE_W/2*h, m=Math.min(T.max, Math.round(area*T.per/100*ss.dens));
+      for (let j=0;j<m;j++,ix++){
+        const u=rt(), v=rt(), jit=rt(), sz=0.72+rt()*0.56, ang=rt()*6.2832;
+        if (legs && v<0.12 && h>70 && clipHash(ix,0.71)<(1-v/0.12)*legs) continue;
+        const x=F.o[0]+F.u[0]*u, y=F.o[1]+F.u[1]*u-h*v;
+        const mn=clipNoise((F.s0+F.len*u)*nc,v*h/cell,nc,0);
+        let g=F.g+(jit-0.5)*T.jit+mn*mot;
+        if (v>0.86) g+=(v-0.86)/0.14*0.42;
+        if (v<0.2) g-=(0.2-v)/0.2*0.8;
+        let b=clipTone(g);
+        if (ss.flushIn && v>0.5 && mn>-0.05 && clipHash(ix,0.137)<ss.flushIn*(v-0.4)*1.6) b=5;
+        if (ss.snowy && v>0.9 && clipHash(ix,0.53)<0.3) b=7;
+        // a needle lies along its shoot, which on a clipped face points out and down
+        const a=T.needle ? (F.g<0 ? 0.5 : 2.64)+(ang-3.14)*0.3 : ang;
+        clipMarkPush(x,y,a,T.len*sz,T.w*sz,b);
+      }
+    }
+    // leaves standing proud along the outline, where the clipped plane meets the
+    // sky: the top's back edges and the faces' outer upright edges
+    const fr=Math.max(1.5,T.len*0.85), fringe=(p0,p1,ox,oy,g)=>{
+      const d=Math.hypot(p1[0]-p0[0],p1[1]-p0[1]), m=Math.max(1,Math.round(d/fr));
+      for (let j=0;j<m;j++,ix++){
+        const t=(j+rt())/m, sz=0.8+rt()*0.5, x=p0[0]+(p1[0]-p0[0])*t+ox*T.len*0.25, y=p0[1]+(p1[1]-p0[1])*t+oy*T.len*0.25;
+        const jit=rt(), a=Math.atan2(oy,ox)+(rt()-0.5)*1.6;
+        let b=clipTone(g+(jit-0.5)*T.jit);
+        if (ss.snowy && oy<-0.3 && clipHash(ix,0.53)<0.5) b=7;
+        else if (ss.flushIn && clipHash(ix,0.137)<ss.flushIn*1.4) b=5;
+        clipMarkPush(x,y,a,T.len*sz,T.w*sz,b);
+      }
+    };
+    if (B.r0) fringe(T0,T3,-0.6,-0.8,0.62);
+    if (B.l0) fringe(T0,T1,0.6,-0.8,0.5);
+    if (B.l && B.r0) fringe(clipBox(a0,b1,0),T3,-1,-0.15,0.1);
+    if (B.r && B.l0) fringe(clipBox(a1,b0,0),T1,1,-0.15,-0.3);
+    clipMarksFill(ctx,cols);
+  }
+}
+// the boxes of one hedge plant: its centre, t tiles square, and an arm to the
+// edge of its tile toward each neighbour of its hedge
+function clipHedgeBoxes(dirs,t){
+  const n={pa:0,na:0,pb:0,nb:0};
+  for (const [dx,dy] of dirs){
+    const a=(dx/(TILE_W/2)+dy/(TILE_H/2))/2, b=(dy/(TILE_H/2)-dx/(TILE_W/2))/2;
+    if (Math.abs(a)>=Math.abs(b)) n[a>0?'pa':'na']=1; else n[b>0?'pb':'nb']=1;
+  }
+  // r/l: its +a and +b faces are on the hedge's outside, so drawn; r0/l0 the
+  // same of its back faces, which are not drawn but round and fringe the top.
+  // A hedge thicker than its tile needs no arms: its plants' centres meet.
+  const h2=t/2, L=0.54, boxes=[{a0:-h2,a1:h2,b0:-h2,b1:h2, r:!n.pa, l:!n.pb, r0:!n.na, l0:!n.nb}];
+  if (h2<L){
+    if (n.pa) boxes.push({a0:h2-0.01,a1:L,b0:-h2,b1:h2, r:false, l:true, r0:false, l0:true});
+    if (n.na) boxes.push({a0:-L,a1:-h2+0.01,b0:-h2,b1:h2, r:false, l:true, r0:false, l0:true});
+    if (n.pb) boxes.push({a0:-h2,a1:h2,b0:h2-0.01,b1:L, r:true, l:false, r0:true, l0:false});
+    if (n.nb) boxes.push({a0:-h2,a1:h2,b0:-L,b1:-h2+0.01, r:true, l:false, r0:true, l0:false});
+  }
+  return boxes;
+}
+// a clipped hedge's thickness in tiles, younger plants thinner
+function clipHedgeThick(L,growth){
+  const T=CLIP_TEX[L.clipTex]||CLIP_TEX.box;
+  return (T.thickIn||20)/TILE_IN*(0.6+0.4*growth);
+}
+// how far below its foot a clipped hedge block draws: its front corner
+function clipBlockBelow(P,growth){
+  const L=P.look||{};
+  if (P.form!=='bush' || L.shape!=='square' || !clipTexOn(L)) return 0;
+  const t=clipHedgeThick(L,growth);
+  return (Math.max(t/2,0.54)+t/2)*TILE_H/2+4;
+}
+/* Draws a clipped shape with a texture recipe (clipTexOn). Returns true. */
+function drawClippedSurface(ctx,P,L,S,season,shape,H,cw,growth,seed,detail,mature){
+  const T=CLIP_TEX[L.clipTex], fol=S.fol||S.seed||'#4f6f45';
+  const snowy=!!(AMBIENCE[season].snow && mature);
+  const ss=clipSeason(T,season,snowy), rt=mulberry((seed^0x3c1f9)>>>0);
+  const cols=clipColours(fol,T,ss.lift,snowy);
+  const bodyH=H*(L.bodyH||0.58), bodyW=cw*(L.bodyW||0.76);
+  _cmN=0;
+  if (shape==='square'){
+    const t=clipHedgeThick(L,growth), dirs=(detail&&detail.hedgeDirs)||[];
+    clipBlock(ctx,clipHedgeBoxes(dirs,t),bodyH*0.76,fol,T,ss,rt,cols);
+    return true;
+  }
+  let R, Hc;
+  if (shape==='cone'||shape==='pyramid'){ R=bodyW*0.5; Hc=bodyH*1.05; }
+  else if (shape==='column'){ R=bodyW*0.31; Hc=bodyH*1.08; }
+  else if (shape==='mound'){ R=bodyW*0.56; Hc=bodyH*0.62; }
+  else { R=bodyW*0.5; Hc=bodyH*0.86; }
+  // a clipped form stands at its real height on the built-height scale (a fence's),
+  // grown in with the plant; it used to stand where its px-art put it, a 'Dee Runk'
+  // column 7 ft for 8 and a low ball 19 in for 24
+  if (P.heightIn>0) Hc=P.heightIn*PX_PER_FT/12*(H/(plantVisualH(P)||H));
+  clipRevolve(ctx,clipProfile(shape,R,Hc),R,Hc,fol,T,ss,rt,cols);
+  return true;
+}
 const SHRUB_HABITS = {
   // a dense rounded mass of stems, leafy to near the ground (arrowwood, ninebark)
   round:    {base:0.02, top:1.00, w:0.49, p:0.44, eLo:1.9, eHi:2.1, lo:0.40, stems:7, baseW:0.10,
@@ -6632,7 +7038,8 @@ function shrubHabitOf(P){
   if (!art2On(L)) return null;
   let name;
   if (P.form==='hydrangea') name=L.habit||(L.bloomShape==='panicle'?'vase':'mound');
-  else if (P.form==='bush' && !L.clip) name=L.habit||'round';
+  // a clipped-family shrub drawn as an informal leafy shrub says so (inkberry)
+  else if (P.form==='bush' && (!L.clip || L.leafyHabit)) name=L.habit||'round';
   else return null;
   const base=SHRUB_HABITS[name]||SHRUB_HABITS.round;
   if (!L.shrubHabit) return base;
@@ -13696,12 +14103,17 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   else if (P.form === 'bush'){ // woody shrub: twigs hold through winter
     const L=P.look||{};
     const cw=(woodyVisualCw(P)||50)*(0.35+0.65*growth);
-    if (L.clip){
+    if (L.clip && !(L.leafyHabit && shrubHabitOf(P))){
       const fol=S.fol||S.seed||'#4f6f45', shape=L.shape||'round';
       const bodyH=H*(L.bodyH||0.58), bodyW=cw*(L.bodyW||0.76), baseY=0;
       const hedgeDirs=(detail&&detail.hedgeDirs)||[];
       const connectedSquare=shape==='square' && hedgeDirs.length;
-      if (L.broadleaf){
+      const clipTex=clipTexOn(L);
+      if (clipTex){
+        // a crust of leaves on the clipped form, and its own snow (drawClippedSurface)
+        drawClippedSurface(ctx,P,L,S,season,shape,H,cw,growth,seed,detail,mature);
+        basalSnow=true;
+      } else if (L.broadleaf){
         // Informal BROADLEAF evergreen (inkberry, Ilex glabra): a dense mound
         // of small dark leaves, NOT a smooth clipped topiary ball. Leaves hold
         // every season and the leafy edge breaks the outline; a little woody
@@ -13904,7 +14316,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.restore(); }
         else { ctx.fillStyle=shade(fol,8); ctx.fill(); }
       }
-      if (L.fleck){   // boxwood leaf flecks; yews texture themselves via sprays
+      if (L.fleck && !clipTex){   // boxwood leaf flecks; yews texture themselves via sprays
         ctx.strokeStyle=shade(fol,-12); ctx.lineWidth=0.8; ctx.lineCap='round';
         const bf=art2On(L); if (bf) ctx.beginPath();
         for (let i=0;i<9;i++){ const fx=(rnd()-0.5)*bodyW*0.8, fy=baseY-bodyH*(0.18+rnd()*0.64);
@@ -14527,7 +14939,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       && !(P.look && (P.look.habit==='burnet' || P.look.umbelStyle==='joepye' || P.look.spikeStyle==='salvia' || P.look.spikeStyle==='beardtongue' || P.look.spikeStyle==='culvers' || P.look.spikeStyle==='euphorbia' || P.look.spikeStyle==='lupine' || P.look.flowerStyle==='pink'))
       && !(P.look && (P.look.tuftIn || P.look.sedgeHabit==='palm'))
       && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look)) && P.form!=='palm'
-      && !shrubHabitOf(P) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)
+      && !shrubHabitOf(P) && !clipTexOn(P.look) && !basalFoliageOnly(P.look) && !spikyRosetteOn(P)
       && !(P.form==='fern' && fernBladeOn(P.look)) && !(P.look && P.look.leafStyle==='hosta')
       && !(P.form==='shrub' && P.look && (P.look.habit==='mossphlox'||P.look.habit==='matflower'))){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);

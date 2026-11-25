@@ -5347,22 +5347,28 @@ const PLANTS = {
       bloomStyle:'stemAxil', flowerShape:'bell', flowerN:6, berryN:7},
     blurb:'The wild blueberry of the Maine barrens: a knee-high carpet that spreads by rhizomes into a colony, white bells in May, small intensely flavored berries in July and August, and a sheet of scarlet in fall. It wants poor, sandy, acid soil (pH 4.5 to 5.5), full sun and good drainage, and dislikes rich soil and fertilizer. A groundcover for a sunny bank or the edge of a pine planting, not a hedge.',
     sea:{Spring:{fol:'#86a35e',bloom:'#f2e3e2'}, Summer:{fol:'#557a4a',seed:'#3f4f86'}, Fall:{fol:'#b52f2a'}, Winter:{twig:'#8a3b2e'}}},
-  inkberry:{ name:'Inkberry Holly', latin:'Ilex glabra', form:'bush', type:'shrub', h:62, cw:64, heightIn:72,
+  inkberry:{ name:'Inkberry Holly', latin:'Ilex glabra', form:'bush', type:'shrub', h:53, cw:64, heightIn:72,
     space:48, spread:72, zones:[4,9], _legacyNative:true, sun:'part', moist:'moist', phen:'cool', grow:4,
-    // Broadleaf evergreen, NOT clipped topiary — an informal leafy mound.
+    // Broadleaf evergreen, NOT clipped topiary — an informal leafy shrub.
     // No bloomMonths (matching boxwood/yew): the tiny greenish flowers draw
-    // bees but never read at garden scale. clip:true keeps it in the
-    // evergreen renderer family (all-season foliage, no deciduous twig pass).
-    look:{art2:true, clip:true, broadleaf:true, bodyW:0.9, bodyH:0.92},
+    // bees but never read at garden scale. clip:true keeps it with the
+    // clipped evergreens (no bloom in the calendar); leafyHabit draws it with
+    // the shrub habit renderer, upright and rounded on many stems with small
+    // glossy obovate leaves, the species opening up at its foot. It drew as a
+    // dark ellipse with leaf dots scattered over and above it. h is solved so
+    // the habit, which draws to its full H, stands at heightIn;
+    // broadleaf/bodyW/bodyH are the old drawing's, kept for ?shrub=0.
+    look:{art2:true, clip:true, broadleaf:true, bodyW:0.9, bodyH:0.92,
+      leafyHabit:true, habit:'upright', shrubHabit:{base:0.12, stems:10, lo:0.42, tipFrom:0.22}, leafShape:'obovate', leafHW:0.5, leafLong:2.5, gloss:true},
     blurb:'A native evergreen holly with soft spineless leaves — the well-behaved answer to boxwood, and happy in the wet spots boxwood hates. The species goes leggy; the compact cultivars stay full to the ground.',
     sea:{Spring:{fol:'#4e6f44'}, Summer:{fol:'#3f5f38'}, Fall:{fol:'#3b5636'}, Winter:{fol:'#46553b'}},
     cv:{
       shamrock:{name:"'Shamrock'", note:'slower and denser than the species, and less inclined to go bare at the base',
-        h:42, cw:43, heightIn:48, spread:48},
+        h:36, cw:43, heightIn:48, spread:48, look:{habit:'round', shrubHabit:{base:0.04, stems:10}}},
       piiigi:{name:"'PIIIG-I'", note:'sold as Gem Box; a compact rounded boxwood substitute, dense to the ground',
-        h:26, cw:27, heightIn:30, spread:30},
+        h:22, cw:27, heightIn:30, spread:30, look:{habit:'round', shrubHabit:{base:0.0, stems:9}}},
       densa:{name:"'Densa'", note:'a mounded, full female clone, wider than tall',
-        h:41, cw:53, heightIn:48, spread:60},
+        h:35, cw:53, heightIn:48, spread:60, look:{habit:'mound', shrubHabit:{base:0.02}}},
     }},
 
   /* ---------- high-priority flowering and evergreen shrubs ---------- */
@@ -5653,7 +5659,7 @@ const PLANTS = {
   boxwoodround:{ name:'Boxwood', latin:'Buxus sempervirens / hybrids', form:'bush', type:'shrub', h:44, cw:70, heightIn:36,
     group:'boxwood', groupLabel:'Boxwood', chip:'Round',
     space:42, spread:54, zones:[5,8], _legacyNative:false, sun:'part', moist:'medium', phen:'cool', grow:3,
-    look:{art2:true, clip:true, shape:'sphere', bodyW:1.0, bodyH:1.0, fleck:true},
+    look:{art2:true, clip:true, shape:'sphere', bodyW:1.0, bodyH:1.0, fleck:true, clipTex:'box'},
     blurb:'Evergreen structure for clipped balls, edges, and formal punctuation. Needs drainage and airflow; avoid soggy winter soil.',
     sea:{Spring:{fol:'#4f7048'}, Summer:{fol:'#45683f'}, Fall:{fol:'#415f3c'}, Winter:{fol:'#3d5838'}},
     libraryCultivars:[
@@ -5664,7 +5670,7 @@ const PLANTS = {
   boxwoodsquare:{ name:'Boxwood', latin:'Buxus sempervirens / hybrids', form:'bush', type:'shrub', h:71, cw:62, heightIn:36,
     group:'boxwood', groupLabel:'Boxwood', chip:'Square hedge',
     space:24, spread:36, zones:[5,8], _legacyNative:false, sun:'part', moist:'medium', phen:'cool', grow:3,
-    look:{art2:true, clip:true, shape:'square', hedge:true, bodyW:1.0, bodyH:0.95, fleck:true},
+    look:{art2:true, clip:true, shape:'square', hedge:true, bodyW:1.0, bodyH:0.95, fleck:true, clipTex:'box'},
     blurb:'The clipped boxwood hedge form. Place square boxwoods edge-to-edge and they read as one continuous hedge.',
     sea:{Spring:{fol:'#4f7048'}, Summer:{fol:'#45683f'}, Fall:{fol:'#415f3c'}, Winter:{fol:'#3d5838'}},
     libraryCultivars:[
@@ -5675,17 +5681,17 @@ const PLANTS = {
   boxwoodcone:{ name:'Boxwood', latin:'Buxus sempervirens / hybrids', form:'bush', type:'shrub', h:44, cw:36, heightIn:60,
     group:'boxwood', groupLabel:'Boxwood', chip:'Cone',
     space:36, spread:42, zones:[5,8], _legacyNative:false, sun:'part', moist:'medium', phen:'cool', grow:4,
-    look:{art2:true, clip:true, shape:'cone', bodyW:0.9, bodyH:0.92, fleck:true},
+    look:{art2:true, clip:true, shape:'cone', bodyW:0.9, bodyH:0.92, fleck:true, clipTex:'box'},
     blurb:'A clipped cone for formal punctuation at path corners or bed ends.',
     sea:{Spring:{fol:'#4f7048'}, Summer:{fol:'#45683f'}, Fall:{fol:'#415f3c'}, Winter:{fol:'#3d5838'}},
     libraryCultivars:[
       {name:"'Green Mountain'", size:'5 ft high x 3 ft wide', note:'upright cone or pyramidal boxwood'},
       {name:"'Pyramidalis'", size:'5-6 ft high x 3-4 ft wide', note:'classic pyramidal boxwood shape'},
     ]},
-  boxwoodcolumn:{ name:'Boxwood', latin:'Buxus sempervirens / hybrids', form:'bush', type:'shrub', h:58, cw:34, heightIn:96,
+  boxwoodcolumn:{ name:'Boxwood', latin:'Buxus sempervirens / hybrids', form:'bush', type:'shrub', h:75, cw:34, heightIn:96,
     group:'boxwood', groupLabel:'Boxwood', chip:'Column',
     space:36, spread:36, zones:[5,8], _legacyNative:false, sun:'part', moist:'medium', phen:'cool', grow:4,
-    look:{art2:true, clip:true, shape:'column', bodyW:0.82, bodyH:1.0, fleck:true},
+    look:{art2:true, clip:true, shape:'column', bodyW:0.82, bodyH:1.0, fleck:true, clipTex:'box'},
     blurb:'Narrow upright boxwood for doorways, thresholds, and tight formal accents.',
     sea:{Spring:{fol:'#4f7048'}, Summer:{fol:'#45683f'}, Fall:{fol:'#415f3c'}, Winter:{fol:'#3d5838'}},
     libraryCultivars:[
@@ -5695,7 +5701,7 @@ const PLANTS = {
   boxwoodlow:{ name:'Boxwood', latin:'Buxus sempervirens / hybrids', form:'bush', type:'shrub', h:22, cw:34, heightIn:24,
     group:'boxwood', groupLabel:'Boxwood', chip:'Low ball',
     space:24, spread:30, zones:[5,8], _legacyNative:false, sun:'part', moist:'medium', phen:'cool', grow:3,
-    look:{art2:true, clip:true, shape:'sphere', bodyW:0.72, bodyH:0.82, fleck:true},
+    look:{art2:true, clip:true, shape:'sphere', bodyW:0.92, bodyH:0.82, fleck:true, clipTex:'box'},
     blurb:'Low clipped boxwood for edging, knot-garden dots, and compact front-of-bed structure.',
     sea:{Spring:{fol:'#506f48'}, Summer:{fol:'#466740'}, Fall:{fol:'#415f3c'}, Winter:{fol:'#3d5838'}},
     libraryCultivars:[
@@ -5750,35 +5756,37 @@ const PLANTS = {
      is chosen -- and its Winter `fol` is that brown, not bare.
      English yew is its own family rather than a fourth chip on 'Yew': it is a
      different species, the European native, and its hedge must not join a
-     Taxus x media one. Its square hedge uses fleck, not needles -- the needles
-     branch draws free sprays and cannot join into a block, and a clipped yew
-     hedge is a smooth dark block anyway. */
+     Taxus x media one. Its square hedge is not on the needles branch -- that
+     draws free sprays and cannot join into a block -- but on the clipped block,
+     whose `clipTex` names the leaf the block is covered in: boxwood's tiny
+     leaves, beech's broad glossy ones, hornbeam's narrower matte ones, yew's
+     dark needles (CLIP_TEX, draw.js). */
   beechhedge:{ name:'Beech Hedge', latin:'Fagus sylvatica', form:'bush', type:'shrub', h:143, cw:52, heightIn:72,
     group:'beech', groupLabel:'Beech', chip:'Clipped hedge',
     space:18, spread:30, zones:[4,7], nativeTo:['europe'], provenance:'species', sun:'part', moist:'medium', phen:'mid', grow:5,
     roles:['hedge','formal','structure','screen'],
-    look:{art2:true, clip:true, shape:'square', hedge:true, bodyW:1.0, bodyH:0.95, fleck:true},
+    look:{art2:true, clip:true, shape:'square', hedge:true, bodyW:1.0, bodyH:0.95, fleck:true, clipTex:'beech'},
     blurb:'Beech clipped into a hedge: lime-green in spring, dark green in summer, copper in fall, and, because a clipped beech holds its dead leaves until spring, a russet-brown wall all winter. Plant about 18 in apart and clip once in late summer. It will not take wet or compacted soil; copper beech makes the purple version, and the two mix into a tapestry hedge.',
     sea:{Spring:{fol:'#9cc05c'}, Summer:{fol:'#4a6c3f'}, Fall:{fol:'#b2702f'}, Winter:{fol:'#9a6337'}}},
   hornbeamhedge:{ name:'Hornbeam Hedge', latin:'Carpinus betulus', form:'bush', type:'shrub', h:143, cw:52, heightIn:72,
     group:'hornbeam', groupLabel:'Hornbeam', chip:'Clipped hedge',
     space:18, spread:30, zones:[4,8], nativeTo:['europe','asia'], provenance:'species', sun:'part', moist:'medium', phen:'mid', grow:5,
     roles:['hedge','formal','structure','screen'],
-    look:{art2:true, clip:true, shape:'square', hedge:true, bodyW:1.0, bodyH:0.95, fleck:true},
+    look:{art2:true, clip:true, shape:'square', hedge:true, bodyW:1.0, bodyH:0.95, fleck:true, clipTex:'hornbeam'},
     blurb:'Hornbeam clipped into a hedge: the choice for heavy clay or damp ground, which beech will not take, and it regrows from hard pruning. Pleated green leaves turn yellow-brown in fall, and many hang on, paler and drier than beech, through winter. Plant about 18 in apart; clip in late summer.',
     sea:{Spring:{fol:'#98b964'}, Summer:{fol:'#4b6b42'}, Fall:{fol:'#c9a24a'}, Winter:{fol:'#a98b5a'}}},
   englishyewhedge:{ name:'English Yew Hedge', latin:'Taxus baccata', form:'bush', type:'shrub', h:143, cw:52, heightIn:72,
     group:'englishyew', groupLabel:'English Yew', chip:'Clipped hedge',
     space:24, spread:30, zones:[6,8], nativeTo:['europe','asia','africa'], provenance:'species', sun:'part', moist:'medium', phen:'cool', grow:8,
     roles:['hedge','formal','structure','screen','evergreen'],
-    look:{art2:true, clip:true, shape:'square', hedge:true, bodyW:1.0, bodyH:0.95, fleck:true},
+    look:{art2:true, clip:true, shape:'square', hedge:true, bodyW:1.0, bodyH:0.95, fleck:true, clipTex:'yew'},
     blurb:'The dark clipped evergreen that European gardens are framed by, and the backdrop grasses and seedheads read best against. Slower than laurel or Leyland, but it lives for centuries, takes shade, and is one of the few conifers that regrows from bare old wood, so an overgrown hedge can be cut right back. Needs drainage. Every part but the red aril flesh is highly toxic.',
     sea:{Spring:{fol:'#335a3e'}, Summer:{fol:'#2a4e37'}, Fall:{fol:'#284a34'}, Winter:{fol:'#243f30'}}},
   englishyewcone:{ name:'English Yew Cone', latin:'Taxus baccata', form:'bush', type:'shrub', h:53, cw:31, heightIn:72,
     group:'englishyew', groupLabel:'English Yew', chip:'Clipped cone',
     space:48, spread:36, zones:[6,8], nativeTo:['europe','asia','africa'], provenance:'species', sun:'part', moist:'medium', phen:'cool', grow:8,
     roles:['formal','structure','evergreen'],
-    look:{art2:true, clip:true, shape:'cone', bodyW:0.9, bodyH:0.92, fleck:true},
+    look:{art2:true, clip:true, shape:'cone', bodyW:0.9, bodyH:0.92, fleck:true, clipTex:'yew'},
     blurb:'Yew clipped to a cone or pyramid: the classic topiary punctuation for a path corner or the end of a border, and longer-lived than any boxwood. Toxic in every part but the aril flesh.',
     sea:{Spring:{fol:'#335a3e'}, Summer:{fol:'#2a4e37'}, Fall:{fol:'#284a34'}, Winter:{fol:'#243f30'}}},
   irishyew:{ name:'Irish Yew', latin:"Taxus baccata 'Fastigiata'", form:'bush', type:'shrub', h:106, cw:47, heightIn:180,

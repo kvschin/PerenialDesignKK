@@ -9405,6 +9405,32 @@ beech hedge barely topped a 3 ft coneflower and boxwood's 3 ft hedge stood at
 half one. Every `hedge:true` record's `h` is set so the block lands on
 `PX_PER_FT` (`boxwoodsquare` 42 -> 71, so existing boxwood hedges draw taller),
 and a test pins it.
+**Clipped shapes and hedges have leaves (0.9.175; `look.clipTex`, `CLIP_TEX`,
+`drawClippedSurface`, draw.js).** A boxwood ball was a smooth shiny ellipse, a cone
+flat stacked triangles, a column a glass capsule, and a hedge tile a smooth slab whose
+thickness ran along the screen rather than the tiles, so an L-corner notched; beech and
+hornbeam read as orange and mustard plastic, and a joined hedge got no snow. Now
+`clipTex` names a recipe (box, beech, hornbeam, yew: leaf size, density, mottle,
+new-growth colour, shoots, hedge thickness, stems at the foot, winter overrides).
+Balls, cones and columns are solids of revolution (`clipRevolve`, `clipProfile`), seen
+from above, leaves lit by the surface normal and mottled by a smooth noise
+(`clipNoise`), the foot in shadow, snow a cap on what faces up. A hedge tile is boxes
+on the TILE axes (`clipHedgeBoxes`, `clipBlock`): a centre and an arm toward each
+neighbour the renderer's `hedgeDirs` names, so corners and tees join at any rotation;
+lit top, lighter left face, darker right, a rounded shoulder, a darker foot, leaves
+proud of the outline, shoots above the top in spring and summer, stems at the foot of
+a tall one, and snow that joins across tiles. The light mottle repeats once per tile so
+tiles meet without a seam. Leaves are batched by tone (`clipMarkPush`/`clipMarksFill`;
+small shadowed ones are rects, which are much cheaper), and snow and new growth are
+chosen by a HASH rather than the random stream, so leaves keep their places across the
+seasons and snow moves nothing. Hedges are thicker (boxwood 22 in, beech and hornbeam
+24, yew 26), and `plantDrawBelow` takes `clipBlockBelow` for the block's front corner.
+Inkberry keeps `clip:true` (the bloom-calendar test wants it) and draws as a leafy
+habit shrub (`look.leafyHabit`, `upright`, a slightly open base, small glossy leaves;
+its cultivars round or mound). Several `h` were re-solved to stand at `heightIn`
+(inkberry 62->53, boxwoodcolumn 58->75). Not done: the Taxus x media shapes and Irish
+yew keep the `needles` branch. Bakes 0.3-1.0 ms against about 0.1 before; every other
+plant's draw calls are unchanged (14,136 drawings compared).
 `highbushblueberry` (*Vaccinium corymbosum*) is the first fruiting shrub of the
 orchard set; its bells and berries sit ALONG the stems (`bloomStyle:'stemAxil'`,
 no `fruitStyle`), since tip clusters read as a blue-flowered shrub. Cultivars:

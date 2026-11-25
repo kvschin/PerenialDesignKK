@@ -4404,7 +4404,8 @@ test('every informal shrub draws with a habit that exists, and the clipped topia
   const bad=[];
   for (const key of PLANT_KEYS) for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
     const P=plantDef(key,v); if (P.type!=='shrub') continue;
-    const L=P.look||{}, id=key+(v?'.'+v:''), informal=(P.form==='bush' && !L.clip) || P.form==='hydrangea';
+    // a clipped-family shrub that says leafyHabit (inkberry) is drawn as the informal shrub it is
+    const L=P.look||{}, id=key+(v?'.'+v:''), informal=(P.form==='bush' && (!L.clip || L.leafyHabit)) || P.form==='hydrangea';
     if (informal && !shrubHabitOf(P)) bad.push(id+' has no habit');
     if (!informal && shrubHabitOf(P)) bad.push(id+' ('+P.form+(L.clip?', clipped':'')+') has one');
     if (informal && L.habit && !SHRUB_HABITS[L.habit]) bad.push(id+" names '"+L.habit+"'");
@@ -4689,6 +4690,126 @@ test('a joined hedge stands at its real height, on the same scale as a fence', (
     const P=plantDef(k), block=plantVisualH(P)*(P.look.bodyH||0.58)*0.76, want=P.heightIn*PX_PER_FT/12;
     assert(Math.abs(block/want-1)<0.05, `${k}: block ${block.toFixed(0)}px for a ${P.heightIn/12} ft hedge, ${want.toFixed(0)}px on the fence scale`);
   }
+});
+
+/* The leaves a clipped plant's surface lays (clipMarkPush), as {x,y,b} with b its
+   bucket (0-4 the light tones, 5 new growth, 6 shadow, 7 snow), drawn onto a
+   canvas that records nothing. */
+function clipMarksOf(key,v,season,growth,detail,seed){
+  const marks=[], real=clipMarkPush, wasArt=ART2.on;
+  const noop=new Proxy({}, { get:(o,p)=>p in o ? o[p]
+      : (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') ? ()=>({addColorStop(){}}) : ()=>{},
+    set:(o,p,val)=>{ o[p]=val; return true; } });
+  clipMarkPush=function(x,y,a,l,w,b){ marks.push({x,y,b}); return real.call(this,x,y,a,l,w,b); };
+  ART2.on=true;
+  try { drawPlant(noop,0,0,key,growth===undefined?1:growth,season,seed||4242,0,v||null,1,detail); }
+  finally { clipMarkPush=real; ART2.on=wasArt; }
+  return marks;
+}
+// the renderer's detail for a plant of a hedge running along one tile axis
+const CLIP_RUN_DETAIL={hedgeDirs:[[TILE_W/2,TILE_H/2],[-TILE_W/2,-TILE_H/2]], hedgeAngle:Math.atan2(TILE_H,TILE_W),
+  hedgeAxis:[0.894,0.447], hedgeStep:Math.hypot(TILE_W/2,TILE_H/2), hedgeEndNeg:false, hedgeEndPos:false};
+
+test('a clipped hedge is a crust of leaves lit by its form: a lit top, a lighter left side, a shaded right side, a dark foot', () => {
+  /* A clipped hedge was a smooth slab with nine flecks on it, its faces flat
+     fills and its footprint turned to the screen rather than the tiles. Its
+     leaves now lie on a block on the tile axes, each lit by the face it is on.
+     A lone plant shows all three faces; each leaf is put back on its face from
+     where it was drawn. */
+  const mean=a=>a.reduce((s,x)=>s+x,0)/Math.max(1,a.length);
+  for (const k of ['boxwoodsquare','beechhedge','hornbeamhedge','englishyewhedge']){
+    const P=plantDef(k,null), L=P.look, h=plantVisualH(P)*L.bodyH*0.76, t2=clipHedgeThick(L,1)/2;
+    const hw=TILE_W/2, hh=TILE_H/2, faces={top:[],left:[],right:[],foot:[]};
+    const marks=clipMarksOf(k,null,'Summer');
+    assert(marks.length>300, `${k}: a surface of leaves (${marks.length})`);
+    for (const m of marks){
+      if (m.b>4) continue;
+      const s=(m.y+h)/hh, d=m.x/hw, at=(s+d)/2, bt=(s-d)/2;
+      if (Math.abs(at)<t2-0.06 && Math.abs(bt)<t2-0.06){ faces.top.push(m.b); continue; }
+      if (m.x<0){ const a=d+t2, z=(a+t2)*hh-m.y;
+        if (Math.abs(a)<t2 && z>0 && z<h*0.85) (z<h*0.15 ? faces.foot : faces.left).push(m.b); }
+      else { const b=t2-d, z=(t2+b)*hh-m.y;
+        if (Math.abs(b)<t2 && z>h*0.2 && z<h*0.85) faces.right.push(m.b); }
+    }
+    for (const f of Object.keys(faces)) assert(faces[f].length>=15, `${k}: leaves on the ${f} (${faces[f].length})`);
+    const [tp,lf,rt,ft]=[mean(faces.top),mean(faces.left),mean(faces.right),mean(faces.foot)];
+    assert(tp>lf && lf>rt, `${k}: the top is lit, the left side less, the right side least (${tp.toFixed(2)}, ${lf.toFixed(2)}, ${rt.toFixed(2)})`);
+    assert(ft<lf-0.35, `${k}: the foot is in shadow (${ft.toFixed(2)} against ${lf.toFixed(2)})`);
+  }
+});
+
+test('a joined hedge sits on its tiles: a run reaches the tile edges, a corner fills its angle, and its mottle repeats with the tile', () => {
+  const ext=bs=>({a0:Math.min(...bs.map(b=>b.a0)), a1:Math.max(...bs.map(b=>b.a1)), b0:Math.min(...bs.map(b=>b.b0)), b1:Math.max(...bs.map(b=>b.b1))});
+  // a young hedge, thinner than its tile, so it carries arms
+  const run=clipHedgeBoxes(CLIP_RUN_DETAIL.hedgeDirs,0.8), e=ext(run);
+  assert(e.a0<=-0.5 && e.a1>=0.5, 'a run reaches both edges of its tile, so its plants join');
+  assert(Math.abs(e.b0+0.4)<1e-9 && Math.abs(e.b1-0.4)<1e-9, 'and is the hedge\'s thickness across');
+  assert(run.every(b=>!b.r), 'no face is drawn where the next plant of the run stands');
+  // the screen step to a neighbour snaps to the tile axes, so any rotation and
+  // any corner works: a plant with neighbours behind-left and in front-left
+  const corner=clipHedgeBoxes([[-TILE_W/2,-TILE_H/2],[-TILE_W/2,TILE_H/2]],0.8), c=ext(corner);
+  assert(c.a0<=-0.5 && c.b1>=0.5 && c.a1<0.41 && c.b0>-0.41, 'a corner reaches toward both its neighbours and no further');
+  // a thick hedge's plants overlap without arms, and a lone plant is a square block
+  assertEqual(clipHedgeBoxes(CLIP_RUN_DETAIL.hedgeDirs,1.4).length,1,'a hedge thicker than its tile needs no arms');
+  const lone=clipHedgeBoxes([],1.2)[0];
+  assert(lone.r && lone.l && lone.r0 && lone.l0, 'a lone plant shows every outside face');
+  // drawn a tile at a time, the light's mottle has the tile as its period
+  for (let i=0;i<24;i++){ const a=i*0.137-1.3, b=i*0.291-2;
+    assert(Math.abs(clipNoise(a*6,b*6,6,6)-clipNoise((a+1)*6,(b-1)*6,6,6))<1e-12, 'the mottle repeats with the tile'); }
+  // the leaves of a joined plant cover its tile's length along the run
+  const P=plantDef('boxwoodsquare',null), h=plantVisualH(P)*P.look.bodyH*0.76, hw=TILE_W/2, hh=TILE_H/2;
+  const tops=clipMarksOf('boxwoodsquare',null,'Fall',1,CLIP_RUN_DETAIL).map(m=>(((m.y+h)/hh)+m.x/hw)/2).filter(a=>Math.abs(a)<2);
+  assert(Math.min(...tops)<-0.5 && Math.max(...tops)>0.5, 'leaves run to both ends of a joined plant');
+});
+
+test('snow lies on what a clipped plant turns to the sky, and moves none of its leaves', () => {
+  /* Snow on a clipped plant was four ovals scattered over its box, and a joined
+     hedge had none: it returned before the snow pass. */
+  // (a narrow clipped yew cone is too steep to hold any to speak of)
+  for (const [k,det] of [['boxwoodround'],['boxwoodcone'],['boxwoodcolumn'],['boxwoodsquare'],['englishyewhedge',CLIP_RUN_DETAIL]]){
+    const fall=clipMarksOf(k,null,'Fall',1,det), win=clipMarksOf(k,null,'Winter',1,det);
+    const pos=ms=>ms.map(m=>m.x.toFixed(3)+','+m.y.toFixed(3)).join(' ');
+    assertEqual(pos(win),pos(fall),`${k}: the leaves stand in the same places with snow on them`);
+    const snow=win.filter(m=>m.b===7), leaves=win.filter(m=>m.b<7);
+    assert(snow.length>=8, `${k}: snow on it (${snow.length})`);
+    const my=a=>a.reduce((s,m)=>s+m.y,0)/a.length;
+    assert(my(snow)<my(leaves), `${k}: the snow is on its upper surfaces`);
+    assert(!fall.some(m=>m.b===7), `${k}: and none in fall`);
+  }
+  // nothing of the generic scatter: no snow cap floats over a clipped plant
+  for (const k of ['boxwoodsquare','boxwoodround']){
+    const calls=plantDrawCalls(k,null,'Winter',4242,1), i=calls.lastIndexOf('set fillStyle=rgba(240,244,250,0.85)');
+    assert(i<0 || !calls.slice(i).includes('ellipse('), `${k}: the generic snow caps are not drawn over a clipped surface`);
+  }
+});
+
+test('a clipped ball, cone and column stand at their real height', () => {
+  for (const k of ['boxwoodround','boxwoodcone','boxwoodcolumn','boxwoodlow','englishyewcone']){
+    const P=plantDef(k,null), want=P.heightIn*PX_PER_FT/12;
+    const top=-Math.min(...clipMarksOf(k,null,'Fall').map(m=>m.y));
+    // the leaves stand on the surface, so the top leaf is the top of the form
+    // give or take a leaf and the part of a rounded top seen from above
+    assert(top>want*0.94 && top<want*1.12, `${k}: ${top.toFixed(0)}px for a ${(P.heightIn/12).toFixed(1)} ft plant, ${want.toFixed(0)}px on the fence scale`);
+  }
+});
+
+test('inkberry is drawn as the leafy shrub it is, not a clipped ball', () => {
+  /* Inkberry is an upright, many-stemmed native holly with small glossy leaves;
+     it drew as a dark ellipse with leaf dots scattered over it and above it. It
+     keeps look.clip (an evergreen with no bloom in the calendar) and says
+     leafyHabit, which hands it to the shrub habit renderer. */
+  for (const v of [null,'shamrock','piiigi','densa']){
+    const P=plantDef('inkberry',v), id='inkberry'+(v?'.'+v:'');
+    assert(P.look.clip && P.look.leafyHabit && shrubHabitOf(P), `${id}: a clipped-family evergreen drawn as a shrub`);
+    const calls=plantDrawCalls('inkberry',v,'Summer',4242,1);
+    assert(_shN>=120, `${id}: a crown of small leaves (${_shN})`);
+    const H=plantVisualH(P);
+    const body=calls.split('\n').filter(c=>c.startsWith('ellipse(')).map(c=>c.slice(8,-1).split(',').map(Number))
+      .filter(([x,y,rx])=>rx>H*0.25 && y<-6);
+    assertEqual(body.length,0,`${id}: no smooth body under its leaves`);
+    assert(Math.abs(H/(P.heightIn*PX_PER_FT/12)-1)<0.05, `${id}: drawn ${H}px for a ${P.heightIn/12} ft shrub`);
+  }
+  assertEqual(plantDef('inkberry',null).look.habit,'upright','the species is upright');
 });
 
 test('a low conifer is drawn wider than tall, and a mat far flatter still', () => {
