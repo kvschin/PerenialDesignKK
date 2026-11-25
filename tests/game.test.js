@@ -3279,6 +3279,24 @@ test("'Grace' is a small tree under deep-pink smoke, and coppiced a fan of leafy
   const fall=recordPlant('coppicedsmokebush','Fall','grace',undefined,1,LEAF_FULL);
   assert(!fall.some(o=>o.fill&&SHRUB_TONES.some(t=>o.fill===shade(C.look.newGrowth,t))),'no new growth in fall');
 });
+test("'Royal Purple' smokes purple-red, and coppiced it is crimson at the tips", () => {
+  // Cornell and UF give its plumes as purple-red; it drew a pale mauve that read
+  // lavender over the dark leaves (0.9.167)
+  const R=plantDef('smokebush','royalpurple'), [r,g,b]=colorParts(R.sea.Summer.bloom);
+  assert(r>=b*1.5 && r>=g*2,`'Royal Purple' plumes are purple-red, not mauve (${R.sea.Summer.bloom})`);
+  const ops=recordPlant('smokebush','Summer','royalpurple',1);
+  assert(smokeOps(ops,R.sea.Summer.bloom).stalks.pts.length,'and drawn in that colour');
+  // coppiced: crimson new growth over the top of each shoot, the dark purple below
+  const C=plantDef('coppicedsmokebush','royalpurple'), CH=plantVisualH(C);
+  const [nr,ng,nb]=colorParts(C.look.newGrowth||'#000000');
+  assert(nr>=nb*2.5 && nr>=ng*3,`coppiced 'Royal Purple' has crimson tips (${C.look.newGrowth})`);
+  const cops=recordPlant('coppicedsmokebush','Summer','royalpurple',undefined,1);
+  const ys=col=>cops.filter(o=>o.fill&&SHRUB_TONES.some(t=>o.fill===shade(col,t))).flatMap(o=>o.pts.map(p=>p[1]));
+  const old=ys(C.sea.Summer.fol), young=ys(C.look.newGrowth);
+  assert(old.length && young.length,'purple leaves and crimson ones');
+  const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+  assert(mean(young)<mean(old)-CH*0.15,'the crimson is at the top');
+});
 test('the smokebush family carries its sources', () => {
   const doc=JSON.parse(readRepoFile('docs/plant-data/smokebush-sources.json'));
   for (const [ref,row] of Object.entries(doc.plants)){

@@ -5800,9 +5800,9 @@ const PLANTS = {
     blurb:'A loose, drought-tolerant shrub with round blue-green leaves. From June every shoot tip carries a 6-8 in plume of silky pink hairs, so through summer the whole plant sits in a haze that fades to grey by early fall. Prune only lightly, in early spring, or you cut off the wood that smokes; for big leaves and no smoke, coppice it (the Coppiced choice).',
     sea:{Spring:{fol:'#7d8f58'}, Summer:{fol:'#6f7f4f',bloom:'#caa0a4'}, Fall:{fol:'#d4763e',seed:'#b3a39c'}, Winter:{}},
     cv:{
-      royalpurple:{look:{fallMix:['#c8602f','#6e2c40']}, name:"'Royal Purple'", note:'deep wine-purple leaves with smoky purplish-pink plumes',
+      royalpurple:{look:{fallMix:['#c8602f','#6e2c40']}, name:"'Royal Purple'", note:'deep wine-purple leaves under purple-red plumes',
         cw:120, heightIn:144, space:144, spread:180,
-        sea:{Spring:{fol:'#7a2d42'}, Summer:{fol:'#512d3f',bloom:'#b98398'}, Fall:{fol:'#a83e3a',seed:'#a5929a'}}},
+        sea:{Spring:{fol:'#7a2d42'}, Summer:{fol:'#512d3f',bloom:'#b04a5c'}, Fall:{fol:'#a83e3a',seed:'#a5929a'}}},
       goldenspirit:{look:{smokeShare:0.18}, name:"'Golden Spirit'", note:'gold leaves aging lime, then orange-red in fall; few plumes, if any',
         heightIn:120, space:108, spread:120,
         sea:{Spring:{fol:'#d4bd4b'}, Summer:{fol:'#a8b856',bloom:'#d2b5a0'}, Fall:{fol:'#df7a3d',seed:'#b6a597'}}},
@@ -5834,7 +5834,7 @@ const PLANTS = {
     blurb:"Smokebush cut back to a stool of stubs 6-8 in high every late winter. It answers with straight, unbranched shoots, about 5-6 ft in a season, carrying leaves up to twice their usual size, and no smoke: it flowers on the previous year's wood. Grown for its foliage, so the purple and gold forms are the ones usually coppiced. Until the next cut the bare shoots stand through winter.",
     sea:{Spring:{fol:'#7d8f58'}, Summer:{fol:'#6f7f4f'}, Fall:{fol:'#d4763e'}, Winter:{}},
     cv:{
-      royalpurple:{look:{fallMix:['#c8602f','#6e2c40'], bark:'#5e3038'}, name:"'Royal Purple'", note:'the classic coppiced purple: big wine-purple leaves on dark shoots',
+      royalpurple:{look:{fallMix:['#c8602f','#6e2c40'], bark:'#5e3038', newGrowth:'#9c1e32'}, name:"'Royal Purple'", note:'the classic coppiced purple: big wine-purple leaves on dark shoots, crimson at the tips',
         provenance:'selection',
         sea:{Spring:{fol:'#7a2d42'}, Summer:{fol:'#512d3f'}, Fall:{fol:'#a83e3a'}}},
       grace:{look:{bark:'#64343b', newGrowth:'#b0483c', fallMix:['#e0702f','#b8302f','#8a2c3c']}, name:"'Grace'", note:'the most vigorous: shoots to about 7 ft in a season, red-purple at the tips over dark blue-green',

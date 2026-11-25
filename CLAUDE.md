@@ -8823,7 +8823,10 @@ midribs as stripes). A `look.newGrowth` colours each shoot's top from `flushAlon
 bronze band (`mixHex` of the two) below it, in spring and summer only; coppiced 'Grace' carries one.
 All these keys are the coppice habit's alone: every other shrub, 2,400 drawings over four seasons
 and three leaf stages, draws call for call as before. Bakes: 'Grace' 1.5 ms in summer, coppiced
-0.15-0.46 ms.
+0.15-0.46 ms. **0.9.167**, from two more of the gardener's photographs: 'Royal Purple' smokes
+purple-red (`#b04a5c`; Cornell and UF say purple-red, the RHS pink), where its pale mauve read
+lavender over the dark leaves, since a plume is translucent and takes the leaves' colour under it;
+coppiced 'Royal Purple' is crimson at the tips (`newGrowth` `#9c1e32`). Data only.
 
 **Flowering mats and pussytoes (0.9.122).** *The mossphlox habit drew a stem a full plant
 height for every flower* (moss phlox, aubretia, rock rose, periwinkle, trailing bellflower,
