@@ -427,6 +427,25 @@ See §13a.
   invisible on both). The generator marks the tree and shrub indexes as seen
   after a perennial edit and writes trees directly, or ten thousand placements
   through `placePlantAt` took minutes.
+- `node dev/webkit-check.cjs [--garden file] [--query atlas=1]` runs a whole
+  session in WEBKIT and fails if anything throws (0.9.172). Safari and every
+  browser on an iPad or iPhone are WebKit, where a sprite is a `<canvas>` and
+  not an ImageBitmap, so baking, retiring and emptying canvases, the season-fade
+  snapshot, the wash surfaces and what quitting hands back run only there; every
+  other browser test is Chromium, and one tool is Firefox. It opens a garden,
+  turns night on, rotates, zooms, holds fast-forward, skips four seasons, plants,
+  undoes, quits to the menu and opens the garden again. It fails on a page error,
+  an error-log entry, the crash panel, a clump without its own sprite at a
+  reveal, or anything the garden still holds at the menu. **It is not an iPad**:
+  Playwright's desktop WebKit rasterises in software, so its frame times say
+  nothing about a device (a 350-plant garden pans at 9fps in it), it has no
+  canvas-memory ceiling, and it cannot reproduce an out-of-memory reload. It
+  needs Playwright's WebKit build (`npx playwright install webkit`, or the zip
+  unpacked into `%LOCALAPPDATA%/ms-playwright/webkit-<rev>` beside an empty
+  `INSTALLATION_COMPLETE`); it sets `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS`,
+  because the host check wants a second download on Windows. Playwright cannot
+  drive the SYSTEM Firefox (it wants its own build), which is why the Firefox
+  tools spawn it on a throwaway profile themselves.
 - `node dev/ff-bench.cjs` measures the plant sprite cache while time is HELD
   forward — the one gesture that stresses it, and the one `perfBench` and
   `drawProfile` cannot see, because neither moves the clock and the cache is
@@ -2656,7 +2675,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     is copied (0.25ms in Chrome, and WebKit's CG backend does the like), so a
     bake still goes to a surface of its own first. **Not in Firefox**
     (`atlasWanted`): it already batches separate bitmaps (165fps on the same
-    4,700) and draws from an OffscreenCanvas page at a third of the speed. Page
+    4,700) and draws from an OffscreenCanvas page at a third of the speed.
+    **Nor in WebKit by default** (0.9.172): in Playwright's WebKit build the
+    same pages drew about 10% slower than separate canvases (54ms a frame
+    against 49 for 1,800 sprites), and that is the only WebKit measurement
+    there is, so the atlas is Chromium's; `?atlas=1` turns it on anywhere for a
+    comparison on a device, `?atlas=0` off. A sprite in the atlas is charged
+    `ATLAS.COST` (1.4) times its cell against the budget, because a page is held
+    whole: over a session the pages came to 1.36-1.49 times the cells in them. Page
     COUNT does not matter in Chrome (130 pages: 82fps against 86 for one), which
     is why pages are small. Pixels against 0.9.170 on a software canvas:
     `?atlas=0` is byte-identical; with it 0.05-0.06% of pixels differ by 1/255.
@@ -2691,8 +2717,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     hands back the sprite caches, atlas pages, ground canvases, night map and
     washes before the border bakes its own. A bake the browser refuses (no 2D
     context) is a procedural draw and a trimmed cache (`spriteMemoryPressure`),
-    where it threw inside `render`. **None of this is verified on an iPad**: there
-    is no WebKit here, and the crash it answers was not reproduced.
+    where it threw inside `render`. **None of this is verified on an iPad**, and
+    the crash it answers was not reproduced. What IS checked (0.9.172) is that
+    WebKit runs it: `node dev/webkit-check.cjs` drives a whole session in
+    Playwright's WebKit build, where sprites are canvases, and found nothing
+    thrown on the three shared gardens, the demo garden and the shrub border,
+    with the atlas off and forced on.
     Firefox stays accelerated on both kinds of garden (`ff-accel-check`: 4,034
     frames on 11/23, 2,338 on the shrub border).
     **Opening a garden prepares its first picture before revealing it**

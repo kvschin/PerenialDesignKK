@@ -350,6 +350,31 @@ software canvas; with the atlas 0.05-0.06% of pixels differ by 1/255. Firefox
 machine; item 6 and 7 are what the crash report most plausibly was, and the
 crash itself was not reproduced.
 
+### Follow-up the same day: WebKit (0.9.172)
+
+Playwright's WebKit build was installed (WebKit 26.5, the desktop port) and the
+app run in it for the first time. `node dev/webkit-check.cjs` is the tool that
+came of it.
+
+- **Nothing throws.** A whole session (open, night, rotate, zoom, fast-forward,
+  four Skips, planting, undo, quit to the menu, open again) ran clean on the
+  three shared gardens, the demo garden and the shrub border, sprites as
+  canvases, with the atlas off and forced on. At the menu the garden holds
+  nothing; at each reveal every clump has its own sprite.
+- **The atlas is not a gain there.** The synthetic page (separate canvases
+  against atlas pages): 1,800 sprites of 40px, 49ms a frame against 54; 300 of
+  110px, 43 against 47. About 10% slower from pages. That port rasterises in
+  software, so the figure is not an iPad's, but it is the only WebKit figure
+  there is, and Chrome's gain comes from a per-image cost WebKit has not been
+  shown to have. The atlas is now on by default in Chromium only. `?atlas=1`
+  forces it on for a comparison on a device.
+- **Atlas sprites were under-charged.** A page is held whole; over a session the
+  pages came to 1.36-1.49 times the cells in them (12 pages, 50MB, for 34MB of
+  cells), so the cache could hold a budget of sprites in pages worth half as much
+  again. A sprite in the atlas is charged 1.4 times its cell (`ATLAS.COST`).
+- **What it cannot say** is anything about speed or memory on a device. In this
+  port a 350-plant garden pans at 9 frames a second whichever build is loaded.
+
 ### Proposals not taken (ranked by expected benefit)
 
 1. **Fewer bakes while time is held forward in Today view.** A 2,035-plant

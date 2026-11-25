@@ -19907,8 +19907,9 @@ test('a small sprite is drawn from its own image the frame it is baked, and from
     }
     assert(fresh.every(e=>e.sx===e.cell.x+1 && e.sy===e.cell.y+1 && e.pw+2<=e.cell.w && e.ph+2<=e.cell.h), 'each sprite sits a pixel inside its cell');
     let sum=0; for (const e of fresh) sum+=e.bytes;
-    assertEqual(PSPRITE.bytes, sum, 'the budget counts the cells');
-    assert(PSPRITE.bytes>=bytes, 'which are no smaller than the sprites');
+    assertEqual(PSPRITE.bytes, sum, 'the budget counts what the sprites are charged');
+    assert(fresh.every(e=>e.bytes===Math.round(e.cell.w*e.cell.h*4*ATLAS.COST)), 'each its cell and its share of the page around it');
+    assert(ATLAS.COST>1 && PSPRITE.bytes>bytes, 'which is more than the sprite alone: a page is held whole');
     // the frame draws them as hits: nothing bakes, and the blit names the cell
     const calls=[]; const wasDraw=ctx.drawImage;
     ctx.drawImage=function(){ calls.push(arguments.length); };
@@ -19989,16 +19990,23 @@ test('Firefox keeps its bitmaps, and ?atlas=0 switches the atlas off', () => {
   try{
     navigator.userAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101 Firefox/157.0';
     assert(!atlasWanted(), 'not in Firefox: it batches separate bitmaps already, and a painted-into canvas is what demotes it');
-    navigator.userAgent='Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1';
-    assert(atlasWanted(), 'in Safari, where every sprite was a canvas of its own');
+    const safari='Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1';
+    navigator.userAgent=safari;
+    assert(!atlasWanted(), 'not in Safari by default: the one WebKit measurement had pages 10% slower than canvases');
+    navigator.userAgent='Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0.6778.73 Mobile/15E148 Safari/604.1';
+    assert(!atlasWanted(), 'nor in Chrome on an iPhone, which is WebKit');
     navigator.userAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36';
-    assert(atlasWanted(), 'and in Chrome, where the measurement was taken');
+    assert(atlasWanted(), 'in Chrome, where the measurement was taken');
+    navigator.userAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0';
+    assert(atlasWanted(), 'and in Edge');
     location.search='?atlas=0';
-    assert(!atlasWanted(), 'the switch for a comparison on a device');
+    assert(!atlasWanted(), 'the switch off, for a comparison');
     location.search='?debug&atlas=0&x=1';
     assert(!atlasWanted(), 'anywhere in the query');
     location.search='?atlas=01';
     assert(atlasWanted(), 'and only that');
+    navigator.userAgent=safari; location.search='?atlas=1';
+    assert(atlasWanted(), 'and the switch on, to try it on a device that does not have it');
   } finally { navigator.userAgent=wasNav; location.search=wasSearch; }
   // with it off, a bake offers itself to nothing
   atlasCase((draw) => {

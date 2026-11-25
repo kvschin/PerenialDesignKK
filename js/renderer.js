@@ -2989,10 +2989,15 @@ function plantStandInKey(kk,slot){
      - Not in Firefox. Its canvas already batches separate bitmaps (165fps on
        the same 4,700), and drawing from a big canvas that bakes are painted
        into is exactly what demotes it (the sprite-bitmap note above).
-     - In WebKit (every iPad and iPhone browser) each sprite was a <canvas>,
-       hundreds to thousands alive at once. Adopted, they are a page or two, and
-       the small canvas a bake was made in lives two frames. Not measured on a
-       device: ?atlas=0 in the address switches it off for a comparison.
+     - Not in WebKit by default either (0.9.172). The gain is Chromium's: it is
+       the per-image cost there that the pages remove. Run in Playwright's
+       WebKit build the same pages draw about 10% SLOWER than separate canvases
+       (1,800 sprites: 54ms a frame against 49; 300 larger ones: 47 against 43).
+       That build rasterises in software and is not an iPad, but it is the only
+       WebKit measurement there is, and the canvases a tablet could not afford
+       are answered another way (a retired one is emptied at once). ?atlas=1 in
+       the address turns it on anywhere, for a comparison on a device, and
+       ?atlas=0 turns it off.
      - A page is a canvas ELEMENT, never an OffscreenCanvas: Firefox draws from
        those at a third of the speed, and one kind is one thing to test.
    Cells come from shelves: a row of one height (rounded up to 8px), filled left
@@ -3006,14 +3011,23 @@ function plantStandInKey(kk,slot){
    budget, and a sprite that finds no cell simply stays an image of its own, as
    before. A sweep (atlasSweep) frees
    the cells of sprites that left the cache by a route that did not say so. */
-const ATLAS={on:atlasWanted(), MAX:224, PAGE:1024, SHARE:1, SLACK:32, ADOPT:320, IDLE:300, ROOM:8*1024*1024,
+/* COST: what a sprite in the atlas is charged against the sprite budget, as a
+   multiple of its cell. A page is held whole however full it is, and measured
+   over a session of a 350-plant garden the pages came to 1.36-1.49 times the
+   cells in them (12 pages, 50MB, for 34MB of cells). Charged for the cells
+   alone the cache could hold a budget of sprites in pages worth half as much
+   again; charged this, pages and separate images together come to the budget. */
+const ATLAS={on:atlasWanted(), MAX:224, PAGE:1024, SHARE:1, SLACK:32, COST:1.4, ADOPT:320, IDLE:300, ROOM:8*1024*1024,
   pages:[], fresh:[], cells:new Set(), triedAt:-1e9, freed:0, wantFreed:-1};
 function atlasWanted(){
   try{
+    if (typeof document==='undefined' || typeof document.createElement!=='function') return false;
+    const q=(typeof location!=='undefined' && location.search) || '';
+    if (/[?&]atlas=0(&|$)/.test(q)) return false;
+    if (/[?&]atlas=1(&|$)/.test(q)) return true;
     const ua=(typeof navigator!=='undefined' && navigator.userAgent) || '';
-    if (/Firefox\//.test(ua)) return false;
-    if (typeof location!=='undefined' && /[?&]atlas=0(&|$)/.test(location.search||'')) return false;
-    return typeof document!=='undefined' && typeof document.createElement==='function';
+    // Chrome, Edge and the rest of that family. Every iOS browser is WebKit and says CriOS or EdgiOS, not these.
+    return /Chrome|Chromium|Edg\//.test(ua) && !/Firefox\//.test(ua);
   }catch(_){ return false; }
 }
 function atlasBytes(){ let b=0; for (const p of ATLAS.pages) b+=p.size*p.size*4; return b; }
@@ -3163,7 +3177,8 @@ function atlasAdopt(max){
     g.clearRect(c.x,c.y,c.w,c.h);
     g.drawImage(e.cv,c.x+1,c.y+1);
     retireSpriteImage(e.cv);
-    PSPRITE.bytes+=c.w*c.h*4-e.bytes; e.bytes=c.w*c.h*4;
+    const cost=Math.round(c.w*c.h*4*A.COST);
+    PSPRITE.bytes+=cost-e.bytes; e.bytes=cost;
     e.cv=c.p.cv; e.cell=c; e.sx=c.x+1; e.sy=c.y+1;
     n++;
   }
