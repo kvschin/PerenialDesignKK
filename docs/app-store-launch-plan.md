@@ -1,4 +1,4 @@
-# Pocket Prairie: App Store launch and pricing proposal
+# SeedHead: App Store launch and pricing proposal
 
 Prepared September 5, 2026 (America/Chicago), against local version 0.8.63. Apple App Store first is the working assumption; Google Play is covered at the end. This is a planning proposal, not an adopted change to the product specification or authorization to introduce payments or dependencies.
 

@@ -332,7 +332,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .menu-title-block .eyebrow{margin-bottom:12px;color:var(--menu-accent,var(--color-accent-700));
   transition:color 900ms var(--ease-standard)}
 .menu-title-block h1.title{font-size:clamp(54px,6.6vw,96px);line-height:.92}
-.menu-title-block h1.title em{color:var(--menu-accent,var(--bronze));transition:color 900ms var(--ease-standard)}
+.menu-title-block h1.title em{color:var(--menu-accent,var(--bronze));transition:color 900ms var(--ease-standard);
+  /* SeedHead is one word: the slanted H opened a gap after the d that read as a space */
+  margin-left:-.05em}
 .menu-tagline{margin-top:16px;color:var(--text-secondary);font-size:15px;line-height:1.45;max-width:36ch}
 .menu-card{grid-row:3;width:100%;display:flex;flex-direction:column;gap:10px}
 .menu-action{min-height:94px;width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;
@@ -426,7 +428,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 /* A 320px phone: the eyebrow ran under the two corner buttons. The id is there
    to outrank the SHEET rule further down the file, which a media query alone
    cannot. */
-@media (max-width:359px){ #menuScreen .menu-title-block .eyebrow{font-size:10px;letter-spacing:.12em} }
+@media (max-width:359px){ #menuScreen .menu-title-block .eyebrow{font-size:10px;letter-spacing:.12em}
+  /* SeedHead on one line ran its last letter under the Guide button at 46px */
+  #menuScreen .menu-title-block h1.title{font-size:38px} }
 /* Short windows, and a phone on its side. */
 @media (max-height:700px){
   .menu-shell{row-gap:14px}
@@ -441,9 +445,6 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .menu-shell{row-gap:10px}
   .menu-title-block .eyebrow{display:none}
   .menu-title-block h1.title{font-size:34px}
-  /* one line: the break goes, so the italic word needs its own space */
-  .menu-title-block h1.title br{display:none}
-  .menu-title-block h1.title em{margin-left:.22em}
   .menu-action{min-height:58px;padding:6px 12px 6px 6px}
   .menu-art{width:44px;height:44px}
   .menu-action strong{font-size:17px}

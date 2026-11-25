@@ -1,4 +1,4 @@
-# Pocket Prairie — direction & decisions
+# SeedHead — direction & decisions
 
 > A short record of where the project is heading after the mid-2026 scope
 > pivot. Supersedes the old "Story Mode design" doc (a sprawling build-out

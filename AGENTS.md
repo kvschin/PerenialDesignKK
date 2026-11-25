@@ -1,4 +1,4 @@
-# Pocket Prairie Garden Design — agent guide
+# SeedHead Garden Design — agent guide
 
 ## Canonical project specification
 
@@ -16,7 +16,7 @@ an app change affects an enduring convention or architecture decision, update
 
 Current product direction, for orientation:
 
-- Pocket Prairie Garden Design is a design-first, 2.5D naturalistic garden
+- SeedHead Garden Design (formerly Pocket Prairie) is a design-first, 2.5D naturalistic garden
   planner. The primary experience is **Design a Garden**.
 - Every garden is a planner: direct placement, free camera, and no preplaced
   house. Ordinary gardens start with a blank plot; daily challenges start with

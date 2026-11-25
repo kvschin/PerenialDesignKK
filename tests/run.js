@@ -1,5 +1,5 @@
 'use strict';
-/* Zero-dependency test runner for Pocket Prairie.
+/* Zero-dependency test runner for SeedHead.
    The game is plain browser JS with no module exports, so we load the real
    source files inside a `vm` sandbox:
      - plants.js is pure data -> runs with no stubs (Tier 1: data contract).

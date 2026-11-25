@@ -1046,12 +1046,13 @@ async function startDailyChallenge(){
    already did this correctly (screens.js, reportCrash). */
 function syncMenuVersion(){
   const a=document.getElementById('menuVersion'); if (!a) return;
-  const txt=`Pocket Prairie v${APP_VERSION}`;   // Credits is its own footer link now (credits.html)
+  const txt=`SeedHead v${APP_VERSION}`;   // Credits is its own footer link now (credits.html)
   if (a.textContent!==txt) a.textContent=txt;
 }
 async function refreshMenuCards(){
   syncMenuVersion();
   const dc=$('btnDaily'); if (dc) dc.querySelector('small').textContent='Today · '+todaysChallenge().title;
+  paintMenuDailyArt();      // today's page: draws only if the day has turned since it was last drawn
   // the Library's own count, so the menu and its search field name one number
   const lb=$('btnLibrary'); if (lb) lb.querySelector('small').textContent=`${libraryAllKeys().length} plants, each drawn in four seasons`;
   const g=$('btnDesign'); if (!g) return;
@@ -1207,7 +1208,7 @@ function renderDailyShareCard(c,options,moment){
   const ctx=cv.getContext('2d');if(!ctx)throw new Error('No share canvas');
   const inset=48,width=cv.width-inset*2,top=options.format==='story'?200:64;
   ctx.fillStyle='#f3efe4';ctx.fillRect(0,0,cv.width,cv.height);
-  ctx.fillStyle='#59664d';ctx.font='20px sans-serif';ctx.fillText('POCKET PRAIRIE · DAILY DESIGN',inset,top);
+  ctx.fillStyle='#59664d';ctx.font='20px sans-serif';ctx.fillText('SEEDHEAD · DAILY DESIGN',inset,top);
   const title=dailyShareTitleLines(ctx,c.title,width),titleY=top+62;
   ctx.fillStyle='#29362c';ctx.font=`bold ${title.size}px serif`;
   title.lines.forEach((line,i)=>ctx.fillText(line,inset,titleY+i*54));
@@ -1217,7 +1218,7 @@ function renderDailyShareCard(c,options,moment){
   const portrait=renderGardenPortrait(width,imageHeight,moment.atDay);if(!portrait)throw new Error('No portrait canvas');
   ctx.drawImage(portrait,inset,imageY);
   ctx.fillStyle='#29362c';ctx.font='29px serif';ctx.fillText('A little garden. A new idea every day.',inset,footerY);
-  ctx.font='22px sans-serif';ctx.fillStyle='#59664d';ctx.fillText('Made in Pocket Prairie Garden Design',inset,footerY+48);
+  ctx.font='22px sans-serif';ctx.fillStyle='#59664d';ctx.fillText('Made in SeedHead Garden Design',inset,footerY+48);
   return cv;
 }
 async function prepareDailyShare(){
@@ -1235,14 +1236,14 @@ async function prepareDailyShare(){
     const blob=await new Promise(resolve=>cv.toBlob(resolve,'image/png'));
     if(!blob)throw new Error('Image encoding failed');
     if(request!==dailyShareRequest||game.challenge!==c||game.worldId!==id)return;
-    const name=`pocket-prairie-${c.date}-${c.id}-${options.format}-${moment.season.toLowerCase()}.png`, url=URL.createObjectURL(blob);
+    const name=`seedhead-${c.date}-${c.id}-${options.format}-${moment.season.toLowerCase()}.png`, url=URL.createObjectURL(blob);
     const file=typeof File==='function'?new File([blob],name,{type:'image/png'}):null;
     let canShare=false;
     try{canShare=!!(file&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]}));}catch(e){/* download is always available */}
     dailyShareImage={blob,file,name,url,canShare,worldId:id,title:c.title,format:options.format,season:moment.season};
     $('challengeImage').alt=`${c.title} · ${moment.season} · ${format.label} sharing image`;
     $('challengeImage').src=url;
-    $('challengeCaption').value=`My ${c.title} garden for the Pocket Prairie daily design challenge on ${dailyDateLabel(c.date,true)}, shown in ${moment.season.toLowerCase()}.\n#PocketPrairie #GardenDesign`;
+    $('challengeCaption').value=`My ${c.title} garden for the SeedHead daily design challenge on ${dailyDateLabel(c.date,true)}, shown in ${moment.season.toLowerCase()}.\n#SeedHead #GardenDesign`;
     $('challengeShareStatus').textContent=`${format.label} · ${format.width} × ${format.height} PNG · ${moment.season}. `+
       (canShare?'Ready to download or share.':'Ready to download. File sharing isn’t available in this browser.');
     syncDailyShareControls();
@@ -1614,11 +1615,12 @@ async function shareCurrentGarden(){
      own if it fails; the share no longer depends on it. */
   await saveSolo(true);
   const w=buildSaveBlob();
+  // pocketPrairie:1 is the file format's marker, kept through the rename (gardenFileProblem says why)
   const env=JSON.stringify({ pocketPrairie:1, v:1, exported:Date.now(), world:w });
   const fname=((game.worldName||w.name||'garden').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase())||'garden';
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([env],{type:'application/json'}));
-  a.download=fname+'.prairie.json'; a.click();
+  a.download=fname+'.seedhead.json'; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
   funnel(FUNNEL_EVENTS.gardenShared);
   toast('Garden file downloaded — send it to a friend to share.');
@@ -2883,7 +2885,7 @@ function settingsSections(){
          options:LANGUAGES.map(l=>({id:l.id, label:l.native})),
          get:()=>langPref, set:id=>{ setLangPref(id); return `Language: ${languageLabel()}.`; }}
       : {kind:'note', id:'lang', label:'Language', value:languageLabel(),
-         hint:'Pocket Prairie is English-only today. More languages are planned — botanical Latin names stay as they are either way.'},
+         hint:'SeedHead is English-only today. More languages are planned — botanical Latin names stay as they are either way.'},
   ]});
 
   const controls=[
@@ -2930,7 +2932,7 @@ function settingsSections(){
       {href:'credits.html', text:'Credits'},
       {href:'privacy.html', text:'Privacy'},
       {href:'terms.html', text:'Terms'},
-    ], hint:'Pocket Prairie makes no network requests and sends nothing anywhere.'},
+    ], hint:'SeedHead makes no network requests and sends nothing anywhere.'},
   ]});
 
   /* The paid tier's PLACEMENT, decided and built, behind one constant. Off, this
@@ -2942,7 +2944,7 @@ function settingsSections(){
      is where people look for it; conversion belongs at the moment of value (the
      planting list, the plan sheet, Share) and on the main menu, not three rows
      into a preferences screen where nobody in a buying mood is looking. */
-  if (PREMIUM_ENABLED) sections.push({title:'Pocket Prairie Premium', rows:[
+  if (PREMIUM_ENABLED) sections.push({title:'SeedHead Premium', rows:[
     {kind:'note', id:'premium-state', label:'Status',
      value:isPremium()?'Premium':'Free',
      hint:isPremium()
@@ -4113,7 +4115,7 @@ function syncMenuBorderChrome(b){
   }
 }
 /* Each entry shows the thing it opens, drawn by the app: a garden, a plant in
-   its four seasons, a plan. */
+   its four seasons, today's calendar page. */
 const MENU_GARDEN_ART={
   Spring:['baptisia','amsonia','camassia','sesleria','cushionspurge','muscari','camassia','sesleria','daffodil'],
   Summer:['culvers','echinacea','monarda','dropseed','yarrow','allium','echinacea','sesleria','calamint'],
@@ -4148,35 +4150,66 @@ function paintMenuLibraryArt(){
     g.translate(x+pw/2,y+ph*.9); g.scale(sc,sc); drawPlant(g,0,0,k,1,s,4410,0,undefined,1); g.restore(); });
   g.fillStyle='rgba(20,14,11,.55)'; g.fillRect(pw-1,0,2,h); g.fillRect(0,ph-1,w,2);
 }
-function paintMenuPlanArt(){
-  const c=$('menuArtDaily'); if (!c || !c.getContext) return;
-  const g=c.getContext('2d'), w=c.width, h=c.height;
-  g.setTransform(1,0,0,1,0,0);
-  g.fillStyle='#efe6d3'; g.fillRect(0,0,w,h);
-  g.strokeStyle='rgba(70,52,40,.10)'; g.lineWidth=1;
-  for (let i=1;i<8;i++){ g.beginPath(); g.moveTo(i*w/8+.5,0); g.lineTo(i*w/8+.5,h); g.moveTo(0,i*h/8+.5); g.lineTo(w,i*h/8+.5); g.stroke(); }
-  const path=()=>{ g.beginPath(); g.moveTo(-6,h*.74); g.bezierCurveTo(w*.3,h*.58,w*.5,h*.92,w+6,h*.50); };
-  path(); g.strokeStyle='#d9ccb0'; g.lineWidth=17; g.lineCap='round'; g.stroke();          // a gravel path through it
-  path(); g.strokeStyle='rgba(70,52,40,.22)'; g.lineWidth=1; g.setLineDash([3,3]); g.stroke(); g.setLineDash([]);
-  const blob=(x,y,rx,ry,seed)=>{
-    const r=mulberry(seed), n=9, pts=[];
-    for (let i=0;i<n;i++){ const a=i/n*6.283, m=.78+r()*.44; pts.push([x+Math.cos(a)*rx*m,y+Math.sin(a)*ry*m]); }
-    g.beginPath(); g.moveTo((pts[n-1][0]+pts[0][0])/2,(pts[n-1][1]+pts[0][1])/2);
-    for (let i=0;i<n;i++){ const p=pts[i], q=pts[(i+1)%n]; g.quadraticCurveTo(p[0],p[1],(p[0]+q[0])/2,(p[1]+q[1])/2); }
-    g.closePath();
-  };
-  const drifts=[[.26,.28,.20,.13,'#b8c79c',3],[.62,.22,.17,.12,'#cba7bd',9],[.86,.30,.11,.14,'#d8c070',14],
-    [.20,.50,.12,.08,'#c98f70',21],[.52,.46,.15,.10,'#a8bacb',27],[.30,.90,.20,.09,'#cba7bd',33],[.74,.84,.17,.10,'#b8c79c',39]];
-  for (const d of drifts){ blob(d[0]*w,d[1]*h,d[2]*w,d[3]*h,d[5]); g.fillStyle=d[4]; g.fill();
-    g.strokeStyle=mixHex(d[4],'#3a2a20',.45); g.lineWidth=1.3; g.stroke(); }
-  g.setLineDash([4,3]); g.strokeStyle='rgba(58,42,32,.62)'; g.lineWidth=1.4;          // a tree's crown
-  g.beginPath(); g.arc(w*.83,h*.62,w*.105,0,6.3); g.stroke(); g.setLineDash([]);
-  g.fillStyle='rgba(58,42,32,.8)'; g.beginPath(); g.arc(w*.83,h*.62,2.6,0,6.3); g.fill();
-  g.strokeStyle='rgba(58,42,32,.85)'; g.lineWidth=1.6;                                 // north
-  g.beginPath(); g.moveTo(w*.09,h*.16); g.lineTo(w*.09,h*.05); g.moveTo(w*.06,h*.09); g.lineTo(w*.09,h*.05); g.lineTo(w*.12,h*.09); g.stroke();
-  g.strokeStyle='rgba(58,42,32,.7)'; g.lineWidth=2; g.strokeRect(1,1,w-2,h-2);
+/* The daily entry is today's page of a desk calendar, its day read off the
+   challenge's own date key, with a plant from today's brief standing in front
+   of it in the brief's season. Of the suggestions it takes one that reads at
+   74px: in flower, a forb or bulb, upright and tall, never a tree or a plant
+   of open water (a lily pad drawn to fit is a green smear).
+   It is painted again whenever the menu is shown (refreshMenuCards), and only
+   draws when the day, or the title face arriving, changes what it shows. */
+let menuDailyArtKey='';
+function menuDailyArtPlant(ch){
+  const season=ch&&ch.season;
+  let best=null, top=-Infinity;
+  for (const r of (ch&&ch.palette)||[]){
+    if (!r || !PLANTS[r.s]) continue;
+    const v=r.v||undefined, P=plantDef(r.s,v), S=P&&P.sea&&P.sea[season], L=P&&P.look||{};
+    if (!S || isTreeDef(P) || !(S.bloom||S.fol||S.seed)) continue;
+    const herb=P.type==='forb'||P.type==='bulb';      // a shrub's flowers are specks at this size
+    const score=(S.bloom&&herb?4:0)+(herb?2:P.type==='water'?-3:0)
+      +Math.min(P.heightIn||0,48)/24-((L.sideScale||0)>.6?1:0);
+    if (score>top){ best={s:r.s,v,season}; top=score; }
+  }
+  return best||{s:'echinacea',v:undefined,season:'Summer'};
 }
-function paintMenuArt(){ paintMenuGardenArt(menuSeason); paintMenuLibraryArt(); paintMenuPlanArt(); }
+function paintMenuDailyArt(date=new Date()){
+  const c=$('menuArtDaily'); if (!c || !c.getContext) return;
+  const face='600 64px Fraunces', fonts=typeof document!=='undefined'?document.fonts:null;
+  const ready=!fonts || typeof fonts.check!=='function' || fonts.check(face);
+  const key=dailyDateKey(date), memo=key+(ready?'':'~');
+  if (memo===menuDailyArtKey) return;
+  menuDailyArtKey=memo;
+  if (!ready && typeof fonts.load==='function')
+    fonts.load(face).then(()=>{ if (menuDailyArtKey===memo) paintMenuDailyArt(date); },()=>{});
+  const g=c.getContext('2d'), w=c.width, h=c.height, pl=menuDailyArtPlant(dailyChallengeFor(date));
+  const A=AMBIENCE[pl.season]||AMBIENCE.Summer;
+  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,w,h);
+  const sky=g.createLinearGradient(0,0,0,h); sky.addColorStop(0,A.sky[0]); sky.addColorStop(1,A.sky[1]); g.fillStyle=sky; g.fillRect(0,0,w,h);
+  g.fillStyle=A.snow?'#e4e6e2':A.grass[1]; g.fillRect(0,h*.86,w,h*.14);
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(key), when=m?new Date(+m[1],+m[2]-1,+m[3]):date;
+  const day=String(when.getDate()), mon=when.toLocaleDateString(undefined,{month:'short'}).replace(/\.$/,'').toLocaleUpperCase();
+  const fit=(txt,px,maxW)=>{ let s=px; g.font=`600 ${s}px Fraunces, Georgia, serif`;
+    while (s>8 && g.measureText(txt).width>maxW){ s--; g.font=`600 ${s}px Fraunces, Georgia, serif`; } };
+  const pw=w*.57, ph=h*.67, hd=ph*.27, x0=-pw/2, y0=-ph/2;
+  g.save(); g.translate(w*.35,h*.5); g.rotate(-.07);
+  g.fillStyle='rgba(20,14,11,.28)'; g.fillRect(x0+3,y0+5,pw,ph);                       // its shadow
+  g.fillStyle='#cfc4b0'; g.fillRect(x0+2,y0+ph,pw-1,5);                               // the pages under today's
+  g.fillStyle='#fbf6ea'; g.fillRect(x0,y0,pw,ph);
+  g.fillStyle='#b5482f'; g.fillRect(x0,y0,pw,hd);
+  g.textAlign='center'; g.textBaseline='middle'; g.fillStyle='#fbf1df';
+  fit(mon,Math.round(hd*.5),pw*.8); g.fillText(mon,0,y0+hd*.62);
+  g.textBaseline='alphabetic'; g.fillStyle='#2b211b';
+  fit(day,Math.round(ph*.56),pw*.86); g.fillText(day,0,y0+hd+(ph-hd)*.83);
+  for (const rx of [-pw*.25,pw*.25]){                                                    // the binding
+    g.fillStyle='#4a1d13'; g.beginPath(); g.ellipse(rx,y0+hd*.3,3.4,2.6,0,0,6.3); g.fill();
+    g.strokeStyle='#6d665c'; g.lineWidth=3.4; g.lineCap='round';
+    g.beginPath(); g.ellipse(rx,y0+hd*.02,4.6,hd*.3,0,Math.PI/2,Math.PI*3/2); g.stroke();
+  }
+  g.restore();
+  const bw=37, bh=74, art=libCanvas(pl.s,pl.v,pl.season,bw,bh,2.6);                   // today's plant
+  g.drawImage(art,w*.79-bw,h*.95-(bh*2-10),bw*2,bh*2);
+}
+function paintMenuArt(){ paintMenuGardenArt(menuSeason); paintMenuLibraryArt(); paintMenuDailyArt(); }
 /* The Library and the guidebook are full-bleed plates over the menu canvas. A
    border kept moving behind them is paint nobody can see, and their 4px
    backdrop blur is recomposited for every frame of it. */
@@ -5028,7 +5061,7 @@ function noteError(err,where){
   errLog.push({where, msg:(err&&err.message)||String(err),
     stack:(err&&err.stack)||'', t:Date.now()});
   if (errLog.length>12) errLog.shift();
-  try{ console.error('[pocket-prairie]',where,err); }catch(_){ }
+  try{ console.error('[seedhead]',where,err); }catch(_){ }
 }
 function reportCrash(err,where){
   finishGardenOpen(); // keep the recovery controls reachable if preparation failed
@@ -5050,7 +5083,7 @@ function reportCrash(err,where){
 function buildCrashPanel(err,where){
   const wrap=document.createElement('div');
   wrap.setAttribute('role','alertdialog');
-  wrap.setAttribute('aria-label','Pocket Prairie stopped');
+  wrap.setAttribute('aria-label','SeedHead stopped');
   wrap.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;'+
     'align-items:center;justify-content:center;padding:24px;'+
     'background:rgba(20,14,11,.88);color:#ece3d4;'+
@@ -5060,7 +5093,7 @@ function buildCrashPanel(err,where){
     'border:1px solid #40312a;border-radius:9px;padding:22px 24px;'+
     'box-shadow:0 12px 40px rgba(0,0,0,.5)';
   const h=document.createElement('h2');
-  h.textContent='Pocket Prairie stopped';
+  h.textContent='SeedHead stopped';
   h.style.cssText="margin:0 0 8px;font-family:'Fraunces',Georgia,serif;"+
     'font-size:24px;font-weight:600;color:#ece3d4';
   const body=document.createElement('p');
@@ -5086,7 +5119,7 @@ function buildCrashPanel(err,where){
        difference between a reproducible report and a guess. It is device-local
        either way — this is the gardener choosing to paste it. */
     let fn=''; try{ fn='\n\n'+funnelSummary(); }catch(_){ }
-    const txt=['Pocket Prairie '+(APP_VERSION||'?')+' — '+where,
+    const txt=['SeedHead '+(APP_VERSION||'?')+' — '+where,
       navigator.userAgent, '',
       ...errLog.map(e=>e.where+': '+e.msg+'\n'+e.stack)].join('\n')+fn;
     try{ navigator.clipboard.writeText(txt).then(

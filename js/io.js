@@ -862,13 +862,17 @@ const GARDEN_FILE_MAX_BYTES=16*1024*1024;
 const GARDEN_FILE_MAX_SIDE=256; // above the UI's 133 tiles; leaves room for older plots
 function gardenRecord(v){ return v!==null && typeof v==='object' && !Array.isArray(v); }
 function gardenFileProblem(env){
+  /* `pocketPrairie:1` is the garden FILE FORMAT's marker, from when the app was
+     called Pocket Prairie (renamed SeedHead in 0.9.173). It is not a name anyone
+     reads, and every garden file shared before the rename carries it, as do the
+     older builds that will open a file shared after it, so it stays as it is. */
   if (!gardenRecord(env) || env.pocketPrairie!==1 || !gardenRecord(env.world))
-    return 'That does not look like a Pocket Prairie garden.';
+    return 'That does not look like a SeedHead garden.';
   if (env.v!==undefined && env.v!==1)
-    return 'This garden file uses an unsupported format. Update Pocket Prairie or export it again from the original app.';
+    return 'This garden file uses an unsupported format. Update SeedHead or export it again from the original app.';
   const w=env.world;
   if (w.v!==undefined && (!Number.isInteger(w.v) || w.v<0 || w.v>SAVE_VERSION))
-    return 'This garden uses an unsupported save version. Update Pocket Prairie before importing it.';
+    return 'This garden uses an unsupported save version. Update SeedHead before importing it.';
   // Bound recursive data and forbid keys that can change a map's prototype.
   // This also catches JSON numbers such as 1e999 before they reach geometry.
   let nodes=0;
@@ -910,7 +914,7 @@ function gardenFileProblem(env){
             !Number.isFinite(p.d) || ['ox','oy'].some(k=>!number(p,k))) return 'This garden contains an invalid plant record.';
         const ref=canonicalPlantRef(p.s,p.v), P=Object.prototype.hasOwnProperty.call(PLANTS,ref.s)&&PLANTS[ref.s];
         if (!P || (ref.v && (!P.cv || !Object.prototype.hasOwnProperty.call(P.cv,ref.v))))
-          return 'This garden contains a plant or variety this version cannot read. Update Pocket Prairie before importing it.';
+          return 'This garden contains a plant or variety this version cannot read. Update SeedHead before importing it.';
       } else if (layer==='terrain'){
         if (!isTerrainKind(p.k) || !string(p,'c') || !string(p,'e') || !string(p,'x')) return 'This garden contains invalid ground material data.';
       } else if (layer==='elevation'){
@@ -3177,7 +3181,7 @@ function drawPlanPaper(ctx,g,sheetName){
   ctx.font='600 22px Fraunces, serif';
   ctx.fillText(game.worldName||'Design plan', padL, 38);
   ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
-  ctx.fillText(`${sheetName} · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
+  ctx.fillText(`${sheetName} · SeedHead Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
   const ftPerTile=TILE_IN/12;
   /* "at full size" is not hedging: a browser's fit-to-page rescales the sheet
      and no stated ratio survives that, so the sheet says when its ratio holds

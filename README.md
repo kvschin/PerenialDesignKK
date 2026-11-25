@@ -1,4 +1,4 @@
-# Pocket Prairie Garden Design
+# SeedHead Garden Design
 
 A 2.5D garden planner in the spirit of Piet Oudolf's naturalistic planting
 style. Hundreds of species and cultivars — grasses, sedges, perennials, bulbs,

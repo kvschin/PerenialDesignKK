@@ -14,7 +14,7 @@ const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf
 const beforeVersion = version + '-release-check-before';
 const output = process.env.PP_BROWSER_RESULTS
   ? path.resolve(process.env.PP_BROWSER_RESULTS)
-  : fs.mkdtempSync(path.join(os.tmpdir(), 'pocket-prairie-release-'));
+  : fs.mkdtempSync(path.join(os.tmpdir(), 'seedhead-release-'));
 fs.mkdirSync(output, {recursive:true});
 const results = {started:new Date().toISOString(), version, checks:[]};
 
@@ -149,7 +149,7 @@ async function scenario(browser, profile){
       });
       assert.equal(reg.scope, url);
       assert.equal(reg.waiting, false);
-      assert.deepEqual(reg.caches, ['pocket-prairie-v' + beforeVersion]);
+      assert.deepEqual(reg.caches, ['seedhead-v' + beforeVersion]);
       assert.equal(await page.locator('#updateBar').isVisible(), false, 'first installation is not an update');
     });
     await check(label('published ZIP lookup, unsupported zones, and official map link'), async()=>{
@@ -454,7 +454,7 @@ async function scenario(browser, profile){
         core:await (await fetch('./js/core.js')).text()
       }));
       assert(pending.waiting);
-      assert.deepEqual(pending.caches, ['pocket-prairie-v' + version, 'pocket-prairie-v' + beforeVersion].sort());
+      assert.deepEqual(pending.caches, ['seedhead-v' + version, 'seedhead-v' + beforeVersion].sort());
       assert(pending.html.includes(`data-release-check-build="${beforeVersion}"`));
       assert(pending.core.includes(`const APP_VERSION = '${beforeVersion}';`));
       await page.locator('#btnUpdateLater').click();
@@ -471,7 +471,7 @@ async function scenario(browser, profile){
       await page.locator('#btnUpdateNow').click();
       await page.waitForFunction(expected=>typeof APP_VERSION !== 'undefined' && APP_VERSION === expected, version);
       assert.equal(await page.locator('html').getAttribute('data-release-check-build'), version);
-      assert.deepEqual(await page.evaluate(async()=>await caches.keys()), ['pocket-prairie-v' + version], 'activation retires the old cache before claiming clients');
+      assert.deepEqual(await page.evaluate(async()=>await caches.keys()), ['seedhead-v' + version], 'activation retires the old cache before claiming clients');
       const updated = await storedGarden(page, id);
       assert.equal(updated.plants['4,4'].s, 'bluestem');
       assert.equal(updated.plants['5,5'].s, 'switchgrass');

@@ -35,7 +35,7 @@ const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
 const API = 'https://en.wikipedia.org/w/api.php';
-const UA = 'PocketPrairieGardenDesign/dev (https://github.com/kvschin/PerenialDesignKK) node-fetch';
+const UA = 'SeedHeadGardenDesign/dev (https://github.com/kvschin/PerenialDesignKK) node-fetch';
 /* 20, not 50: `titles` accepts 50 but prop=extracts caps exlimit at 20 for
    anonymous clients, and it does not error — it just returns the first 20 with
    text and the rest without. Batching higher silently strips the extract from

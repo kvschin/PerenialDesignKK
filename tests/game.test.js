@@ -15070,6 +15070,37 @@ test('the menu footer shows the running version', () => {
   assert(!a.textContent.includes('v0.0.1'), 'the stale string is replaced');
 });
 
+/* The app was Pocket Prairie until 0.9.173. Everything a person reads says
+   SeedHead; three pieces of the old name stay on purpose, because changing them
+   would break something that already exists: `pocketPrairie:1` marks a garden
+   FILE (every file shared before the rename carries it, and older builds look
+   for it), `pocketprairie:libraryOpen` is a stored preference, and the service
+   worker still retires the caches named `pocket-prairie-v*`, or a returning
+   visitor would keep the last Pocket Prairie shell in storage for good. */
+test('the app is called SeedHead wherever a person reads its name', async () => {
+  const html = readRepoFile('index.html'), manifest = JSON.parse(readRepoFile('site.webmanifest'));
+  assertEqual((html.match(/<title>([^<]*)<\/title>/) || [])[1], 'SeedHead Garden Design', 'page title');
+  assert(/<meta name="apple-mobile-web-app-title" content="SeedHead">/.test(html), 'the home-screen label');
+  assertEqual(manifest.name, 'SeedHead Garden Design', 'manifest name');
+  assertEqual(manifest.short_name, 'SeedHead', 'manifest short name');
+  assert(/<h1 class="title">Seed<em>Head<\/em><\/h1>/.test(html), 'the menu wordmark');
+  const OLD = /Pocket ?Prairie|POCKET PRAIRIE/;
+  for (const f of ['index.html', 'site.webmanifest', 'credits.html', 'privacy.html', 'terms.html'])
+    assert(!OLD.test(readRepoFile(f)), `${f} still names Pocket Prairie`);
+  // In the modules, what a person reads is a string; a comment may say what the app used to be called.
+  const mods = [...html.matchAll(/<script[^>]+src="(js\/[^"]+)"/g)].map(m => m[1]);
+  assert(mods.length >= 13, `expected the full module list, found ${mods.length}`);
+  for (const f of mods)
+    for (const m of readRepoFile(f).matchAll(/(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g))
+      assert(!OLD.test(m[2]), `${f} shows the old name in ${m[0].slice(0, 80)}`);
+  const sw = readRepoFile('sw.js');
+  assert(/const CACHE = 'seedhead-v' \+ VERSION/.test(sw), 'the cache is named for SeedHead');
+  assert(/RETIRED_PREFIXES = \[[^\]]*'pocket-prairie-v'/.test(sw), 'activation still retires the Pocket Prairie caches');
+  setup();
+  assertEqual(gardenFileProblem({ pocketPrairie: 1, v: 1, world: buildSaveBlob() }), null,
+    'a garden file shared before the rename still opens');
+});
+
 /* ---------- plant photographs + image attribution (js/photos.js) ----------
    A photograph carries licence terms, so these are not cosmetic tests. Each
    one pins a conclusion from the compliance review recorded in

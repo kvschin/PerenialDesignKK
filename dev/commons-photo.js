@@ -35,7 +35,7 @@ const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
 const API = 'https://commons.wikimedia.org/w/api.php';
-const UA = 'PocketPrairieGardenDesign/dev (https://github.com/kvschin/PerenialDesignKK) node-fetch';
+const UA = 'SeedHeadGardenDesign/dev (https://github.com/kvschin/PerenialDesignKK) node-fetch';
 
 /* Load the app's own licence table and validator rather than restating them.
    A second copy of the allowlist that disagreed with the shipped one would be
@@ -57,7 +57,7 @@ function loadAppModules(){
   vm.runInContext(src + `
     ;globalThis.__app = { PLANTS, PLANT_KEYS, PHOTO_LICENSES, PHOTO_LICENSES_REFUSED,
                photoRecordProblems, photoCreditParts, photoCreditLine };
-  `, ctx, { filename: 'pocket-prairie-modules' });
+  `, ctx, { filename: 'seedhead-modules' });
   return ctx.__app;
 }
 

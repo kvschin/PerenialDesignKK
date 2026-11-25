@@ -15,7 +15,7 @@ committed.
 
 ## Why this is stricter than a normal web app
 
-Three facts about Pocket Prairie make image licensing sharper than usual:
+Three facts about SeedHead make image licensing sharper than usual:
 
 1. **It is sold** — Steam and the app stores. Every image is a commercial use,
    so NonCommercial licences are permanently out.

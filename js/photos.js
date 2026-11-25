@@ -45,7 +45,7 @@
 
 /* ---------- the licence allowlist ----------
    A photograph may enter the product only under a licence on this list.
-   Pocket Prairie is SOLD (Steam, the app stores) and SHIPS OFFLINE — the
+   SeedHead is SOLD (Steam, the app stores) and SHIPS OFFLINE — the
    service worker precaches it onto the device — so every image is both used
    commercially and redistributed. That disqualifies anything NonCommercial or
    NoDerivatives however good the picture is, and it is why this is an
@@ -129,8 +129,8 @@ const PHOTO_LICENSES = Object.freeze({
    not on Commons, and they are not reusable. 1.0 CC licences lack the "or
    later" upgrade path and are too rare to be worth a special case. */
 const PHOTO_LICENSES_REFUSED = Object.freeze({
-  'cc-by-nc':     'NonCommercial — Pocket Prairie is sold, so this can never be used',
-  'cc-by-nc-sa':  'NonCommercial — Pocket Prairie is sold, so this can never be used',
+  'cc-by-nc':     'NonCommercial — SeedHead is sold, so this can never be used',
+  'cc-by-nc-sa':  'NonCommercial — SeedHead is sold, so this can never be used',
   'cc-by-nc-nd':  'NonCommercial and NoDerivatives — unusable here twice over',
   'cc-by-nd':     'NoDerivatives — do not argue about resizing; pick another file',
   'gfdl':         'GFDL obliges shipping the full licence text with every copy and forbids technical measures; not workable in an app binary',
@@ -500,7 +500,7 @@ function buildPhotoCreditPanel(rec, id){
   if (p.copyrightNotice) row('Copyright', p.copyrightNotice);
 
   if (p.isOwn){
-    row('Source', 'Pocket Prairie');
+    row('Source', 'SeedHead');
   } else {
     if (p.sourceName) row('Source', p.sourceName);
     if (p.licenseName){
@@ -530,7 +530,7 @@ function buildPhotoCreditPanel(rec, id){
      the relationship is stated rather than left as a logo-shaped hole that
      invites one. */
   if (!p.isOwn && p.sourceName === 'Wikimedia Commons'){
-    notes.push('The Wikimedia Foundation and the photographer are not affiliated with Pocket Prairie and do not endorse it.');
+    notes.push('The Wikimedia Foundation and the photographer are not affiliated with SeedHead and do not endorse it.');
   }
   if (notes.length){
     const note = document.createElement('p');
@@ -615,7 +615,7 @@ function buildPlantPhoto(key){
 }
 
 /* The "Learn more" row. Optional, secondary, and deliberately not a
-   description source — Pocket Prairie's own blurb is the editorial voice, and
+   description source — SeedHead's own blurb is the editorial voice, and
    an outbound encyclopedia link is a reference rather than a replacement. */
 function buildPlantReferences(key){
   const P = (typeof PLANTS !== 'undefined' && PLANTS[key]) || null;

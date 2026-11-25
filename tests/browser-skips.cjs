@@ -3,7 +3,7 @@
    diagnostic JS work, not physical-device FPS. No dependencies are installed. */
 const fs=require('node:fs'), path=require('node:path'), os=require('node:os'), http=require('node:http');
 const root=path.resolve(__dirname,'..');
-const output=fs.mkdtempSync(path.join(os.tmpdir(),'pocket-prairie-skips-'));
+const output=fs.mkdtempSync(path.join(os.tmpdir(),'seedhead-skips-'));
 function playwright(){
   const candidates=process.env.PLAYWRIGHT_MODULE_PATH?[process.env.PLAYWRIGHT_MODULE_PATH]:[
     'playwright','playwright-core',path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright')];

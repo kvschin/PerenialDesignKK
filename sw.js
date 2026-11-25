@@ -1,4 +1,4 @@
-/* Pocket Prairie service worker.
+/* SeedHead service worker.
 
    The app is entirely static — no API, no backend, and since the fonts were
    self-hosted, no third-party origin either — so "works offline" is just a
@@ -39,8 +39,12 @@
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.9.172';
-const CACHE = 'pocket-prairie-v' + VERSION;
+const VERSION = '0.9.173';
+const CACHE = 'seedhead-v' + VERSION;
+/* The app was Pocket Prairie until 0.9.173 and its caches were named for it.
+   Activation retires those too, or every returning visitor would keep the last
+   Pocket Prairie build's whole shell in storage for good. */
+const RETIRED_PREFIXES = ['seedhead-v', 'pocket-prairie-v'];
 
 const PRECACHE = [
   './',
@@ -123,7 +127,7 @@ self.addEventListener('activate', e => {
   e.waitUntil((async () => {
     const names = await caches.keys();
     await Promise.all(names
-      .filter(n => n.startsWith('pocket-prairie-v') && n !== CACHE)
+      .filter(n => n !== CACHE && RETIRED_PREFIXES.some(p => n.startsWith(p)))
       .map(n => caches.delete(n)));
     await self.clients.claim();
   })());

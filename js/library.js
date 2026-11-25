@@ -4,7 +4,7 @@
    table, and when Climbers joined the catalog the copy did not, so the library
    could not show a single climber. */
 const LIB_CATS=TRAY_GROUPS.find(g=>g.id==='plants').cats.map(id=>TRAY_CATS.find(c=>c.id===id));
-const LIB_OPEN_KEY='pocketprairie:libraryOpen';
+const LIB_OPEN_KEY='pocketprairie:libraryOpen';   // a stored key from the old name: renaming it would forget the setting
 let libCollapsed=loadLibraryCollapsed();
 function loadLibraryCollapsed(){
   try { return JSON.parse(localStorage.getItem(LIB_OPEN_KEY)||'{}')||{}; }

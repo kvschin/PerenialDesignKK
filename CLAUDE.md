@@ -1,4 +1,4 @@
-# Pocket Prairie Garden Design
+# SeedHead Garden Design
 
 A 2.5D perennial-gardening game in the spirit of Piet Oudolf's naturalistic
 planting style. **Design a Garden** is the core: a serious planner — no avatar,
@@ -210,7 +210,14 @@ The title, a tagline and the three entries are one column down the left on a
 wide screen (`.menu-shell`, a grid whose footer takes the foot of the last row)
 and stacked on SHEET. Each entry carries a picture of what it opens, drawn by
 the app's own painters (`paintMenuArt`, screens.js): a small garden, stacked
-once more than one is saved; a coneflower in its four seasons; a plan. A
+once more than one is saved; a coneflower in its four seasons; and (0.9.173)
+today's page of a desk calendar, its month and day read off the challenge's
+`dailyDateKey`, with a plant from today's brief standing beside it in the
+brief's season (`paintMenuDailyArt`, `menuDailyArtPlant`: in flower, a forb or
+bulb, upright, never a tree or open-water plant). It is repainted from
+`refreshMenuCards` and draws only when the day has turned or Fraunces has
+arrived. It was a plan sheet of drift blobs, which read as a square of random
+circles. A
 **key** (`#menuKey`) names the six plants that carry most of the border, each
 row opening the Plant Library at that plant (`openPlantLibraryAt`), beside four
 season dots that turn the border by hand (`setMenuSeason`; the choice is
@@ -306,8 +313,21 @@ the pre-action snapshot and clears the redo chain; `doUndo`/`doRedo` shuttle
 snapshots between the two stacks via `applySnapshot`. Both reset per garden,
 capped at 30.
 
-Public app name: **Pocket Prairie Garden Design**. iPhone home-screen label:
-**Pocket Prairie**.
+Public app name: **SeedHead Garden Design**. iPhone home-screen label:
+**SeedHead**. The menu wordmark is `Seed<em>Head</em>` on one line, the italic
+word taking the season's accent as "Prairie" did. **The app was Pocket Prairie
+until 0.9.173**, and three things keep that name on purpose, because changing
+them breaks something that already exists: `pocketPrairie:1`, the marker every
+garden FILE carries (`gardenFileProblem`, `shareCurrentGarden`; every file
+shared before the rename has it, and older builds look for it, so a new export
+keeps writing it); the stored preference key `pocketprairie:libraryOpen`; and
+the service worker, which names its cache `seedhead-v<version>` and still
+retires `pocket-prairie-v*` caches on activate (`RETIRED_PREFIXES`), or a
+returning visitor would keep the last Pocket Prairie shell in storage for good.
+Exports are now `<name>.seedhead.json`; import takes any `.json`. The dev
+fixtures in `dev/test-gardens/` keep their `.prairie.json` names. A test
+(`the app is called SeedHead wherever a person reads its name`) holds the page,
+the manifest, the three static pages and every string in the modules to it.
 
 The game is plain HTML/CSS/JS — `index.html` (markup) and `styles.css` at the
 repo root, and all the JavaScript under `js/`: `plants.js` (species data) plus

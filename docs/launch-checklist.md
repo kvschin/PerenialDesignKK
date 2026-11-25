@@ -1,4 +1,4 @@
-# Pocket Prairie: launch checklist
+# SeedHead: launch checklist
 
 Written 17 September 2026 against v0.8.97. This is the **operational** checklist —
 forming the company, opening the accounts, and getting onto three storefronts.
@@ -60,13 +60,13 @@ Do these in one sitting this week. Each is cheap now and expensive to reverse.
 against a real legal entity and will not accept DBAs, fictitious business names,
 trade names or branches. So the LLC name *is* the publisher name.
 
-- [ ] Pick a name you are happy to see under "Pocket Prairie Garden Design" on a
-      store listing forever. `Pocket Prairie LLC`, `Pocket Prairie Software LLC`,
+- [ ] Pick a name you are happy to see under "SeedHead Garden Design" on a
+      store listing forever. `SeedHead LLC`, `SeedHead Software LLC`,
       or a studio name you can put other products under later.
 - [ ] Check it is free in your state's business registry (free, instant, online).
 - [ ] Search the [USPTO trademark database](https://tmsearch.uspto.gov/) for both
-      the company name and "Pocket Prairie" in software/games classes (009, 042).
-- [ ] Check the App Store, Google Play and Steam for an existing "Pocket Prairie".
+      the company name and "SeedHead" in software/games classes (009, 042).
+- [ ] Check the App Store, Google Play and Steam for an existing "SeedHead".
 - [ ] Buy the matching domain before you file anything.
 
 > **Recommendation:** name the LLC after the product, not after yourself. One
@@ -251,7 +251,7 @@ lead times in the table above (the LLC → D-U-N-S chain and Steam's 30-day and
       15% commission instead of 30% under $1M/year. Enrollment is not automatic
       and takes effect the following month — apply immediately. ⟳
 - [ ] Reserve the app name and bundle identifier in App Store Connect. Something
-      like `com.pocketprairie.garden`. It is permanent.
+      like `com.seedhead.garden`. It is permanent.
 - [ ] Turn on two-factor and record recovery access somewhere durable. Losing
       access to this account means losing the app.
 
@@ -279,8 +279,8 @@ lead times in the table above (the LLC → D-U-N-S chain and Steam's 30-day and
       input to Steam's launch visibility, and a page with art and a trailer can
       go up long before the build is finished.
 
-> **A note on Steam specifically.** Steam's audience buys games, and Pocket
-> Prairie's framing ("a 2.5D perennial-gardening game in the spirit of Piet
+> **A note on Steam specifically.** Steam's audience buys games, and SeedHead's
+> framing ("a 2.5D perennial-gardening game in the spirit of Piet
 > Oudolf") gives you a genuine cozy-game pitch. But it is a *planner* at heart,
 > and cozy-game buyers expect progression and play. Expect Steam to be the
 > weakest of the three storefronts for this product unless the store page leans
@@ -291,7 +291,7 @@ lead times in the table above (the LLC → D-U-N-S chain and Steam's 30-day and
 
 ## Phase 3 — Public infrastructure
 
-- [ ] **Buy a domain.** `pocketprairie.app` or similar, ~$15/year.
+- [ ] **Buy a domain.** `seedhead.app` or similar, ~$15/year.
 - [ ] **Move the web app onto it.** The current URL contains a misspelling
       (`PerenialDesignKK` — one `n`) and will otherwise end up in store listings,
       privacy policy links and press. GitHub Pages supports custom domains free;
