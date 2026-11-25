@@ -414,6 +414,19 @@ See §13a.
   `docs/demo-garden.md`). Prefer authoring the demo garden by hand in the app
   and exporting over the top of it — the generator exists so the file can be
   rebuilt, not because arithmetic plants a better garden.
+- `node dev/make-test-gardens.cjs` builds the four LARGE test gardens into
+  `dev/test-gardens/` (0.9.171): a 69 ft woodland, a 93 ft shrub border, a
+  quarter-acre arboretum and a 140 ft estate (131 trees, 485 shrubs, 4,000
+  perennials). They are designed gardens, not `stressGarden()`'s random scatter:
+  drifts of one species, shrubs in groups under trees, a hedge, a pergola, lights,
+  planted through the app's own `placePlantAt` so every placement rule applies.
+  Ordinary exported files: import one through Your gardens, or hand one to a bench
+  with `--garden`. Seeded, so a rebuild that changes no code changes no file.
+  **Use them for anything about scale**: the demo garden and a 31x31 plot cannot
+  show a cost that follows the number of plants (the 0.9.171 list below was
+  invisible on both). The generator marks the tree and shrub indexes as seen
+  after a perennial edit and writes trees directly, or ten thousand placements
+  through `placePlantAt` took minutes.
 - `node dev/ff-bench.cjs` measures the plant sprite cache while time is HELD
   forward — the one gesture that stresses it, and the one `perfBench` and
   `drawProfile` cannot see, because neither moves the clock and the cache is
@@ -2592,12 +2605,96 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     blitted after, with sway applied as a cheap skew on the blit and growth/bloom
     bucketed so the key is frame-stable. A **governor** (`updateSpriteMode`)
     engages it when the measured draw phase stays heavy (>6ms for 3 straight
-    frames, 12-plant floor — 40 until 0.9.60) rather than at a fixed plant count — so a mid-size
+    frames, 3-plant floor — 40 until 0.9.60, 12 until 0.9.171) rather than at a fixed plant count — so a mid-size
     garden gets sprites on a weak GPU or huge window while the same garden on a
     fast desktop keeps the pristine, smoothly-growing procedural path. Because
     sprites make draw fast, disengaging reads the *predicted* procedural cost
     (plant count × a per-plant ms learned while procedural) rather than the live
     number, and releases only when that stays under ~2.5ms for ~45 frames.
+    **0.9.171: what was found by building big gardens, and by reading a report
+    of plants "spinning"** (three shared gardens of ~350 plants in Today view, an
+    iPad that crashed "after planting and moving the time a bit", ninebark being
+    slow; measured on `dev/test-gardens/` and those gardens, headed Chrome at an
+    iPad-sized viewport unless said). Seven things, each its own fix:
+    *The opening pass did not bake what it prepared.* Since 0.9.121 its batch was
+    12ms and 96 clumps while a frame's bake allowance stayed 4ms, so past the
+    first few bakes each clump was "prepared" by blitting a SIBLING into the
+    scratch canvas. At the reveal 228 of 293 clumps on screen had no sprite of
+    their own (3,471 of 4,707 on the estate) and changed shape a few a frame
+    afterwards, at the 30fps idle cadence: a third of a second on a small garden,
+    several seconds on a large one. `PSPRITE.cold` lifts the allowance and
+    refuses stand-ins behind the cover; the pass has its own batch
+    (`OPEN_PREP.BAKE_MS`/`BAKE_CAP`). Now 0 missing on both, the reveal 1.10s
+    against 1.11 and 2.19 against 1.84. The test that should have caught it kept
+    its clock still inside a bake, so the allowance was never spent; the new one
+    advances it.
+    *A clump with no sprite is not handed a sibling's shape if anything else
+    will do.* `PSPRITE.waiting` counts clumps drawn as a stand-in and
+    `spritesPending()` keeps full-rate frames coming until it is none. A clump
+    drawn LIVE last frame (`rec._pf`: the cache has just engaged) goes on being
+    drawn live until its bake lands, held to the count and not the time, since a
+    bake costs what the live draw does. And **clumps just off screen are baked
+    ahead of the camera** (`PREBAKE`, `prebakeReach`/`prebakeNote`/`prebakePlant`/
+    `prebakeRun`): a record the cull rejects is tested against the screen grown
+    by a ring, nearest band first, and baked with what is left of the frame's
+    ordinary allowance (half of it while the view moves), only while the garden's
+    clock stands still, never past the budget except that the near band may trade
+    against the cache's oldest stale sprite. `plantKeyNow` is the one definition
+    of a clump's key for the frame and the ring. Panning the 11/23 garden at 110%
+    with the CPU slowed four times: 1,782 sibling draws, now 0. A dense garden
+    zoomed in on a slow CPU is still bake-bound (the woodland: 26,836 to 22,997),
+    because one screenful there is the whole 48MB budget.
+    *Sprites share atlas pages* (`ATLAS`, `atlasFrame`/`atlasAdopt`/`atlasAlloc`/
+    `atlasFree`/`releasePlantEntry`). Chrome pays about 10us for every SEPARATE
+    image a frame draws, whatever its size: 4,707 sprites of 18px were 60ms a
+    frame with 16ms of script, a bare page reproduces it to the millisecond, and
+    the same blits from shared canvases take 12ms. A sprite up to `MAX` (224px)
+    is moved, at the START of the frame after it was baked, into a cell of a
+    1024px page and drawn from there with a source rectangle. Whole garden on
+    screen: estate 16 -> 54fps, arboretum 39 -> 107, shrub border 49 -> 122.
+    Written only at frame start because a canvas drawn from and then written to
+    is copied (0.25ms in Chrome, and WebKit's CG backend does the like), so a
+    bake still goes to a surface of its own first. **Not in Firefox**
+    (`atlasWanted`): it already batches separate bitmaps (165fps on the same
+    4,700) and draws from an OffscreenCanvas page at a third of the speed. Page
+    COUNT does not matter in Chrome (130 pages: 82fps against 86 for one), which
+    is why pages are small. Pixels against 0.9.170 on a software canvas:
+    `?atlas=0` is byte-identical; with it 0.05-0.06% of pixels differ by 1/255.
+    A tool that clears `PSPRITE.map` directly is caught by `atlasSweep`.
+    *One planted tile is one scene record* (`SCENE_EDITS`/`noteSceneEdit`,
+    world.js; `sceneApplyEdits`, `scenePlantRec`, `sceneBulbRec`, `sceneFinishRec`).
+    The list was rebuilt in full after any plant edit: 2.3ms at 350 plants,
+    18-25ms at 4,750, per stamped tile. `setTile`/`clearTile` now name the tile,
+    and a perennial or bulb going in or out is put into the existing list at the
+    place a full build would give it. `q` is the order a build pushed records
+    in, which is what breaks ties between equal depths (plants in their map's
+    key order, then bulbs, then the rest): a new key goes last, a replanted
+    tombstone goes between its neighbours (`sceneOrderFor`). A tree, a shrub, a
+    climber, a bamboo, any other layer, a bare `sceneRev++`, more than 64 edits
+    or anything else `sceneKey` reads rebuilds as before. A test makes 500 random
+    edits and compares each result with a full build, record for record.
+    `plantsRev` moves only when a tree or shrub is added or removed, so the two
+    indexes kept on it are not rescanned per perennial. Estate: the frame after a
+    tap 54 -> 15ms, a planting drag 15 -> 50fps.
+    *The governor's floor is 3* and the per-plant cost is learned at any count
+    over it: ten ninebarks (0.6ms each in summer, 2.6 times an arrowwood) cost
+    6.3ms a frame on a desktop and could never be cached at twelve or fewer; a
+    garden of fifteen shrubs engaged with nothing learned and flapped. Now 0.2ms.
+    *Canvases are given back, not dropped* (`releaseSpriteImage`,
+    `dropSeasonFadeCanvas`, `radialSurface`'s `reuse`, `releaseGardenSurfaces`).
+    In WebKit every sprite is a `<canvas>`, and a dropped canvas keeps its pixels
+    until a collection that canvas memory does not hurry. A game year of
+    fast-forward in Today view on a 353-plant garden bakes 5,144 sprites, 196MB;
+    thirty ninebarks at close zoom are 1.2MB apiece and re-bake ~25 times a year.
+    A retired canvas is emptied a frame later, the season-fade snapshot when it
+    ends, the wash surfaces are painted over in place, and quitting to the menu
+    hands back the sprite caches, atlas pages, ground canvases, night map and
+    washes before the border bakes its own. A bake the browser refuses (no 2D
+    context) is a procedural draw and a trimmed cache (`spriteMemoryPressure`),
+    where it threw inside `render`. **None of this is verified on an iPad**: there
+    is no WebKit here, and the crash it answers was not reproduced.
+    Firefox stays accelerated on both kinds of garden (`ff-accel-check`: 4,034
+    frames on 11/23, 2,338 on the shrub border).
     **Opening a garden prepares its first picture before revealing it**
     (`beginGardenOpen` / `prepareGardenOpen`, renderer.js). A cold cache has no
     picture of each clump to reuse: borrowing siblings made plants change shape
@@ -2918,6 +3015,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     be in its recorded commands) and a blit skips a closed one rather than
     letting drawImage throw. **WebKit keeps canvases** — unmeasured there, and
     the phones already run smoothly; `spriteBitmaps=false` A/Bs the old path.
+    (0.9.171: a retired canvas is emptied, and small sprites are adopted into
+    atlas pages, in WebKit as in Chrome; see the 0.9.171 note above.)
     `node dev/ff-accel-check.cjs` is the regression guard, and the only one:
     every other browser test runs in Chromium, where this cannot happen.
     ~2.7–3.4× on dense
@@ -3127,7 +3226,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     consistently from every side). That pass reads a **persistent scene list**
     (`scene` / `buildScene` / `sceneStale`): plain depth-sorted records built
     once per edit / rotation / layer toggle / Today game day or Established
-    season — invalidated by
+    season (since 0.9.171 a perennial or bulb edit changes one record in place,
+    `sceneApplyEdits`) — invalidated by
     **`game.sceneRev`** (see `LAYER_CACHES`, §8a) plus map object identity for
     wholesale swaps (load / new garden) — so a frame only culls (numeric
     bounds compares) and draws, merging in the one per-frame dynamic entity

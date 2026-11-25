@@ -19492,8 +19492,9 @@ function openingCase(n, plantCost, fn){
     let ticks=0;
     const step=()=>{
       const before=calls, done=prepareGardenOpen(++ticks*16.7);
-      assert(calls-before<=OPEN_PREP.CAP,'a preparation frame respects the entity cap');
-      assert(PSPRITE.rendered<=OPEN_PREP.CAP,'no cold burst or sibling stand-in past the cap');
+      const cap=Math.max(OPEN_PREP.CAP,OPEN_PREP.BAKE_CAP);   // the measuring batch, or the baking one
+      assert(calls-before<=cap,'a preparation frame respects the entity cap');
+      assert(PSPRITE.rendered<=cap && cap<PSPRITE.BUDGET,'no cold burst past the cap, and the cap is one a frame will bake');
       assert(ticks<500,'opening makes bounded forward progress');
       return done;
     };
@@ -19552,9 +19553,24 @@ test('opening prepares plants and cached structures off the live canvas and rele
   });
 });
 test('cold opening preserves the small-garden floor',()=>{
+  openingCase(PSPRITE.FLOOR,4,step=>{
+    while(!step()){}
+    assert(!PSPRITE.active,'a garden at the floor stays procedural however slow its plants');
+  });
+});
+/* The floor was 12, and ten ninebarks (0.6ms each on a desktop, several times
+   that on a tablet) could never be cached however slow the frame got. The
+   measurement is the gate now; the floor only keeps one or two plants out. */
+test('cold opening caches a handful of heavy plants, and leaves a handful of cheap ones',()=>{
+  assert(PSPRITE.FLOOR<10,'ten plants are over the floor');
   openingCase(10,1,step=>{
     while(!step()){}
-    assert(!PSPRITE.active,'ten plants stay procedural');
+    assert(PSPRITE.active,'ten plants costing a millisecond each get sprites');
+    assertEqual(PSPRITE.map.size,10,'each has its own before the reveal');
+  });
+  openingCase(10,0.2,step=>{
+    while(!step()){}
+    assert(!PSPRITE.active,'ten cheap plants stay procedural');
   });
 });
 test('resizing during opening discards the partial view and prepares the final one',()=>{
@@ -19569,6 +19585,427 @@ test('resizing during opening discards the partial view and prepares the final o
     assertEqual(groundCanvas.width,cnv.width+2*margin,'ground matches the final viewport');
     render(10000);
     assertEqual(PSPRITE.rendered,0,'the resized view still reveals without cold bakes');
+  });
+});
+
+/* ---------- 0.9.171: one planted tile is one scene record ----------
+   The scene list was rebuilt in full after any plant edit: 2.3ms on a 350-plant
+   garden, 18-25ms on a 4,750-plant one, per stamped tile. A perennial or a bulb
+   going in or out now changes the one record (sceneApplyEdits), and what makes
+   that safe is that the result is the list a full build would have made, in the
+   same order. So: hundreds of random edits, each compared with a full build. */
+function sceneContent(){
+  const ents=scene.ents.map(e=>[e.kind,e.x,e.y,e.d,e.seed,e.stunt?1:0,JSON.stringify(e.detail||null),
+    e.ox0,e.ox1,e.oy0,e.oy1,e.px,e.py,e.kSlot,e.kTail,e.sv,e.hasBloom?1:0,e.seedAfter?1:0,e.leafOut?1:0,
+    e.p?e.p.s+':'+(e.p.v||''):''].join('|'));
+  return {ents, bounds:Array.from(scene.bounds).join(','), stunted:[...scene.stunted].sort((a,b)=>a-b).join(','),
+    key:scene.key, boundsOk:scene.boundsFor===scene.ents && scene.bounds.length===scene.ents.length*4};
+}
+function sceneEditGarden(){
+  setup(24, 24);
+  game.previewMode='established'; game.pausedAt=Date.now();
+  const tree=firstOfType('tree'), shrub=firstOfType('shrub');
+  setTile('plants','12,12',{s:tree,d:-10000,t:1});      // a mature canopy, so some tiles stunt
+  setTile('plants','5,5',{s:shrub,d:-10000,t:1});
+  setTile('fences','0,3',{style:'wood',height:4,t:1});
+  setTile('pots','8,8',{style:'terracotta',size:'p18',t:1});
+  setTile('lights','3,9',{type:'path',tone:'warm',t:1});
+  const simple=PLANT_KEYS.filter(k=>!PLANTS[k].hidden && scenePlantSimple({s:k}));
+  const herbs=[];
+  for (const want of ['grass','sedge','forb','water']) herbs.push(...simple.filter(k=>PLANTS[k].type===want).slice(0,12));
+  const bulbs=PLANT_KEYS.filter(k=>!PLANTS[k].hidden && PLANTS[k].type==='bulb').slice(0,6);
+  return {herbs, bulbs, tree, shrub};
+}
+test('a perennial or bulb planted or lifted is one scene record, and the list is the one a full build makes', () => {
+  const {herbs, bulbs}=sceneEditGarden();
+  assert(herbs.length>20 && bulbs.length>2, 'the fixture has plants to choose from');
+  const rnd=mulberry(0xED171);
+  buildScene(800, 600);
+  let applied=0, rebuilt=0, compared=0;
+  const frame=()=>{
+    if (!sceneStale(sceneKey())) return;
+    if (sceneApplyEdits(800,600)) applied++; else { buildScene(800,600); rebuilt++; }
+  };
+  for (let i=0;i<500;i++){
+    const x=1+((rnd()*22)|0), y=1+((rnd()*22)|0), k=x+','+y, r=rnd();
+    if (k==='12,12' || k==='5,5') continue;
+    if (r<0.45){
+      const rec={s:herbs[(rnd()*herbs.length)|0],d:0,t:1};
+      if (rnd()<0.3){ rec.ox=+(rnd()*0.4-0.2).toFixed(2); rec.oy=+(rnd()*0.4-0.2).toFixed(2); }   // free planting
+      setTile('plants',k,rec);
+    } else if (r<0.68){ if (game.plants[k] && !game.plants[k].removed) clearTile('plants',k); }
+    else if (r<0.86) setTile('bulbs',k,{s:bulbs[(rnd()*bulbs.length)|0],d:0,t:1});
+    else if (game.bulbs[k] && !game.bulbs[k].removed) clearTile('bulbs',k);
+    if (rnd()<0.3) continue;                       // a few edits pile up before the next frame
+    frame();
+    const got=sceneContent(), kept=scene;
+    buildScene(800,600);                           // what a rebuild makes of the same garden
+    const want=sceneContent();
+    scene=kept;                                    // and carry on from the list that was edited in place
+    compared++;
+    assert(got.boundsOk, 'the packed cull boxes belong to the list they were built for');
+    assertEqual(got.ents.length, want.ents.length, 'same number of records after edit '+i);
+    for (let j=0;j<want.ents.length;j++)
+      if (got.ents[j]!==want.ents[j]) assert(false, 'record '+j+' after edit '+i+': '+got.ents[j]+'  !==  '+want.ents[j]);
+    assertEqual(got.bounds, want.bounds, 'the cull boxes agree');
+    assertEqual(got.stunted, want.stunted, 'and which tiles are stunted');
+    assertEqual(got.key, want.key, 'and the key says the list is current');
+  }
+  assert(compared>250, 'most edits were compared: '+compared);
+  assertEqual(rebuilt, 0, 'no perennial or bulb edit needed a rebuild');
+  assert(applied>250, 'the in-place path did the work: '+applied);
+});
+test('a tile cleared and planted again sorts where a full build puts it', () => {
+  sceneEditGarden();
+  const g=firstOfType('grass');
+  // a row on one screen line: equal depths, so the order is the tie order
+  for (let x=6;x<=14;x++) setTile('plants',x+','+(20-x),{s:g,d:0,t:1});
+  buildScene(800,600);
+  clearTile('plants','9,11');
+  assert(sceneApplyEdits(800,600), 'lifting one is applied in place');
+  setTile('plants','9,11',{s:g,d:0,t:1});          // the tombstone keeps the key's place in the map
+  assert(sceneApplyEdits(800,600), 'and so is planting it again');
+  const got=sceneContent(); buildScene(800,600); const want=sceneContent();
+  assertEqual(got.ents.join('\n'), want.ents.join('\n'), 'the replanted tile is back in its old place among its equals');
+});
+test('a tree, a shrub, a climber or anything unlocated still rebuilds the scene list', () => {
+  const {herbs, tree, shrub}=sceneEditGarden();
+  const forb=herbs[herbs.length-1];
+  buildScene(800,600);
+  setTile('plants','15,15',{s:shrub,d:-10000,t:1});
+  assert(!sceneApplyEdits(800,600), 'a shrub joins the shrub list: rebuild');
+  buildScene(800,600);
+  clearTile('plants','12,12');
+  assert(!sceneApplyEdits(800,600), 'felling a tree moves the shade: rebuild');
+  buildScene(800,600);
+  setTile('plants','15,15',{s:forb,d:0,t:1});
+  assert(!sceneApplyEdits(800,600), 'a perennial put where a shrub stood takes the shrub out: rebuild');
+  buildScene(800,600);
+  const vine=PLANT_KEYS.find(k=>PLANTS[k].type==='vine');
+  setTile('plants','0,3',{s:vine,d:0,t:1});
+  assert(!sceneApplyEdits(800,600), 'a climber takes its frame\'s shape: rebuild');
+  buildScene(800,600);
+  setTile('plants','18,3',{s:forb,d:0,t:1}); setTile('fences','1,3',{style:'wood',height:4,t:1});
+  assert(!sceneApplyEdits(800,600), 'a fence edit beside a plant edit: rebuild');
+  buildScene(800,600);
+  setTile('plants','18,4',{s:forb,d:0,t:1}); game.sceneRev++;
+  assert(!sceneApplyEdits(800,600), 'a bare revision bump is a change nobody located: rebuild');
+  buildScene(800,600);
+  setTile('plants','18,5',{s:forb,d:0,t:1}); game.rot=1;
+  assert(!sceneApplyEdits(800,600), 'a turned view is a different list: rebuild');
+  game.rot=0; buildScene(800,600);
+  for (let i=0;i<SCENE_EDITS.CAP+8;i++) setTile('bulbs',(1+i%20)+','+(14+((i/20)|0)),{s:'crocus',d:0,t:1});
+  assert(!sceneApplyEdits(800,600), 'a fill is past the cap and rebuilds once');
+  buildScene(800,600);
+  setTile('plants','18,6',{s:forb,d:0,t:1});
+  assert(sceneApplyEdits(800,600), 'and after any of those, the next perennial is one record again');
+});
+test('the tree and shrub indexes are left alone by an edit that touches neither', () => {
+  const {herbs, tree, shrub}=sceneEditGarden();
+  const forb=herbs[herbs.length-1];
+  const scanTrees=()=>Object.keys(game.plants).filter(k=>plantRecWoody(game.plants[k]) && isTreeDef(plantDef(game.plants[k].s,game.plants[k].v))).sort().join(' ');
+  const scanShrubs=()=>Object.keys(game.plants).filter(k=>plantRecWoody(game.plants[k]) && isShrubDef(plantDef(game.plants[k].s,game.plants[k].v))).sort().join(' ');
+  const idxTrees=()=>treeIndex().list.map(t=>t.k).sort().join(' ');
+  const idxShrubs=()=>shrubIndex().map(s2=>s2.key).sort().join(' ');
+  treeIndex(); shrubIndex();
+  let rev=game.plantsRev;
+  setTile('plants','2,2',{s:forb,d:0,t:1}); clearTile('plants','2,2'); setTile('plants','2,2',{s:forb,d:0,t:1});
+  assertEqual(game.plantsRev, rev, 'planting and lifting a perennial does not move plantsRev');
+  setTile('bulbs','2,3',{s:'crocus',d:0,t:1});
+  assertEqual(game.plantsRev, rev, 'nor does a bulb');
+  setTile('plants','16,16',{s:shrub,d:-10000,t:1});
+  assert(game.plantsRev>rev, 'a shrub planted does'); rev=game.plantsRev;
+  assertEqual(idxShrubs(), scanShrubs(), 'and the shrub index has it');
+  setTile('plants','16,16',{s:forb,d:0,t:1});
+  assert(game.plantsRev>rev, 'a perennial planted over a shrub does'); rev=game.plantsRev;
+  assertEqual(idxShrubs(), scanShrubs(), 'and the shrub index has lost it');
+  setTile('plants','17,17',{s:tree,d:-10000,t:1});
+  assert(game.plantsRev>rev, 'a tree planted does'); rev=game.plantsRev;
+  assertEqual(idxTrees(), scanTrees(), 'and the tree index has it');
+  clearTile('plants','17,17');
+  assert(game.plantsRev>rev, 'a tree lifted does');
+  assertEqual(idxTrees(), scanTrees(), 'and the tree index has lost it');
+  // an edit nobody located (no setTile) still moves it, as before
+  rev=game.plantsRev; markLayerCacheChanged('plants');
+  assert(game.plantsRev>rev, 'an unlocated plants change assumes the worst');
+});
+
+/* ---------- 0.9.171: what a clump with no sprite of its own is drawn as ---------- */
+test('behind the opening cover every clump bakes its own sprite, whatever a frame\'s bake allowance', () => {
+  /* The fixture that missed the 0.9.121 regression: its clock stood still inside
+     a bake, so the 4ms allowance was never spent. Here a bake costs 1ms, as it
+     does, and the batch runs past the allowance: every clump after the fourth
+     used to be "prepared" by blitting a sibling and left with no sprite. */
+  const wasMake=makePlantSprite, wasNow=performance.now, wasStand=plantStandInKey;
+  let standIns=0;
+  try{
+    openingCase(80,1,step=>{
+      const now=performance.now;                     // openingCase's own clock
+      let extra=0;
+      performance.now=()=>now()+extra;
+      makePlantSprite=function(){ extra+=1; return wasMake.apply(this,arguments); };
+      plantStandInKey=function(){ const r=wasStand.apply(this,arguments); if (r) standIns++; return r; };
+      while(!step()){}
+      assert(PSPRITE.active,'the planting is heavy enough for sprites');
+      assertEqual(standIns,0,'nothing stood in for a clump being prepared');
+      assertEqual(PSPRITE.map.size,80,'every clump has its own sprite before the reveal');
+      assertEqual(PSPRITE.slot.size,80,'and its own slot');
+      assert(!PSPRITE.cold,'the cover\'s rule ends with the batch');
+    });
+  } finally { makePlantSprite=wasMake; plantStandInKey=wasStand; performance.now=wasNow; }
+});
+test('a clump drawn live last frame goes on being drawn live until its own bake lands', () => {
+  standInCase((draw, frame) => {
+    const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+    const ctx = document.createElement('canvas').getContext('2d');
+    const recs=[111,222,333].map(seed=>({seed}));
+    const live=rec=>drawPlantMaybeCached(ctx,0,0,key,0.7,'Summer',rec.seed,0,null,undefined,false,rec);
+    const cached=rec=>drawPlantMaybeCached(ctx,0,0,key,0.7,'Summer',rec.seed,0,null,undefined,true,rec);
+    const wasCap=PSPRITE.BAKE_CAP, wasDraw=drawPlant, wasStand=plantStandInKey;
+    let procedural=0, standIns=0;
+    try{
+      drawPlant=function(){ procedural++; return wasDraw.apply(this,arguments); };
+      plantStandInKey=function(){ const r=wasStand.apply(this,arguments); if (r) standIns++; return r; };
+      frame(false); recs.forEach(live);                 // the garden is procedural
+      PSPRITE.BAKE_CAP=1;                               // the cache switches on; a frame may bake one
+      frame(false); procedural=0;
+      const bakesBefore=PSPRITE.map.size;
+      recs.forEach(cached);
+      assertEqual(PSPRITE.map.size-bakesBefore,1,'the first clump baked its own');
+      assertEqual(standIns,0,'the others did not borrow its shape');
+      assert(procedural>=2,'they were drawn live, as they were the frame before');
+      assertEqual(PSPRITE.waiting,2,'and the loop knows two are still owed');
+      frame(false); recs.forEach(cached);
+      frame(false); recs.forEach(cached);
+      assertEqual(PSPRITE.map.size-bakesBefore,3,'a bake a frame until each has its own');
+      frame(false); recs.forEach(cached);
+      assertEqual(PSPRITE.waiting,0,'then nothing is owed');
+      assertEqual(standIns,0,'and no sibling was ever shown');
+    } finally { PSPRITE.BAKE_CAP=wasCap; drawPlant=wasDraw; plantStandInKey=wasStand; }
+  });
+});
+test('clumps just off screen are baked ahead of the camera, within the frame\'s allowance', () => {
+  setup(40, 40); govReset();
+  const was={VW,VH,DPR,ZOOM,w:cnv.width,h:cnv.height,mem:PSPRITE.MEM,photo:game.photo,cap:PSPRITE.BAKE_CAP,on:PREBAKE.on};
+  try{
+    VW=400; VH=300; DPR=1; ZOOM=1; cnv.width=VW; cnv.height=VH;
+    game.photo=false; game.previewMode='established'; game.pausedAt=Date.now(); game.ffActive=false;
+    const g=firstOfType('grass');
+    for (let y=2;y<38;y+=2) for (let x=2;x<38;x+=2) setTile('plants',x+','+y,{s:g,d:0,t:1});
+    snapCam();
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0; PSPRITE.off=false; PSPRITE.active=true;
+    PREBAKE.on=true;
+    const W=VW/ZOOM, H=VH/ZOOM;
+    const onScreen=()=>{ const ox=W/2-cam.x, oy=H*0.24-cam.y;
+      return scene.ents.filter(e=>e.kSlot!==undefined && !(e.ox1+ox<0 || e.ox0+ox>W || e.oy1+oy<0 || e.oy0+oy>H)); };
+    for (let i=0;i<40;i++){ PSPRITE.active=true; render(1000+i*16); }
+    const vis=onScreen().length, total=scene.ents.filter(e=>e.kSlot!==undefined).length;
+    assert(vis>4 && vis<total, 'the view shows some of the planting: '+vis+' of '+total);
+    assert(PSPRITE.slot.size>vis, 'more clumps have a sprite than are on screen: '+PSPRITE.slot.size+' against '+vis);
+    assert(PSPRITE.slot.size<total, 'but only the ring, not the whole garden');
+    // every frame stayed inside the ordinary count
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0; PREBAKE.gen++;
+    PSPRITE.BAKE_CAP=5;
+    for (let i=0;i<6;i++){ PSPRITE.active=true; render(3000+i*16); assert(PSPRITE.rendered<=Math.max(5,vis), 'frame '+i+' baked '+PSPRITE.rendered); }
+    // a settled garden asks nothing more
+    PSPRITE.BAKE_CAP=was.cap;
+    for (let i=0;i<60;i++){ PSPRITE.active=true; render(5000+i*16); }
+    PSPRITE.active=true; render(9000);
+    assertEqual(PSPRITE.rendered, 0, 'once the ring is baked a frame bakes nothing');
+    // and the pictures are the ones the frame asks for: pan them into view
+    const before=PSPRITE.map.size;
+    cam.x+=W*0.4; PSPRITE.active=true; render(9100);
+    const missing=onScreen().filter(e=>!PSPRITE.slot.has(e.kSlot)).length;
+    assertEqual(missing, 0, 'every clump the pan brought in had its sprite waiting or baked it at once');
+    // not while time runs: every bucket is moving and the bake would be dead on arrival
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0; PREBAKE.gen++;
+    game.pausedAt=0; game.startTs=Date.now();
+    assertEqual(prebakeReach(W,H,calClock().season), 0, 'a running clock bakes nothing ahead');
+    game.pausedAt=Date.now(); game.ffActive=true;
+    assertEqual(prebakeReach(W,H,calClock().season), 0, 'nor does fast-forward');
+    game.ffActive=false;
+    assert(prebakeReach(W,H,calClock().season)>0, 'a still clock does');
+    PSPRITE.MEM=1; PSPRITE.bytes=4;                 // a cache already over its budget
+    assertEqual(prebakeReach(W,H,calClock().season), 0, 'and never past the budget');
+    PSPRITE.bytes=0;
+  } finally {
+    VW=was.VW; VH=was.VH; DPR=was.DPR; ZOOM=was.ZOOM; cnv.width=was.w; cnv.height=was.h;
+    PSPRITE.MEM=was.mem; game.photo=was.photo; PSPRITE.BAKE_CAP=was.cap; PREBAKE.on=was.on; game.ffActive=false;
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0; govReset(); groundKey=''; groundJob=null;
+  }
+});
+test('a retired sprite gives its pixels back, bitmap or canvas, a frame later', () => {
+  const closed=[], sized=[];
+  const bitmap={width:10,height:10,close(){ closed.push(this); }};
+  const canvas={width:64,height:48,getContext(){ return {}; }};
+  Object.defineProperty(canvas,'_w',{value:64,writable:true});
+  retireSpriteImage(bitmap); retireSpriteImage(canvas);
+  assertEqual(closed.length, 0, 'not on the spot: a stand-in drawn this frame may still be in its commands');
+  assertEqual(canvas.width, 64, 'the canvas keeps its pixels for the rest of the frame');
+  closeRetiredSprites();
+  assertEqual(closed.length, 1, 'the bitmap is closed');
+  assertEqual(canvas.width+canvas.height, 0, 'and the canvas, which is every sprite in WebKit, is emptied');
+  closeRetiredSprites();
+  assertEqual(closed.length, 1, 'once');
+});
+test('a refused sprite canvas is a procedural draw and a trimmed cache, not a crash', () => {
+  setup(12, 12);
+  const wasSurface=spriteBakeSurface, wasFrame=PSPRITE.frame;
+  const errsBefore=errLog.length;
+  try{
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0;
+    PSPRITE.map.set('old|k',{cv:{width:4,height:4,getContext(){return {};}},bytes:64,used:PSPRITE.frame-10,slot:'old'});
+    PSPRITE.bytes=64;
+    spriteBakeSurface=function(which,w,h){ return {width:w,height:h,getContext(){ return null; }}; };
+    const key=firstOfType('forb');
+    let sprite, threw=null;
+    try{ sprite=makePlantSprite(key,8,0,'Summer',99,null,undefined,-1); }catch(e){ threw=e; }
+    assert(!threw, 'no exception out of a bake the browser refused: '+(threw&&threw.message));
+    assertEqual(sprite, null, 'the bake reports that it has nothing');
+    assertEqual(PSPRITE.map.size, 0, 'and the cache gave back what was not on screen');
+    assert(errLog.length>=errsBefore, 'the error log is still a log');
+  } finally { spriteBakeSurface=wasSurface; PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes=0; closeRetiredSprites(); }
+});
+
+/* ---------- 0.9.171: the sprite atlas ----------
+   Small sprites are moved, the frame after they are baked, into cells of a few
+   shared canvases, because Chrome pays for every separate image a frame draws
+   (4,700 sprites: 60ms as images, 12ms from pages). What the sandbox can hold:
+   the cells are handed out and taken back correctly, a page is only written at
+   the start of a frame, and the cache's own rules are untouched. */
+function atlasCase(fn){
+  setup(20, 20);
+  const was={on:ATLAS.on, mem:PSPRITE.MEM, photo:game.photo};
+  const reset=()=>{ for (const e of [...PSPRITE.map.values()]) releasePlantEntry(e);
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0;
+    atlasSweep(); ATLAS.fresh.length=0; ATLAS.pages.length=0; ATLAS.cells.clear(); ATLAS.triedAt=-1e9; ATLAS.wantFreed=-1; closeRetiredSprites(); };
+  reset();
+  ATLAS.on=true; PSPRITE.off=false; game.photo=false;
+  const key=PLANT_KEYS.find(k=>!PLANTS[k].hidden && PLANTS[k].type==='forb');
+  const ctx=document.createElement('canvas').getContext('2d');
+  const draw=(seed,growth,season)=>drawPlantMaybeCached(ctx,0,0,key,growth===undefined?0.7:growth,season||'Summer',seed,0,null,undefined,true);
+  try{ fn(draw,key,ctx); }
+  finally{ reset(); ATLAS.on=was.on; PSPRITE.MEM=was.mem; game.photo=was.photo; }
+}
+test('a small sprite is drawn from its own image the frame it is baked, and from an atlas cell after', () => {
+  atlasCase((draw,key,ctx) => {
+    pspriteFrame(); draw(11); draw(22); draw(33);
+    const fresh=[...PSPRITE.map.values()];
+    assertEqual(fresh.length, 3, 'three clumps, three sprites');
+    assert(fresh.every(e=>!e.cell && e.pw>0 && e.ph>0), 'baked as images of their own, with their size known');
+    assertEqual(ATLAS.pages.length, 0, 'nothing is written to a page in the frame that bakes');
+    const own=fresh.map(e=>e.cv), bytes=PSPRITE.bytes;
+    pspriteFrame();
+    assert(fresh.every(e=>e.cell && !e.cell.freed), 'the next frame starts by moving them into cells');
+    assertEqual(ATLAS.pages.length, 1, 'of one page');
+    assert(fresh.every(e=>e.cv===ATLAS.pages[0].cv), 'and they are drawn from the page now');
+    assertEqual(ATLAS.cells.size, 3, 'three cells are out');
+    const cells=fresh.map(e=>e.cell);
+    for (let i=0;i<3;i++) for (let j=i+1;j<3;j++){
+      const a=cells[i], b=cells[j];
+      assert(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y, 'no two cells overlap');
+    }
+    assert(fresh.every(e=>e.sx===e.cell.x+1 && e.sy===e.cell.y+1 && e.pw+2<=e.cell.w && e.ph+2<=e.cell.h), 'each sprite sits a pixel inside its cell');
+    let sum=0; for (const e of fresh) sum+=e.bytes;
+    assertEqual(PSPRITE.bytes, sum, 'the budget counts the cells');
+    assert(PSPRITE.bytes>=bytes, 'which are no smaller than the sprites');
+    // the frame draws them as hits: nothing bakes, and the blit names the cell
+    const calls=[]; const wasDraw=ctx.drawImage;
+    ctx.drawImage=function(){ calls.push(arguments.length); };
+    try{ draw(11); draw(22); draw(33); } finally { ctx.drawImage=wasDraw; }
+    assertEqual(PSPRITE.rendered, 0, 'a frame later they are cache hits');
+    assert(calls.length===3 && calls.every(n=>n===9), 'each drawn with a source rectangle: its cell, not the page');
+  });
+});
+test('a sprite that leaves the cache gives its cell back, and a sprite too big for the atlas never enters it', () => {
+  atlasCase((draw,key) => {
+    pspriteFrame(); draw(11,0.3); pspriteFrame();
+    const first=[...PSPRITE.map.values()][0], cell=first.cell;
+    assert(cell, 'the first bucket is in the atlas');
+    draw(11,0.9);                                   // the clump grows: a new bucket retires the old sprite
+    assert(cell.freed, 'the superseded sprite gave its cell back');
+    assertEqual(first.cv.width, 0, 'and can no longer be drawn from the page by mistake');
+    assertEqual(ATLAS.cells.size, 0, 'nothing is out until the new one is adopted');
+    pspriteFrame();
+    assertEqual(ATLAS.cells.size, 1, 'then one cell again');
+    // eviction frees cells too
+    PSPRITE.MEM=1; pspriteFrame(); pspriteFrame(); pspriteFrame();
+    assertEqual(PSPRITE.map.size, 0, 'over budget and not drawn: evicted');
+    assertEqual(ATLAS.cells.size, 0, 'with its cell');
+    assertEqual(ATLAS.pages[0].live, 0, 'and the page is empty');
+    assertEqual(ATLAS.pages[0].y, 0, 'an empty page starts over');
+    PSPRITE.MEM=48*1024*1024;
+    const big={cv:{width:400,height:400,getContext(){return {};}},pw:400,ph:400,bytes:640000,used:PSPRITE.frame};
+    const wasMax=ATLAS.MAX;
+    assert(big.pw>wasMax, 'the fixture is past the limit');
+    PSPRITE.map.set('big|k',big); PSPRITE.bytes+=big.bytes;
+    pspriteFrame();
+    assert(!big.cell, 'a tree-sized sprite stays an image of its own');
+  });
+});
+test('the atlas allocator packs without overlap, reuses what is freed and never exceeds its share', () => {
+  atlasCase(() => {
+    const rnd=mulberry(0xA71A5), out=[];
+    const overlap=(a,b)=>a.p===b.p && !(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y);
+    let refused=0;
+    for (let i=0;i<3000;i++){
+      if (out.length && rnd()<0.42){ const j=(rnd()*out.length)|0; atlasFree(out[j]); out.splice(j,1); continue; }
+      const w=10+((rnd()*210)|0), h=10+((rnd()*210)|0), c=atlasAlloc(w,h);
+      if (!c){ refused++; continue; }
+      assert(c.w>=w && c.h>=h, 'a cell holds what was asked for');
+      assert(c.x>=0 && c.y>=0 && c.x+c.w<=c.p.size && c.y+c.h<=c.p.size, 'inside its page');
+      assert(c.y+c.sh.H<=c.p.size && c.h<=c.sh.H, 'and inside its shelf');
+      for (const o of out) if (overlap(c,o)) assert(false, 'cell '+JSON.stringify([c.x,c.y,c.w,c.h])+' overlaps '+JSON.stringify([o.x,o.y,o.w,o.h]));
+      out.push(c);
+    }
+    assertEqual(ATLAS.cells.size, out.length, 'the atlas knows exactly the cells that are out');
+    assert(atlasBytes()<=PSPRITE.MEM*ATLAS.SHARE, 'pages stay inside their share of the sprite budget');
+    let live=0; for (const p of ATLAS.pages) live+=p.live;
+    assertEqual(live, out.length, 'and the page counts agree');
+    for (const c of out) atlasFree(c);
+    assertEqual(ATLAS.cells.size, 0, 'everything freed');
+    assert(ATLAS.pages.every(p=>p.live===0 && p.y===0 && !p.shelves.length), 'every page starts over once it is empty');
+    atlasFree(out[0]);                              // twice is harmless
+    assert(ATLAS.pages.every(p=>p.live===0), 'a cell cannot be freed twice');
+    // a full atlas is a refusal, not an error: the sprite stays an image
+    PSPRITE.MEM=ATLAS.PAGE*ATLAS.PAGE*4;            // room for one page
+    ATLAS.pages.length=0;
+    let got=0; while (atlasAlloc(200,200)) got++;
+    assert(got>0 && got<=Math.floor(ATLAS.PAGE/200)**2, 'one page of cells and then none: '+got);
+    assertEqual(ATLAS.pages.length, 1, 'no second page past the budget');
+  });
+});
+test('a cache cleared behind the atlas\'s back does not leak its cells', () => {
+  atlasCase((draw) => {
+    pspriteFrame(); for (let i=1;i<=12;i++) draw(i*7); pspriteFrame();
+    assertEqual(ATLAS.cells.size, 12, 'twelve sprites in cells');
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0;   // what the dev tools and tests do
+    pspriteFrame();
+    assertEqual(ATLAS.cells.size, 0, 'the next frame notices and takes the cells back');
+  });
+});
+test('Firefox keeps its bitmaps, and ?atlas=0 switches the atlas off', () => {
+  const wasNav=navigator.userAgent, wasSearch=location.search;
+  try{
+    navigator.userAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101 Firefox/157.0';
+    assert(!atlasWanted(), 'not in Firefox: it batches separate bitmaps already, and a painted-into canvas is what demotes it');
+    navigator.userAgent='Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1';
+    assert(atlasWanted(), 'in Safari, where every sprite was a canvas of its own');
+    navigator.userAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36';
+    assert(atlasWanted(), 'and in Chrome, where the measurement was taken');
+    location.search='?atlas=0';
+    assert(!atlasWanted(), 'the switch for a comparison on a device');
+    location.search='?debug&atlas=0&x=1';
+    assert(!atlasWanted(), 'anywhere in the query');
+    location.search='?atlas=01';
+    assert(atlasWanted(), 'and only that');
+  } finally { navigator.userAgent=wasNav; location.search=wasSearch; }
+  // with it off, a bake offers itself to nothing
+  atlasCase((draw) => {
+    ATLAS.on=false;
+    pspriteFrame(); draw(5); pspriteFrame(); pspriteFrame();
+    const e=[...PSPRITE.map.values()][0];
+    assert(!e.cell && !ATLAS.pages.length && !ATLAS.fresh.length, 'off: the sprite stays an image and no page is made');
   });
 });
 

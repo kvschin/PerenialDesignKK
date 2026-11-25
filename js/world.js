@@ -689,11 +689,44 @@ const LAYER_CACHES={
    Monotonic and never reset; a wholesale swap (load, undo, new garden) is
    caught by map identity, as potIndex does. */
 const LAYER_REV=Object.create(null);
-function markLayerCacheChanged(layer,key){
+/* ---------- which planted tiles changed since the scene list was built ----------
+   The renderer's scene list (buildScene) was rebuilt in full after ANY edit to a
+   layer it holds, and it holds every plant: a record apiece with its depth, its
+   cull box, its draw point and the fixed parts of its sprite key. On a 350-plant
+   garden that is 2.3ms and nobody notices. On a 4,750-plant one it measured
+   18-25ms on a desktop, per stamped tile, so a planting drag ran at 15 frames a
+   second: the bigger the garden grew, the slower every plant went in.
+   A perennial or a bulb going in or coming out changes one record and nothing
+   else in that list. So setTile and clearTile name the tile here, and the
+   renderer puts that one record in or takes it out (sceneApplyEdits). `base` is
+   the scene revision the list starts from and `n` how many located edits have
+   been counted since; an edit to any other scene layer, or a direct sceneRev
+   bump, leaves base+n behind game.sceneRev, and the renderer rebuilds in full,
+   as it does for a tree, a shrub or a climber, whose neighbours and shade
+   depend on them. `fresh` says the key is new to its map: a full build draws
+   plants of equal depth in the map's key order, and a new key goes last. */
+const SCENE_EDITS={list:[], base:0, n:0, CAP:64};
+function noteSceneEdit(layer,key,fresh){
+  const E=SCENE_EDITS;
+  if (E.base+E.n!==game.sceneRev){ E.list.length=0; E.base=game.sceneRev; E.n=0; }   // an unlocated change came between
+  if (E.list.length<=E.CAP) E.list.push({layer,key,fresh:!!fresh});
+  E.n++;
+}
+function resetSceneEdits(){ SCENE_EDITS.list.length=0; SCENE_EDITS.base=game.sceneRev; SCENE_EDITS.n=0; }
+// is this plant record a live tree or shrub: the only kinds the tree and shrub indexes hold
+function plantRecWoody(p){ return !!p && !p.removed && isWoodyDef(plantDef(p.s,p.v)); }
+function markLayerCacheChanged(layer,key,was){
   LAYER_REV[layer]=(LAYER_REV[layer]||0)+1;
   const c=LAYER_CACHES[layer] || {scene:1, plants:1, trace:1, pots:1, pergolas:1, shade:1};   // unknown layer: assume the worst
-  if (c.scene) game.sceneRev++;
-  if (c.plants) game.plantsRev++;
+  if (c.scene){
+    if (was && (layer==='plants' || layer==='bulbs')) noteSceneEdit(layer,key,was.fresh);
+    game.sceneRev++;
+  }
+  /* plantsRev is what the tree index and the shrub index are kept on, and each
+     rescans the whole planting when it moves: 1.5ms apiece on a 4,750-plant
+     garden, for every perennial planted. Neither holds anything but trees and
+     shrubs, so an edit that neither removes nor adds one leaves it alone. */
+  if (c.plants && !(layer==='plants' && was && !plantRecWoody(was.old) && !plantRecWoody(game.plants[key]))) game.plantsRev++;
   if (c.pots) game.potsRev++;
   if (c.pergolas) game.pergolasRev++;
   /* `shade` means "this edit may have changed the shade map by a route the tree
@@ -729,8 +762,18 @@ function noteCrossingDamage(keys){
   for (const k of keys) for (const n of near(k)){ const r=now.get(n); if (r) regs.add(r); }
   for (const r of regs) for (const [tx,ty] of r.tiles){ const t=tx+','+ty; if (!own.has(t)) markGroundChanged({terrain:true, tile:t}); }
 }
-function setTile(layer,key,val){ game[layer][key]=val; markModelChanged(); markLayerCacheChanged(layer,key); }
-function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; markModelChanged(); markLayerCacheChanged(layer,key); }
+/* The two writers of every keyed layer. They say what was on the tile before
+   (`old`) and whether the key is new to the map (`fresh`), which is what lets a
+   planting edit be applied to the renderer's caches as one record, not a rebuild
+   (noteSceneEdit, and the plantsRev rule above). */
+function setTile(layer,key,val){
+  const m=game[layer], old=m[key], fresh=old===undefined && !(key in m);
+  m[key]=val; markModelChanged(); markLayerCacheChanged(layer,key,{old,fresh});
+}
+function clearTile(layer,key){
+  const m=game[layer], old=m[key], fresh=old===undefined && !(key in m);
+  m[key]={removed:true,t:Date.now()}; markModelChanged(); markLayerCacheChanged(layer,key,{old,fresh});
+}
 function addHouse(h){ game.houses.push(h); markModelChanged(); markLayerCacheChanged('houses'); }
 function removeHouseAtIndex(i){
   if (i<0 || i>=game.houses.length) return false;
@@ -5196,13 +5239,28 @@ function seasonWashGradients(ctx,cw,ch,season,amb){
    canvas and stalls the pipeline on a GPU one, which is what made the earlier
    `baked` attempt look like a Chrome regression. */
 let washSurf={key:''};
-function radialSurface(cw,ch,build){
-  const c=document.createElement('canvas');
-  c.width=Math.max(1,Math.round(cw)); c.height=Math.max(1,Math.round(ch));
+/* `reuse` is the canvas this wash was last painted into. A new season used to
+   make two new whole-screen canvases and drop the old pair for the collector,
+   every eight seconds of a held fast-forward; in WebKit a dropped canvas keeps
+   its pixels until a collection its memory does not hurry (12MB each on a large
+   tablet). Painted over in place, a season turn allocates nothing.
+   Null when the browser will not give a context (it is out of canvas memory):
+   the callers then fill the gradient straight onto the frame, as 'cached' does. */
+function radialSurface(cw,ch,build,reuse){
+  const w=Math.max(1,Math.round(cw)), h=Math.max(1,Math.round(ch));
+  const c=reuse||document.createElement('canvas');
+  if (c.width!==w || c.height!==h){ c.width=w; c.height=h; }
   const k=c.getContext('2d');
-  k.fillStyle=build(k,c.width,c.height);
-  k.fillRect(0,0,c.width,c.height);
+  if (!k){ c.width=0; c.height=0; return null; }
+  k.clearRect(0,0,w,h);
+  k.fillStyle=build(k,w,h);
+  k.fillRect(0,0,w,h);
   return c;
+}
+// leaving the garden: the whole-screen washes go back (releaseGardenSurfaces)
+function releaseWashSurfaces(){
+  for (const c of [washSurf.sun,washSurf.vg,duskSurf.moon,duskSurf.vg]) if (c){ c.width=0; c.height=0; }
+  washSurf={key:''}; duskSurf={key:''};
 }
 function seasonWashSurfaces(cw,ch,season){
   const key=season+'|'+cw+'x'+ch;
@@ -5212,12 +5270,12 @@ function seasonWashSurfaces(cw,ch,season){
     const g=k.createRadialGradient(w*0.72,h*0.14,0,w*0.72,h*0.14,h*0.9);
     g.addColorStop(0,L.sun); g.addColorStop(0.5,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(255,255,255,0)');
     return g;
-  });
+  },washSurf.sun);
   const vg=radialSurface(cw,ch,(k,w,h)=>{
     const g=k.createRadialGradient(w*0.50,h*0.44,Math.min(w,h)*0.20,w*0.50,h*0.44,Math.max(w,h)*0.74);
     g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,L.vignette);
     return g;
-  });
+  },washSurf.vg);
   washSurf={key,sun,vg};
   return washSurf;
 }
@@ -5247,7 +5305,8 @@ function drawSeasonSky(ctx,W,H,season,amb,direct){
   const g=seasonWashGradients(ctx,cw,ch,season,amb);
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
   ctx.fillStyle=g.sky;  ctx.fillRect(0,0,cw,ch);
-  if (SEASON_WASH.mode==='surface') ctx.drawImage(seasonWashSurfaces(cw,ch,season).sun,0,0,cw,ch);
+  const sunSurf=SEASON_WASH.mode==='surface' ? seasonWashSurfaces(cw,ch,season).sun : null;
+  if (sunSurf) ctx.drawImage(sunSurf,0,0,cw,ch);
   else { ctx.fillStyle=g.sun;  ctx.fillRect(0,0,cw,ch); }
   ctx.fillStyle=g.haze; ctx.fillRect(0,ch*0.18,cw,ch*0.46);
   ctx.restore();
@@ -5281,7 +5340,8 @@ function applySeasonLighting(ctx,W,H,amb,season,direct){
   ctx.globalCompositeOperation='screen';
   ctx.fillStyle=g.beam; ctx.fillRect(0,0,cw,ch);
   ctx.globalCompositeOperation='source-over';
-  if (SEASON_WASH.mode==='surface') ctx.drawImage(seasonWashSurfaces(cw,ch,season).vg,0,0,cw,ch);
+  const vgSurf=SEASON_WASH.mode==='surface' ? seasonWashSurfaces(cw,ch,season).vg : null;
+  if (vgSurf) ctx.drawImage(vgSurf,0,0,cw,ch);
   else { ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch); }
   ctx.restore();
 }
@@ -5329,8 +5389,8 @@ function duskWashSurfaces(cw,ch,winter){
   const key=(winter?'w':'s')+'|'+cw+'x'+ch;
   if (duskSurf.key===key) return duskSurf;
   duskSurf={key,
-    moon:radialSurface(cw,ch,(k,w,h)=>duskMoonGradient(k,w,h,winter)),
-    vg:radialSurface(cw,ch,(k,w,h)=>duskVignetteGradient(k,w,h))};
+    moon:radialSurface(cw,ch,(k,w,h)=>duskMoonGradient(k,w,h,winter),duskSurf.moon),
+    vg:radialSurface(cw,ch,(k,w,h)=>duskVignetteGradient(k,w,h),duskSurf.vg)};
   return duskSurf;
 }
 /* How dark night is, where no light reaches. It was a 26% blue tint, which
@@ -5374,11 +5434,11 @@ function applyDuskLighting(ctx,W,H,season,lightMap){
     ctx.fillRect(0,0,cw,ch); }
   const surf=SEASON_WASH.mode==='surface' ? duskWashSurfaces(cw,ch,winter) : null;
   ctx.globalCompositeOperation='screen';
-  if (surf) ctx.drawImage(surf.moon,0,0,cw,ch);
+  if (surf && surf.moon) ctx.drawImage(surf.moon,0,0,cw,ch);
   else { ctx.fillStyle=g.moon; ctx.fillRect(0,0,cw,ch); }
   ctx.fillStyle=g.warm; ctx.fillRect(0,0,cw,ch);
   ctx.globalCompositeOperation='source-over';
-  if (surf) ctx.drawImage(surf.vg,0,0,cw,ch);
+  if (surf && surf.vg) ctx.drawImage(surf.vg,0,0,cw,ch);
   else { ctx.fillStyle=g.vg; ctx.fillRect(0,0,cw,ch); }
   ctx.restore();
 }

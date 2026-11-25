@@ -292,3 +292,76 @@ Checked: 1,131 tests (13 new, each mutation-tested). Against the release under a
 3. **`renderStateSig` builds about 25 short strings every animation frame** (2026-10-28 proposal 2). Measured now: 1-3ms a second at 164Hz. Not worth the risk of a missed field.
 4. **The idle garden still draws 28 frames a second for the wind**: 54ms/s on the demo garden, 116 on the quarter acre. With motion reduced nothing needs to move, so it could stop entirely there. Not measured on a phone.
 5. **`snapshotState` copy-on-write** (2026-11-04 proposal 2) is unchanged: 0.2ms/s in a profile of a planting drag on the quarter acre, so it stays unranked.
+
+## 2026-11-25 — large gardens, the first frames after opening, and canvas memory (0.9.171)
+
+**Asked.** Three shared gardens (31x31, about 350 plants each, all in Today
+view), larger gardens with more trees and shrubs, crashes on an iPad "after
+planting and moving the time a bit", ninebark feeling slow, and plants that
+"spin around" when a garden first loads and as they move into frame.
+
+**Method.** Four designed test gardens (`node dev/make-test-gardens.cjs`: up to
+131 trees, 485 shrubs and 4,000 perennials on a 140 ft plot). A scratch driver
+on headed Chrome at an iPad-sized viewport (1180x820, device scale 2, so a
+1215x1146 canvas) that wraps `makePlantSprite`, `plantStandInKey`, `drawPlant`
+and `render` to count, per frame, bakes, stand-ins from the clump's own older
+sprite, stand-ins borrowed from a SIBLING clump, and live draws, and records
+rAF spacing. Baselines from `git archive HEAD` served beside the working tree.
+An "iPad-like" arm slows the CPU four times through CDP. Pixels compared on a
+software raster, where the release is identical to itself.
+
+| What | 0.9.170 | 0.9.171 |
+| --- | --- | --- |
+| Clumps on screen with no sprite of their own at the reveal, 11/23 garden | 228 of 293 | 0 |
+| Same, estate (4,707 on screen) | 3,471 | 0 |
+| Sibling stand-in draws, panning the 11/23 garden at 110%, CPU slowed 4x | 1,782 over 54 frames | 0 |
+| Whole estate on screen, any frame | 60.6ms, 16fps | 18.2ms, 54fps |
+| Whole arboretum / shrub border on screen | 39 / 49fps | 107 / 122fps |
+| Frame after a planted tile, estate | 54ms (scene rebuild 18-25ms) | 15ms (no rebuild) |
+| Planting drag, estate | 15fps | 50fps |
+| Ten ninebarks in a new garden, script a frame | 6.3ms, never cached | 0.2ms |
+| Sprite canvases left to the collector in a game year of fast-forward (canvas path) | 5,144 (196MB) | 0: each is emptied a frame after it is retired |
+| Held behind the menu after a session | sprite caches, ground canvases, washes | none of them |
+
+1. **The opening pass skipped its own bakes** (renderer.js `prepareGardenOpen`).
+   Its batch (12ms, 96 clumps, since 0.9.121) outran a frame's bake allowance
+   (4ms), and a clump past the allowance was drawn as a sibling into the scratch
+   canvas and left without a sprite. This is the "spinning" at load. `PSPRITE.cold`.
+2. **A pan arrived at clumps that had never been baked.** They are now baked in
+   a ring ahead of the camera with the frame's leftover allowance (`PREBAKE`).
+3. **Every sprite was a separate image**, about 10us each in Chrome whatever its
+   size. Small sprites are adopted into shared atlas pages (`ATLAS`). Not in
+   Firefox, which batches bitmaps itself and is slower from a canvas page.
+4. **Every plant edit rebuilt the scene list.** A perennial or bulb edit now
+   changes one record (`sceneApplyEdits`); the tree and shrub indexes are left
+   alone by an edit that touches neither.
+5. **The governor's floor (12) kept a handful of heavy shrubs procedural.** 3.
+6. **Canvases were dropped, not emptied** (WebKit keeps a dropped canvas's
+   pixels until a collection): retired sprite canvases, the season-fade
+   snapshot, the wash surfaces at each season turn, and everything the garden
+   held when the menu opened. This also takes proposal 1 of 2026-11-17.
+7. **A bake the browser refused threw inside `render`** (a null 2D context).
+   It is a live draw and a trimmed cache now, and a line in the error log.
+
+Checked: 1,334 tests (15 new). `?atlas=0` is byte-identical to 0.9.170 on a
+software canvas; with the atlas 0.05-0.06% of pixels differ by 1/255. Firefox
+157 stays accelerated on the 11/23 garden (4,034 frames) and the shrub border
+(2,338). **Not checked: any of it on an iPad.** There is no WebKit on this
+machine; item 6 and 7 are what the crash report most plausibly was, and the
+crash itself was not reproduced.
+
+### Proposals not taken (ranked by expected benefit)
+
+1. **Fewer bakes while time is held forward in Today view.** A 2,035-plant
+   garden bakes 540 sprites a second there and cannot keep up (39fps, with 600
+   clumps a frame shown a bucket behind). A clump could keep its sprite while it
+   is one growth bucket out, or draw the stale one scaled, and be baked exactly
+   when the hold ends.
+2. **A dense garden zoomed in on a hi-DPI tablet holds one screenful in the
+   48MB budget** (the woodland at 110%: 271 sprites, 52MB), so every pan bakes
+   what it reveals and a slow CPU falls behind into sibling stand-ins. A larger
+   budget where memory allows, or a tighter sprite box for woody plants.
+3. **The entity pass is 3us of script a record**: 16ms a frame with 4,700 on
+   screen, which is what the estate is bound by now.
+4. **A whole-plot planting kept as one layer when zoomed far out**, where wind
+   moves a 15px plant by under a pixel.

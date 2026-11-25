@@ -2134,7 +2134,7 @@ function edgingArcSeed(arc){
    pristine, smoothly-growing procedural path. Toggle PSPRITE.off to A/B it. */
 const PSPRITE={ map:new Map(), slot:new Map(), scale:-1, frame:0, rendered:0, bytes:0,
   MEM:48*1024*1024, BUDGET:160, off:false, active:false,
-  FLOOR:12, HI_MS:6, LO_MS:2.5, hot:0, calm:0, plantMs:0,
+  FLOOR:3, HI_MS:6, LO_MS:2.5, hot:0, calm:0, plantMs:0,
   /* What the STRUCTURES in the draw pass cost, so the governor can take them
      back out — see the note on updateSpriteMode. Sampled rather than measured
      every frame: a clock pair costs 0.358us, so splitting ~400 structures
@@ -2149,7 +2149,14 @@ const PSPRITE={ map:new Map(), slot:new Map(), scale:-1, frame:0, rendered:0, by
      with nothing to stand in is not held to either: it bakes up to BUDGET as
      before. `spec` maps a sprite key minus its seed to the newest key baked
      for it, so one clump can borrow a sibling's sprite. */
-  BAKE_MS:4, BAKE_CAP:24, bakeMs:0, spec:new Map() };
+  BAKE_MS:4, BAKE_CAP:24, bakeMs:0, spec:new Map(),
+  /* `cold`: this pass is the garden being prepared behind its cover, where every
+     clump bakes its OWN sprite and nothing stands in (prepareGardenOpen).
+     `waiting` counts the clumps a frame drew as something other than their own
+     current sprite, so the loop keeps full-rate frames coming until it is none
+     (spritesPending): at the idle cadence the same catch-up took twice as long. */
+  cold:false, waiting:0 };
+function spritesPending(){ return PSPRITE.active && !PSPRITE.off && PSPRITE.waiting>0; }
 /* sprite-mode governor: engage the cache when the DRAW PHASE is measured
    heavy, not at a fixed plant count — the old 300-plant threshold left a
    typical 150–250 plant design fully procedural forever, even on a window
@@ -2164,6 +2171,11 @@ const PSPRITE={ map:new Map(), slot:new Map(), scale:-1, frame:0, rendered:0, by
    now costs 0.5-2ms procedurally, so 25 shrubs and nothing else measured
    12ms a frame and never qualified, where sprites draw them in about 1ms. At 12
    the frame still has to be measured heavy (HI_MS) for 3 frames to engage.
+   It is 3 now (0.9.171), for the same reason one step on: ten ninebarks in a new
+   garden cost 6.3ms a frame on a desktop (0.6ms each in summer, 2.6 times an
+   arrowwood) and several times that on a tablet, and at twelve or fewer they
+   could never be cached however slow the frame got. The measurement is the
+   gate; the floor only keeps a garden of one or two plants out of it.
 
    IT IS HANDED THE WHOLE ENTITY PASS AND MUST TAKE THE STRUCTURES BACK OUT.
    `drawMs` covers fences, building tiles, pots, seats, boulders, fire pits,
@@ -2209,7 +2221,11 @@ function updateSpriteMode(drawMs, plantCount, structMs){
   // the planting alone — what this governor is actually deciding about
   const plantMs = Math.max(0, drawMs - PSPRITE.structMs);
   if (!PSPRITE.active){
-    if (plantCount>20 && plantMs>0){
+    /* Learned at any count the cache can engage at. It was only learned past 20
+       plants, from when the floor was 40; a garden of fifteen shrubs then engaged
+       with nothing learned, was predicted at 0.02ms a plant, read as calm, and
+       dropped back to procedural 45 frames later, round and round. */
+    if (plantCount>PSPRITE.FLOOR && plantMs>0){
       const per=plantMs/plantCount;
       PSPRITE.plantMs = PSPRITE.plantMs ? PSPRITE.plantMs*0.9+per*0.1 : per;
     }
@@ -2322,14 +2338,15 @@ function spriteMaxPx(){
    species lookup already, so only remove pointers that still name this image.
    The slot lives on the entry: the key's JSON detail may contain separators. */
 function retirePlantSprite(k,e){
-  PSPRITE.bytes-=e.bytes; PSPRITE.map.delete(k); retireSpriteImage(e.cv);
+  PSPRITE.bytes-=e.bytes; PSPRITE.map.delete(k); releasePlantEntry(e);
   if (e.slot!==undefined && PSPRITE.slot.get(e.slot)===k) PSPRITE.slot.delete(e.slot);
   const sk=k.slice(k.indexOf('|')+1);
   if (PSPRITE.spec.get(sk)===k) PSPRITE.spec.delete(sk);
 }
 function pspriteFrame(){                        // once per render: age the cache
   closeRetiredSprites();                        // last frame's, which nothing can draw now
-  PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.bakeMs=0; PSPRITE.scale=pspriteScale();
+  atlasFrame();                                 // last frame's small bakes move into the shared pages
+  PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.bakeMs=0; PSPRITE.waiting=0; PSPRITE.scale=pspriteScale();
   // Evict only sprites NOT drawn last frame (off-screen), oldest first, down to
   // budget — never the visible set. This is what stops the cache thrashing and
   // flickering when the working set is large (e.g. a dense garden on retina):
@@ -2337,10 +2354,13 @@ function pspriteFrame(){                        // once per render: age the cach
   // a visible plant it just discarded.
   // Look-ahead renews leases in place, so a protected entry can precede stale
   // ones. Skip it rather than ending the sweep before those can be reclaimed.
-  if (PSPRITE.bytes>PSPRITE.MEM) for (const [k,e] of PSPRITE.map){
-    if (PSPRITE.bytes<=PSPRITE.MEM) break;
-    if (e.used>=PSPRITE.frame-1) continue;
-    retirePlantSprite(k,e);
+  if (PSPRITE.bytes>PSPRITE.MEM){
+    for (const [k,e] of PSPRITE.map){
+      if (PSPRITE.bytes<=PSPRITE.MEM) break;
+      if (e.used>=PSPRITE.frame-1) continue;
+      retirePlantSprite(k,e);
+    }
+    PREBAKE.gen++;   // a sprite it had counted as there may be gone
   }
 }
 function gbucket(v,n){ v=v<0?0:v>1?1:v; return Math.round(v*(n-1)); }
@@ -2478,18 +2498,56 @@ function spriteBakeImage(which,cv){
   const s=spriteScratch[which]; if (s && s.oc===cv) s.busy=false;
   return cv.transferToImageBitmap();
 }
-/* A retired bitmap is closed at the start of the NEXT frame, not on the spot:
+// a surface that got no context: nothing to keep, and the shared one is free again
+function abandonBakeSurface(which,cv){
+  const s=spriteScratch[which];
+  if (s && s.oc===cv){ s.busy=false; return; }
+  releaseSpriteImage(cv);
+}
+/* The browser refused a canvas. Give back every sprite that is not on screen,
+   in both caches and whatever the budgets say, so the next bake has room, and
+   leave a line in the error log for a report. At most once a frame. */
+let spritePressureAt=-1, spritePressureNoted=false;
+function spriteMemoryPressure(){
+  if (spritePressureAt===PSPRITE.frame) return;
+  spritePressureAt=PSPRITE.frame;
+  for (const [k,e] of PSPRITE.map) if (e.used<PSPRITE.frame-1) retirePlantSprite(k,e);
+  PREBAKE.gen++;
+  for (const [k,e] of SSPRITE.map) if (e.used<SSPRITE.frame-1){ SSPRITE.bytes-=e.bytes; SSPRITE.map.delete(k); retireSpriteImage(e.cv); }
+  for (let i=ATLAS.pages.length-1;i>=0;i--) if (!ATLAS.pages[i].live){ releaseSpriteImage(ATLAS.pages[i].cv); ATLAS.pages.splice(i,1); }
+  if (!spritePressureNoted && typeof noteError==='function'){
+    spritePressureNoted=true;
+    noteError(new Error('The browser refused a sprite canvas (out of canvas memory)'),'sprite-memory');
+  }
+}
+/* A retired image is released at the start of the NEXT frame, not on the spot:
    a stand-in drawn earlier in the same frame may still be in that frame's
-   recorded commands. Closing frees its memory now rather than at the next GC,
-   which a fast-forward that bakes ~150 sprites a second would otherwise wait
-   on. A <canvas> sprite has no close() and is left to the collector as before. */
+   recorded commands. Releasing frees its memory now rather than at the next GC,
+   which a fast-forward that bakes ~150 sprites a second would otherwise wait on.
+   A bitmap is closed. A <canvas> sprite, which is what every sprite is in
+   WebKit (every iPad and iPhone browser), has its size set to nothing, which
+   hands back its pixels: it has no close(), and until 0.9.171 it was simply
+   dropped for the collector to find. WebKit does not collect on canvas memory,
+   and it refuses new canvases past a total. Measured in Chrome made to take the
+   canvas path: a game year of fast-forward in Today view on a 353-plant garden
+   baked 5,144 sprites, 196MB of pixels in 34 seconds, each in a canvas of its
+   own; thirty mature ninebarks at close zoom are 1.2MB apiece and re-bake some
+   25 times a year, most of a gigabyte. That is the shape of a tablet that runs
+   out of memory "after planting and moving the time a bit". */
 let spriteRetired=[];
+function releaseSpriteImage(img){
+  if (!img) return;
+  try{
+    if (typeof img.close==='function') img.close();
+    else if (typeof img.getContext==='function'){ img.width=0; img.height=0; }
+  }catch(_){ }
+}
 function retireSpriteImage(img){
-  if (typeof ImageBitmap==='function' && img instanceof ImageBitmap) spriteRetired.push(img);
+  if (img && (typeof img.close==='function' || typeof img.getContext==='function')) spriteRetired.push(img);
 }
 function closeRetiredSprites(){
   if (!spriteRetired.length) return;
-  for (const b of spriteRetired){ try{ b.close(); }catch(_){ } }
+  for (const b of spriteRetired) releaseSpriteImage(b);
   spriteRetired=[];
 }
 // A sprite's pixels, for the dev verifiers, whichever kind of image it is.
@@ -2519,10 +2577,18 @@ function makePlantSprite(key,gB,bK,season,seed,variant,detail,lB){
   const pw=Math.max(1,Math.ceil(halfW*2*s)), ph=Math.max(1,Math.ceil((top+bot)*s));
   if (pw>2600||ph>2600) return null;           // absurd size — don't cache, fall back
   const cv=spriteBakeSurface('plant',pw,ph);
-  const c2=cv.getContext('2d'); c2.setTransform(s,0,0,s,halfW*s,top*s);
+  /* No context: the browser has refused the canvas, which in WebKit means its
+     canvas memory is spent. Returning null draws this clump procedurally for the
+     frame; dereferencing it threw inside render, and a throw there is the crash
+     panel. The cache gives back what it is not showing, so the next bake has room. */
+  const c2=cv.getContext('2d');
+  if (!c2){ abandonBakeSurface('plant',cv); spriteMemoryPressure(); return null; }
+  c2.setTransform(s,0,0,s,halfW*s,top*s);
   const spriteDetail=Object.assign({},detail||{},{bloomFallback:true,spent:aB});
   drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,spriteDetail,lB>=0?lB:undefined); // still (sway 0), bucketed bloom and leaf-out
-  return { cv:spriteBakeImage('plant',cv), ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4 };
+  const entry={ cv:spriteBakeImage('plant',cv), ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4, pw, ph };
+  if (ATLAS.on && pw<=ATLAS.MAX && ph<=ATLAS.MAX){ entry.aq=true; ATLAS.fresh.push(entry); }
+  return entry;
 }
 // blit a cached plant if we can, else fall back to a live procedural draw.
 /* ---- the parts of a sprite key that do not change from frame to frame ----
@@ -2608,27 +2674,37 @@ function leafStageForFrame(sv,key,variant,season){
   if (v===undefined){ v=leafStageNow(plantDef(key,variant),season); leafMemo.set(sv,v); }
   return v;
 }
-function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites,rec){
-  if (!useSprites || PSPRITE.off){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,leafStageNow(plantDef(key,variant),season)); return; }
-  // a caller with no record (or one from before this frame's scene) pays the old price
-  if (!rec || rec.kSlot===undefined) { rec=rec||{}; bakePlantKeyParts(rec,key,variant,season,seed,detail); }
+/* The key a clump's sprite is cached under NOW, left on its record with the three
+   buckets it was built from (`_kg` growth, `_kb` bloom plus after-bloom, `_kl`
+   leaf stage or -1). One definition, for the frame that draws the clump and for
+   the bake that runs ahead of the camera (prebakePlant), so the two cannot ask
+   for different pictures.
+   The key is the baked parts plus three small integers, and the integers move
+   a few times a season. It was concatenated again on every frame, which made
+   a new string for every plant drawn and left the cache lookups to flatten and
+   hash it each time. The record keeps the string it built last; the same string
+   object carries its hash with it. Only the STRING is kept: the lookups still
+   run, so every rule about what is in the cache is untouched. The underscore
+   marks these as memos, like `_spec`: a scene record's content is everything
+   without one (tests/browser-skips.cjs compares a prepared scene with a fresh
+   build so). */
+function plantKeyNow(rec,key,variant,season,growth){
   const gB=gbucket(growth,9);
   // bloom bucket, plus the after-bloom bucket where spent heads can show (see makePlantSprite)
   let bB=rec.hasBloom?gbucket(bloomLevelForFrame(rec.sv,key,variant),4):0;
   if (rec.seedAfter && bB<3) bB+=4*bloomAfterBucket(bB,bloomAfterForFrame(rec.sv,key,variant,season));
   const lB=rec.leafOut?leafStageForFrame(rec.sv,key,variant,season):-1;
-  /* The key is the baked parts plus three small integers, and the integers move
-     a few times a season. It was concatenated again on every frame, which made
-     a new string for every plant drawn and left the cache lookups below to
-     flatten and hash it each time. The record keeps the string it built last,
-     with the three buckets it was built from; the same string object carries
-     its hash with it. Only the STRING is kept: the lookups still run, so every
-     rule about what is in the cache is untouched. The underscore marks these as
-     memos, like `_spec`: a scene record's content is everything without one
-     (tests/browser-skips.cjs compares a prepared scene with a fresh build so). */
-  let kk;
-  if (rec._kg===gB && rec._kb===bB && rec._kl===lB) kk=rec._kk;
-  else { kk=rec.kSlot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+rec.kTail; rec._kg=gB; rec._kb=bB; rec._kl=lB; rec._kk=kk; }
+  if (rec._kg===gB && rec._kb===bB && rec._kl===lB) return rec._kk;
+  rec._kg=gB; rec._kb=bB; rec._kl=lB;
+  return (rec._kk=rec.kSlot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+rec.kTail);
+}
+function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites,rec){
+  if (!useSprites || PSPRITE.off){
+    if (rec) rec._pf=PSPRITE.frame;   // drawn live this frame: see the stand-in note below
+    drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,leafStageNow(plantDef(key,variant),season)); return; }
+  // a caller with no record (or one from before this frame's scene) pays the old price
+  if (!rec || rec.kSlot===undefined) { rec=rec||{}; bakePlantKeyParts(rec,key,variant,season,seed,detail); }
+  const kk=plantKeyNow(rec,key,variant,season,growth), gB=rec._kg, bB=rec._kb, lB=rec._kl;
   /* This clump's own SLOT — what identifies the plant rather than the moment.
 
      Growth and bloom are bucketed off the clock, so the instant either moves,
@@ -2673,10 +2749,27 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
        is watching — a season turn re-bakes every plant, a wheel zoom every
        plant several times, a scheme switch or a replacement a whole planting.
        game.photo is exempt: it renders ONE frame into a downloaded PNG, where a
-       stand-in would outlive the moment it stood in for. */
-    const spent=!game.photo && (PSPRITE.bakeMs>=PSPRITE.BAKE_MS || PSPRITE.rendered>=PSPRITE.BAKE_CAP);
+       stand-in would outlive the moment it stood in for.
+       Two more rules, both from what a gardener sees (0.9.171).
+       A clump that was drawn LIVE last frame, because the cache has only just
+       been switched on for a planting that was procedural, goes on being drawn
+       live until its own bake lands. That costs what last frame cost; a
+       sibling's sprite made the whole planting change shape at once and change
+       back a plant at a time. A bake costs about what the live draw does, so
+       these are held to the count and not to the time.
+       And behind the opening cover (cold) nothing waits and nothing stands in:
+       that pass exists to bake every clump's own picture. */
+    const live=!e && rec._pf===PSPRITE.frame-1;
+    const spent=!game.photo && !PSPRITE.cold
+      && (PSPRITE.rendered>=PSPRITE.BAKE_CAP || (!live && PSPRITE.bakeMs>=PSPRITE.BAKE_MS));
+    if (spent && live){
+      rec._pf=PSPRITE.frame; PSPRITE.waiting++;
+      drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,lB>=0?lB:undefined);
+      return;
+    }
     const standKey=spent ? (e ? kk : plantStandInKey(kk,slot)) : null;
     if (standKey){
+      PSPRITE.waiting++;
       const s=PSPRITE.map.get(standKey);
       PSPRITE.map.delete(standKey); s.used=PSPRITE.frame; PSPRITE.map.set(standKey,s);   // LRU, like any hit
       blitPlantSprite(ctx,s,bx,by,sway);
@@ -2686,7 +2779,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
       const t0=performance.now();
       const ne=makePlantSprite(key,gB,bB,season,seed,variant,detail,lB);
       PSPRITE.bakeMs+=performance.now()-t0;
-      if (ne){ if (e){ PSPRITE.bytes-=e.bytes; retireSpriteImage(e.cv); } e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes;
+      if (ne){ if (e){ PSPRITE.bytes-=e.bytes; releasePlantEntry(e); } e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes;
         PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk); }
     }
     if (!e){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,lB>=0?lB:undefined); return; }
@@ -2701,14 +2794,16 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   }
   if (wasKey!==kk) PSPRITE.slot.set(slot,kk);
   if (PSPRITE.map.has(kk)) PSPRITE.map.delete(kk);   // LRU: re-insert at the end
-  e.used=PSPRITE.frame; e.slot=slot;   // carried so eviction can clear the index
+  e.used=PSPRITE.frame; e.slot=slot; e.pre=false;   // slot carried so eviction can clear the index
   PSPRITE.map.set(kk,e);
   blitPlantSprite(ctx,e,bx,by,sway);
 }
 function blitPlantSprite(ctx,e,bx,by,sway){
   if (!e.cv.width) return;   // a closed bitmap (retireSpriteImage) — drawImage would throw
-  const dw=e.cv.width/e.s, dh=e.cv.height/e.s, lx=bx-e.ox, ly=by-e.oy;
-  if (!sway){ ctx.drawImage(e.cv,lx,ly,dw,dh); return; }
+  // in the atlas the sprite is a cell of a shared page (atlasFrame); otherwise it is the whole image
+  const c=e.cell, sw=c?e.pw:e.cv.width, sh=c?e.ph:e.cv.height;
+  const dw=sw/e.s, dh=sh/e.s, lx=bx-e.ox, ly=by-e.oy;
+  if (!sway){ if (c) ctx.drawImage(e.cv,e.sx,e.sy,sw,sh,lx,ly,dw,dh); else ctx.drawImage(e.cv,lx,ly,dw,dh); return; }
   /* The wind: a shear about the plant's foot, x' = x + k(y-by). */
   const k=sway*0.05;
   if (plantBlitScale && ctx===cx){
@@ -2724,13 +2819,14 @@ function blitPlantSprite(ctx,e,bx,by,sway){
        a plant wants an axis-aligned matrix. */
     const s=plantBlitScale;
     ctx.setTransform(s,0,s*k,s,-s*k*by,0);
-    ctx.drawImage(e.cv,lx,ly,dw,dh);
+    if (c) ctx.drawImage(e.cv,e.sx,e.sy,sw,sh,lx,ly,dw,dh); else ctx.drawImage(e.cv,lx,ly,dw,dh);
     ctx.setTransform(s,0,0,s,0,0);
     return;
   }
   // anywhere else the caller's transform is its own business: save and restore it
   ctx.save(); ctx.translate(bx,by); ctx.transform(1,0,k,1,0,0); ctx.translate(-bx,-by);
-  ctx.drawImage(e.cv,lx,ly,dw,dh); ctx.restore();
+  if (c) ctx.drawImage(e.cv,e.sx,e.sy,sw,sh,lx,ly,dw,dh); else ctx.drawImage(e.cv,lx,ly,dw,dh);
+  ctx.restore();
 }
 /* The scale of the garden canvas's transform while render's entity pass runs,
    0 at any other time. See blitPlantSprite. */
@@ -2871,6 +2967,331 @@ function plantStandInKey(kk,slot){
     PSPRITE.spec.delete(sk);                    // the sibling was retired or evicted
   }
   return null;
+}
+/* ---------- small sprites share a few big canvases (the atlas) ----------
+   Every sprite was an image of its own, and a frame drew each with its own
+   drawImage. In Chrome and Edge that is a draw call and a texture apiece: the
+   cost of a frame followed the NUMBER of sprites on screen and nothing else.
+   Measured on a desktop GPU with the whole of a 140 ft garden in view, 4,707
+   sprites of about 18px: 60ms a frame, 16fps, with 16ms of script. A page with
+   no app code does the same (4,700 blits of 4,700 small bitmaps: 60.6ms), and
+   the same blits out of ONE canvas take 12.1ms: draws from one texture are
+   batched. So a sprite no longer than MAX on a side is moved, the frame after
+   it is baked, into a cell of a shared page, and blitted from there.
+   The rules it is built on, each measured or read from an engine's source:
+     - A page is written only at the START of a frame (atlasFrame), before
+       anything is drawn from it. A canvas drawn from and then written to is
+       copied by Chrome at the write (0.25ms each) and may be by WebKit; one
+       batch of writes a frame is one such turn a page. So a bake still goes to
+       a surface of its own, as it always has, is drawn from there for the frame
+       it was made in, and is ADOPTED into a cell at the start of the next.
+       Freeing a cell writes nothing; the cell is cleared when it is next used.
+     - Not in Firefox. Its canvas already batches separate bitmaps (165fps on
+       the same 4,700), and drawing from a big canvas that bakes are painted
+       into is exactly what demotes it (the sprite-bitmap note above).
+     - In WebKit (every iPad and iPhone browser) each sprite was a <canvas>,
+       hundreds to thousands alive at once. Adopted, they are a page or two, and
+       the small canvas a bake was made in lives two frames. Not measured on a
+       device: ?atlas=0 in the address switches it off for a comparison.
+     - A page is a canvas ELEMENT, never an OffscreenCanvas: Firefox draws from
+       those at a third of the speed, and one kind is one thing to test.
+   Cells come from shelves: a row of one height (rounded up to 8px), filled left
+   to right, with freed cells kept by width for the next
+   sprite of that size. An emptied shelf can be given to another height, an
+   emptied last shelf gives its room back, and an emptied page starts over. A
+   page is 1024 square (4MB), so a garden of a few dozen plants holds one, and
+   what the pages hold beyond the sprites in them stays small; Chrome draws from
+   a hundred pages as fast as from one (measured: 82fps against 86), it is the
+   thousands of separate images that cost. Pages stop at SHARE of the sprite
+   budget, and a sprite that finds no cell simply stays an image of its own, as
+   before. A sweep (atlasSweep) frees
+   the cells of sprites that left the cache by a route that did not say so. */
+const ATLAS={on:atlasWanted(), MAX:224, PAGE:1024, SHARE:1, SLACK:32, ADOPT:320, IDLE:300, ROOM:8*1024*1024,
+  pages:[], fresh:[], cells:new Set(), triedAt:-1e9, freed:0, wantFreed:-1};
+function atlasWanted(){
+  try{
+    const ua=(typeof navigator!=='undefined' && navigator.userAgent) || '';
+    if (/Firefox\//.test(ua)) return false;
+    if (typeof location!=='undefined' && /[?&]atlas=0(&|$)/.test(location.search||'')) return false;
+    return typeof document!=='undefined' && typeof document.createElement==='function';
+  }catch(_){ return false; }
+}
+function atlasBytes(){ let b=0; for (const p of ATLAS.pages) b+=p.size*p.size*4; return b; }
+function atlasRound(n){ return (n+7)&~7; }
+function atlasNewPage(){
+  const size=ATLAS.PAGE;
+  if (atlasBytes()+size*size*4>PSPRITE.MEM*ATLAS.SHARE) return null;
+  const cv=document.createElement('canvas'); cv.width=size; cv.height=size;
+  const g=cv.getContext('2d');
+  if (!g){ releaseSpriteImage(cv); return null; }          // the browser has no canvas memory to give
+  const p={cv,g,size,shelves:[],y:0,live:0,idle:PSPRITE.frame};
+  ATLAS.pages.push(p);
+  return p;
+}
+function atlasTake(p,sh,x,w,h){
+  sh.live++; p.live++;
+  const c={p,sh,x,y:sh.y,w,h,freed:false};
+  ATLAS.cells.add(c);
+  return c;
+}
+function atlasAllocIn(p,cw,ch){
+  if (cw>p.size) return null;
+  for (const sh of p.shelves){                               // a shelf of this height with room
+    if (sh.h!==ch) continue;
+    const fl=sh.free.get(cw);
+    if (fl && fl.length) return atlasTake(p,sh,fl.pop(),cw,ch);
+    if (sh.x+cw<=p.size){ const x=sh.x; sh.x+=cw; return atlasTake(p,sh,x,cw,ch); }
+  }
+  /* ...or a little taller with room at its end. Sprites come in many heights and
+     a shelf apiece left most shelves half full: 353 sprites of a real garden
+     took seven pages, where they are five pages of pixels. */
+  for (const sh of p.shelves){
+    if (!sh.live || sh.h<ch || sh.h-ch>ATLAS.SLACK || sh.x+cw>p.size) continue;
+    const x=sh.x; sh.x+=cw;
+    return atlasTake(p,sh,x,cw,ch);
+  }
+  for (const sh of p.shelves){                               // an emptied shelf tall enough
+    if (sh.live || sh.H<ch) continue;
+    sh.h=ch; sh.x=cw; sh.free.clear();
+    return atlasTake(p,sh,0,cw,ch);
+  }
+  if (p.y+ch<=p.size){                                       // a new shelf
+    const sh={y:p.y,H:ch,h:ch,x:cw,live:0,free:new Map()};
+    p.y+=ch; p.shelves.push(sh);
+    return atlasTake(p,sh,0,cw,ch);
+  }
+  return null;
+}
+function atlasAlloc(w,h){
+  const cw=atlasRound(w), ch=atlasRound(h);
+  for (const p of ATLAS.pages){ const c=atlasAllocIn(p,cw,ch); if (c) return c; }
+  const p=atlasNewPage();
+  return p ? atlasAllocIn(p,cw,ch) : null;
+}
+function atlasFree(c){
+  if (!c || c.freed) return;
+  c.freed=true; ATLAS.cells.delete(c); ATLAS.freed++;
+  const sh=c.sh, p=c.p;
+  sh.live--; p.live--;
+  if (!sh.live){ sh.x=0; sh.free.clear(); }
+  else { let fl=sh.free.get(c.w); if (!fl) sh.free.set(c.w,fl=[]); fl.push(c.x); }
+  while (p.shelves.length && !p.shelves[p.shelves.length-1].live) p.y=p.shelves.pop().y;
+  if (!p.live){ p.shelves.length=0; p.y=0; p.idle=PSPRITE.frame; }
+}
+// a sprite leaving the cache: its cell back to the atlas, or its image to be released
+const ATLAS_GONE={width:0,height:0};
+function releasePlantEntry(e){
+  e.gone=true;
+  if (e.cell){ atlasFree(e.cell); e.cell=null; e.cv=ATLAS_GONE; }
+  else retireSpriteImage(e.cv);
+}
+/* Leaving the garden for the menu: give back every picture it was holding. The
+   sprite caches (up to 48MB of plants and 24MB of structures), the atlas pages,
+   the ground canvas and its spare (each the viewport and its margin, 20MB and
+   more apiece on a large tablet), the night map and the four whole-screen
+   washes all stayed alive behind the title screen, whose border then baked up
+   to 48MB of its own beside them: the menu after a session held more than the
+   garden had. The garden canvas is hidden there and nothing draws from any of
+   it; opening a garden prepares its picture behind the cover whatever was
+   kept. Canvases are emptied, not dropped (releaseSpriteImage). */
+function releaseGardenSurfaces(){
+  for (const [k,e] of [...PSPRITE.map]) retirePlantSprite(k,e);
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0; PSPRITE.waiting=0;
+  for (const e of SSPRITE.map.values()) retireSpriteImage(e.cv);
+  SSPRITE.map.clear(); SSPRITE.bytes=0;
+  ATLAS.fresh.length=0; atlasSweep();
+  for (const p of ATLAS.pages) releaseSpriteImage(p.cv);
+  ATLAS.pages.length=0; ATLAS.cells.clear(); ATLAS.wantFreed=-1;
+  closeRetiredSprites();
+  for (const cv of [groundCanvas,groundSpare,NIGHT_MAP.cv]) if (cv){ try{ cv.width=0; cv.height=0; }catch(_){ } }
+  groundCanvas=null; groundCtx=null; groundSpare=null; groundSpareCtx=null;
+  groundJob=null; groundKey=''; groundKeyStruct=''; groundBaked=null; groundMarginStale=false;
+  NIGHT_MAP.cv=null; NIGHT_MAP.g=null; NIGHT_MAP.key=''; NIGHT_MAP.scene=null;
+  seasonFade.active=false; dropSeasonFadeCanvas();
+  releaseWashSurfaces();
+  PREBAKE.gen++;
+}
+// cells whose sprite is no longer in the cache (a tool that cleared the map without retiring)
+function atlasSweep(){
+  if (!ATLAS.cells.size) return;
+  const live=new Set();
+  for (const e of PSPRITE.map.values()) if (e.cell) live.add(e.cell);
+  for (const c of [...ATLAS.cells]) if (!live.has(c)) atlasFree(c);
+}
+/* No cell to be had. What is on screen is what the atlas is for, so make room
+   for it out of what is not: first the sprites baked at another zoom, which
+   would be baked again before they were shown anyway, then the least recently
+   drawn ones, oldest first (the cache's own order), up to ROOM. Those are other
+   seasons' pictures and the ring baked ahead of a pan; losing a few costs a bake
+   when they are next wanted. At most every 30 frames. */
+function atlasMakeRoom(){
+  if (PSPRITE.frame-ATLAS.triedAt<30) return false;
+  ATLAS.triedAt=PSPRITE.frame;
+  atlasSweep();
+  const sc=PSPRITE.scale, was=ATLAS.freed;
+  for (const [k,e] of PSPRITE.map){
+    if (!e.cell || e.used>=PSPRITE.frame-1) continue;
+    const es=e.want!==undefined?e.want:e.s;
+    if (Math.abs(es-sc)>sc*0.12 && !(e.capped && sc>e.s)) retirePlantSprite(k,e);
+  }
+  if (ATLAS.freed===was){
+    let got=0;
+    for (const [k,e] of PSPRITE.map){
+      if (got>=ATLAS.ROOM) break;
+      if (!e.cell || e.used>=PSPRITE.frame-1) continue;
+      got+=e.bytes; retirePlantSprite(k,e);
+    }
+  }
+  PREBAKE.gen++;
+  return ATLAS.freed!==was;
+}
+// move up to `max` of the sprites baked since last time into cells; the rest wait a frame
+function atlasAdopt(max){
+  const A=ATLAS, list=A.fresh;
+  if (!list.length) return 0;
+  let n=0, w=0, full=false;
+  for (let i=0;i<list.length;i++){
+    const e=list[i];
+    if (e.gone || e.cell || e.used===undefined) continue;    // retired, or never put in the cache
+    if (n>=max){ list[w++]=e; continue; }
+    e.aq=false;
+    if (full) continue;                                      // no room this frame: it stays its own image for now
+    let c=atlasAlloc(e.pw+2,e.ph+2);
+    if (!c && atlasMakeRoom()) c=atlasAlloc(e.pw+2,e.ph+2);
+    if (!c){ full=true; A.wantFreed=A.freed; continue; }      // ask again once something has been freed (atlasFrame)
+    const g=c.p.g;
+    g.clearRect(c.x,c.y,c.w,c.h);
+    g.drawImage(e.cv,c.x+1,c.y+1);
+    retireSpriteImage(e.cv);
+    PSPRITE.bytes+=c.w*c.h*4-e.bytes; e.bytes=c.w*c.h*4;
+    e.cv=c.p.cv; e.cell=c; e.sx=c.x+1; e.sy=c.y+1;
+    n++;
+  }
+  list.length=w;
+  return n;
+}
+function atlasFrame(){
+  const A=ATLAS;
+  if (!A.on){ if (A.fresh.length) A.fresh.length=0; return; }
+  if (A.cells.size && !PSPRITE.map.size) atlasSweep();
+  /* Sprites that found the atlas full stayed images of their own. Once cells
+     have been freed since (an eviction, a zoom), the ones being DRAWN are
+     offered again, a batch a frame; nothing is asked while nothing has changed. */
+  if (A.wantFreed>=0 && A.freed!==A.wantFreed && !A.fresh.length){
+    A.wantFreed=-1;
+    let n=0;
+    for (const e of PSPRITE.map.values()){
+      if (e.cell || e.aq || e.pw===undefined || e.pw>A.MAX || e.ph>A.MAX || e.used<PSPRITE.frame-1) continue;
+      e.aq=true; A.fresh.push(e);
+      if (++n>=A.ADOPT){ A.wantFreed=A.freed-1; break; }     // more to offer next frame
+    }
+  }
+  atlasAdopt(A.ADOPT);
+  // a page with nothing in it for a while gives its pixels back (zoomed in, every sprite is too big for it)
+  for (let i=A.pages.length-1;i>=0;i--){
+    const p=A.pages[i];
+    if (!p.live && PSPRITE.frame-p.idle>A.IDLE){ releaseSpriteImage(p.cv); A.pages.splice(i,1); }
+  }
+}
+/* ---------- sprites baked ahead of the camera ----------
+   Every clump is its own picture (the key carries its tile seed), so a clump
+   that has never been on screen has no sprite, and when a pan brought a row of
+   them into view the frame's bake time ran out part way along it. The rest were
+   drawn as a SIBLING, another clump of the same kind, until their own bake
+   landed a few frames later: each plant came in wearing one shape and changed
+   to another. Seen from the chair, that is plants turning round as they arrive.
+   So the clumps just OFF screen are baked before they are needed. The entity
+   pass already tests every record against the screen; a record that fails is
+   tested once more against the screen grown by a ring (RING of its shorter
+   side), nearest band first, and what is found is baked with whatever is left
+   of the frame's ordinary bake allowance, the time (BAKE_MS) and the count
+   (BAKE_CAP) both, so a frame never bakes more than it already could. A pan
+   then arrives at pictures that are waiting.
+   What keeps it cheap and out of the way:
+     - only while the garden's clock stands still (gardenClockStamp). While time
+       runs every bucket is moving and a bake ahead of the camera would be dead
+       before the camera got there; fast-forward has its own look-ahead.
+     - a record found baked is marked with the generation (`_pb`), and the
+       generation moves only when a key can have (the clock, the season, the
+       zoom) or a sprite can have gone (an eviction). A settled garden pays four
+       compares for each record near the screen and nothing else.
+     - the far band stops at MEM of the budget. The NEAR band may go on to a
+       little past the budget (OVER), but only while the cache's oldest sprite
+       is something stale: then the next sweep, which takes the oldest first,
+       drops that and keeps what was just baked beside the screen. When the
+       oldest thing left is on screen, or is itself a bake from this ring, there
+       is nothing to trade and it stops, or it would be baking for the sweep.
+     - a moving view gets a share of the allowance (MOVING), an idle one all of it. */
+const PREBAKE={gen:1, at:NaN, scale:-1, season:null, near:[], far:[],
+  RING:0.6, NEAR:0.22, LIST:96, MEM:0.8, OVER:1.12, MOVING:0.5, on:true};
+// is the least recently used sprite something a sweep could take in place of a new one
+function prebakeCanTrade(){
+  const it=PSPRITE.map.values().next();
+  return !it.done && it.value.used<PSPRITE.frame-1 && !it.value.pre;
+}
+// the ring's reach this frame in draw units, or 0 when nothing is to be baked ahead
+function prebakeReach(W,H,season){
+  if (!PREBAKE.on || PSPRITE.cold) return 0;
+  const at=gardenClockStamp();
+  if (at!==at) return 0;                         // the clock is running
+  if (game.ffActive) return 0;
+  if (PSPRITE.bytes>=PSPRITE.MEM*PREBAKE.MEM && !(PSPRITE.bytes<PSPRITE.MEM*PREBAKE.OVER && prebakeCanTrade())) return 0;
+  if (at!==PREBAKE.at || PSPRITE.scale!==PREBAKE.scale || season!==PREBAKE.season){
+    PREBAKE.at=at; PREBAKE.scale=PSPRITE.scale; PREBAKE.season=season; PREBAKE.gen++;
+  }
+  return Math.min(W,H)*PREBAKE.RING;
+}
+// a record the screen test rejected: is it inside the ring, and how near
+function prebakeNote(e,x0,x1,y0,y1,W,H,reach){
+  const dx=x1<0?-x1:x0>W?x0-W:0, dy=y1<0?-y1:y0>H?y0-H:0, d=dx>dy?dx:dy;
+  if (d>reach) return;
+  const list=d<=reach*PREBAKE.NEAR ? PREBAKE.near : PREBAKE.far;
+  if (list.length<PREBAKE.LIST) list.push(e);
+}
+// bake one clump's sprite as the frame would ask for it; 1 if a bake was done
+function prebakePlant(e,season){
+  let g=sceneEntGrowth(e);
+  if (e.kind===SCENE_K.BULB){ if (g<=0.02){ e._pb=PREBAKE.gen; return 0; } }   // underground
+  else if (e.stunt) g*=STUNT_GROWTH;
+  const kk=plantKeyNow(e,e.p.s,e.p.v,season,g), have=PSPRITE.map.get(kk);
+  if (have){
+    const hs=have.want!==undefined?have.want:have.s;
+    const stale=Math.abs(hs-PSPRITE.scale)>PSPRITE.scale*0.12 && !(have.capped && PSPRITE.scale>have.s);
+    if (!stale || !spriteZoomSettled){ if (!stale) e._pb=PREBAKE.gen; return 0; }
+  }
+  const ne=makePlantSprite(e.p.s,e._kg,e._kb,season,e.seed,e.p.v,e.kind===SCENE_K.PLANT?e.detail:undefined,e._kl);
+  if (!ne){ e._pb=PREBAKE.gen; return 0; }
+  if (have){ PSPRITE.bytes-=have.bytes; releasePlantEntry(have); }
+  // whatever this clump was cached as before is an old bucket: dead
+  const slot=e.kSlot, was=PSPRITE.slot.get(slot);
+  if (was!==undefined && was!==kk){ const d=PSPRITE.map.get(was); if (d) retirePlantSprite(was,d); }
+  ne.used=PSPRITE.frame; ne.slot=slot; ne.pre=true;   // baked ahead and not yet drawn
+  PSPRITE.map.set(kk,ne); PSPRITE.slot.set(slot,kk); PSPRITE.bytes+=ne.bytes;
+  PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk);
+  e._pb=PREBAKE.gen;
+  return 1;
+}
+// after the entity pass: spend what is left of the frame's bake allowance on the ring
+function prebakeRun(season,idle){
+  const P=PREBAKE;
+  if (!P.near.length && !P.far.length) return 0;
+  const cap=PSPRITE.BAKE_CAP-PSPRITE.rendered;
+  const ms=Math.min(PSPRITE.BAKE_MS-PSPRITE.bakeMs, PSPRITE.BAKE_MS*(idle?1:P.MOVING));
+  let baked=0;
+  if (cap>0 && ms>0){
+    const t0=performance.now(), far=PSPRITE.MEM*P.MEM, near=PSPRITE.MEM*P.OVER;
+    for (let pass=0; pass<2; pass++){
+      const list=pass?P.far:P.near;
+      for (let i=0;i<list.length;i++){
+        if (baked>=cap || performance.now()-t0>=ms){ pass=2; break; }
+        if (PSPRITE.bytes>=far && (pass || PSPRITE.bytes>=near || !prebakeCanTrade())) break;
+        baked+=prebakePlant(list[i],season);
+      }
+    }
+    PSPRITE.bakeMs+=performance.now()-t0; PSPRITE.rendered+=baked;
+  }
+  P.near.length=0; P.far.length=0;
+  return baked;
 }
 /* ---------- structure sprite cache ----------
    Everything in the depth pass that is NOT a plant — fence, building tile,
@@ -3231,7 +3652,7 @@ function makeStructSprite(e,spec,season,W,H,lit){
   const pw=Math.max(1,Math.ceil(bw*s)), ph=Math.max(1,Math.ceil(bh*s));
   if (pw>2200||ph>2200) return null;
   const cv=spriteBakeSurface('struct',pw,ph);
-  const c2=cv.getContext('2d'); if (!c2){ spriteBakeImage('struct',cv); return null; }
+  const c2=cv.getContext('2d'); if (!c2){ abandonBakeSurface('struct',cv); spriteMemoryPressure(); return null; }
   const [sx,sy]=structAnchor(e,W,H);
   /* Bake with the CURRENT camera and translate it back out: the draws compute
      their own screen position through screenOf, so shifting the origin by the
@@ -3918,6 +4339,157 @@ const SWAY_SKEW=0.05;
    255 on scattered single pixels), and a genuinely dropped entity shows up as a
    contiguous blob of hundreds instead. */
 const SCENE_CULL_SLACK=24;
+/* One plant's record, one bulb's, and what every record is given once the list
+   is in order. Shared by the full build and by sceneApplyEdits, which puts a
+   single record into a list that already exists: two copies of this would be
+   two definitions of where a plant is drawn. */
+function scenePlantRec(x,y,p,W,H){
+  const pDetail=plantRenderDetail(x,y,p,W,H);
+  /* A climber sorts in FRONT of the thing it climbs. A fence record sits at
+     viewDepth+0.34 and a plant at +0.30, so a rose on a fence drew BEHIND
+     the panel — visible only as a few leaves at its foot. Supports are put
+     at +0.30 in their own pass for the same reason.
+     And measured against the FRAME'S footprint, not its own tile: a piece
+     standing on more than one tile sorts on the far corner of its footprint
+     (footprintDrawDepth), so a climber on the NEAR leg of a 2-wide trellis or
+     a 3-wide arch came out a whole tile behind the very thing it climbs —
+     drawn through the lattice instead of over it. A fence is 1x1, so that
+     case is unchanged and this was invisible until the frames arrived. */
+  let dep=plantDepth(x,y,p)+0.3;
+  if (pDetail&&pDetail.climb){
+    const sup=supportAt(x,y);
+    dep=(sup?footprintDrawDepth(sup.x,sup.y,sup.w,sup.h):plantDepth(x,y,p))+0.44;
+  } else {
+    // and the same rule for a container, which is a frame the plant stands IN
+    const po=potAt(x,y);
+    if (po) dep=potPlantDepth(po)+0.3;
+  }
+  return {d:dep, kind:SCENE_K.PLANT, bx0:x,bx1:x,by0:y,by1:y,
+    x,y,p, seed:tileSeed(x,y), detail:pDetail, stunt:false};
+}
+function sceneBulbRec(x,y,p){
+  const po=potAt(x,y);
+  return {d:(po?potPlantDepth(po):plantDepth(x,y,p))+0.25, kind:SCENE_K.BULB,
+    bx0:x,bx1:x,by0:y,by1:y,
+    x,y,p, seed:(tileSeed(x,y)^0x9e37)>>>0};
+}
+// full-sun plants under an ACTIVE canopy render stunted
+function scenePlantStunted(rec){
+  const P2=PLANTS[rec.p.s];
+  return !!(P2 && P2.sun!=='part' && !isTreeDef(P2)) && shadeScoreAt(rec.x,rec.y)>=SHADE_ACTIVE_SCORE;
+}
+function sceneFinishRec(e,season){
+  setEntScreenBounds(e);
+  setEntDrawPoint(e);
+  if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB)
+    bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
+}
+/* Records of equal depth draw in the order a full build pushed them: plants in
+   their map's key order, then bulbs in theirs, then everything else. `q` is that
+   order written down, so a record put in later lands where a rebuild would have
+   put it. Plants count from 0, bulbs from Q_BULB, the rest from Q_REST. */
+const SCENE_Q_BULB=1e9, SCENE_Q_REST=2e9;
+// everything sceneKey reads but the revision: what must NOT have moved for an edit to be applied in place
+function sceneKeyRest(){
+  const when=establishedPreviewActive()?calClock().season:absDay();
+  return game.rot+'|N'+effectiveSiteNorthDeg()+'|'+when+'|'+sceneLayerBits()+'|'+GW+'x'+GH+
+    '|'+(establishedPreviewActive()?1:0);
+}
+// a plant whose record depends on nothing but itself: no canopy, no spread, no frame, no joined neighbours
+function scenePlantSimple(p){
+  const P=p && plantDef(p.s,p.v);
+  return !!P && !isWoodyDef(P) && P.type!=='vine' && P.type!=='bulb' && P.form!=='bamboo';
+}
+// where a record with this depth and order belongs in a sorted list
+function sceneInsertAt(ents,d,q){
+  let lo=0, hi=ents.length;
+  while (lo<hi){ const m=(lo+hi)>>1, e=ents[m]; if (e.d<d || (e.d===d && e.q<=q)) lo=m+1; else hi=m; }
+  return lo;
+}
+function sceneIndexOf(ents,rec){
+  let i=sceneInsertAt(ents,rec.d,rec.q)-1;
+  if (i>=0 && ents[i]===rec) return i;
+  return ents.indexOf(rec);
+}
+/* The order a key that is NOT new to its map sorts at: halfway between the
+   records of the keys either side of it. Reached only when a tile is planted
+   again after being cleared (the tombstone keeps the key's place), so the walk
+   over the map's keys is rare; a new key simply goes last. */
+function sceneOrderFor(layer,key,index,next){
+  let prev=null, seen=false, after=null;
+  for (const k in game[layer]){
+    if (k===key){ seen=true; continue; }
+    const r=index.get(k); if (!r) continue;
+    if (!seen) prev=r.q; else { after=r.q; break; }
+  }
+  if (after===null) return next;
+  return prev===null ? after-1 : (prev+after)/2;
+}
+/* Put the planted tiles that changed into the scene list, in place of a rebuild.
+   True when it did; false means the caller builds in full, which is always
+   right. Refused unless every change since the list was built is a located
+   plant or bulb edit (SCENE_EDITS, world.js), nothing else the key reads has
+   moved, and neither the old plant on a tile nor the new one is a tree, a shrub,
+   a climber or a bamboo: those change the shade map, the shrub list, a frame's
+   climber or a joined neighbour, none of which one record can answer for.
+   A new scene OBJECT is published, with a new list: what keys on the scene's
+   identity (the night map, the fireflies) sees a change exactly as it did, and
+   anything holding the old list keeps a list that is still whole. The records
+   themselves are kept, so 4,700 clumps do not have their keys built again
+   because one more was planted. tests/game.test.js compares the result with a
+   full build after hundreds of random edits. */
+function sceneApplyEdits(W,H){
+  const E=SCENE_EDITS, sc=scene;
+  if (!sc.index || sc.rev===undefined || !E.n) return false;
+  if (E.base!==sc.rev || E.base+E.n!==game.sceneRev || E.list.length!==E.n) return false;
+  if (sceneRefsChanged(sc.refs) || sceneKeyRest()!==sc.rest) return false;
+  for (const ed of E.list){
+    if (ed.layer==='plants'){
+      const old=sc.index.plants.get(ed.key), cur=game.plants[ed.key];
+      if (old && !scenePlantSimple(old.p)) return false;
+      if (cur && !cur.removed && !scenePlantSimple(cur)) return false;
+    }
+  }
+  let ents=sc.ents.slice(), bounds=sc.bounds;
+  const season=calClock().season, stunted=sc.stunted;
+  const cut=i=>{
+    ents.splice(i,1);
+    const nb=new Float64Array(ents.length*4);
+    nb.set(bounds.subarray(0,i*4)); nb.set(bounds.subarray(i*4+4),i*4);
+    bounds=nb;
+  };
+  const put=rec=>{
+    const i=sceneInsertAt(ents,rec.d,rec.q);
+    ents.splice(i,0,rec);
+    const nb=new Float64Array(ents.length*4);
+    nb.set(bounds.subarray(0,i*4)); nb.set(bounds.subarray(i*4),i*4+4);
+    nb[i*4]=rec.ox0; nb[i*4+1]=rec.ox1; nb[i*4+2]=rec.oy0; nb[i*4+3]=rec.oy1;
+    bounds=nb;
+  };
+  for (const ed of E.list){
+    const plants=ed.layer==='plants', index=plants?sc.index.plants:sc.index.bulbs, k=ed.key;
+    const old=index.get(k), p=game[ed.layer][k];
+    let q=old?old.q:null;
+    if (old){
+      const i=sceneIndexOf(ents,old);
+      if (i<0) return false;
+      cut(i); index.delete(k);
+      if (plants) stunted.delete(old.y*GW+old.x);
+    }
+    if (!p || p.removed) continue;
+    if (plants ? !layerShown(plantLayerOf(p)) : !layerShown('bulbs')) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    const rec=plants ? scenePlantRec(x,y,p,W,H) : sceneBulbRec(x,y,p);
+    if (q===null) q=ed.fresh ? (plants?sc.qP++:sc.qB++) : sceneOrderFor(ed.layer,k,index,plants?sc.qP++:sc.qB++);
+    rec.q=q;
+    if (plants){ rec.stunt=scenePlantStunted(rec); if (rec.stunt) stunted.add(y*GW+x); }
+    sceneFinishRec(rec,season);
+    put(rec); index.set(k,rec);
+  }
+  scene=Object.assign({},sc,{key:sceneKey(), rev:game.sceneRev, ents, bounds, boundsFor:ents});
+  resetSceneEdits();
+  return true;
+}
 function buildScene(W,H){
   ensureShadeMap(); // preserve the synchronous shade event timer; the steps then reuse it
   const steps=sceneBuildSteps(W,H);
@@ -3928,8 +4500,8 @@ function buildScene(W,H){
 // groups of records, and within the shade calculation, before publishing scene.
 function* sceneBuildSteps(W,H){
   const ents=[], shadeTrees=[], futureShadeTrees=[], shrubs=[], lights=[], firepits=[], boulders=[], festoons=[];
-  const plantRecs=[];
-  let count=0;
+  const plantRecs=[], pIndex=new Map(), bIndex=new Map();
+  let count=0, qP=0, qB=SCENE_Q_BULB, qR=SCENE_Q_REST;
   for (const k in game.plants){ const p=game.plants[k];
     if (++count%32===0) yield;
     if (p.removed) continue;
@@ -3954,29 +4526,9 @@ function* sceneBuildSteps(W,H){
     const sh=treeShadeInfo(k,p);
     if (sh && sh.r>=1){ sh.reach=treeShadeReach(sh); (sh.activePotential?shadeTrees:futureShadeTrees).push(sh); }
     if (!layerShown(plantLayerOf(p))) continue;
-    const pDetail=plantRenderDetail(x,y,p,W,H);
-    /* A climber sorts in FRONT of the thing it climbs. A fence record sits at
-       viewDepth+0.34 and a plant at +0.30, so a rose on a fence drew BEHIND
-       the panel — visible only as a few leaves at its foot. Supports are put
-       at +0.30 in their own pass for the same reason.
-       And measured against the FRAME'S footprint, not its own tile: a piece
-       standing on more than one tile sorts on the far corner of its footprint
-       (footprintDrawDepth), so a climber on the NEAR leg of a 2-wide trellis or
-       a 3-wide arch came out a whole tile behind the very thing it climbs —
-       drawn through the lattice instead of over it. A fence is 1x1, so that
-       case is unchanged and this was invisible until the frames arrived. */
-    let dep=plantDepth(x,y,p)+0.3;
-    if (pDetail&&pDetail.climb){
-      const sup=supportAt(x,y);
-      dep=(sup?footprintDrawDepth(sup.x,sup.y,sup.w,sup.h):plantDepth(x,y,p))+0.44;
-    } else {
-      // and the same rule for a container, which is a frame the plant stands IN
-      const po=potAt(x,y);
-      if (po) dep=potPlantDepth(po)+0.3;
-    }
-    const rec={d:dep, kind:SCENE_K.PLANT, bx0:x,bx1:x,by0:y,by1:y,
-      x,y,p, seed:tileSeed(x,y), detail:pDetail, stunt:false};
-    plantRecs.push(rec); ents.push(rec);
+    const rec=scenePlantRec(x,y,p,W,H);
+    rec.q=qP++;
+    plantRecs.push(rec); ents.push(rec); pIndex.set(k,rec);
   }
   // full-sun plants under an ACTIVE canopy render stunted; canopy-granular, so
   // it lives here (against ALL trees, not just the on-screen ones)
@@ -3984,21 +4536,18 @@ function* sceneBuildSteps(W,H){
   const stunted=new Set();   // by tile, for a selection ghost to draw at the same growth
   for (const rec of plantRecs){
     if (++count%64===0) yield;
-    const P2=PLANTS[rec.p.s];
-    if (P2 && P2.sun!=='part' && !isTreeDef(P2)){
-      rec.stunt=shadeScoreAt(rec.x,rec.y)>=SHADE_ACTIVE_SCORE;
-      if (rec.stunt) stunted.add(rec.y*GW+rec.x);
-    }
+    rec.stunt=scenePlantStunted(rec);
+    if (rec.stunt) stunted.add(rec.y*GW+rec.x);
   }
   if (layerShown('bulbs')) for (const k in game.bulbs){ const p=game.bulbs[k];
     if (++count%64===0) yield;
     if (p.removed) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-    const po=potAt(x,y);
-    ents.push({d:(po?potPlantDepth(po):plantDepth(x,y,p))+0.25, kind:SCENE_K.BULB,
-      bx0:x,bx1:x,by0:y,by1:y,
-      x,y,p, seed:(tileSeed(x,y)^0x9e37)>>>0});
+    const rec=sceneBulbRec(x,y,p);
+    rec.q=qB++;
+    ents.push(rec); bIndex.set(k,rec);
   }
+  const restFrom=ents.length;
   if (layerShown('landscape')){
     for (const k in game.fences){ const f=game.fences[k];
       if (++count%64===0) yield;
@@ -4110,6 +4659,7 @@ function* sceneBuildSteps(W,H){
   // each uplight learns which tree or shrub it lights (uplightAim)
   if (lights.length && plantRecs.length) uplightAims(lights,plantRecs);
   yield;
+  for (let i=restFrom;i<ents.length;i++) ents[i].q=qR++;   // everything pushed after the bulbs, in push order
   ents.sort((a,b)=>a.d-b.d);
   yield;
   const season=calClock().season;      // sceneKey always distinguishes seasons
@@ -4122,14 +4672,16 @@ function* sceneBuildSteps(W,H){
   for (let i=0;i<ents.length;i++){
     const e=ents[i];
     if (++count%32===0) yield;
-    setEntScreenBounds(e);
+    sceneFinishRec(e,season);
     bounds[i*4]=e.ox0; bounds[i*4+1]=e.ox1; bounds[i*4+2]=e.oy0; bounds[i*4+3]=e.oy1;
-    setEntDrawPoint(e);
-    if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB)
-      bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
   }
-  scene={key:sceneKey(), refs:sceneRefs(),
+  /* rev, rest, index and the two order counters are what sceneApplyEdits needs
+     to put one more record into this list later. qP and qB go on from the last
+     order handed out here, so a key new to its map sorts after all of these. */
+  scene={key:sceneKey(), refs:sceneRefs(), rev:game.sceneRev, rest:sceneKeyRest(),
+    index:{plants:pIndex, bulbs:bIndex}, qP, qB,
     ents, bounds, boundsFor:ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders, festoons, stunted};
+  resetSceneEdits();
 }
 /* An UPLIGHT is aimed at something, and in a garden that something is a tree or
    a shrub: the one it stands under, or failing that the nearest it could be
@@ -4334,8 +4886,18 @@ const seasonFade={cv:null, t0:0, active:false, last:null, suppressOnce:false};
    Settings can keep it while the OS switch is on (and drop it while the OS
    switch is off). reducedMotion() folds both in. */
 function seasonFadeActive(){ return seasonFade.active; }
-function resetSeasonFade(){ seasonFade.active=false; seasonFade.cv=null; seasonFade.last=null; seasonFade.suppressOnce=false; }
-function suppressNextSeasonFade(){ seasonFade.active=false; seasonFade.cv=null; seasonFade.suppressOnce=true; }
+/* The snapshot is a whole-screen canvas, made at each turn and finished with a
+   second later. It is emptied when done, not just dropped: a held fast-forward
+   turns a season every eight seconds, and in WebKit each dropped snapshot kept
+   its pixels (12MB on a large tablet) until a collection that canvas memory
+   does not hurry. */
+function dropSeasonFadeCanvas(){
+  const cv=seasonFade.cv;
+  if (cv){ try{ cv.width=0; cv.height=0; }catch(_){ } }
+  seasonFade.cv=null;
+}
+function resetSeasonFade(){ seasonFade.active=false; dropSeasonFadeCanvas(); seasonFade.last=null; seasonFade.suppressOnce=false; }
+function suppressNextSeasonFade(){ seasonFade.active=false; dropSeasonFadeCanvas(); seasonFade.suppressOnce=true; }
 function maybeStartSeasonFade(t,season){
   /* Counted on the season CHANGE, not on the crossfade — reduced-motion skips
      the fade but still saw the year turn, and that is the differentiator the
@@ -4353,9 +4915,12 @@ function maybeStartSeasonFade(t,season){
     if (seasonFade.cv.width!==cnv.width || seasonFade.cv.height!==cnv.height){
       seasonFade.cv.width=cnv.width; seasonFade.cv.height=cnv.height; }
     const fcx=seasonFade.cv.getContext('2d');
-    fcx.clearRect(0,0,seasonFade.cv.width,seasonFade.cv.height);
-    fcx.drawImage(cnv,0,0);                     // canvas still shows the OLD season here
-    seasonFade.t0=t; seasonFade.active=true;
+    // no context means the browser is out of canvas memory: turn without the fade
+    if (fcx){
+      fcx.clearRect(0,0,seasonFade.cv.width,seasonFade.cv.height);
+      fcx.drawImage(cnv,0,0);                     // canvas still shows the OLD season here
+      seasonFade.t0=t; seasonFade.active=true;
+    } else dropSeasonFadeCanvas();
   }
   seasonFade.suppressOnce=false;
   seasonFade.last=season;
@@ -4364,7 +4929,7 @@ function drawSeasonFade(t){
   if (!seasonFade.active) return;
   const f=(t-seasonFade.t0)/SEASON_FADE_MS;
   if (f>=1 || !seasonFade.cv || seasonFade.cv.width!==cnv.width || seasonFade.cv.height!==cnv.height){
-    seasonFade.active=false; seasonFade.cv=null; return;   // done, or resized mid-fade
+    seasonFade.active=false; dropSeasonFadeCanvas(); return;   // done, or resized mid-fade
   }
   cx.save(); cx.setTransform(1,0,0,1,0,0);
   cx.globalAlpha=Math.pow(1-f,1.4);              // ease-out: old season lingers then lets go
@@ -4388,7 +4953,11 @@ let gardenOpening=null;
    (323 plants), from the click to the reveal: 500ms to 300ms at 1440x925, and
    1.95s to 0.87s at a phone viewport with the CPU slowed four times, the same
    sprite decision every time. */
-const OPEN_PREP={MS:12, CAP:96, GROUND_COLS:12, DECIDE:2};
+/* BAKE_MS and BAKE_CAP are the sprite pass's own batch: it is all baking, and a
+   bake's raster lands in the GPU process after the script that asked for it, so
+   a longer batch is fewer vsyncs waited out for the same work. BAKE_CAP stays
+   under PSPRITE.BUDGET, past which a frame refuses to bake at all. */
+const OPEN_PREP={MS:12, CAP:96, GROUND_COLS:12, DECIDE:2, BAKE_MS:20, BAKE_CAP:144};
 function beginGardenOpen(){
   gardenOpening={ready:false, key:null};
   document.body.classList.add('garden-opening-active');
@@ -4456,16 +5025,30 @@ function prepareGardenOpen(t){
   o.ctx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
   const start=performance.now();
   let count=0;
-  while (o.index<o.ents.length && count<OPEN_PREP.CAP
-      && performance.now()-start<OPEN_PREP.MS){
-    const e=o.ents[o.index++], t0=performance.now();
-    const plants=drawSceneEnt(e,W,H,season,0,o.phase==='sprites',o.ctx,true);
-    count++;
-    if (o.phase==='measure' && plants){
-      o.plants+=plants; o.plantMs+=performance.now()-t0;
-      if (o.plants>PSPRITE.FLOOR && o.plantMs>PSPRITE.HI_MS*OPEN_PREP.DECIDE){ o.index=o.ents.length; break; }
+  /* The sprite pass bakes EVERY visible clump's own picture, which is the whole
+     reason for the cover. From 0.9.121 to 0.9.170 it did not: the batch grew to
+     12ms and 96 clumps while a frame's bake allowance stayed 4ms, so past the
+     first few bakes of a batch each clump was "prepared" by blitting a sibling's
+     sprite into the scratch canvas and moving on. Measured at the reveal on a
+     353-plant garden, 228 of the 293 clumps on screen had no sprite of their
+     own; they were shown as siblings and changed to themselves a few a frame
+     over the next third of a second, or several seconds on a large garden at
+     the idle cadence. `cold` lifts the allowance and refuses stand-ins. */
+  const sprites=o.phase==='sprites', ms=sprites?OPEN_PREP.BAKE_MS:OPEN_PREP.MS, cap=sprites?OPEN_PREP.BAKE_CAP:OPEN_PREP.CAP;
+  // the last batch's bakes go into the atlas now, so the reveal draws from pages, not thousands of images
+  if (ATLAS.on) atlasAdopt(Infinity);
+  PSPRITE.cold=sprites;
+  try{
+    while (o.index<o.ents.length && count<cap && performance.now()-start<ms){
+      const e=o.ents[o.index++], t0=performance.now();
+      const plants=drawSceneEnt(e,W,H,season,0,sprites,o.ctx,true);
+      count++;
+      if (o.phase==='measure' && plants){
+        o.plants+=plants; o.plantMs+=performance.now()-t0;
+        if (o.plants>PSPRITE.FLOOR && o.plantMs>PSPRITE.HI_MS*OPEN_PREP.DECIDE){ o.index=o.ents.length; break; }
+      }
     }
-  }
+  } finally { PSPRITE.cold=false; }
   if (o.index<o.ents.length) return false;
   if (o.phase==='measure'){
     PSPRITE.active=!PSPRITE.off && o.plants>PSPRITE.FLOOR && o.plantMs>PSPRITE.HI_MS;
@@ -4502,6 +5085,7 @@ function trimSkipSprites(season){
   if (PSPRITE.bytes>PSPRITE.MEM*1.5){
     for (const [k,e] of PSPRITE.map)
       if (!e.slot || !e.slot.endsWith('|'+season)) retirePlantSprite(k,e);
+    PREBAKE.gen++;
   }
   if (SSPRITE.bytes>SSPRITE.MEM*1.5){
     const tail='|'+season+'|'+game.rot+'|'+(game.layerVis.night?1:0);
@@ -4553,6 +5137,8 @@ function preparePendingSkip(t){
       o.ents=scene.ents.filter(e=>!(e.ox1+ox<0 || e.ox0+ox>W || e.oy1+oy<0 || e.oy0+oy>H));
     }
     trimSkipSprites(p.season);
+    // the destination's sprites go into the atlas behind the held picture, not on the frame that lands
+    if (ATLAS.on) atlasAdopt(Infinity);
     // Scene, shade, ground and sprites spend the same frame allowance.
     AHEAD.ms=performance.now()-start;
     const gs=groundStructKey(p.season,game.rot), gkey=gs+'|'+groundDataKey();
@@ -4770,7 +5356,12 @@ function render(t){
   // EVENT: folded into the 'gather' average they made a rare O(all plants)
   // rebuild indistinguishable from the cheap per-frame dynamic gather below,
   // which shares that label.
-  if (sceneStale(sceneKey())){ const tScene=dnow(); buildScene(W,H); dev('scene',tScene); }
+  if (sceneStale(sceneKey())){
+    const tScene=dnow();
+    // a perennial or a bulb in or out is one record; anything else is a rebuild
+    if (sceneApplyEdits(W,H)) dev('sceneEdit',tScene);
+    else { buildScene(W,H); dev('scene',tScene); }
+  }
 
   const tG0=dnow();
   // world-anchored ground layer: bake viewport+margin keyed WITHOUT cam/zoom,
@@ -4784,6 +5375,14 @@ function render(t){
   let bakeMs=0;                                        // charged to the 'bake' event, not the 'ground' phase
   const MD=Math.round(GROUND_MARGIN_CSS*DPR);          // margin in device px
   if (!groundCanvas){ groundCanvas=document.createElement('canvas'); groundCtx=groundCanvas.getContext('2d'); }
+  if (!groundCtx){
+    /* The browser would not give the ground a canvas: it is out of canvas
+       memory. Hand back what the sprite caches are not showing and let the next
+       frame ask again; going on would dereference nothing and end in the crash
+       panel. The sky is on the frame, so this one shows no ground. */
+    groundCanvas=null; spriteMemoryPressure();
+    return;
+  }
   if (groundCanvas.width!==cnv.width+2*MD||groundCanvas.height!==cnv.height+2*MD){
     groundCanvas.width=cnv.width+2*MD; groundCanvas.height=cnv.height+2*MD; groundKey=''; }
   /* A picture baked behind the scenes (groundJob) is swapped in when it is
@@ -5041,12 +5640,21 @@ function render(t){
   // else has none, and its records are read as before
   // (nor has a list a dev tool swapped in: the boxes belong to the array they were built for)
   const sb=scene.bounds && scene.boundsFor===sents ? scene.bounds : null;
+  // clumps just off screen are baked ahead of the camera (prebakeReach); 0 = not this frame
+  const ring=(useSprites && sb && !game.photo && !ahead) ? prebakeReach(W,H,cal.season) : 0;
+  const pgen=PREBAKE.gen;
   try{
     for (let i=0;i<sents.length;i++){
       const e=sents[i];
       while (di<dyn.length && dyn[di].d<=e.d){
         plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
-      if (sb){ const j=i*4; if (sb[j+1]+offX<0 || sb[j]+offX>W || sb[j+3]+offY<0 || sb[j+2]+offY>H) continue; }
+      if (sb){ const j=i*4;
+        if (sb[j+1]+offX<0 || sb[j]+offX>W || sb[j+3]+offY<0 || sb[j+2]+offY>H){
+          if (ring && e._pb!==pgen && e.kSlot!==undefined)
+            prebakeNote(e,sb[j]+offX,sb[j+1]+offX,sb[j+2]+offY,sb[j+3]+offY,W,H,ring);
+          continue;
+        }
+      }
       else if (e.ox1+offX<0 || e.ox0+offX>W || e.oy1+offY<0 || e.oy0+offY>H) continue;
       plantCount+=drawSceneEnt(e,W,H,cal.season,sway,useSprites);
       drawn++;
@@ -5054,12 +5662,14 @@ function render(t){
     while (di<dyn.length){
       plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
   } finally { plantBlitScale=0; }
+  const tPlantPass=performance.now()-tDrawWall;   // the governor's measure: the pass, not the bakes ahead of it
+  if (ring) prebakeRun(cal.season,groundViewIdle(t));
   dmark('draw',tDraw);
   // Diagnostic speculative readiness; explicit skips check their destination
   // scene separately, including its shade, scale and visible working set.
   AHEAD.readyFor=AHEAD.season && !AHEAD.short ? AHEAD.season : null;
   drawBuildingDraftOverlay(cx,W,H);
-  updateSpriteMode(performance.now()-tDrawWall, plantCount,
+  updateSpriteMode(tPlantPass, plantCount,
     structSampling ? structSampleMs : null);
   structSampling=false;
   if (dbg.on){ dbg.ents=drawn; dbg.tiles=(x1-x0+1)*(y1-y0+1); }

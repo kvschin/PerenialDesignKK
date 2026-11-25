@@ -2797,6 +2797,7 @@ function quitToMenu(){
   hidePlantCard();   // it lives outside #hud, so hiding the HUD does not take it
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden');
+  releaseGardenSurfaces();   // the garden's pictures go back before the border bakes its own
   setActiveCanvas(mcnv);
   setMenuViewportFill();
   show('menuScreen');
@@ -3764,10 +3765,11 @@ function menuBorderPlan(season,W,H,sheet,scheme){
 }
 
 /* ---- baking ---- */
-function menuRetireImage(img){ if (img && typeof img.close==='function') menuRetired.push(img); }
+// a bitmap is closed and a <canvas> (WebKit) emptied: see releaseSpriteImage
+function menuRetireImage(img){ if (img && (typeof img.close==='function' || typeof img.getContext==='function')) menuRetired.push(img); }
 function menuCloseRetired(){
   if (!menuRetired.length) return;
-  for (const b of menuRetired){ try{ b.close(); }catch(_){ } }
+  for (const b of menuRetired) releaseSpriteImage(b);
   menuRetired=[];
 }
 function menuBakeSurface(w,h,paint){
@@ -3937,6 +3939,8 @@ function menuCancelJob(){
 function releaseMenuBorder(){
   menuCancelJob();
   menuRetireBorder(menuBorder); menuBorder=null;
+  // a whole-screen canvas: emptied, not merely dropped, so its pixels go back now
+  if (menuFadeCv){ menuFadeCv.width=0; menuFadeCv.height=0; }
   menuFade=null; menuFadeCv=null; menuDrawnSig='';
   menuCloseRetired();
 }
@@ -4434,7 +4438,8 @@ function hasTransientGardenWork(){
   return !!(gardenOpening || game.ffActive || hasActiveGesture()
     || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length)
     || seasonFadeActive()     // the season crossfade needs live frames for ~1s
-    || skipPending());        // and a Skip being prepared lands sooner at full rate
+    || skipPending()          // and a Skip being prepared lands sooner at full rate
+    || spritesPending());     // clumps still drawn as a stand-in: their bakes should not wait on the idle cadence
 }
 function shouldRenderGarden(t){
   if (fullScreenRenderBlocked()) return false;
