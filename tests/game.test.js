@@ -1819,7 +1819,8 @@ test('yellow flag draws as the iris it is', () => {
 
 test('fine grass clouds batch their florets without losing the panicle silhouette', () => {
   const before=ART2.on;ART2.on=true;
-  try {for(const [key,season] of [['pinkmuhly','Fall'],['lovegrass','Summer'],['tuftedhair','Summer']]){
+  // pink muhly left the mist cloud for a smoke of its own (0.9.174), tested below
+  try {for(const [key,season] of [['switchgrass','Fall'],['lovegrass','Summer'],['tuftedhair','Summer']]){
     const L=PLANTS[key].look,style=L.panicle;
     const batched=JSON.parse(nativePerennialTrace(key,season));
     try {L.panicle=true;
@@ -1831,6 +1832,100 @@ test('fine grass clouds batch their florets without losing the panicle silhouett
   }} finally {ART2.on=before;}
 });
 
+/* What a grass draw lays down, one record per stroke: its colour and the points of its path, through
+   the translates a crown makes. For the two grasses redrawn in 0.9.174. */
+function grassStrokes(k,v,season,seed){
+  const out=[]; let pts=[], tx=0, ty=0, px=0, py=0;
+  const ctx=new Proxy({strokeStyle:'',fillStyle:''},{
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+      if(p==='translate')return (a,b)=>{ tx+=a; ty+=b; };
+      return (...a)=>{
+        if(p==='beginPath') pts=[];
+        else if(p==='moveTo'||p==='lineTo'){ pts.push([a[0]+tx,a[1]+ty,p==='moveTo']); px=a[0]; py=a[1]; }
+        else if(p==='quadraticCurveTo'){ quadPts(px,py,a[0],a[1],a[2],a[3],(x,y)=>pts.push([x+tx,y+ty,false])); px=a[2]; py=a[3]; }
+        else if(p==='ellipse') out.push({kind:'ellipse',style:String(o.fillStyle),pts:[[a[0]+tx,a[1]+ty]],r:a[2]});
+        else if(p==='stroke') out.push({kind:'stroke',style:String(o.strokeStyle),pts:pts.slice()});
+      };
+    },set(o,p,val){o[p]=val;return true;}
+  });
+  drawPlant(ctx,0,0,k,1,season,seed,0,v||null,1);
+  return out;
+}
+test('pink muhly flowers as a haze of hair-fine panicles, not spokes out to beads', () => {
+  // The mist cloud drew each culm's panicle as up to 29 straight lines from ONE point to round dots.
+  // A muhly panicle branches all the way up its axis into pedicels, each with one awned spikelet.
+  const was=ART2.on;
+  try { ART2.on=true;
+    for (const v of [null,'lenca','whitecloud']){
+      const D=plantDef('pinkmuhly',v), ref='pinkmuhly'+(v?':'+v:'');
+      assertEqual(D.look.cloudStyle,'smoke',ref+': draws the smoke cloud');
+      const r=grassStrokes('pinkmuhly',v,'Fall',101), starts=new Map();
+      for (const s of r) if (s.kind==='stroke') for (const p of s.pts) if (p[2]){
+        const k=p[0].toFixed(2)+','+p[1].toFixed(2); starts.set(k,(starts.get(k)||0)+1); }
+      const fan=Math.max(...starts.values());
+      assert(fan<=4,`${ref}: ${fan} lines leave one point, which is a spoke wheel`);
+      const dots=r.filter(s=>s.kind==='ellipse').length, culms=Math.max(3,Math.round(D.look.stems));
+      assert(dots<=culms*3+8,`${ref}: ${dots} ellipses, which is beads, not a haze behind each panicle`);
+      const lines=r.filter(s=>s.kind==='stroke').reduce((n,s)=>n+s.pts.filter(p=>p[2]).length,0);
+      assert(lines>=culms*60,`${ref}: ${lines} strokes of branch, hair and spikelet for ${culms} panicles`);
+    }
+    // a muhly in summer is its leaves: no culm stands without a cloud on it
+    const top=(season)=>Math.min(...grassStrokes('pinkmuhly',null,season,101).flatMap(s=>s.pts.map(p=>p[1])));
+    assert(top('Summer')>top('Fall')*0.7,`no bare culms in summer: ${top('Summer').toFixed(1)} against ${top('Fall').toFixed(1)} in bloom`);
+  } finally { ART2.on=was; }
+});
+test('a muhly in bloom takes the bloom colour, then the seed it fades to', () => {
+  const was=ART2.on, D=PLANTS.pinkmuhly;
+  const near=(a,b)=>{ const p=colorParts(a), q=colorParts(b); return Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2]); };
+  const uses=(bloomLvl,col)=>{
+    const ops=[], ctx=new Proxy({strokeStyle:'',fillStyle:''},{get(o,p){ if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+      return (...a)=>{ if(p==='stroke') ops.push(String(o.strokeStyle)); }; },set(o,p,v){o[p]=v;return true;}});
+    drawPlant(ctx,0,0,'pinkmuhly',1,'Fall',101,0,null,bloomLvl);
+    return Math.min(...ops.map(s=>near(s,col)));
+  };
+  try { ART2.on=true;
+    // each clump is tinted a little, so ask for a stroke within that of the colour
+    assert(uses(1,D.sea.Fall.bloom)<40,'in bloom the spikelets are the bloom pink');
+    assert(uses(0,D.sea.Fall.seed)<40,'past it, the seed colour');
+  } finally { ART2.on=was; }
+});
+test('Mexican feather grass rises as one bundle and falls over as a fountain', () => {
+  // It drew as a cup of stiff threads fanned from a point. A clump of it is a ponytail: tight at the
+  // crown, parting near the top, the outer threads falling; green leaves under blond panicles.
+  const was=ART2.on, D=PLANTS.mexicanfeather;
+  const near=(a,b)=>{ const p=colorParts(a), q=colorParts(b); return Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2]); };
+  try { ART2.on=true;
+    assertEqual(D.look.habit,'ponytail','draws the ponytail');
+    for (const seed of [7,101,4410]){
+      const r=grassStrokes('mexicanfeather',null,'Summer',seed), pts=r.filter(s=>s.kind==='stroke').flatMap(s=>s.pts);
+      const top=-Math.min(...pts.map(p=>p[1])), xs=pts.map(p=>p[0]), wide=Math.max(...xs)-Math.min(...xs);
+      // The crown stroke is every thread's first stretch, the darkest green. Measured by it, not by
+      // height on screen: a thread falling toward the viewer lands low on the screen without being low.
+      const crown=r.filter(s=>s.kind==='stroke'&&s.style===shade(D.sea.Summer.fol,-28)).flatMap(s=>s.pts);
+      assert(crown.length>=60,`seed ${seed}: every thread rises from the crown (${crown.length} points)`);
+      const cx=crown.map(p=>p[0]), bundle=Math.max(...cx)-Math.min(...cx);
+      assert(bundle<wide*0.3,`seed ${seed}: the threads rise in a bundle ${bundle.toFixed(1)} wide under a clump ${wide.toFixed(1)} wide`);
+      assert(Math.max(...crown.map(p=>-p[1]))<top*0.65,`seed ${seed}: and part from it in the lower part of the clump`);
+      // the outer threads arch over and fall well below the top of the clump
+      const outer=pts.filter(p=>Math.abs(p[0])>wide*0.3);
+      assert(Math.max(...outer.map(p=>-p[1]))<top*0.9,`seed ${seed}: the outer threads arch over and fall`);
+      // The blond stands over the green. Not "the foot is green" by screen height: the threads at the
+      // front fall toward the viewer and hang blond in front of the green bundle, as they do.
+      const blond=c=>near(c,D.sea.Summer.bloom)<near(c,D.sea.Summer.fol);
+      const mean=f=>{ const ys=r.filter(s=>s.kind==='stroke'&&f(s.style)).flatMap(s=>s.pts.map(p=>-p[1])); return ys.reduce((a,b)=>a+b,0)/ys.length; };
+      const hiB=mean(blond), hiG=mean(c=>!blond(c));
+      assert(hiB>hiG*1.3,`seed ${seed}: blond at ${hiB.toFixed(1)} over green at ${hiG.toFixed(1)}`);
+      const up=r.filter(s=>s.kind==='stroke'&&s.pts.some(p=>-p[1]>=top*0.9)).map(s=>s.style);
+      assert(up.filter(blond).length>up.length*0.6,`seed ${seed}: the top is blond`);
+    }
+    // in spring it is green all over, with paler tips and no blond
+    const spring=grassStrokes('mexicanfeather',null,'Spring',7).filter(s=>s.kind==='stroke').map(s=>s.style);
+    assert(spring.every(c=>near(c,D.sea.Summer.bloom)>20),'no panicles before it flowers');
+  } finally { ART2.on=was; }
+});
 /* fcPush/fcDraw and thrPush/thrStroke batch into module scratch that resets
    only on a flush, so a draw that threw between a push and its flush left its
    count behind and the NEXT plant painted those leftovers as its own. Poison

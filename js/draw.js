@@ -8479,11 +8479,11 @@ function drawHeadedCulms(ctx,L,S,H,crownRx,rnd,sway,a2,head,bloom,sn,snow){
     grassCrownOut(ctx);
   }
 }
-/* Mexican feather grass: a soft mop of hair-fine threads that rise from a tight crown and fall
-   over, green leaves under blond panicles. It drew as a flat fan from one point, which is the
-   wrong plant from any side. Threads point all round and arch out by how far out they lean, the
-   outer ones falling furthest; each is four segments of its quadratic, lit by where its tip sits,
-   and the far half is stroked before the near half in three light buckets. */
+/* A soft mop of hair-fine threads that rise from a tight crown and fall over: the leaves of the
+   feather grasses that carry culms (purple needlegrass, wiregrass). Mexican feather grass drew with
+   it until 0.9.174 and has the ponytail below. Threads point all round and arch out by how far out
+   they lean, the outer ones falling furthest; each is four segments of its quadratic, lit by where
+   its tip sits, and the far half is stroked before the near half in three light buckets. */
 const MOP_MAX=200, _mpP=new Float64Array(MOP_MAX*12), _mpB=new Uint8Array(MOP_MAX);
 function drawGrassMop(ctx,col,n,reach,spread,droop,w,alpha,rx,rnd,sn){
   const half=n>>1, ga=ctx.globalAlpha;
@@ -8515,6 +8515,209 @@ function drawGrassMop(ctx,col,n,reach,spread,droop,w,alpha,rx,rnd,sn){
     if (sn && k%7===3) sn.push([qBez(0.55,bx,cx,tx),qBez(0.55,by,cy,ty),2.2]);
   }
   stroke(); ctx.globalAlpha=ga; ctx.lineJoin='miter'; _crX=_crY=0;
+}
+/* Mexican feather grass as it grows (`habit:'ponytail'`, 0.9.174). The mop above drew it as a cup
+   of stiff threads fanned from a point, cream all over, with sky between them: a shaving brush. The
+   plant is a fountain of hair. Its threads rise TOGETHER out of a tight crown, as a ponytail does,
+   then part over the top and fall, the outer ones furthest, and the clump leans a little one way, as
+   the wind combs it. The leaves are green to the middle and the awned panicles over them are blond,
+   so a thread is three colours along its length; its last stretch is finer and fainter, the frizz of
+   the awns that makes the outline soft. Under the threads a few broad locks follow the same curves at
+   low alpha, so the clump reads as a mass at the opening zoom, where a 0.5 unit thread is a ghost.
+   Each thread is a rise and an arc sampled into scratch (PNY_N points, the last its awn); far half
+   then near half, each a few strokes by part and light. */
+const PNY_MAX=240, PNY_N=11, PNY_TIP=9, _pnyP=new Float64Array(PNY_MAX*PNY_N*2),
+      _pnyL=new Uint8Array(PNY_MAX), _pnyS=new Uint8Array(PNY_MAX);
+function drawFeatherPonytail(ctx,L,S,H,rx,rnd,n,plume,sn){
+  const fol=S.fol, reach=H*(L.strandLen||1), spread=L.strandSpread||0.8, droop=L.strandDroop===undefined?0.62:L.strandDroop;
+  const comb=(rnd()*2-1)*(L.comb||0), half=n>>1, ga=ctx.globalAlpha, P2=PNY_N*2, hw=L.strandW||0.55;
+  // how far along a thread the blond starts: the panicles stand over the upper half of the clump
+  const top=plume||mixHex(fol,'#eef2c4',0.34), split=plume?(L.plumeFrom||0.5):0.72;
+  const lit=mixHex(top,'#fff8e4',0.26), base=shade(fol,-28);
+  let m=0;
+  const run=(i0,i1,s0,s1,bucket,step)=>{     // one subpath a thread over points s0..s1 ('split' is its own)
+    let any=false; ctx.beginPath();
+    for (let i=i0;i<i1;i+=step||1){
+      if (bucket>=0 && _pnyL[i]!==bucket) continue;
+      const j=i*P2, a=s0==='split'?_pnyS[i]:s0, b=s1==='split'?_pnyS[i]:s1;
+      if (b<=a) continue; any=true;
+      ctx.moveTo(_pnyP[j+2*a],_pnyP[j+2*a+1]);
+      for (let s=a+1;s<=b;s++) ctx.lineTo(_pnyP[j+2*s],_pnyP[j+2*s+1]);
+    }
+    return any;
+  };
+  const paint=(i0,i1,far)=>{
+    // The locks: broad and faint along the upper threads, so they lie on a body of their own colour.
+    // One thread in four carries one: they overlap almost wholly, and a wide stroke is what costs.
+    ctx.lineCap='round'; ctx.lineJoin='round'; ctx.lineWidth=H*(L.lockW||0.075);
+    ctx.globalAlpha=ga*(far?0.14:0.18);
+    if (run(i0,i1,3,'split',-1,4)){ ctx.strokeStyle=shade(fol,far?-20:-6); ctx.stroke(); }
+    ctx.globalAlpha=ga*(far?0.26:0.3);
+    if (run(i0,i1,'split',PNY_TIP-1,-1,4)){ ctx.strokeStyle=shade(top,far?-22:-10); ctx.stroke(); }
+    ctx.lineCap='butt';
+    ctx.globalAlpha=ga*0.9; ctx.lineWidth=hw;
+    if (run(i0,i1,0,2,-1)){ ctx.strokeStyle=base; ctx.stroke(); }
+    // the green middle, shadowed and lit
+    if (run(i0,i1,2,'split',0)){ ctx.strokeStyle=shade(fol,far?-22:-14); ctx.stroke(); }
+    if (run(i0,i1,2,'split',1)){ ctx.strokeStyle=shade(fol,far?-10:-2); ctx.stroke(); }
+    if (run(i0,i1,2,'split',2)){ ctx.strokeStyle=shade(fol,far?0:10); ctx.stroke(); }
+    // the blond top, three lights
+    ctx.globalAlpha=ga*0.85; ctx.lineWidth=hw*0.85;
+    if (run(i0,i1,'split',PNY_TIP,0)){ ctx.strokeStyle=shade(top,far?-30:-20); ctx.stroke(); }
+    if (run(i0,i1,'split',PNY_TIP,1)){ ctx.strokeStyle=shade(top,far?-14:-4); ctx.stroke(); }
+    if (run(i0,i1,'split',PNY_TIP,2)){ ctx.strokeStyle=far?shade(top,2):lit; ctx.stroke(); }
+    // the awns: the last stretch and on past the tip, finer and fainter, each curling its own way
+    ctx.globalAlpha=ga*(far?0.38:0.55); ctx.lineWidth=hw*0.5; ctx.lineCap='round';
+    if (run(i0,i1,PNY_TIP-1,PNY_N-1,-1)){ ctx.strokeStyle=far?shade(top,-6):lit; ctx.stroke(); }
+  };
+  for (let k=0;k<n;k++){
+    if (k===half){ paint(0,m,true); m=0; }
+    const q=(k+0.5)/n, az=(q-0.5)*Math.PI+(rnd()-0.5)*0.3, dz=Math.sin(az);
+    const hx=((k&1)?1:-1)*Math.abs(Math.cos(az)), o=Math.pow(rnd(),0.7), len=reach*(0.8+rnd()*0.26);
+    grassCrownAt(rx,(hx+1)/2,q,rnd,0.7);
+    const bx=_crX, by=_crY, w=len*spread*(0.1+0.9*o), lean=comb*len*(0.15+0.35*o);
+    // A thread rises in the bundle to where it turns, lower the further out it falls, then arcs over:
+    // the stretch below the turn is a quadratic leaving the crown straight up, and the arc continues
+    // its direction, so the two meet without a kink. It falls further on the side the clump leans to.
+    // A fallen thread hangs to about a sixth of its height, not into the ground.
+    const fall=Math.min(0.84,droop*o*o*(1+0.55*Math.max(-0.6,Math.min(1,(hx>0?1:-1)*comb*2))));
+    const hT=len*(0.42+0.36*(1-o)), tx=bx+hx*w*0.1+lean*0.12, ty=by-hT;
+    const ax=bx+(rnd()-0.5)*0.6, ay=by-hT*0.55;                 // the lower control: straight up
+    const dX=tx-ax, dY=ty-ay;                                   // its direction at the turn
+    const peak=len*(1.08-0.24*o), lam=Math.max(0.3,(peak-hT)/Math.max(1e-3,-dY));
+    const cx=tx+dX*lam+hx*w*0.22+lean*0.35, cy=ty+dY*lam;
+    const ex=bx+hx*w+lean, ey=by-len*(1-fall)+dz*w*0.38;
+    const t=(ex/(reach*spread))*LIT.x+((ey+reach*0.6)/(reach*0.5))*LIT.y+(k<half?-0.15:0.1)+(rnd()-0.5)*0.4;
+    // the awn: on past the tip along its direction, bending down and a little aside
+    const al=len*(0.07+rnd()*0.07), ac=(rnd()-0.5)*0.9;
+    if (m<PNY_MAX){
+      const j=m*P2;
+      for (let s=0;s<=3;s++){ const u=s/3; _pnyP[j+2*s]=qBez(u,bx,ax,tx); _pnyP[j+2*s+1]=qBez(u,by,ay,ty); }
+      for (let s=4;s<=PNY_TIP;s++){ const u=(s-3)/(PNY_TIP-3); _pnyP[j+2*s]=qBez(u,tx,cx,ex); _pnyP[j+2*s+1]=qBez(u,ty,cy,ey); }
+      let ux=ex-cx, uy=ey-cy; const ud=Math.hypot(ux,uy)||1; ux/=ud; uy/=ud;
+      const ca=Math.cos(ac), sa=Math.sin(ac);
+      _pnyP[j+2*(PNY_N-1)]=ex+(ux*ca-uy*sa)*al; _pnyP[j+2*(PNY_N-1)+1]=ey+(ux*sa+uy*ca)*al+al*0.35;
+      _pnyL[m]=t>0.42?2:t<-0.1?0:1;
+      // the blond starts at a different place on every thread, so the green fades up into it
+      _pnyS[m]=Math.max(3,Math.min(PNY_TIP-1,Math.round(split*PNY_TIP+(rnd()-0.5)*4.4-o*1.4)));
+      if (sn && k>=half && k%9===4) sn.push([_pnyP[j+2*6],_pnyP[j+2*6+1],2.2]);
+      m++;
+    }
+  }
+  paint(0,m,false);
+  ctx.globalAlpha=ga; ctx.lineCap='round'; ctx.lineJoin='miter'; _crX=_crY=0;
+}
+/* Pink muhly in bloom (`cloudStyle:'smoke'`, 0.9.174). The mist cloud drew every stem's panicle as
+   straight spokes from one point to round beads, so a clump in flower was a bunch of dandelion clocks.
+   Muhlenbergia capillaris is named for its hair: each culm carries a long open panicle whose branches
+   leave it all the way up and divide into hair-fine pedicels, each ending in one tiny awned spikelet,
+   and a clump of those is a haze. So a panicle here is an axis along the top of an arching culm, with
+   branches that leave it on alternate sides, widest a third of the way up and shortening to the tip,
+   bowing a little under their weight; each branch forks into hairs and carries spikelets along it and
+   at every end, short dashes with an awn, not dots. A faint haze of the bloom colour lies behind each
+   panicle, which is what reads as a cloud from a distance. Panicles are painted far to near, so the
+   haze of a near one veils the hairs of the one behind it, and spikelets take three lights by where
+   they sit in the cloud. No culms in a season with nothing on them: a muhly in summer is its leaves. */
+const SMK_MAX=24, _smk=new Float64Array(SMK_MAX*8), _smkO=new Int8Array(SMK_MAX);
+const SMK_SEG=400, _smkB=new Float64Array(SMK_SEG*4);   // one panicle's branches and hairs
+function drawSmokeCloud(ctx,L,S,H,rx,rnd,sway,cloud,sn,snow){
+  const fol=S.fol||cloud, fan=L.stemFan===undefined?0.9:L.stemFan, pb=L.panBase===undefined?0.42:L.panBase;
+  const nb=L.panBranches||9, hairs=L.panHairs||3, spk=L.spkLen||1.5, ga=ctx.globalAlpha;
+  const comb=(rnd()*2-1)*(L.comb||0), m=Math.min(sn,SMK_MAX);
+  // no two clumps quite the same pink: some a shade paler, some deeper, so a sweep of them separates
+  const tone=rnd()-0.5; cloud=mixColHex(cloud,tone<0?(L.cloudShade||'#5e4366'):'#fff6fa',Math.abs(tone)*0.32);
+  const shadow=mixHex(cloud,L.cloudShade||'#5e4366',0.46), lit=mixHex(cloud,'#fff6fa',0.34);
+  const branchCol=shade(mixHex(cloud,fol,0.22),-30);
+  // the culms, laid first and stroked together
+  for (let i=0;i<m;i++){
+    const u=m>1?i/(m-1):0.5, side=u-0.5;
+    grassCrownAt(rx,u,-1,rnd,0.7);
+    const out=Math.abs(side)*2, len=H*(L.culmLen||0.97)*(0.86+rnd()*0.18)*(1-0.12*out);
+    const lean=side*len*fan+comb*len*0.18+sway*len*(L.stemLean||0.04)+(rnd()-0.5)*len*0.12;
+    const j=i*8;
+    _smk[j]=_crX; _smk[j+1]=_crY;
+    _smk[j+4]=_crX+lean; _smk[j+5]=_crY-len*(1-0.42*out*out);
+    _smk[j+2]=_crX+lean*0.12; _smk[j+3]=_crY-len*(0.62-0.1*out);
+    _smk[j+6]=len; _smk[j+7]=_crY;
+  }
+  // the culm below each panicle, as the first stretch [0,pb] of its quadratic; above that the axis
+  ctx.strokeStyle=shade(mixHex(fol,cloud,0.3),-16); ctx.lineWidth=L.stemW||0.6; ctx.lineCap='round'; ctx.beginPath();
+  for (let i=0;i<m;i++){ const j=i*8, x0=_smk[j], y0=_smk[j+1], cx=_smk[j+2], cy=_smk[j+3], x1=_smk[j+4], y1=_smk[j+5];
+    ctx.moveTo(x0,y0); ctx.quadraticCurveTo(x0+(cx-x0)*pb,y0+(cy-y0)*pb,qBez(pb,x0,cx,x1),qBez(pb,y0,cy,y1)); }
+  ctx.stroke();
+  // far to near: the culm whose crown sits furthest back goes first
+  for (let i=0;i<m;i++) _smkO[i]=i;
+  for (let a=1;a<m;a++){ const v=_smkO[a]; let b=a-1; while (b>=0 && _smk[_smkO[b]*8+7]>_smk[v*8+7]){ _smkO[b+1]=_smkO[b]; b--; } _smkO[b+1]=v; }
+  const hazeA=L.hazeA===undefined?0.08:L.hazeA;
+  // The whole clump is lit as one dome, its top toward the light and its underside in shadow, so a
+  // planting of them billows rather than lying flat: lit by where a point sits on the dome.
+  const dCy=-H*0.62, dRy=H*0.45, dRx=H*Math.max(0.35,fan*0.42);
+  const domeLit=(px,py)=>((px)/dRx)*LIT.x+((py-dCy)/dRy)*LIT.y;
+  for (let oi=0;oi<m;oi++){
+    const j=_smkO[oi]*8, x0=_smk[j], y0=_smk[j+1], cx=_smk[j+2], cy=_smk[j+3], x1=_smk[j+4], y1=_smk[j+5], len=_smk[j+6];
+    const wmax=len*(L.panW||0.24), span=len*(1-pb);
+    const sx=qBez(pb,x0,cx,x1), sy=qBez(pb,y0,cy,y1), acx=cx+(x1-cx)*pb, acy=cy+(y1-cy)*pb;
+    // The haze: soft ellipses along the panicle, faint enough that overlapping clouds build. Each
+    // step in is smaller, lighter and drawn over the last, which is what feathers its edge; the
+    // outermost is the shadow colour, so the underside of a cloud is the deeper rose.
+    const hx0=qBez(pb+(1-pb)*0.45,x0,cx,x1), hy0=qBez(pb+(1-pb)*0.45,y0,cy,y1);
+    const axA=Math.atan2(y1-sy,x1-sx), axL=span*0.56;
+    const hl=domeLit(hx0,hy0);
+    ctx.globalAlpha=ga*hazeA*(hl<0?1.3:0.9); ctx.fillStyle=shadow;
+    ctx.beginPath(); ctx.ellipse(hx0,hy0+wmax*0.25,axL*1.02,wmax*1.05,axA,0,7); ctx.fill();
+    ctx.globalAlpha=ga*hazeA*(hl>0.2?1.1:0.8); ctx.fillStyle=hl>0.35?lit:cloud;
+    ctx.beginPath(); ctx.ellipse(hx0,hy0,axL*0.8,wmax*0.78,axA,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(hx0+LIT.x*wmax*0.12,hy0+LIT.y*wmax*0.16,axL*0.55,wmax*0.5,axA,0,7); ctx.fill();
+    ctx.globalAlpha=ga;
+    // branches and hairs into _smkB; spikelets into the thread buckets by light: 0 shadow, 1 mid, 2 lit
+    let nB=0, snD=1e9, snX=0, snY=0;
+    const seg=(ax,ay,bx,by)=>{ if (nB<SMK_SEG){ const q=nB*4; _smkB[q]=ax; _smkB[q+1]=ay; _smkB[q+2]=bx; _smkB[q+3]=by; nB++; } };
+    const spike=(px,py,ux,uy)=>{       // one spikelet, a dash along its pedicel
+      const l=domeLit(px,py)+(rnd()-0.5)*0.6;
+      const b=l>0.3?2:l<-0.25?0:1;
+      thrPush(b,px,py,px+ux*spk,py+uy*spk);
+      if (snow && b===2){ const dy=py-y1-span*0.15, d=(px-x1)*(px-x1)+dy*dy; if (d<snD){ snD=d; snX=px; snY=py; } }
+    };
+    for (let b=0;b<nb;b++){
+      const f=(b+0.3+rnd()*0.4)/nb, t=pb+(1-pb)*f;
+      const ax=qBez(t,x0,cx,x1), ay=qBez(t,y0,cy,y1);
+      let dx=2*(1-t)*(cx-x0)+2*t*(x1-cx), dy=2*(1-t)*(cy-y0)+2*t*(y1-cy); const dd=Math.hypot(dx,dy)||1; dx/=dd; dy/=dd;
+      const side=(b&1)?1:-1, ang=side*(0.75+rnd()*0.55), ca=Math.cos(ang), sa=Math.sin(ang);
+      const ux=dx*ca-dy*sa, uy=dx*sa+dy*ca;
+      // widest a third of the way up, little at the tip
+      const w=wmax*Math.pow(Math.sin(Math.PI*Math.min(1,f*0.9+0.08)),0.7)*Math.max(0,1.15-f*0.55);
+      const bl=w*(0.85+rnd()*0.4)/Math.max(0.55,Math.abs(sa));
+      const mx=ax+ux*bl*0.5, my=ay+uy*bl*0.5+bl*0.1, ex=ax+ux*bl, ey=ay+uy*bl+bl*0.2;
+      let px=ax, py=ay;
+      for (let s=1;s<=3;s++){ const tt=s/3, qx=qBez(tt,ax,mx,ex), qy=qBez(tt,ay,my,ey); seg(px,py,qx,qy); px=qx; py=qy; }
+      // hairs off the branch, each ending in a spikelet
+      for (let h=0;h<hairs;h++){
+        const tt=0.35+0.55*(h+rnd()*0.6)/hairs, hx=qBez(tt,ax,mx,ex), hy=qBez(tt,ay,my,ey);
+        const s2=(h&1)?1:-1, a2=s2*(0.35+rnd()*0.45), c2=Math.cos(a2), s3=Math.sin(a2);
+        const vx=ux*c2-uy*s3, vy=ux*s3+uy*c2, hl=bl*(0.22+rnd()*0.22);
+        const ex2=hx+vx*hl, ey2=hy+vy*hl+hl*0.12;
+        seg(hx,hy,ex2,ey2);
+        spike(ex2,ey2,vx,vy);
+        if (rnd()<0.5) spike(hx+vx*hl*0.55,hy+vy*hl*0.55,vx,vy);
+      }
+      spike(ex,ey,ux,uy+0.2);
+      spike(mx,my,ux,uy);
+    }
+    // the axis over its panicle, then its branches and hairs, then the spikelets
+    ctx.lineCap='round'; ctx.strokeStyle=branchCol;
+    ctx.globalAlpha=ga*0.6;
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.quadraticCurveTo(acx,acy,x1,y1);
+    ctx.lineWidth=L.branchW||0.32;
+    for (let q=0;q<nB;q++){ const r=q*4; ctx.moveTo(_smkB[r],_smkB[r+1]); ctx.lineTo(_smkB[r+2],_smkB[r+3]); }
+    ctx.stroke();
+    ctx.lineWidth=L.spkW||0.6;
+    ctx.globalAlpha=ga*0.8; thrStroke(ctx,0,shadow);
+    ctx.globalAlpha=ga*0.85; thrStroke(ctx,1,cloud);
+    ctx.globalAlpha=ga*0.9; thrStroke(ctx,2,lit);
+    ctx.globalAlpha=ga;
+    if (snow && snD<1e9) snow.push([snX,snY,2.2]);
+  }
+  _crX=_crY=0;
 }
 /* Miscanthus: a fountain of long ribbons that rise from the crown, arch out and fall, with a pale
    midrib and, on 'Zebrinus' and 'Strictus', gold bands across them. As `vertgrass` blades they were
@@ -9343,6 +9546,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const sn = stemFor(L.stems||6), cloud=S.seed||(blooming?S.bloom:null), panicle=S.panicle||cloud;
     const stemFan=L.stemFan!==undefined?L.stemFan:null, topF=L.cloudTop||0.92;
     const snow=grassSnowOn(season,mature);
+    // a smoke cloud is coloured by the bloom while it blooms, then by the seed it fades to
+    if (L.cloudStyle==='smoke'){
+      const smoke=(blooming?S.bloom:null)||S.seed;
+      if (smoke && mature) drawSmokeCloud(ctx,L,S,H*((P.heightIn||P.h)/P.h),crownRx,rnd,sway,smoke,sn,snow);
+    } else
     for (let i=0;i<sn;i++){
       const u=sn>1?i/(sn-1):0.5, side=u-0.5;
       grassCrownIn(ctx,crownRx,u,-1,rnd,0.7);
@@ -9427,6 +9635,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     // culms that carry nodding panicles with long awns (purple needlegrass).
     const L=P.look||{}, a2=art2On(L), snow=grassSnowOn(season,mature), plume=(blooming?S.bloom:null)||S.seed;
     const culms=L.headStyle==='panicle';
+    if (L.habit==='ponytail'){
+      if (S.fol) drawFeatherPonytail(ctx,L,S,H,crownRx,rnd,stemFor(L.strands||170),mature?plume:null,snow);
+    } else {
     // On a mop the snow lands on the blond threads over the leaves; under culms, on the leaves.
     if (S.fol) drawGrassMop(ctx,S.fol,stemFor(L.leaves||40),H*(L.leafLen||0.7),L.leafSpread||0.6,
       L.leafDroop===undefined?0.35:L.leafDroop,L.leafW||0.7,1,crownRx,rnd,culms||!plume?snow:null);
@@ -9435,6 +9646,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     } else if (plume && mature)
       drawGrassMop(ctx,plume,stemFor(L.plumes||60),H*(L.plumeLen||1),L.plumeSpread||0.8,L.plumeDroop===undefined?0.6:L.plumeDroop,
         L.plumeW||0.6,L.plumeAlpha||0.85,crownRx,rnd,snow);
+    }
     if (snow && snow.length) snowAnchors=snow;
   }
   else if (P.form === 'moorgrass'){ // Sesleria: tidy mound with short upright seed wands

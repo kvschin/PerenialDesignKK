@@ -8675,6 +8675,24 @@ multiplies by the species' `h`), so a species drawn shorter takes its cultivars 
 'Eldorado' 17% narrower, 'Bronzeschleier' 28%), one drawn taller takes them wider (fountain grass's, 11-24%), and a
 cultivar drawn shorter over a fixed-size cloud widens that cloud. 25 choices took a wider `sideScale`, measured on real pixels in `dev/grass-review.html?check` and on the
 recorded geometry. The dev-only Classic renderer is not held: it draws 'Red October' and Slender Indiangrass 10-12% off.
+**Mexican feather grass and pink muhly were redrawn from photographs (0.9.174).** Feather grass was a
+stiff cream whisk fanned from a point; it is `habit:'ponytail'` (`drawFeatherPonytail`, draw.js): threads
+rise together in a tight bundle, part near the top and arch over, the outer ones falling to about a sixth
+of the height, the clump leaning a little one way (`comb`), green to the middle and blond above
+(`plumeFrom`, jittered per thread so the green fades up), with a finer, fainter awn curling past each tip.
+Broad faint locks under the threads (`lockW`, one thread in four, since they overlap and a wide stroke is
+what costs) make it a mass at the opening zoom. Pink muhly's mist cloud was spokes from one point out to
+round beads, dandelion clocks; it is `cloudStyle:'smoke'` (`drawSmokeCloud`): each culm an arching axis
+with branches on alternate sides, widest a third up, forking into hairs that each end in a dash-shaped
+spikelet, over a soft haze, painted far to near. The whole clump is lit as one dome (`domeLit`) and tinted
+a little per seed, so a sweep billows instead of lying flat; no culm stands in a season with no cloud.
+Culms are sized from `heightIn`, so a cultivar's height is right without a fixed `cloudHeight`
+(`cloudTop`/`cloudHeight` stay only for the sprite box). **Feather grass's look keys are `strands`, `strandLen`,
+`strandSpread`, `strandDroop`, `strandW`, not `hairs`**: `drawGrassCrownBase` reads `hairs`/`hairLen` for
+every grass and drew a straight coat of 170 hairs under the first cut, a V that looked like the drawing's
+fault. In this projection a thread falling toward the viewer lands BELOW its crown on screen; measure a
+grass's foot by its crown stroke, not by screen height. Draw cost on a software canvas: feather grass
+0.24 to 0.6 ms, muhly 0.9 to 1.2 ms a bake.
 
 **Desert rosettes are built in the round (0.9.94)** (`drawSpikyRosette`, `ROSETTE_LEAF`,
 `drawRosetteScape`, `drawOcotillo`, draw.js). Yuccas, hesperaloe, agaves and sotol were a FAN
