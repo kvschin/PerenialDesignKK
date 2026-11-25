@@ -2732,7 +2732,7 @@ test('ball dahlias batch dense florets into a bounded fill budget', () => {
    in a grammar of their own. A recorder keeps every coordinate a call passes and
    the fill each closed path lands in, which is enough to ask where on the plant
    things are without a pixel. */
-function recordPlant(key,season,variant,bloomLvl,growth){
+function recordPlant(key,season,variant,bloomLvl,growth,leafStage){
   const ops=[]; let path=[];
   const ctx=new Proxy({fillStyle:'',strokeStyle:''}, {
     get(o,p){
@@ -2751,7 +2751,7 @@ function recordPlant(key,season,variant,bloomLvl,growth){
     },
     set(o,p,v){ o[p]=v; return true; },
   });
-  drawPlant(ctx,0,0,key,growth===undefined?1:growth,season,9137,0,variant||null,bloomLvl);
+  drawPlant(ctx,0,0,key,growth===undefined?1:growth,season,9137,0,variant||null,bloomLvl,undefined,leafStage);
   return ops;
 }
 test('the audited perennials and onions keep their own grammars in the data', () => {
@@ -3153,6 +3153,106 @@ test('the lupines, pinks, blanket flowers and Baptisias added in 0.9.163 are in 
   for (const v of ['whitewild','yellowwild','dwarfblue']) assertEqual(plantDef('baptisia',v).nativeTo.join(),'north-america',`baptisia ${v}: a native species`);
   for (const k of ['cheddarpink','maidenpink','cottagepink','sweetwilliam','fringedpink']) assert(PLANTS[k].nativeTo.includes('europe'),`${k}: a European pink`);
   for (const k of ['russelllupine','borderpink','gaillardiagrand']) assertEqual(PLANTS[k].provenance,'hybrid',`${k}: a garden hybrid`);
+});
+/* The 0.9.164 smokebush audit: the smoke is a panicle of silky hairs at every
+   shoot tip (drawSmokePlumes), and a coppiced smokebush is its own choice. A
+   plume's stalks are one stroke for the plant, a moveTo and lineTo up each
+   plume and to each of its lobes, so they count the plumes. */
+const smokeOps=(ops,col)=>{
+  const stalks=ops.find(o=>o.stroke===shade(col,-50)), veil=ops.find(o=>o.fill===shade(col,-12));
+  // each lobe is a moveTo and an ellipse
+  return {stalks, veil, lobes:veil ? veil.pts.filter(p=>p.length===3).length : 0};
+};
+test('a smokebush in summer is hazed in plumes, each a branched panicle of silky hairs', () => {
+  for (const [k,v] of [['smokebush',null],['smokebush','royalpurple'],['smokebush','grace'],['smokebush','younglady'],['smoketree',null]]){
+    const P=plantDef(k,v), col=P.sea.Summer.bloom, ops=recordPlant(k,'Summer',v,1), m=smokeOps(ops,col), id=k+(v?':'+v:'');
+    const per=P.look.smokeOpen>0.5 ? SMOKE_OPEN.length : SMOKE_DENSE.length;
+    assert(m.stalks && m.veil,`${id}: stalks under a veil`);
+    const plumes=m.stalks.pts.length/(2+2*per);
+    assertEqual(m.lobes,plumes*per,`${id}: ${per} lobes a plume`);
+    assert(plumes>=(k==='smoketree'?8:14),`${id}: plumes over the crown (${plumes})`);
+    // the hairs, in two lights, break the haze's edge
+    assert(ops.filter(o=>o.stroke&&o.stroke!==m.stalks.stroke&&o.pts.length>=plumes*per).length>=2,`${id}: silky hairs`);
+    // a plume is a cloud bigger than a leaf, not a leaf-sized dot
+    const rs=m.veil.pts.filter(p=>p.length===3).map(p=>p[2]).sort((a,b)=>a-b), r=rs[rs.length>>1];
+    assert(r>(P.look.leafHW||1)*2.2,`${id}: a cloud, not a dot (lobe ${r.toFixed(1)})`);
+  }
+  // a rising bloom brings plumes up
+  const col=plantDef('smokebush').sea.Summer.bloom;
+  const half=smokeOps(recordPlant('smokebush','Summer',null,0.4),col), full=smokeOps(recordPlant('smokebush','Summer',null,1),col);
+  assert(half.stalks.pts.length<full.stalks.pts.length,'fewer plumes as the bloom comes on');
+  // 'Golden Spirit' smokes little, if at all (MBG: its patent records no flowering)
+  const gs=smokeOps(recordPlant('smokebush','Summer','goldenspirit',1),plantDef('smokebush','goldenspirit').sea.Summer.bloom);
+  assert(gs.stalks.pts.length<full.stalks.pts.length*0.35,"'Golden Spirit' carries few plumes");
+  assert(PLANTS.smoketree.look.smokeOpen>0.5,'American smoketree has an opener panicle');
+  // the smoke stands through summer, not two months of it
+  assertEqual(PLANTS.smokebush.bloomMonths.join(),'6,7,8','smokebush smokes June to August');
+});
+test("a smokebush's plumes fade to grey in early fall, thin as the leaves drop, and are gone by winter", () => {
+  for (const k of ['smokebush','smoketree']){
+    const P=PLANTS[k];
+    assertEqual(P.sea.Winter.seed,undefined,`${k}: nothing hangs on through winter`);
+    assert(!(staticPlantRoles(k)||[]).includes('winter'),`${k}: no winter seedheads claimed`);
+    const seed=P.sea.Fall.seed, full=smokeOps(recordPlant(k,'Fall',null,0,1,LEAF_FULL),seed), late=smokeOps(recordPlant(k,'Fall',null,0,1,1),seed);
+    assert(full.stalks,`${k}: spent plumes in early fall`);
+    assert(!late.stalks || late.stalks.pts.length<full.stalks.pts.length,`${k}: fewer as the leaves come down`);
+    // faded: greyer than the summer pink
+    const c=colorParts(seed), c2=colorParts(P.sea.Summer.bloom);
+    assert(Math.max(...c)-Math.min(...c) < Math.max(...c2)-Math.min(...c2),`${k}: the fall plume is greyer than the summer one`);
+  }
+  // no berries: the old seed pass strung glossy berries along the twigs in fall and winter
+  const seed=PLANTS.smokebush.sea.Fall.seed;
+  assert(!recordPlant('smokebush','Fall',null,0).some(o=>o.fill===seed),'no berries on a smokebush');
+});
+test('a coppiced smokebush is a stool of straight shoots: wands in winter, cut in early spring, regrown by summer', () => {
+  const P=PLANTS.coppicedsmokebush, L=P.look;
+  assertEqual(P.latin,'Cotinus coggygria','the same plant, grown another way');
+  assertEqual(P.group,'smokebush','on the Smokebush card');
+  assertEqual(P.chip,'Coppiced','under the Coppiced chip');
+  assert(L.coppice && L.habit==='coppice' && !L.smoke,'drawn as a coppice, with no smoke');
+  for (const v of [null,...Object.keys(P.cv)]){
+    const D=plantDef('coppicedsmokebush',v), id='coppiced '+(v||'species');
+    for (const s of SEASONS) assert(!D.sea[s].bloom && !D.sea[s].seed,`${id}: no smoke in ${s}, it flowers on older wood`);
+    assert(D.heightIn<plantDef('smokebush',v).heightIn,`${id}: shorter than the shrub`);
+  }
+  assert(L.leafHW>PLANTS.smokebush.look.leafHW*1.4,"its leaves are larger than the shrub's");
+  for (const v of Object.keys(P.cv)) assert(PLANTS.smokebush.cv[v],`coppiced ${v} is a smokebush cultivar too`);
+  assertEqual(plantDef('coppicedsmokebush','grace').provenance,'hybrid',"coppiced 'Grace' is the hybrid");
+  assertEqual(plantDef('smokebush','grace').latin,"Cotinus 'Grace'","'Grace' is named as the hybrid it is");
+  // the stool, sawn, the wood showing; in early spring, nothing over it
+  const cut=recordPlant('coppicedsmokebush','Spring',null,undefined,1,0);
+  assert(cut.some(o=>o.fill===L.cutWood),'the cut faces of the stubs');
+  assert(!cut.some(o=>o.stroke===L.bark),'no shoots on a stool just cut');
+  // the shoots come up through spring, taller each stage
+  const top=ops=>Math.min(...ops.flatMap(o=>o.pts.map(p=>p[1])));
+  let last=0;
+  for (let k=1;k<=LEAF_STAGES;k++){
+    const t=top(recordPlant('coppicedsmokebush','Spring',null,undefined,1,k));
+    assert(t<last,`stage ${k}: taller than the stage before (${t.toFixed(1)})`); last=t;
+  }
+  assert(top(recordPlant('coppicedsmokebush','Summer',null,undefined,1))<=last,'full height in summer');
+  // in winter last summer's shoots stand bare, each straight from a stub
+  const win=recordPlant('coppicedsmokebush','Winter',null,undefined,1), stems=win.filter(o=>o.stroke===L.bark);
+  assert(stems.length,'bare wands in winter');
+  const stool=plantVisualH(P)*L.stoolIn/P.heightIn;
+  const starts=stems.flatMap(o=>o.pts.filter((p,i)=>i%2===0));
+  assert(starts.length>=10,`a sheaf of shoots (${starts.length})`);
+  assert(starts.every(p=>p[1]<0 && p[1]>-stool*1.2),'every shoot starts on a stub, none forks off another');
+  // in the garden its spring has stages, which the sprite key carries
+  const r={}; bakePlantKeyParts(r,'coppicedsmokebush',null,'Spring',7,undefined);
+  assert(r.leafOut,'the sprite key carries the spring stage');
+  assertEqual(coppiceShoot('Spring',0),0,'cut to the stool at stage 0');
+  assertEqual(coppiceShoot('Winter',undefined),1,'wands at full height in winter');
+});
+test('the smokebush family carries its sources', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/smokebush-sources.json'));
+  for (const [ref,row] of Object.entries(doc.plants)){
+    const [k,v]=ref.split('|'), P=plantDef(k,v||null);
+    assert(P && (!v || PLANTS[k].cv[v]),`${ref}: in the catalog`);
+    assert(row.source,`${ref}: its source`);
+    assertEqual(P.heightIn,row.heightIn,`${ref}: the height its source gives`);
+  }
+  assert(BROWSE_RESIST_KEYS.has('coppicedsmokebush') && BROWSE_RESIST_KEYS.has('smoketree'),'deer leave both smokebushes alone (MBG)');
 });
 test('every forb draws at its sourced height', () => {
   // The px-art h is the drawn height in inches; heightIn is what the card quotes.

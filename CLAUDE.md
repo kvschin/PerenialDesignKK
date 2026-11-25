@@ -8741,6 +8741,45 @@ pinks 0.3-0.5, sweet William 0.84, blanket flowers 0.26-0.44, Baptisia unchanged
 Prairie Moon, RHS); `dev/lupine-pink-hydrangea-review.html` shows every choice in four seasons, its
 heads close up and at true scale, with `?check` and `?bench`.
 
+**Smoke plumes and the coppiced smokebush (0.9.164).** *The smoke* (`look.smoke`;
+`drawSmokePlumes`, `smokeSite`, `smokeAim`, `shrubSmoke`, `treeSmoke`, draw.js) was four
+leaf-sized ovals per twig tip, which read as pink confetti on the leaves. A smokebush's smoke is
+not its flowers but the panicle they leave, 6-8 in, much branched, its stalks lengthening into
+long silky hairs, pink in summer and pale grey by early fall (MBG; Trees and Shrubs Online). A
+plume is now that panicle, held up and out from its shoot tip (`smokeAim`): a darker thread up
+its axis and to each branch, lobes along the axis broad at the foot (`SMOKE_DENSE`, or
+`SMOKE_OPEN` for American smoketree's opener head), three translucent layers of haze
+(`SMOKE_LAYERS`, then the body in three lights), a lit core and short hairs on the edge, each
+layer ONE path for the whole plant so overlapping plumes read as one haze. A pale plume's lights
+are lifted less (`smokeLum`), or its hairs go white like frost. Look keys: `smokeShare` (the
+share of tips carrying one: 0.85 by default on a shrub, 0.18 for 'Golden Spirit', whose patent
+records no flowering), `smokeLen`, `smokeOpen`. On a shrub a plume is sized to the leaves as well
+as the plant (`H*0.17` or 2.5 leaf lengths), since leaves are drawn larger than life on a small
+shrub. Fall draws the plumes again in the seed colour, fewer, thinning with the leaf-drop stage,
+in place of the berry pass, which had strung glossy berries along the twigs in fall and WINTER;
+the Winter `seed` colours are gone (and with them a false `winter` role). Smokebush smokes June to
+August (`bloomMonths` 6-8, MBG "throughout summer"). The classic renderer keeps its old ovals.
+*Coppiced* is a record of its own in the Smokebush family (`coppicedsmokebush`, chip Coppiced,
+with 'Royal Purple', 'Grace' and 'Golden Spirit'): the same taxon grown another way, the
+beech-hedge pattern, so it is on the duplicate-Latin allowlist. It draws through the shrub
+habit `coppice` (one stem a tip, so no shoot forks; `alongFrom` puts leaves down the shoots;
+`twigs:0` now means no winter twig fringe, where `||2` used to read it as 2) and `look.coppice`,
+`stoolIn` and `cutWood`: shoots spring from a stool of sawn stubs (`coppiceStubs`,
+`drawCoppiceStool`, their own stream so the shoots keep their places), leaves `leafHW` 2.2
+against the shrub's 1.35, no bloom or seed in any season. Its year rides the leaf-out stages
+(`coppiceShoot`, `COPPICE_SHOOT`): Winter is last summer's bare wands at full height; at Spring
+stage 0 only the stool (the cut is late winter or early spring, RHS; Fine Gardening); the shoots
+are COPPICE_SHOOT[stage] of their height through spring, full in summer. A preview shows the
+spring flush at 0.55. The ground shadow shrinks with the shoots. 'Grace' now carries its own
+latin, `Cotinus 'Grace'` (C. coggygria x obovatus), on both records; the coppiced smokebush and
+American smoketree joined `BROWSE_RESIST_KEYS` (MBG: deer tolerant). Bakes (headless Chrome,
+software raster): smokebush in summer 0.6 -> 1.4 ms, 'Royal Purple' 0.7 -> 1.15, 'Young Lady'
+0.29 -> 0.84, American smoketree 0.63 -> 0.74, fall +0.15-0.3, winter a little cheaper, the
+coppiced plant about 0.2. Sources and estimates: `docs/plant-data/smokebush-sources.json`;
+`dev/smokebush-review.html` shows every choice in four seasons, at true scale, the plumes close up
+(`?headSeason=Fall` for the faded ones), and the garden's year stage by stage (`?year=0` hides it),
+with `?check` and `?bench`.
+
 **Flowering mats and pussytoes (0.9.122).** *The mossphlox habit drew a stem a full plant
 height for every flower* (moss phlox, aubretia, rock rose, periwinkle, trailing bellflower,
 blue-eyed Mary), ending nowhere near the flower, which it sited down in the mat beside it:
@@ -9584,7 +9623,7 @@ stems leave the ground and across how wide a crown (`stems`, `baseW`), and how
 they reach their tips (`rise`, `fork`, `bend`, `crook`, `arch` -- a twig's
 control point lifted so a cane rises and falls -- and `tiers`). Tips are spread
 through the outline and joined back to the stems from the outside in. Ten
-habits: `round` (viburnums), `mound` (rhododendron, laurustinus, the
+habits (an eleventh, `coppice`, came in 0.9.164; see the smoke-plume note): `round` (viburnums), `mound` (rhododendron, laurustinus, the
 hydrangeas), `lowMound`, `upright` (camellia, photinia), `vase` (lilac, elder,
 witch hazel, panicle hydrangea), `fountain` (forsythia, bridal wreath, hazel),
 `arching` (weigela, ninebark, sweetspire), `open` (swamp azalea, buttonbush,

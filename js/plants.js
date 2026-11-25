@@ -5781,25 +5781,64 @@ const PLANTS = {
     look:{art2:true, coniferHabit:'bun', tiers:6, sprayLen:0.14, padThick:2.6, bark:'#7c5742'},
     blurb:'A slow mop of fine, thread-like golden foliage, a bright mound for the front of a border or among dark evergreens. The color is best in sun; in deep shade it greens up. About two to three feet in ten years.',
     sea:{Spring:{fol:'#d6bd4a'}, Summer:{fol:'#cfb446'}, Fall:{fol:'#c9a83f'}, Winter:{fol:'#bf9a3d'}}},
+  /* Smokebush's smoke (0.9.164) is not its flowers, which are tiny and
+     yellowish, but the panicle they leave: 6-8 in long, much branched, its
+     stalks lengthening and growing long silky hairs, pink to purplish-pink
+     through summer and pale grey by early fall (MBG; Trees and Shrubs Online).
+     look.smoke draws it (drawSmokePlumes); smokeShare is the share of shoot tips
+     carrying one, smokeLen its size against the species', smokeOpen how open
+     the panicle is. The plumes are gone by winter, so there is no Winter seed.
+     'Golden Spirit' smokes little if at all: its patent records no flowering in
+     four years of trials, though nurseries report some (MBG).
+     The coppiced record is the same plant cut to a stool each late winter for
+     its leaves, the way a clipped beech hedge is a beech: one taxon, two
+     renderers (look.coppice, the 'coppice' shrub habit). */
   smokebush:{ name:'Smokebush', latin:'Cotinus coggygria', form:'bush', type:'shrub', h:66, cw:96, heightIn:144,
     group:'smokebush', groupLabel:'Smokebush', chip:'Shrub form',
     space:120, spread:144, zones:[5,8], _legacyNative:false, sun:'full', moist:'dry', phen:'mid', grow:5,
     look:{habit:'round', fallMix:['#e0a03c','#c03a35','#8a3448'], art2:true, leafShape:'ovate', leafHW:1.35, leafLong:2.1, smoke:true},
-    blurb:'A loose, drought-tolerant shrub with round leaves and airy summer smoke plumes. Coppice for big foliage, prune lightly for flowers.',
-    sea:{Spring:{fol:'#7d8f58'}, Summer:{fol:'#6f7f4f',bloom:'#caa0a4'}, Fall:{fol:'#d4763e',seed:'#b89482'}, Winter:{seed:'#7a6558'}},
+    blurb:'A loose, drought-tolerant shrub with round blue-green leaves. From June every shoot tip carries a 6-8 in plume of silky pink hairs, so through summer the whole plant sits in a haze that fades to grey by early fall. Prune only lightly, in early spring, or you cut off the wood that smokes; for big leaves and no smoke, coppice it (the Coppiced choice).',
+    sea:{Spring:{fol:'#7d8f58'}, Summer:{fol:'#6f7f4f',bloom:'#caa0a4'}, Fall:{fol:'#d4763e',seed:'#b3a39c'}, Winter:{}},
     cv:{
-      royalpurple:{look:{fallMix:['#c8602f','#6e2c40']}, name:"'Royal Purple'", note:'deep wine-purple leaves with smoky pink plumes',
+      royalpurple:{look:{fallMix:['#c8602f','#6e2c40']}, name:"'Royal Purple'", note:'deep wine-purple leaves with smoky purplish-pink plumes',
         heightIn:144, space:144, spread:180,
-        sea:{Spring:{fol:'#7a2d42'}, Summer:{fol:'#512d3f',bloom:'#b98398'}, Fall:{fol:'#a83e3a',seed:'#a87882'}}},
-      goldenspirit:{name:"'Golden Spirit'", note:'gold leaves aging lime, then orange-red in fall',
+        sea:{Spring:{fol:'#7a2d42'}, Summer:{fol:'#512d3f',bloom:'#b98398'}, Fall:{fol:'#a83e3a',seed:'#a5929a'}}},
+      goldenspirit:{look:{smokeShare:0.18}, name:"'Golden Spirit'", note:'gold leaves aging lime, then orange-red in fall; few plumes, if any',
         heightIn:120, space:108, spread:120,
-        sea:{Spring:{fol:'#d4bd4b'}, Summer:{fol:'#a8b856',bloom:'#d2b5a0'}, Fall:{fol:'#df7a3d',seed:'#bd9272'}}},
-      grace:{name:"'Grace'", note:'vigorous hybrid with burgundy foliage and orange-red fall color',
+        sea:{Spring:{fol:'#d4bd4b'}, Summer:{fol:'#a8b856',bloom:'#d2b5a0'}, Fall:{fol:'#df7a3d',seed:'#b6a597'}}},
+      grace:{look:{smokeLen:1.2}, name:"'Grace'", note:'vigorous hybrid with American smoketree: burgundy foliage, huge deep-pink plumes, orange-red fall color',
+        latin:"Cotinus 'Grace'", synonyms:['Cotinus coggygria × obovatus','Cotinus × dummeri'],
         h:74, cw:112, heightIn:180, space:132, spread:144,
-        sea:{Spring:{fol:'#8a3345'}, Summer:{fol:'#5a3246',bloom:'#b98295'}, Fall:{fol:'#d05d38',seed:'#a87882'}}},
-      younglady:{name:"'Young Lady'", note:'compact green form selected for abundant smoke plumes',
+        sea:{Spring:{fol:'#8a3345'}, Summer:{fol:'#5a3246',bloom:'#c27b98'}, Fall:{fol:'#d05d38',seed:'#a8909a'}}},
+      younglady:{look:{smokeShare:1}, name:"'Young Lady'", note:'compact green form selected for abundant smoke plumes',
         h:44, cw:62, heightIn:60, space:54, spread:60,
-        sea:{Spring:{fol:'#7d8f58'}, Summer:{fol:'#6f7f4f',bloom:'#d4b3aa'}, Fall:{fol:'#d69a44',seed:'#b89482'}}},
+        sea:{Spring:{fol:'#7d8f58'}, Summer:{fol:'#6f7f4f',bloom:'#d5aaa6'}, Fall:{fol:'#d69a44',seed:'#b6a69f'}}},
+    }},
+  /* Coppiced: cut to stubs 6-8 in high in late winter, every year if wanted
+     (Fine Gardening; RHS pruning group 7), it makes straight shoots up to about
+     2 m in one season with leaves up to twice their usual size, and no smoke,
+     since it flowers on the previous year's wood (Trees and Shrubs Online;
+     Wikipedia after Sunset). Heights and spreads are estimates: see
+     docs/plant-data/smokebush-sources.json. */
+  coppicedsmokebush:{ name:'Coppiced Smokebush', latin:'Cotinus coggygria', form:'bush', type:'shrub', h:30, cw:32, heightIn:66,
+    group:'smokebush', groupLabel:'Smokebush', chip:'Coppiced',
+    space:48, spread:48, zones:[5,8], nativeTo:['europe','asia'], provenance:'species', sun:'full', moist:'dry', phen:'mid', grow:2,
+    roles:['foliage'],
+    look:{habit:'coppice', coppice:true, stoolIn:7, fallMix:['#e0a03c','#c03a35','#8a3448'], art2:true,
+      leafShape:'ovate', leafHW:2.2, leafLong:2.0, bark:'#7a5a46', cutWood:'#c9a95a'},
+    blurb:"Smokebush cut back to a stool of stubs 6-8 in high every late winter. It answers with straight, unbranched shoots, about 5-6 ft in a season, carrying leaves up to twice their usual size, and no smoke: it flowers on the previous year's wood. Grown for its foliage, so the purple and gold forms are the ones usually coppiced. Until the next cut the bare shoots stand through winter.",
+    sea:{Spring:{fol:'#7d8f58'}, Summer:{fol:'#6f7f4f'}, Fall:{fol:'#d4763e'}, Winter:{}},
+    cv:{
+      royalpurple:{look:{fallMix:['#c8602f','#6e2c40'], bark:'#5e3038'}, name:"'Royal Purple'", note:'the classic coppiced purple: big wine-purple leaves on dark shoots',
+        provenance:'selection',
+        sea:{Spring:{fol:'#7a2d42'}, Summer:{fol:'#512d3f'}, Fall:{fol:'#a83e3a'}}},
+      grace:{look:{bark:'#64343b'}, name:"'Grace'", note:'the most vigorous: shoots to about 7 ft in a season, burgundy leaves larger still',
+        latin:"Cotinus 'Grace'", synonyms:['Cotinus coggygria × obovatus','Cotinus × dummeri'], nativeTo:[], provenance:'hybrid',
+        h:39, cw:40, heightIn:84, space:60, spread:60,
+        sea:{Spring:{fol:'#8a3345'}, Summer:{fol:'#5a3246'}, Fall:{fol:'#d05d38'}}},
+      goldenspirit:{look:{bark:'#8a6a4a'}, name:"'Golden Spirit'", note:'cut back each year to keep its gold leaves large and bright',
+        provenance:'selection', h:25, cw:28, heightIn:54, space:42, spread:42,
+        sea:{Spring:{fol:'#d4bd4b'}, Summer:{fol:'#a8b856'}, Fall:{fol:'#df7a3d'}}},
     }},
 
   /* ---------- hydrangeas: grouped by flower type ----------
@@ -6489,9 +6528,9 @@ const PLANTS = {
   smoketree:{ name:'American Smoketree', latin:'Cotinus obovatus', form:'tree', type:'tree', h:86, cw:98, heightIn:300,
     group:'smokebush', groupLabel:'Smokebush', chip:'Tree form',
     space:180, spread:240, zones:[4,8], _legacyNative:true, sun:'full', moist:'dry', phen:'mid', grow:6,
-    look:{barkStyle:'plated', texture:'medium', fallMix:['#e0902f','#e2b63e','#c33b3a','#8e3448'], crown:'round', habit:{base:0.14, lo:0.45, wash:0.3, fill:0.15}, stems:3, art2:true, trunkW:5.8, bark:'#6a5544', branches:6, branchSpread:1.75, leafN:30, leafW:0.14, leafH:0.10, smoke:true, flowerN:24},
-    blurb:'A small native smoketree with round leaves, airy summer plumes, and excellent orange-red fall color. Use as a specimen or limbed-up shrub.',
-    sea:{Spring:{fol:'#8aa466'}, Summer:{fol:'#5f7a4e',bloom:'#caa0a4'}, Fall:{fol:'#d05e38',seed:'#a87882'}, Winter:{seed:'#6b5548'}}},
+    look:{barkStyle:'plated', texture:'medium', fallMix:['#e0902f','#e2b63e','#c33b3a','#8e3448'], crown:'round', habit:{base:0.14, lo:0.45, wash:0.3, fill:0.15}, stems:3, art2:true, trunkW:5.8, bark:'#6a5544', branches:6, branchSpread:1.75, leafN:30, leafW:0.14, leafH:0.10, smoke:true, smokeOpen:0.7, smokeShare:0.55, smokeLen:1.45, flowerN:24},
+    blurb:"A small native smoketree of the limestone glades of the Ozarks and the South, with round leaves and some of the best orange-red fall color of any American tree. Its summer plumes are about a foot long, opener and less showy than smokebush's, and a female tree holds hers longest. Use as a specimen or a limbed-up shrub.",
+    sea:{Spring:{fol:'#8aa466'}, Summer:{fol:'#5f7a4e',bloom:'#c89b98'}, Fall:{fol:'#d05e38',seed:'#ab9b94'}, Winter:{}}},
   serviceberry:{ name:'Serviceberry', latin:'Amelanchier laevis', form:'tree', type:'tree', h:58, cw:62, heightIn:240,
     group:'serviceberry', groupLabel:'Serviceberry', chip:'Allegheny',
     space:180, spread:240, zones:[4,8], _legacyNative:true, sun:'part', moist:'medium', phen:'cool', grow:4,
@@ -10410,7 +10449,7 @@ const BLOOM_MONTHS = {
   solomonsseal:[4,5], bluebells:[4,5], heuchera:[5,6], astrantia:[5,6,7], astrantiaroma:[6,7,8], astilbe:[6,7],
 
   // shrubs and trees
-  leadplant:[6,7], sumac:[4,5], newjersey:[6,7], smokebush:[6,7],
+  leadplant:[6,7], sumac:[4,5], newjersey:[6,7], smokebush:[6,7,8],
   smoketree:[6,7], hydrangea:[6,7,8,9], smoothhydrangea:[6,7,8,9],
   bigleaflace:[6,7,8,9], smoothlace:[6,7,8,9], serratahydrangea:[6,7,8],
   panniclehydrangea:[7,8,9], oakleafhydrangea:[6,7],
@@ -11047,6 +11086,7 @@ const WIKIPEDIA_ARTICLES = {
   yewmedium:              "Taxus × media",
   yewtall:                "Taxus × media",
   smokebush:              "Cotinus coggygria",
+  coppicedsmokebush:      "Cotinus coggygria",
   hydrangea:              "Hydrangea macrophylla",
   smoothhydrangea:        "Hydrangea arborescens",
   bigleaflace:            "Hydrangea macrophylla",

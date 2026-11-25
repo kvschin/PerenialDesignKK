@@ -1029,7 +1029,7 @@ const BROWSE_RESIST_KEYS=new Set([
   'poppyanemone','persianlily','foxtaillily','cyclamencoum',
   // tough shrubs — berried natives and the resistant viburnums, listed by key
   // rather than by group because doublefile shares group:'viburnum' and is browsed
-  'sumac','coralberry','smokebush','winterberry','inkberry','chokeberry',
+  'sumac','coralberry','smokebush','coppicedsmokebush','smoketree','winterberry','inkberry','chokeberry',
   'arrowwood','cranberrybush','koreanspice','blackhaw',
 ]);
 const SQUIRREL_RESIST_GROUPS=new Set(['allium','alliumbulb']);

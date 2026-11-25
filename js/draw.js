@@ -6334,6 +6334,188 @@ function drawTreeBlossom(ctx, L, S, crown, tips, alongLimb, blv, vs, bare, seed)
   ctx.fill();
 }
 
+/* ---------- smoke plumes (Cotinus, `look.smoke`, 0.9.164) ----------
+   A smokebush's smoke is not its flowers, which are tiny and yellowish. It is
+   the panicle they leave, 6-8 in long and much branched, whose stalks lengthen
+   and grow long silky hairs: every shoot tip carries one, held up and out over
+   the leaves, the hairs catch the light, and through summer the plant sits in a
+   pink haze that fades to pale grey by early fall (MBG; Trees and Shrubs
+   Online). It was drawn as four leaf-sized ovals per tip, which read as pink
+   confetti lying on the foliage.
+   A plume here is that panicle: a fine darker thread up its axis and out to
+   each branch, a cloud of lobes along the axis in three translucent layers,
+   and silky hairs breaking its edge. Each layer is ONE path for the whole
+   plant, so overlapping plumes read as one haze instead of stacking into
+   opaque blotches, and a plume is lit from the upper left by where it sits on
+   the crown (LIT). American smoketree's panicle is bigger and opener
+   (`smokeOpen`): fewer, wider-set lobes under a thinner veil. Fall's spent
+   plumes are the same drawing in the seed colour, thinner (`spent`).
+   Sites are pushed with smokeSite and painted by drawSmokePlumes from
+   module-level scratch, the usual reason. Its own seeded streams, so a plume
+   keeps its shape whatever the passes around it draw. */
+const SMOKE_MAX=96, SMOKE_LOBES=7;
+const _smS=new Float64Array(SMOKE_MAX*6), _smL=new Float64Array(SMOKE_MAX*SMOKE_LOBES*5);
+let _smN=0;
+// a plume from (x,y), pointing along the unit (ux,uy), len long, lit g (-1..1)
+function smokeSite(x,y,ux,uy,len,g){
+  if (_smN>=SMOKE_MAX || !(len>0.5)) return;
+  const k=_smN*6; _smS[k]=x; _smS[k+1]=y; _smS[k+2]=ux; _smS[k+3]=uy; _smS[k+4]=len; _smS[k+5]=g; _smN++;
+}
+// the direction a plume stands: out along its shoot, away from the middle of
+// the crown, and always up, as a terminal panicle is held
+let _smAx=0, _smAy=-1;
+function smokeAim(dx,dy,rx,ry){
+  let l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
+  l=Math.sqrt(rx*rx+ry*ry)||1; rx/=l; ry/=l;
+  let ux=dx*0.5+rx*0.35, uy=dy*0.5+ry*0.35-0.6;
+  l=Math.sqrt(ux*ux+uy*uy)||1; ux/=l; uy/=l;
+  if (uy>-0.3){ uy=-0.3; ux=Math.sign(ux||1)*Math.sqrt(1-0.09); }
+  _smAx=ux; _smAy=uy;
+}
+/* A panicle's outline as lobes: [along the axis, across it, radius], each a
+   share of the plume's length. Broad at the foot and rounding off at the tip,
+   as the panicle is; an open one (American smoketree's) is fewer tufts set
+   wider apart, with sky between them. */
+const SMOKE_DENSE=[[0.16,-0.20,0.23],[0.20,0.22,0.23],[0.34,0.0,0.25],[0.42,-0.24,0.21],[0.48,0.21,0.21],[0.66,0.02,0.19],[0.86,0.0,0.14]];
+const SMOKE_OPEN=[[0.18,-0.30,0.2],[0.26,0.28,0.2],[0.48,-0.19,0.19],[0.56,0.25,0.18],[0.84,0.04,0.15]];
+// the haze's layers, widest and faintest first: radius, alpha, tone
+const SMOKE_LAYERS=[[1.55,0.12,-12],[1.18,0.15,-5]];
+const SMOKE_TONE=[-18,-2,12];
+// a colour's lightness 0..1, so a pale plume's light is not lifted to white
+function smokeLum(col){ const [r,g,b]=colorParts(col); return (0.299*r+0.587*g+0.114*b)/255; }
+function drawSmokePlumes(ctx,col,o){
+  const n=_smN; _smN=0;
+  if (!n || !col) return;
+  const open=Math.max(0,Math.min(1,o.open||0)), spent=!!o.spent;
+  const a=Math.max(0,Math.min(1,o.alpha===undefined?1:o.alpha))*(spent?0.8:1);
+  const lr=mulberry(((o.seed|0)^0x5a0c3)>>>0);
+  const T=open>0.5 ? SMOKE_OPEN : SMOKE_DENSE, nl=T.length;
+  // the lobes, jittered so no two plumes are alike; a lobe toward the light is lighter
+  let lw=0;
+  for (let i=0;i<n;i++){
+    const k=i*6, x=_smS[k], y=_smS[k+1], ux=_smS[k+2], uy=_smS[k+3], len=_smS[k+4], g=_smS[k+5];
+    lw+=len;
+    const flip=lr()<0.5 ? 1 : -1;
+    for (let j=0;j<nl;j++){
+      const t=T[j][0]+(lr()-0.5)*0.08, sd=(T[j][1]+(lr()-0.5)*0.1)*flip*(1+open*0.3);
+      const r=len*T[j][2]*(0.85+0.3*lr())*(spent?0.86:1);
+      const cx=x+ux*len*t-uy*len*sd, cy=y+uy*len*t+ux*len*sd;
+      const m=(i*SMOKE_LOBES+j)*5;
+      _smL[m]=cx; _smL[m+1]=cy; _smL[m+2]=r; _smL[m+3]=g+((cx-x)*LIT.x+(cy-y)*LIT.y)/len*1.1; _smL[m+4]=t;
+    }
+  }
+  lw/=n;
+  ctx.save(); ctx.lineCap='round';
+  // the stalks: up each plume and out to its branches, under the haze
+  ctx.globalAlpha=(spent?0.4:0.48)*a; ctx.strokeStyle=shade(col,-50); ctx.lineWidth=Math.max(0.35,lw*0.016); ctx.beginPath();
+  for (let i=0;i<n;i++){
+    const k=i*6, x=_smS[k], y=_smS[k+1], ux=_smS[k+2], uy=_smS[k+3], len=_smS[k+4];
+    ctx.moveTo(x,y); ctx.lineTo(x+ux*len*0.86,y+uy*len*0.86);
+    for (let j=0;j<nl;j++){
+      const m=(i*SMOKE_LOBES+j)*5, t=Math.max(0,_smL[m+4]-0.1);
+      ctx.moveTo(x+ux*len*t,y+uy*len*t); ctx.lineTo(_smL[m],_smL[m+1]);
+    }
+  }
+  ctx.stroke();
+  const ring=(m,k,dx,dy)=>{ const r=_smL[m+2]*k, x=_smL[m]+dx*_smL[m+2], y=_smL[m+1]+dy*_smL[m+2];
+    ctx.moveTo(x+r,y); ctx.ellipse(x,y,r,r*0.88,0,0,7); };
+  // the veil, in two widths, so the haze has no hard edge; each layer is one
+  // fill for the whole plant, so where plumes overlap they read as one cloud
+  for (const [k,al,tone] of SMOKE_LAYERS){
+    ctx.globalAlpha=al*(1-open*0.15)*a; ctx.fillStyle=shade(col,tone); ctx.beginPath();
+    for (let q=0;q<n*SMOKE_LOBES;q++) if (q%SMOKE_LOBES<nl) ring(q*5,k,0,0);
+    ctx.fill();
+  }
+  // the body, in three lights
+  ctx.globalAlpha=0.2*(1-open*0.2)*a;
+  for (let b=0;b<3;b++){
+    ctx.fillStyle=shade(col,SMOKE_TONE[b]); ctx.beginPath(); let any=false;
+    for (let q=0;q<n*SMOKE_LOBES;q++){
+      if (q%SMOKE_LOBES>=nl) continue;
+      const g=_smL[q*5+3], bb=g<-0.25 ? 0 : g<0.25 ? 1 : 2;
+      if (bb===b){ ring(q*5,0.96,0,0); any=true; }
+    }
+    if (any) ctx.fill();
+  }
+  // the silvery light the hairs catch, on the lobes facing it
+  ctx.globalAlpha=0.17*a; ctx.fillStyle=shade(col,Math.round((spent?18:26)*Math.max(0.35,Math.min(1,(0.86-smokeLum(col))/0.2)))); ctx.beginPath();
+  for (let q=0;q<n*SMOKE_LOBES;q++) if (q%SMOKE_LOBES<nl && _smL[q*5+3]>-0.2) ring(q*5,0.72,LIT.x*0.24,LIT.y*0.24);
+  ctx.fill();
+  // the hairs, out through each lobe's edge, on a shade side and a lit side
+  const nh=open>0.5 ? 5 : 4, pale=smokeLum(col), lift=Math.round((spent?20:28)*Math.max(0.25,Math.min(1,(0.86-pale)/0.2)));
+  ctx.globalAlpha=(spent?0.32:0.38)*a; ctx.lineWidth=Math.max(0.3,lw*0.009);
+  for (let side=0;side<2;side++){
+    // the same stream for both sides, so each hair falls on exactly one
+    const hr=mulberry(((o.seed|0)^0x3f11d)>>>0);
+    ctx.strokeStyle=shade(col,side ? lift : 6); ctx.beginPath();
+    for (let i=0;i<n;i++){
+      const k=i*6, x=_smS[k], y=_smS[k+1], ux=_smS[k+2], uy=_smS[k+3], len=_smS[k+4];
+      for (let j=0;j<nl;j++){
+        const m=(i*SMOKE_LOBES+j)*5, cx=_smL[m], cy=_smL[m+1], r=_smL[m+2], t=_smL[m+4];
+        const ax=x+ux*len*t, ay=y+uy*len*t;
+        let ox=cx-ax, oy=cy-ay; const ol=Math.sqrt(ox*ox+oy*oy);
+        if (ol<r*0.25){ ox=ux; oy=uy; } else { ox/=ol; oy/=ol; }
+        for (let h=0;h<nh;h++){
+          // every hair draws all its numbers, kept or not, so the two passes agree
+          const sp=(hr()-0.5)*2.6, st=hr(), hl=r*(0.5+0.45*hr()), bend=(hr()-0.5)*0.3;
+          const c=Math.cos(sp), s=Math.sin(sp);
+          let dx=ox*c-oy*s, dy=ox*s+oy*c;
+          if (t>0.6){ dx=dx*0.6+ux*0.4; dy=dy*0.6+uy*0.4; }
+          if (((dx*LIT.x+dy*LIT.y)>0 ? 1 : 0)!==side) continue;
+          const sx=cx+dx*r*(0.35+0.35*st), sy=cy+dy*r*(0.35+0.35*st);
+          ctx.moveTo(sx,sy); ctx.quadraticCurveTo(sx+dx*hl*0.5-dy*hl*bend,sy+dy*hl*0.5+dx*hl*bend,sx+dx*hl,sy+dy*hl);
+        }
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+// a plume's size against its neighbours', from where it stands: no stream to keep in step
+const smokeVary=(x,y)=>0.85+0.3*((Math.abs(Math.sin(x*12.9898+y*78.233))*43758.5453)%1);
+/* A shrub's plumes, one at each head the habit renderer chose (drawShrubHabit,
+   `smokeShare` of its tips). A plume is sized to the leaves as well as the
+   shrub: the leaves are drawn larger than life on a small shrub, and a plume
+   two and a half leaves long is what a 7 in panicle among 3 in leaves looks
+   like. `grow` is how far the hairs have lengthened. */
+function shrubSmoke(ctx,L,heads,crown,H,col,seed,grow,spent){
+  if (!crown || !heads.length || !col) return;
+  const W=crown.W||1, half=crown.half||1;
+  const len=Math.max(H*0.17,(L.leafHW||1)*3.1*(L.leafLong||2.6)*2.5)*(L.smokeLen||1)*grow;
+  for (const t of heads){
+    smokeAim(t[0]-t[2],t[1]-t[3],t[0]/W,(t[1]-crown.yMid)/half);
+    const l=len*smokeVary(t[0],t[1]);
+    // the far end stays over the crown's own width, which the sprite box allows for
+    let x=t[0];
+    const ex=x+_smAx*l, lim=W*1.06;
+    if (Math.abs(ex)>lim) x-=Math.sign(ex)*(Math.abs(ex)-lim);
+    smokeSite(x,t[1],_smAx,_smAy,l,(x/W)*LIT.x+((t[1]-crown.yMid)/half)*LIT.y);
+  }
+  drawSmokePlumes(ctx,col,{open:L.smokeOpen,spent,seed});
+}
+/* A tree's plumes, on the twig tips of its crown (drawTreeHabit): `smokeShare`
+   of them, taken in a golden-ratio order so a rising bloom adds plumes without
+   moving any, and the plume sized to the crown. */
+function treeSmoke(ctx,L,tips,crown,col,seed,grow,amt,spent){
+  const N=tips.length;
+  if (!crown || !N || !col) return;
+  const W=crown.W||1, half=crown.half||1;
+  const len=W*0.21*(L.smokeLen||1)*grow;
+  const K=Math.max(1,Math.round(N*Math.max(0.05,Math.min(1,L.smokeShare||0.7))));
+  const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>((a*0.6180339887)%1)-((b*0.6180339887)%1));
+  const cnt=Math.max(1,Math.min(K,Math.ceil(K*amt)));
+  for (let q=0;q<cnt;q++){
+    const t=tips[order[q]];
+    smokeAim(t[0]-t[2],t[1]-t[3],t[0]/W,(t[1]-crown.yMid)/half);
+    const l=len*smokeVary(t[0],t[1]);
+    let x=t[0];
+    const ex=x+_smAx*l, lim=crown.hw(t[1])+l*0.3;
+    if (Math.abs(ex)>lim) x-=Math.sign(ex)*(Math.abs(ex)-lim);
+    smokeSite(x,t[1],_smAx,_smAy,l,(x/W)*LIT.x+((t[1]-crown.yMid)/half)*LIT.y);
+  }
+  drawSmokePlumes(ctx,col,{open:L.smokeOpen,spent,seed});
+}
+
 /* ---------- shrub habits (SHRUB_HABIT, 0.9.60) ----------
    Every informal shrub was the same drawing: seven to thirteen straight twigs
    fanned from ONE point at the ground, a translucent ellipse behind them and a
@@ -6418,6 +6600,15 @@ const SHRUB_HABITS = {
   thicket:  {base:0.08, top:1.00, w:0.48, p:0.58, eLo:1.6, eHi:2.0, lo:0.50, stems:12, baseW:0.22,
              tips:30, tipFrom:0.28, rim:0.9, rise:0.76, fork:0.72, three:0.2, bend:-0.3, crook:0.05, arch:0.0, pipe:0.55,
              clumpR:0.14, squash:0.90, hang:0.0, cover:0.88, wash:0.72, fill:0.24, twigs:2, twigLen:0.05},
+  // cut to a stool every late winter: straight unbranched shoots of one year's
+  // growth spring from the stubs, fanning out a little, leafy nearly to their
+  // feet, and stand bare through winter until the next cut (a coppiced
+  // smokebush). A stem each, so no shoot forks; the stool is drawn by
+  // drawCoppiceStool and look.stoolIn says how high it is.
+  coppice:  {base:0.04, top:1.00, w:0.40, p:0.76, eLo:1.2, eHi:2.4, lo:0.26, stems:60, baseW:0.07,
+             tips:17, tipFrom:0.5, rim:0.5, rise:1.0, fork:1.0, three:0, bend:-0.15, crook:0.05, arch:0.0, pipe:0.6,
+             clumpR:0.10, squash:0.90, hang:0.02, cover:1.1, wash:0, fill:0.06, alongCane:0.8, alongFrom:0.14,
+             twigs:0, twigLen:0.04},
 };
 const SHRUB_TONES=[-26,-13,-2,10,22];
 // the share of a shrub's tips that carry a flower head, by bloom style
@@ -6479,6 +6670,52 @@ function shrubOutlineArea(hb){
   if (hb._area===undefined){ let a=0; for (let i=0;i<24;i++) a+=treeCrownHW(hb,(i+0.5)/24)/24; hb._area=a; }
   return hb._area;
 }
+/* ---------- coppicing (look.coppice, 0.9.164) ----------
+   A coppiced shrub is cut to a stool of stubs a hand high every late winter
+   and answers with straight, unbranched shoots of one season's growth, leaves
+   up to twice their usual size, and no flowers, which come on older wood
+   (RHS; Fine Gardening; Trees and Shrubs Online). Its year is therefore not a
+   shrub's: in winter it is last summer's bare wands; in early spring, once
+   cut, only the stool; and through spring the shoots come up out of it. The
+   garden hands drawPlant the leaf-out stage (woodyLeafOut), and the shoots are
+   that far up: COPPICE_SHOOT, by stage, of their summer height. They keep
+   their places as they grow, since everything is laid out on the same streams
+   and only the height and width change. A preview has no stage and shows the
+   spring flush half grown. */
+const COPPICE_SHOOT=[0,0.14,0.27,0.41,0.56,0.73,0.88];
+function coppiceShoot(season, leafStage){
+  if (season!=='Spring') return 1;
+  if (leafStage===undefined) return 0.55;
+  return COPPICE_SHOOT[Math.max(0,Math.min(COPPICE_SHOOT.length-1,leafStage|0))];
+}
+// the stubs, on their own stream so the shoots over them keep their places
+function coppiceStubs(st, seed){
+  const baseW=st.bw, r=mulberry((seed^0x57001)>>>0), n=5+Math.floor(r()*3), out=[];
+  for (let i=0;i<n;i++){
+    const f=n>1 ? i/(n-1)-0.5 : 0;
+    out.push({x:f*2*baseW*1.15+(r()-0.5)*baseW*0.3, h:st.h*(0.62+0.5*r()), lean:f*baseW*0.35+(r()-0.5)*1.2});
+  }
+  return out;
+}
+/* The stool: each stub a short tapering stump, lit on its left, sawn flat, the
+   cut showing the wood (a smokebush's is yellow: the heartwood was once sold
+   as a dye, "young fustic"). One fill a part for the whole stool. */
+function drawCoppiceStool(ctx, stubs, Wt, col, cutCol){
+  const w=Math.max(2.2,Wt*2.1);
+  const body=(k,dx)=>{ ctx.beginPath();
+    for (const b of stubs){ const x=b.x, t=b.x+b.lean, h=b.h, bw=w*(0.85+0.3*Math.min(1,h/(stubs[0].h||1)))*k;
+      ctx.moveTo(x-bw/2+dx*bw,0); ctx.lineTo(t-bw*0.42+dx*bw,-h); ctx.lineTo(t+bw*0.42,-h); ctx.lineTo(x+bw/2,0); ctx.closePath(); }
+  };
+  ctx.fillStyle=shade(col,-14); body(1,0); ctx.fill();
+  ctx.fillStyle=shade(col,14); body(1,0.62); ctx.fill();      // the lit left side
+  // the cut faces, and a darker rim of bark round each
+  ctx.fillStyle=shade(col,-30); ctx.beginPath();
+  for (const b of stubs){ const t=b.x+b.lean; ctx.moveTo(t+w*0.48,-b.h); ctx.ellipse(t,-b.h,w*0.48,w*0.2,0,0,7); }
+  ctx.fill();
+  ctx.fillStyle=cutCol||'#c9a95a'; ctx.beginPath();
+  for (const b of stubs){ const t=b.x+b.lean; ctx.moveTo(t+w*0.36,-b.h-0.3); ctx.ellipse(t,-b.h-0.3,w*0.36,w*0.14,0,0,7); }
+  ctx.fill();
+}
 function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
   const la=o.la===undefined ? 1 : Math.max(0,Math.min(1,o.la)), dropping=!!o.dropping, emerging=la<1 && !dropping;
   const arm=mulberry((seed^0x5b0b5)>>>0), leaf=mulberry((seed^0x1eaf7)>>>0);
@@ -6488,6 +6725,12 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
   // thousand times a draw, and each answer was two Math.pow calls
   const tab=shrubHWTable(hb), hwF=v=>{ const f=Math.max(0,Math.min(1,v))*32, i=f|0; return i>=32 ? tab[32] : tab[i]+(tab[i+1]-tab[i])*(f-i); };
   const hwAt=y=>W*hwF((-y-base)/span);
+  if (o.stool && !(o.stool.k>0)){
+    // just cut: the stool and nothing over it
+    drawCoppiceStool(ctx,coppiceStubs(o.stool,seed),o.stool.wt,S.twig||L.bark||'#6e5a48',L.cutWood);
+    const yM=toY(0.5);
+    return {heads:[], snow:[], crown:{W, yMid:yM, half:span/2, hw:hwAt}};
+  }
   const sizeK=Math.max(0.8,Math.min(1.5,Math.sqrt(W/60)));
   const N=Math.max(8,Math.min(60,Math.round((L.tipN||hb.tips)*sizeK*(0.45+0.55*growth))));
   const tx=new Float64Array(N), ty=new Float64Array(N), tpx=new Float64Array(N), tpy=new Float64Array(N),
@@ -6530,7 +6773,7 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
   // which tips carry flowers and fruit (the higher first), and the wash phase
   // most tips carry a head -- a viburnum in bloom is dozens of cymes -- fewer
   // where each head is a run of flowers along its twig or a big hydrangea ball
-  const share=o.hydr ? 0.34 : (SHRUB_HEAD_SHARE[L.bloomStyle]||0.6);
+  const share=o.hydr ? 0.34 : L.smoke ? Math.max(0.05,Math.min(1,L.smokeShare||0.85)) : (SHRUB_HEAD_SHARE[L.bloomStyle]||0.6);
   const K=Math.max(2,Math.min(N,L.headN ? Math.round(L.headN*(0.4+0.6*growth)) : Math.round(N*share)));
   const headIx=Array.from({length:N},(_, i)=>[tv[i]+arm()*0.55,i]).sort((a,b)=>b[0]-a[0]).slice(0,K)
     .map((s,r)=>[(r*0.6180339887)%1,s[1]]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]);
@@ -6603,9 +6846,13 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
     }
   };
   const baseW=cw*hb.baseW*(exposed ? 0.5 : 1);
+  // a coppiced shrub's shoots come out of the tops of its stubs
+  const stubs=o.stool ? coppiceStubs(o.stool, seed) : null;
   groups.forEach((list,j)=>{
-    const f=nG>1 ? j/(nG-1)-0.5 : 0;
-    grow(f*2*baseW+(arm()-0.5)*baseW*0.3, 0, list, 0);
+    const f=nG>1 ? j/(nG-1)-0.5 : 0, jx=(arm()-0.5)*baseW*0.3;
+    if (stubs){ const b=stubs[Math.min(stubs.length-1,Math.floor((f+0.5)*stubs.length))];
+      grow(b.x+b.lean*0.9+jx*0.25, -b.h*0.88, list, 0); }
+    else grow(f*2*baseW+jx, 0, list, 0);
   });
 
   // 3. the stems and twigs, one stroke per step of width. In winter, and while
@@ -6614,7 +6861,7 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
   //    along the same curve, so whatever sits on a twig still sits on it.
   const fol=S.fol, bare=!fol || la<0.6;
   if (bare){
-    const tw=wOf(1)*0.6, nTw=hb.twigs||2, twr=mulberry((seed^0x7a16)>>>0);
+    const tw=wOf(1)*0.6, nTw=hb.twigs===undefined ? 2 : hb.twigs, twr=mulberry((seed^0x7a16)>>>0);
     for (let i=0;i<N;i++){
       let dx=tx[i]-tqx[i], dy=ty[i]-tqy[i]; const l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
       for (let q=0;q<nTw;q++){
@@ -6671,6 +6918,8 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
     }
     ctx.stroke();
   }
+
+  if (stubs) drawCoppiceStool(ctx,stubs,o.stool.wt,stemCol,L.cutWood);
 
   // 4. the foliage
   const yMid=toY(0.5), half=span/2;
@@ -6775,7 +7024,7 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
       // breaks the outline where a clump would round it off
       const along=hb.alongCane ? Math.round(cnt*hb.alongCane) : 0;
       for (let j=0;j<along;j++){
-        const t=0.3+0.7*leaf(), u=1-t, sd=(j&1)?1:-1, jt=leaf();
+        const t=hb.alongFrom===undefined ? 0.3+0.7*leaf() : hb.alongFrom+(1-hb.alongFrom)*leaf(), u=1-t, sd=(j&1)?1:-1, jt=leaf();
         const px=u*u*tpx[i]+2*u*t*tqx[i]+t*t*tx[i], py=Math.max(topY,u*u*tpy[i]+2*u*t*tqy[i]+t*t*ty[i]);
         const dx=2*u*(tqx[i]-tpx[i])+2*t*(tx[i]-tqx[i]), dy=2*u*(tqy[i]-tpy[i])+2*t*(ty[i]-tqy[i]);
         const ang=Math.atan2(dy,dx)+sd*(0.75+jt*0.5)+(hb.droop||0)*0.3;
@@ -8431,8 +8680,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   const H = plantVisualH(P) * (gFloor + (1-gFloor)*growth);   // H1: herbaceous scaled up too
   const mature = growth > 0.55;
   ctx.save(); ctx.translate(x, y);
-  // soft ground shadow (canopy-wide for woody plants)
-  const shR = plantShadowR(P, growth);
+  // soft ground shadow (canopy-wide for woody plants); a coppiced shrub's is as
+  // wide as the shoots the season has brought up
+  const shR = plantShadowR(P, growth)*(P.look&&P.look.coppice ? 0.35+0.65*coppiceShoot(season,leafStage) : 1);
   drawSoftShadow(ctx,0,3,shR,shR*0.36+1.8,P.cw?0.19:0.15);
   ctx.fillStyle = 'rgba(0,0,0,0.08)';
   ctx.beginPath(); ctx.ellipse(0, 3, shR*0.58, shR*0.16+1.2, 0, 0, 7); ctx.fill();
@@ -12421,7 +12671,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     // a named crown habit draws its own limbs and canopy (drawTreeHabit); the
     // flower and fruit passes below are shared, reading its tips
     const habit=treeHabitOf(L);
-    let tips, alongLimb, sheared=false, crown=null, bare=0;
+    let tips, alongLimb, sheared=false, crown=null, bare=0, trLa=1, trDrop=false;
     if (habit){
       // sway is a lean that grows with height, the same shear the sprite blit
       // applies, so the cached and procedural trees move alike
@@ -12445,7 +12695,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       const r=drawTreeHabit(ctx,L,LS,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow,
         season==='Fall' ? L.fallMix : null, leafAmt, dropping);
-      tips=r.tips; snowAnchors=r.snow; crown=r.crown;
+      tips=r.tips; snowAnchors=r.snow; crown=r.crown; trLa=leafAmt; trDrop=dropping;
       // how bare the wood the blossom sits on is: no leaves, or leaves coming out
       bare=(!LS.fol || L.twigCanopy) ? 1 : 1-leafAmt;
       alongLimb=(tx2,ty2,f,tp)=>{
@@ -12652,7 +12902,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     } // end of the classic armature and canopy
     if (blooming){ // flowers: on the canopy, or straight on bare branches (redbud)
       const spots=Math.max(2,Math.ceil((L.flowerN||(S.fol?10:14))*blv));
-      if (L.smoke){
+      if (L.smoke && crown){
+        treeSmoke(ctx,L,tips,crown,S.bloom,seed,0.55+0.45*Math.min(1,blv*1.25),blv,false);
+      } else if (L.smoke){
         // smokebush haze: deliberately still flat. It draws at alpha 0.48 as
         // overlapping translucent puffs, and a specular highlight inside a
         // translucent veil is invisible — it would only cost the second fill.
@@ -12699,7 +12951,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         }
       }
     }
-    if (S.seed && mature){ // fruit/nuts, cottonwood fluff; oak's held leaves use fol
+    if (S.seed && mature && L.smoke && crown){
+      // a smoketree's plumes hang on into early fall, faded, and go as the leaves do
+      if (!blooming) treeSmoke(ctx,L,tips,crown,S.seed,seed,0.85,0.6*(trDrop ? trLa : 1),true);
+    } else if (S.seed && mature){ // fruit/nuts, cottonwood fluff; oak's held leaves use fol
       const seeds=L.seedN===undefined?8:Math.max(0,Math.round(L.seedN)), seedR=(L.seedR||1.4)*vs;
       if (L.fruitShape){
         /* Fruit must not jump when bloom rises or fades, so it gets its own RNG
@@ -13350,15 +13605,24 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       // the habit renderer hands the flower and fruit passes batched painters
       // (fbFlush paints them); the classic fan draws as it always did
       const flo=sh ? floretB : drawFloret, fl=sh ? shrubFlowerB : drawShrubFlower;
-      let tips=[], sheared=false, shCrownW=0;
+      let tips=[], sheared=false, shCrownW=0, shCrown=null, shLa=1, shDrop=false;
       if (sh){
         // sway is a lean that grows with height, the shear the sprite blit applies
         if (sway){ ctx.save(); ctx.transform(1,0,-sway*2.2/Math.max(1,H),1,0,0); sheared=true; }
         const st=shrubLeafState(ctx,P,L,S,season,leafStage,shR,seed);
-        const r=drawShrubHabit(ctx,P,L,st.S,sh,H,cw,growth,seed,
+        // a coppiced shrub's shoots are as far up as the season has brought them
+        let Hd=H, cwd=cw, stool=null;
+        if (L.coppice){
+          const k=coppiceShoot(season,leafStage);
+          // the stool is the same size whatever the shoots over it are doing
+          stool={k, h:H*Math.min(0.25,(L.stoolIn||7)/(P.heightIn||66)), bw:cw*sh.baseW,
+            wt:Math.max(0.9,(L.trunkW||(L.twigW||1.6)*1.3)*Math.sqrt(cw/100)*(0.55+0.45*growth))};
+          Hd=stool.h+(H-stool.h)*k; cwd=cw*(0.3+0.7*k);
+        }
+        const r=drawShrubHabit(ctx,P,L,st.S,sh,Hd,cwd,growth,seed,
           {la:st.la, dropping:st.dropping, mix:season==='Fall' ? L.fallMix : null,
-           snowy:mature && !!AMBIENCE[season].snow, season});
-        tips=r.heads; snowAnchors=r.snow; shCrownW=r.crown.W;
+           snowy:mature && !!AMBIENCE[season].snow, season, stool});
+        tips=r.heads; snowAnchors=r.snow; shCrownW=r.crown.W; shCrown=r.crown; shLa=st.la; shDrop=st.dropping;
         _fbScale=Math.max(0.5,Math.min(1,Math.sqrt(cw/120)));
       } else {
       const tn=stemFor(L.twigN||7), habit=L.habit||'round';
@@ -13593,6 +13857,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             }
             ctx.fill();
           });
+        } else if (L.smoke && sh){
+          shrubSmoke(ctx,L,heads,shCrown,H,S.bloom,seed,0.55+0.45*Math.min(1,blv*1.25),false);
         } else if (L.smoke){
           ctx.save(); ctx.globalAlpha=0.52;
           // the habit renderer's plumes scale with the crown: a smokebush in
@@ -13661,7 +13927,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         // A berry is a small glossy sphere, and the specular dot is the entire
         // reason winterberry reads as fruit rather than as red confetti — the
         // one place on a shrub where a second fill per shape is clearly earned.
-        if (L.seedStyle==='plumedAchenes'){
+        if (L.smoke && sh){
+          // the plumes hang on into early fall, faded to grey, and shatter as
+          // the leaves come down
+          if (!blooming){
+            const amt=0.6*(shDrop ? shLa : 1);
+            shrubSmoke(ctx,L,tips.slice(0,Math.ceil(tips.length*amt)),shCrown,H,S.seed,seed,0.85,true);
+          }
+        } else if (L.seedStyle==='plumedAchenes'){
           if (!blooming){
             const n=Math.max(2,Math.min(10,Math.round(L.acheneN||4)));
             const tailLen=Math.max(2,Math.min(18,L.tailLen||8));
