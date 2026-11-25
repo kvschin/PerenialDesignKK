@@ -8779,6 +8779,22 @@ coppiced plant about 0.2. Sources and estimates: `docs/plant-data/smokebush-sour
 `dev/smokebush-review.html` shows every choice in four seasons, at true scale, the plumes close up
 (`?headSeason=Fall` for the faded ones), and the garden's year stage by stage (`?year=0` hides it),
 with `?check` and `?bench`.
+**0.9.165 redrew 'Grace' from the gardener's photographs.** Trees and Shrubs Online: its leaves
+flush a vibrant red-purple and fade to a dark blue-green, its heads are huge and deep pink, and it
+grows into a tree. It was a burgundy dome. Now a crown on four short trunks
+(`look.shrubHabit` over `round`: `base` 0.2, `stems` 4, narrow `baseW`), blue-green in summer under
+plumes at every shoot tip (`smokeShare` 1, `tipN` 46), red-purple in spring, scarlet in fall. Two
+drawn sizes were wrong, both solved with `dev/cultivar-size.cjs`: 'Grace' (15 ft) drew shorter than
+the 12 ft species, and 'Royal Purple' drew a quarter taller than it (now `cw:120`). *The coppice
+habit* clothes each shoot in overlapping leaves from near its foot, the photograph's fan of leafy
+columns: `cover` 4.2 with `capMul` (a multiplier on the leaf cap), `alongBias` (leaves biased up the
+shoot, which converge at the foot), `alongAng` (held closer to the shoot), `leafTaper` (smaller
+toward the tip; `emit` takes a size for it) and `midribs:false` (dense leaves showed hidden leaves'
+midribs as stripes). A `look.newGrowth` colours each shoot's top from `flushAlong` (0.66) with a
+bronze band (`mixHex` of the two) below it, in spring and summer only; coppiced 'Grace' carries one.
+All these keys are the coppice habit's alone: every other shrub, 2,400 drawings over four seasons
+and three leaf stages, draws call for call as before. Bakes: 'Grace' 1.5 ms in summer, coppiced
+0.15-0.46 ms.
 
 **Flowering mats and pussytoes (0.9.122).** *The mossphlox habit drew a stem a full plant
 height for every flower* (moss phlox, aubretia, rock rose, periwinkle, trailing bellflower,

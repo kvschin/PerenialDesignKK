@@ -3244,6 +3244,41 @@ test('a coppiced smokebush is a stool of straight shoots: wands in winter, cut i
   assertEqual(coppiceShoot('Spring',0),0,'cut to the stool at stage 0');
   assertEqual(coppiceShoot('Winter',undefined),1,'wands at full height in winter');
 });
+/* 'Grace' (0.9.165): a small tree whose leaves flush red-purple and fade to a
+   dark blue-green, under plumes that all but cover it (Trees and Shrubs
+   Online); coppiced, a fan of shoots clothed in leaves to their feet, the top
+   of each still red with new growth. */
+test("'Grace' is a small tree under deep-pink smoke, and coppiced a fan of leafy shoots red at the tips", () => {
+  const G=plantDef('smokebush','grace'), S=plantDef('smokebush'), R=plantDef('smokebush','royalpurple');
+  const [r,g,b]=colorParts(G.sea.Summer.fol), [rs,gs]=colorParts(G.sea.Spring.fol);
+  assert(g>=r && b>=r,"'Grace' is blue-green in summer, not burgundy");
+  assert(rs>gs*1.6,'and flushes red-purple in spring');
+  // drawn at its size: taller than the 12 ft species, which 'Royal Purple' matches
+  assert(plantVisualH(G)>plantVisualH(S)*1.15,"'Grace' (15 ft) is drawn taller than the species (12 ft)");
+  assert(Math.abs(plantVisualH(R)/plantVisualH(S)-1)<0.03,"'Royal Purple' is drawn at the species' 12 ft");
+  // a crown on a few trunks: the leaves stop well above the ground, the trunks go down to it
+  const ops=recordPlant('smokebush','Summer','grace',1), H=plantVisualH(G);
+  const leaves=ops.filter(o=>o.fill&&SHRUB_TONES.some(t=>o.fill===shade(G.sea.Summer.fol,t)));
+  assert(leaves.length,'its leaves');
+  const lowest=Math.max(...leaves.flatMap(o=>o.pts.map(p=>p[1])));
+  assert(lowest<-H*0.12,`the crown stands clear of the ground (${(-lowest/H).toFixed(2)} of its height)`);
+  const stem=G.sea.Summer.twig||G.look.bark||'#6e5a48';
+  assert(ops.some(o=>o.stroke===stem&&o.pts.some(p=>p[1]>-2)),'trunks to the ground');
+  // more plumes than the species, in a deeper pink
+  const mg=smokeOps(ops,G.sea.Summer.bloom), ms=smokeOps(recordPlant('smokebush','Summer',null,1),S.sea.Summer.bloom);
+  assert(mg.stalks.pts.length>ms.stalks.pts.length,"'Grace' carries more plumes than the species");
+  // coppiced: leaves to the shoots' feet, new growth at the top in summer, none in fall
+  const C=plantDef('coppicedsmokebush','grace'), CH=plantVisualH(C), cops=recordPlant('coppicedsmokebush','Summer','grace',undefined,1);
+  const ys=col=>cops.filter(o=>o.fill&&SHRUB_TONES.some(t=>o.fill===shade(col,t))).flatMap(o=>o.pts.map(p=>p[1]));
+  const old=ys(C.sea.Summer.fol), young=ys(C.look.newGrowth);
+  assert(old.length && young.length,'mature leaves and new ones');
+  assert(Math.max(...old)>-CH*0.25,'leafy nearly to the feet of the shoots');
+  const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+  assert(mean(young)<mean(old)-CH*0.15,'the new growth is at the top');
+  assert(ys(mixHex(C.sea.Summer.fol,C.look.newGrowth,0.5)).length,'with a bronze between');
+  const fall=recordPlant('coppicedsmokebush','Fall','grace',undefined,1,LEAF_FULL);
+  assert(!fall.some(o=>o.fill&&SHRUB_TONES.some(t=>o.fill===shade(C.look.newGrowth,t))),'no new growth in fall');
+});
 test('the smokebush family carries its sources', () => {
   const doc=JSON.parse(readRepoFile('docs/plant-data/smokebush-sources.json'));
   for (const [ref,row] of Object.entries(doc.plants)){

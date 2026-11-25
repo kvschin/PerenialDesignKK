@@ -6601,14 +6601,17 @@ const SHRUB_HABITS = {
              tips:30, tipFrom:0.28, rim:0.9, rise:0.76, fork:0.72, three:0.2, bend:-0.3, crook:0.05, arch:0.0, pipe:0.55,
              clumpR:0.14, squash:0.90, hang:0.0, cover:0.88, wash:0.72, fill:0.24, twigs:2, twigLen:0.05},
   // cut to a stool every late winter: straight unbranched shoots of one year's
-  // growth spring from the stubs, fanning out a little, leafy nearly to their
-  // feet, and stand bare through winter until the next cut (a coppiced
-  // smokebush). A stem each, so no shoot forks; the stool is drawn by
-  // drawCoppiceStool and look.stoolIn says how high it is.
-  coppice:  {base:0.04, top:1.00, w:0.40, p:0.76, eLo:1.2, eHi:2.4, lo:0.26, stems:60, baseW:0.07,
-             tips:17, tipFrom:0.5, rim:0.5, rise:1.0, fork:1.0, three:0, bend:-0.15, crook:0.05, arch:0.0, pipe:0.6,
-             clumpR:0.10, squash:0.90, hang:0.02, cover:1.1, wash:0, fill:0.06, alongCane:0.8, alongFrom:0.14,
-             twigs:0, twigLen:0.04},
+  // growth spring from the stubs, fanning out from a narrow foot, clothed in
+  // overlapping leaves nearly to their feet, smaller toward each tip (leafTaper),
+  // and stand bare through winter until the next cut (a coppiced smokebush). A
+  // stem each, so no shoot forks; the stool is drawn by drawCoppiceStool and
+  // look.stoolIn says how high it is. A look.newGrowth colours each shoot's
+  // top from flushAlong of its length, the leaves still coming, in spring and
+  // summer.
+  coppice:  {base:0.04, top:1.00, w:0.42, p:0.80, eLo:1.1, eHi:2.6, lo:0.22, stems:60, baseW:0.07,
+             tips:26, tipFrom:0.55, rim:0.5, rise:1.0, fork:1.0, three:0, bend:-0.15, crook:0.04, arch:0.0, pipe:0.6,
+             clumpR:0.07, squash:0.90, hang:0.02, cover:4.2, capMul:1.7, wash:0, fill:0.08, alongCane:0.9, alongFrom:0.05, alongBias:0.7, alongAng:0.75,
+             leafTaper:0.42, flushAlong:0.66, midribs:false, twigs:0, twigLen:0.04},
 };
 const SHRUB_TONES=[-26,-13,-2,10,22];
 // the share of a shrub's tips that carry a flower head, by bloom style
@@ -6942,7 +6945,7 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
     // they get a larger allowance before the leaflets start to grow
     // (and small leaves, two curves apiece, a larger one again: a fine-leaved
     // yaupon covers its crown with leaves, not with its underwash)
-    const cap=lets>1 ? SH_LEAF_CAP*1.6 : SH_LEAF_CAP*Math.max(1,Math.min(2,9/Math.max(1,ll)));
+    const cap=(lets>1 ? SH_LEAF_CAP*1.6 : SH_LEAF_CAP*Math.max(1,Math.min(2,9/Math.max(1,ll))))*(hb.capMul||1);
     let units=Math.max(Math.ceil(30/lets), Math.min(Math.floor(cap/lets), Math.round(want)));
     /* Past the cap the leaves grow, but only so far: a big shrub's cost is
        the AREA its leaves fill (measured, a 22 ft cherry laurel's leaves
@@ -6961,13 +6964,17 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
     const pick=o.mix ? fallColourPicker(fol, o.mix, seed, 0, yMid, W, half) : null;
     const cols=[fol];
     if (pick) for (const c of o.mix) if (cols.indexOf(c)<0 && cols.length<7) cols.push(c);
-    const flush=L.newGrowth && o.season!=='Winter' && !emerging;
+    const shootFlush=hb.flushAlong!==undefined;
+    const flush=L.newGrowth && o.season!=='Winter' && !emerging && !(shootFlush && o.season==='Fall');
     const flushIx=flush ? (cols.indexOf(L.newGrowth)<0 && cols.length<8 ? cols.push(L.newGrowth)-1 : cols.indexOf(L.newGrowth)) : -1;
+    // a shoot's leaves turn from new to mature by way of a bronze between
+    const midCol=flushIx>=0 && shootFlush && /^#[0-9a-f]{6}$/i.test(fol) && /^#[0-9a-f]{6}$/i.test(L.newGrowth) ? mixHex(fol,L.newGrowth,0.5) : null;
+    const midIx=midCol && cols.length<8 ? cols.push(midCol)-1 : -1;
     const colIx=c=>{ const i=cols.indexOf(c); return i<0 ? 0 : i; };
     const toneOf=g=>g<-0.48 ? 0 : g<-0.14 ? 1 : g<0.2 ? 2 : g<0.54 ? 3 : 4;
     _shN=0; _shRN=0;
     const reach=pinn ? rach*0.7+lll : tri ? lll : ll*0.68;
-    const emit=(px,py,ang,tone,ci)=>{
+    const emit=(px,py,ang,tone,ci,sc)=>{
       // nothing grows into the ground: a leaf at the foot of a low mound that
       // would reach below grade is turned up instead
       py=Math.min(py,-1);
@@ -6988,7 +6995,8 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
       } else if (tri){
         for (let l=-1;l<=1;l++){ const la2=ang+l*0.62, len=lll*(l?0.86:1);
           shLeafPush(px,py,px+Math.cos(la2)*len,py+Math.sin(la2)*len,lhw*bwK*(l?0.9:1),bucket,palm); }
-      } else shLeafPush(px-ca*ll*0.32,py-sa*ll*0.32,px+ca*ll*0.68,py+sa*ll*0.68,lw*bwK,bucket,palm);
+      } else if (sc!==undefined) shLeafPush(px-ca*ll*0.32*sc,py-sa*ll*0.32*sc,px+ca*ll*0.68*sc,py+sa*ll*0.68*sc,lw*bwK*sc,bucket,palm);
+      else shLeafPush(px-ca*ll*0.32,py-sa*ll*0.32,px+ca*ll*0.68,py+sa*ll*0.68,lw*bwK,bucket,palm);
     };
     const nFill=Math.round(units*hb.fill), nTip=units-nFill;
     // where a leaf may sit: inside the outline (a leaf's own length past it at
@@ -7024,14 +7032,18 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
       // breaks the outline where a clump would round it off
       const along=hb.alongCane ? Math.round(cnt*hb.alongCane) : 0;
       for (let j=0;j<along;j++){
-        const t=hb.alongFrom===undefined ? 0.3+0.7*leaf() : hb.alongFrom+(1-hb.alongFrom)*leaf(), u=1-t, sd=(j&1)?1:-1, jt=leaf();
+        const t=hb.alongFrom===undefined ? 0.3+0.7*leaf() : hb.alongFrom+(1-hb.alongFrom)*(hb.alongBias ? Math.pow(leaf(),hb.alongBias) : leaf()), u=1-t, sd=(j&1)?1:-1, jt=leaf();
         const px=u*u*tpx[i]+2*u*t*tqx[i]+t*t*tx[i], py=Math.max(topY,u*u*tpy[i]+2*u*t*tqy[i]+t*t*ty[i]);
         const dx=2*u*(tqx[i]-tpx[i])+2*t*(tx[i]-tqx[i]), dy=2*u*(tqy[i]-tpy[i])+2*t*(ty[i]-tqy[i]);
-        const ang=Math.atan2(dy,dx)+sd*(0.75+jt*0.5)+(hb.droop||0)*0.3;
+        const ang=Math.atan2(dy,dx)+sd*(0.75+jt*0.5)*(hb.alongAng||1)+(hb.droop||0)*0.3;
         const gl=glob(px,py)*0.55+(sd<0 ? 0.25 : -0.15)+ct+(leaf()-0.5)*0.45;
         const c=pick ? pick(px,py) : fol;
         if (!up(ph)) continue;
-        emit(px,py,ang,toneOf(gl*contrast),colIx(c));
+        if (hb.leafTaper){
+          let ci=colIx(c);
+          if (flushIx>=0 && shootFlush) ci=t>hb.flushAlong ? flushIx : (midIx>=0 && t>hb.flushAlong-0.14) ? midIx : ci;
+          emit(px,py,ang,toneOf(gl*contrast),ci,1-hb.leafTaper*t*t);
+        } else emit(px,py,ang,toneOf(gl*contrast),colIx(c));
       }
       for (let j=along;j<cnt;j++){
         const a=leaf()*Math.PI*2, rr=rc*Math.sqrt(leaf());
@@ -7042,9 +7054,10 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
         const ul=(dx/rc)*LIT.x+(dy/rc)*LIT.y;
         const gl=glob(px,py)*0.55+ul*0.6+ct+(leaf()-0.5)*0.45;
         let c=pick ? pick(px,py) : fol, ci=colIx(c);
-        if (flushIx>=0 && rr>rc*0.55 && dy<0) ci=flushIx;
+        if (flushIx>=0 && (shootFlush || (rr>rc*0.55 && dy<0))) ci=flushIx;
         if (!up(ph)) continue;
-        emit(px,py,ang,toneOf(gl*contrast),ci);
+        if (hb.leafTaper) emit(px,py,ang,toneOf(gl*contrast),ci,1-hb.leafTaper);
+        else emit(px,py,ang,toneOf(gl*contrast),ci);
       }
     });
     // the underwash, inside the outline, under everything: what makes a shrub
@@ -7106,7 +7119,7 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
       ctx.fillStyle=shade(cols[ci],SHRUB_TONES[t]*contrast); ctx.fill();
     }
     // midribs on the most lit leaves, where the light catches one
-    if (ll>=11 && !palm){
+    if (ll>=11 && !palm && hb.midribs!==false){
       ctx.save(); ctx.globalAlpha=0.38; ctx.strokeStyle=shade(fol,-30); ctx.lineWidth=Math.max(0.5,lw*0.14); ctx.beginPath();
       for (let n=0;n<_shN;n++){
         if (_shB[n]%5<4) continue;

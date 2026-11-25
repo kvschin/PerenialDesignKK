@@ -1,12 +1,13 @@
 {
   "reviewed": "2026-11-24",
-  "note": "The smokebush family of 0.9.164: how the smoke is drawn (drawSmokePlumes, look.smoke) and the Coppiced choice (look.coppice, the 'coppice' shrub habit). The shrub and tree sizes were already in the catalog and are MBG's; the coppiced sizes are estimates from the regrowth sources, recorded per row. Every coppiced drawing was solved from its species with dev/cultivar-size.cjs.",
+  "note": "The smokebush family of 0.9.164: how the smoke is drawn (drawSmokePlumes, look.smoke) and the Coppiced choice (look.coppice, the 'coppice' shrub habit). The shrub and tree sizes were already in the catalog and are MBG's; the coppiced sizes are estimates from the regrowth sources, recorded per row. Every coppiced drawing was solved from its species with dev/cultivar-size.cjs. 0.9.165 redrew 'Grace' from the gardener's photographs and Trees and Shrubs Online, and fixed two drawn sizes ('Grace' drawn shorter than the 12 ft species, 'Royal Purple' drawn taller).",
   "sources": {
     "mbg": "Missouri Botanical Garden Plant Finder, https://plantfinder.mobot.org/PlantFinderDetails.aspx?taxonid=<id> (Cotinus coggygria 275949, 'Royal Purple' 244021, GOLDEN SPIRIT 256751, 'Young Lady' 258851, 'Velvet Cloak' 244022, 'Daydream' 244020, Cotinus obovatus 275955), read 2026-11-24",
     "tso": "Trees and Shrubs Online, https://www.treesandshrubsonline.org/articles/cotinus/cotinus-coggygria/, /cotinus-obovatus/ and /cotinus-coggygria-x-obovatus/, read 2026-11-24",
     "rhs": "Royal Horticultural Society, Pruning for colourful stems or large foliage, https://www.rhs.org.uk/plants/types/shrubs/colourful-stems-large-foliage, read 2026-11-24",
     "finegardening": "Fine Gardening, How to Prune Smoke Bush, https://www.finegardening.com/project-guides/pruning/how-to-prune-smoke-bush, read 2026-11-24",
-    "wikipedia": "Wikipedia, Cotinus (citing the Sunset Western Garden Book, 1995), https://en.wikipedia.org/wiki/Cotinus, read 2026-11-24"
+    "wikipedia": "Wikipedia, Cotinus (citing the Sunset Western Garden Book, 1995), https://en.wikipedia.org/wiki/Cotinus, read 2026-11-24",
+    "grace": "Nursery listings for Cotinus 'Grace' found by search 2026-11-24: Monrovia and Grange Co-op 12-15 ft tall and wide; Fine Gardening and the Cornell Woody Plants Database 10-15 ft; RHS 4-8 m tall, 2.5-4 m wide. Monrovia refused an automated read, so its figure is the search result's."
   },
   "smoke": {
     "what": "mbg: the smoke is not the flowers (tiny, yellowish, in terminal panicles 6-8 in long) but 'billowy hairs (attached to elongated stalks on the spent flower clusters) which turn a smokey pink to purplish pink in summer, thus covering the tree with fluffy, hazy, smoke-like puffs throughout summer'. tso: 'Fruiting panicle 15-20 cm tall, much branched and usually with long silky hairs after anthesis, typically pinkish to yellowish then pale greyish'; the hairs are 'light-trapping' and 'will always give this a silvery cast'.",
@@ -14,23 +15,86 @@
     "season": "bloomMonths 6-8 for smokebush (mbg: 'throughout summer'); in Fall the plumes are drawn faded to grey in the seed colour, fewer, and thinning as the leaves drop; nothing in Winter (the old Winter seed colour drew brown berries on the bare twigs).",
     "obovatus": "tso: panicle c. 30 cm, 'more open and less showy than that of C. coggygria'; the heads 'do not ramify as densely and showily'; female trees hold theirs longer. Drawn with smokeOpen 0.7 (five wider-set lobes), smokeShare 0.55, smokeLen 1.45.",
     "goldenSpirit": "mbg: 'There are questions ... as to whether GOLDEN SPIRIT should be expected to flower and smoke in the garden'; its patent records no flowering in four years, though nurseries report some. Drawn with smokeShare 0.18.",
-    "grace": "tso: 'Huge, deep-pink seed heads'; a hybrid of C. coggygria 'Velvet Cloak' and C. obovatus raised by Peter Dummer at Hillier in 1978, conventionally named Cotinus 'Grace'. Drawn with smokeLen 1.2 and a deeper pink."
+    "grace": "tso: 'The leaves, which are slightly larger than those of typical C. coggygria, flush a vibrant red-purple and fade slowly towards a subtle, dark blue-green; their scarlet autumn colour has the depth and richness of the American parent; the flower- and seed-heads are huge and deep pink. The plant shows hybrid vigour' (one at Kew 8 m tall with a trunk 32 cm thick). Drawn as a small tree: the crown on a few short trunks (look.shrubHabit base 0.2, four stems), red-purple in spring fading to blue-green, plumes at every shoot tip (smokeShare 1, tipN 46) in a deep pink, scarlet in fall."
   },
   "coppice": {
     "what": "finegardening: cut the stems back in winter to 6-8 in stubs, 'and can be done every year if you wish'. rhs: Cotinus is among the shrubs hard pruned for large leaves, in late winter or early spring. tso: 'Since Smokebushes flower from second-year wood, coppicing them annually destroys the display of seed-heads'; they 'respond to pruning with very vigorous and somewhat wayward shoots'. wikipedia (Sunset): 'first-year shoots up to 2 m tall with large handsome leaves, but no smoke'. mbg: 'stems may be cut back hard in early spring to a framework to induce growth of vigorous new shoots with larger than normal leaves'.",
-    "drawn": "Winter: last summer's straight, bare shoots. Spring: at leaf stage 0 only the stool of stubs (stoolIn 7), then the shoots come up through the stages (COPPICE_SHOOT) to full height in Summer. Leaves leafHW 2.2 against the shrub's 1.35, about 1.6x as large. No bloom or seed in any season."
+    "drawn": "Winter: last summer's straight, bare shoots. Spring: at leaf stage 0 only the stool of stubs (stoolIn 7), then the shoots come up through the stages (COPPICE_SHOOT) to full height in Summer. Leaves leafHW 2.2 against the shrub's 1.35, about 1.6x as large. No bloom or seed in any season. Since 0.9.165 the shoots are clothed in overlapping leaves from near their feet (cover 4.2, alongBias 0.7, leaves held closer to the shoot), smaller toward each tip (leafTaper 0.42), and a look.newGrowth colours each shoot's top third in spring and summer.",
+    "grace": "The gardener's photograph of a coppiced 'Grace' shows a fan of straight shoots clothed in overlapping leaves nearly to the ground, dark blue-green below and red to orange-red over the top third, the leaves smaller toward each tip. Drawn with the coppice habit's leafTaper, alongBias and flushAlong, look.newGrowth for the red, a bronze mixed between."
   },
   "plants": {
-    "smokebush": {"source": "mbg 275949", "heightIn": 144, "spread": 144, "zones": [5, 8], "estimates": "mbg: 10-15 ft tall and wide; kept at the catalog's 12 ft."},
-    "smokebush|royalpurple": {"source": "mbg 244021", "heightIn": 144, "spread": 180, "estimates": "mbg: 10-15 ft tall, 15-20 ft wide; 'showy purplish puffs follow yellow flowers'."},
-    "smokebush|goldenspirit": {"source": "mbg 256751", "heightIn": 120, "spread": 120, "estimates": "mbg: 8-15 ft; flowering doubtful (see smoke.goldenSpirit)."},
-    "smokebush|grace": {"source": "tso coggygria x obovatus", "heightIn": 180, "spread": 144, "estimates": "The catalog's 15 ft; tso records 'arborescent if not coppiced'."},
-    "smokebush|younglady": {"source": "mbg 258851", "heightIn": 60, "spread": 60, "zones": [4, 8], "estimates": "mbg: 4-6 ft over the first 10 years, more floriferous than the species."},
-    "coppicedsmokebush": {"source": "wikipedia; finegardening; tso", "heightIn": 66, "spread": 48, "estimates": "Shoots 'up to 2 m' in a season (wikipedia); a typical annually cut plant taken at 5.5 ft tall and 4 ft across. The width is an estimate: one season's shoots fan out from a stool, narrower than the shrub."},
-    "coppicedsmokebush|royalpurple": {"source": "wikipedia; mbg 244021", "heightIn": 66, "spread": 48, "estimates": "As the species coppiced."},
-    "coppicedsmokebush|grace": {"source": "tso coggygria x obovatus; wikipedia", "heightIn": 84, "spread": 60, "estimates": "The most vigorous Cotinus, half C. obovatus (tso); taken at 7 ft and 5 ft across, the top of the coppiced range."},
-    "coppicedsmokebush|goldenspirit": {"source": "mbg 256751; wikipedia", "heightIn": 54, "spread": 42, "estimates": "Slower than the green and purple forms (mbg gives it the smallest range of the three); taken at 4.5 ft."},
-    "smoketree": {"source": "mbg 275955; tso cotinus-obovatus", "heightIn": 300, "spread": 240, "zones": [4, 8], "estimates": "mbg: 20-30 ft; kept at the catalog's 25 ft."}
+    "smokebush": {
+      "source": "mbg 275949",
+      "heightIn": 144,
+      "spread": 144,
+      "zones": [
+        5,
+        8
+      ],
+      "estimates": "mbg: 10-15 ft tall and wide; kept at the catalog's 12 ft."
+    },
+    "smokebush|royalpurple": {
+      "source": "mbg 244021",
+      "heightIn": 144,
+      "spread": 180,
+      "estimates": "mbg: 10-15 ft tall, 15-20 ft wide; 'showy purplish puffs follow yellow flowers'. Drawn cw:120 (solved), so it stands at the species' 12 ft; with the species' cw it was drawn a quarter taller."
+    },
+    "smokebush|goldenspirit": {
+      "source": "mbg 256751",
+      "heightIn": 120,
+      "spread": 120,
+      "estimates": "mbg: 8-15 ft; flowering doubtful (see smoke.goldenSpirit)."
+    },
+    "smokebush|grace": {
+      "source": "tso coggygria x obovatus; grace",
+      "heightIn": 180,
+      "spread": 168,
+      "estimates": "15 ft tall and 14 ft across, the top of the nurseries' 12-15 ft; tso records 'arborescent if not coppiced'. Drawn h:83 cw:112, solved with dev/cultivar-size.cjs (it was h:74, drawn shorter than the species)."
+    },
+    "smokebush|younglady": {
+      "source": "mbg 258851",
+      "heightIn": 60,
+      "spread": 60,
+      "zones": [
+        4,
+        8
+      ],
+      "estimates": "mbg: 4-6 ft over the first 10 years, more floriferous than the species."
+    },
+    "coppicedsmokebush": {
+      "source": "wikipedia; finegardening; tso",
+      "heightIn": 66,
+      "spread": 48,
+      "estimates": "Shoots 'up to 2 m' in a season (wikipedia); a typical annually cut plant taken at 5.5 ft tall and 4 ft across. The width is an estimate: one season's shoots fan out from a stool, narrower than the shrub."
+    },
+    "coppicedsmokebush|royalpurple": {
+      "source": "wikipedia; mbg 244021",
+      "heightIn": 66,
+      "spread": 48,
+      "estimates": "As the species coppiced."
+    },
+    "coppicedsmokebush|grace": {
+      "source": "tso coggygria x obovatus; wikipedia; the gardener's photograph",
+      "heightIn": 84,
+      "spread": 72,
+      "estimates": "The most vigorous Cotinus, half C. obovatus (tso); taken at 7 ft and 6 ft across the top of its fan, as the photograph shows."
+    },
+    "coppicedsmokebush|goldenspirit": {
+      "source": "mbg 256751; wikipedia",
+      "heightIn": 54,
+      "spread": 42,
+      "estimates": "Slower than the green and purple forms (mbg gives it the smallest range of the three); taken at 4.5 ft."
+    },
+    "smoketree": {
+      "source": "mbg 275955; tso cotinus-obovatus",
+      "heightIn": 300,
+      "spread": 240,
+      "zones": [
+        4,
+        8
+      ],
+      "estimates": "mbg: 20-30 ft; kept at the catalog's 25 ft."
+    }
   },
   "notLeftIn": {
     "coppiced American smoketree": "No source found describing C. obovatus grown coppiced; its hybrid 'Grace' is offered coppiced instead."
