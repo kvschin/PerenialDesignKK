@@ -194,10 +194,10 @@ for (let i=0;i<=RAY_N;i++){ const t=i/RAY_N;
 function drawLeaf(ctx, bx,by, tx,ty, hw, col, opt){
   opt=opt||{};
   if (_snowLeaves && !opt.overlay) _snowLeaves.push([bx+(tx-bx)*0.68, by+(ty-by)*0.68, Math.min(hw*0.48,Math.hypot(tx-bx,ty-by)*0.3)]);
-  if (opt.shape==='palmate'||opt.shape==='sagittate'){
+  if (opt.shape==='palmate'||opt.shape==='sagittate'||opt.shape==='lobed3'){
     // These blades have deep sinuses, which a tapered ribbon cannot express.
     const dx=tx-bx,dy=ty-by,len=Math.sqrt(dx*dx+dy*dy)||1;
-    const points=opt.shape==='palmate'?PALMATE_OUTLINE:SAGITTATE_OUTLINE;
+    const points=opt.shape==='palmate'?PALMATE_OUTLINE:opt.shape==='lobed3'?LOBED3_OUTLINE:SAGITTATE_OUTLINE;
     ctx.save();ctx.translate(bx,by);ctx.rotate(Math.atan2(dy,dx)+Math.PI/2);
     ctx.beginPath();
     for(let j=0;j<points.length;j+=2){
@@ -209,7 +209,7 @@ function drawLeaf(ctx, bx,by, tx,ty, hw, col, opt){
     else litFill(ctx,0,-len*0.4,Math.max(hw,len*0.5),col);
     ctx.strokeStyle=shade(col,-24);ctx.lineWidth=0.5;ctx.beginPath();
     ctx.moveTo(0,0);ctx.lineTo(0,-len*0.86);
-    for(const side of [-1,1]){ctx.moveTo(0,0);ctx.lineTo(side*hw*0.8,-len*(opt.shape==='palmate'?0.57:0.02));}
+    for(const side of [-1,1]){ctx.moveTo(0,0);ctx.lineTo(side*hw*0.8,-len*(opt.shape==='palmate'?0.57:opt.shape==='lobed3'?0.27:0.02));}
     ctx.stroke();ctx.restore();return;
   }
   const S=LEAF_SHAPES[opt.shape]||LEAF_SHAPES.lance;
@@ -235,6 +235,10 @@ function drawLeaf(ctx, bx,by, tx,ty, hw, col, opt){
 }
 
 const PALMATE_OUTLINE=[0,0,-0.68,0.02,-1,-0.28,-0.52,-0.32,-0.86,-0.72,-0.28,-0.55,0,-1,0.28,-0.55,0.86,-0.72,0.52,-0.32,1,-0.28,0.68,0.02];
+// a three-lobed, maple-like leaf with a long toothed middle lobe (ninebark,
+// leafShape:'lobed3'): the same twelve points as the palmate one, so it costs
+// the same to draw
+const LOBED3_OUTLINE=[0,0,-0.56,0.03,-0.96,-0.3,-0.64,-0.42,-0.6,-0.7,-0.3,-0.72,0,-1,0.3,-0.72,0.6,-0.7,0.64,-0.42,0.96,-0.3,0.56,0.03];
 const SAGITTATE_OUTLINE=[0,0,-1,0.24,-0.55,-0.34,0,-1,0.55,-0.34,1,0.24];
 
 // A few readable petals rather than a spray of anonymous dots. All counts are
@@ -6615,7 +6619,7 @@ const SHRUB_HABITS = {
 };
 const SHRUB_TONES=[-26,-13,-2,10,22];
 // the share of a shrub's tips that carry a flower head, by bloom style
-const SHRUB_HEAD_SHARE={bareStem:0.85, stemAxil:0.6, spray:0.8, flatCorymb:0.75, rose:0.5, scattered:0.5,
+const SHRUB_HEAD_SHARE={bareStem:0.85, stemAxil:0.6, spray:0.8, flatCorymb:0.75, corymb:0.85, rose:0.5, scattered:0.5,
   whorls:0.4, bottlebrush:0.5, powderpuff:0.5, truss:0.45, looseCluster:0.5, panicle:0.5,
   raceme:0.5, pendantRaceme:0.5, droopingRaceme:0.5};
 const _shrubHabitFor=new WeakMap();
@@ -6662,7 +6666,8 @@ let _shN=0, _shRN=0;
 const _shCount=new Uint16Array(64), _shStart=new Uint16Array(64);
 function shLeafPush(x0,y0,x1,y1,w,bucket,palm){
   if (_shN>=SH_MAX) return;
-  const k=_shN*5; _shL[k]=x0; _shL[k+1]=y0; _shL[k+2]=x1; _shL[k+3]=y1; _shL[k+4]=w; _shB[_shN]=bucket; _shP[_shN]=palm?1:0; _shN++;
+  // palm: 0 a plain leaf, 1 the palmate outline, 2 the three-lobed one
+  const k=_shN*5; _shL[k]=x0; _shL[k+1]=y0; _shL[k+2]=x1; _shL[k+3]=y1; _shL[k+4]=w; _shB[_shN]=bucket; _shP[_shN]=palm===2?2:palm?1:0; _shN++;
 }
 // the area of a habit's outline as a share of (2W x span), once per habit
 function shrubHWTable(hb){
@@ -6957,7 +6962,7 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
     const em=(emerging ? 0.35+0.65*la : 1)*(0.75+0.25*growth);
     lw*=grow2*em; ll*=grow2*em; lhw*=grow2*em; lll*=grow2*em; rach*=grow2*em;
     const shapeName=L.leafShape==='round' ? 'ovate' : L.leafShape;
-    const SH=LEAF_SHAPES[shapeName]||LEAF_SHAPES.ovate, palm=L.leafShape==='palmate';
+    const SH=LEAF_SHAPES[shapeName]||LEAF_SHAPES.ovate, palm=L.leafShape==='palmate' ? 1 : L.leafShape==='lobed3' ? 2 : 0;
     const bwK=palm ? 1 : (shapeName==='linear' ? 0.62 : L.leafShape==='round' ? 1.05 : 0.85);
     const contrast=L.gloss ? 1.15 : 1;
     // colours: the season's, a fall palette's patches, a red flush of new growth
@@ -6965,7 +6970,10 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
     const cols=[fol];
     if (pick) for (const c of o.mix) if (cols.indexOf(c)<0 && cols.length<7) cols.push(c);
     const shootFlush=hb.flushAlong!==undefined;
-    const flush=L.newGrowth && o.season!=='Winter' && !emerging && !(shootFlush && o.season==='Fall');
+    // a deciduous shrub's new growth has hardened off by fall and turns with
+    // the rest (an 'Amber Jubilee' ninebark goes purple, not orange-tipped);
+    // an evergreen photinia or pieris goes on flushing
+    const flush=L.newGrowth && o.season!=='Winter' && !emerging && !(o.season==='Fall' && (shootFlush || !L.evergreen));
     const flushIx=flush ? (cols.indexOf(L.newGrowth)<0 && cols.length<8 ? cols.push(L.newGrowth)-1 : cols.indexOf(L.newGrowth)) : -1;
     // a shoot's leaves turn from new to mature by way of a bronze between
     const midCol=flushIx>=0 && shootFlush && /^#[0-9a-f]{6}$/i.test(fol) && /^#[0-9a-f]{6}$/i.test(L.newGrowth) ? mixHex(fol,L.newGrowth,0.5) : null;
@@ -7099,10 +7107,10 @@ function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
         const n=_shO[m], k=n*5, x0=_shL[k], y0=_shL[k+1], x1=_shL[k+2], y1=_shL[k+3], bw=_shL[k+4];
         const dx=x1-x0, dy=y1-y0, len=Math.sqrt(dx*dx+dy*dy)||1;
         if (_shP[n]){
-          // a lobed leaf (an oakleaf hydrangea's): the palmate outline, turned
-          const c=dx/len, s=dy/len;
-          for (let j=0;j<PALMATE_OUTLINE.length;j+=2){
-            const u=PALMATE_OUTLINE[j]*bw, v=-PALMATE_OUTLINE[j+1]*len;
+          // a lobed leaf (an oakleaf hydrangea's, a ninebark's): its outline, turned
+          const c=dx/len, s=dy/len, OL=_shP[n]===2 ? LOBED3_OUTLINE : PALMATE_OUTLINE;
+          for (let j=0;j<OL.length;j+=2){
+            const u=OL[j]*bw, v=-OL[j+1]*len;
             const px=x0+c*v-s*u, py=y0+s*v+c*u;
             j ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
           }
@@ -7427,6 +7435,86 @@ function shrubFlowerB(ctx,cx,cy,r,col,shape,rnd,ang,accent,petalCount){
       shade(col,ring?12:0),{squash:shape==='star'?0.56:0.76,rot:a,pass:ring*2,hl:false});
   }
   floretRaw(cx,cy,r*(shape==='calico'?0.34:0.3),accent||(shape==='calico'?shade(col,-34):shade(col,20)),{squash:1,pass:4});
+}
+
+/* ---------- corymbs along the canes (bloomStyle 'corymb', 0.9.170) ----------
+   A ninebark flowers on short side shoots all along last year's arching canes,
+   each ending in a domed corymb an inch or two across, so a shrub in bloom is
+   covered in white or pale pink balls from the arch of every cane to its tip
+   (and 'cluster', a few florets at each twig end, drew it as a scatter of
+   specks). The pink is the buds and the anthers. After the flowers the same
+   places carry the fruit, a drooping knot of inflated pods, red through summer
+   and brown by winter, which hangs on into spring (seedStyle 'follicles').
+   corymbSites lays the heads out once per draw, on a stream of their own, so a
+   head stands in one place whether it is a bud, a flower or a knot of pods:
+   look.headsAlong heads to each flowering twig, the terminal one at its end and
+   the rest down the cane as far as look.headsFrom of its length, most of them
+   on its upper side; look.clusterR is a head's radius. Habit renderer only:
+   the classic fan keeps the 'cluster' drawing. Batched like the other shrub
+   flowers, an open head is six ellipses and a knot of pods four, unrotated:
+   rotated, the pods were a millisecond of every fall and winter bake. */
+function corymbSites(tips, L, seed){
+  const r=mulberry((seed^0xc0a7b)>>>0), per=Math.max(1,Math.min(8,Math.round(L.headsAlong||1)));
+  const R=L.clusterR||2.6, from=L.headsFrom===undefined ? 0.3 : Math.max(0,Math.min(0.9,L.headsFrom));
+  const n=tips.length*per, xs=new Float64Array(n), ys=new Float64Array(n), rs=new Float64Array(n);
+  for (let i=0;i<tips.length;i++) for (let j=0;j<per;j++){
+    const q=i*per+j, jt=r(), up=r(), sz=r(), sl=r();
+    const t=per===1||!j ? 1 : Math.min(0.95, 1-(1-from)*(j-0.35+jt*0.7)/(per-1));
+    shrubTwigAt(tips[i],Math.max(0,t-0.05)); const bx=_saX, by=_saY;
+    shrubTwigAt(tips[i],t); const x=_saX, y=_saY;
+    let dx=x-bx, dy=y-by; const l=Math.hypot(dx,dy)||1; dx/=l; dy/=l;
+    let nx=-dy, ny=dx; if (ny>0){ nx=-nx; ny=-ny; }
+    // the side shoots alternate along the cane, so the heads stand first on
+    // its upper side and then hang a little below it, never in a row
+    const s=R*(j ? 0.72+sz*0.46 : 1.1), side=j ? ((j&1) ? 0.95+up*0.45 : -(0.55+up*0.35)) : 0.3;
+    xs[q]=x+nx*s*side+dx*(sl-0.5)*s; ys[q]=Math.min(-s, y+ny*s*side+dy*(sl-0.5)*s); rs[q]=s;
+  }
+  return {xs, ys, rs, per, tips:tips.length};
+}
+// an open corymb: its shaded underside, the lit dome of florets with a gap or
+// two between them, the florets catching the light, and two touches of pink
+// from a bud or the anthers (`eye`)
+function corymbHeadB(x,y,r,col,eye,k){
+  const a=k*2.39996;
+  fbEllipse(0,shade(col,-30),x+r*0.1,y+r*0.12,r,r*0.86,0);
+  fbEllipse(1,shade(col,-4),x+LIT.x*r*0.22,y+LIT.y*r*0.22,r*0.8,r*0.68,0);
+  fbEllipse(2,shade(col,-20),x+Math.cos(a+1.3)*r*0.34,y+Math.sin(a+1.3)*r*0.3,r*0.17,r*0.15,0);
+  fbEllipse(3,shade(col,16),x+LIT.x*r*0.46,y+LIT.y*r*0.46,r*0.36,r*0.3,0);
+  if (eye){
+    fbEllipse(4,eye,x+Math.cos(a)*r*0.44,y+Math.sin(a)*r*0.36,r*0.14,r*0.12,0);
+    fbEllipse(4,eye,x+Math.cos(a+2.7)*r*0.5,y+Math.sin(a+2.7)*r*0.4,r*0.12,r*0.1,0);
+  }
+}
+// a corymb still in bud: smaller and tight, pink in most ninebarks
+function corymbBudB(x,y,r,col){
+  fbEllipse(0,shade(col,-24),x+r*0.1,y+r*0.1,r,r*0.86,0);
+  fbEllipse(1,shade(col,10),x+LIT.x*r*0.3,y+LIT.y*r*0.3,r*0.56,r*0.46,0);
+}
+// a corymb gone to seed: a knot of inflated pods hanging a little, the one
+// behind in shadow, two in front, a glint on the lit one
+function corymbPodsB(x,y,r,col,k){
+  const s=(k&1) ? 1 : -1;
+  y+=r*0.3;
+  fbEllipse(0,shade(col,-22),x+s*r*0.28,y-r*0.16,r*0.5,r*0.42,0);
+  fbEllipse(1,shade(col,2),x-s*r*0.3,y,r*0.5,r*0.44,0);
+  fbEllipse(1,shade(col,-8),x+s*r*0.2,y+r*0.22,r*0.48,r*0.4,0);
+  fbEllipse(2,shade(col,26),x-s*r*0.3+LIT.x*r*0.2,y+LIT.y*r*0.2,r*0.2,r*0.16,0);
+}
+// the heads of the twigs in flower (the first nOpen), and before the flowers
+// open the buds on the rest
+function corymbBloom(c, nOpen, col, eye, budCol, before){
+  for (let i=0;i<c.tips;i++) for (let j=0;j<c.per;j++){
+    const q=i*c.per+j;
+    if (i<nOpen) corymbHeadB(c.xs[q],c.ys[q],c.rs[q],col,eye,q);
+    else if (before) corymbBudB(c.xs[q],c.ys[q],c.rs[q]*0.62,budCol);
+  }
+}
+// the pods, on the twigs not in flower (from `from`), fewer once some have
+// shattered (`keep`). Not every flower head sets a knot you can see from the
+// path, and the pods were most of a bake's cost, so they take alternate heads.
+function corymbFruit(c, from, col, keep){
+  const to=Math.ceil(c.tips*keep);
+  for (let i=from;i<to;i++) for (let j=i&1;j<c.per;j+=2){ const q=i*c.per+j; corymbPodsB(c.xs[q],c.ys[q],c.rs[q],col,q); }
 }
 
 /* ---------- procedural plant renderer ----------
@@ -13778,6 +13866,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         }
       }
       } // end of the classic fan
+      // a ninebark's corymbs stand along its flowering canes: one place for each
+      // head, shared by the buds, the flowers and the pods (corymbSites)
+      const cory=sh && mature && L.bloomStyle==='corymb' ? corymbSites(tips,L,seed) : null;
       if (blooming && mature){
         const heads=tips.slice(0,Math.max(1,Math.ceil(tips.length*blv)));
         if (L.bloomStyle==='whorls'){
@@ -13907,7 +13998,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*14);
               const fx=cx+(rnd()-0.5)*3, fy=cy+(rnd()-0.5)*2.5;
               ctx.beginPath(); ctx.ellipse(fx, fy, 2.1,1.9,0,0,7); ctx.fill(); } } });
-        } else if (L.bloomStyle==='cluster'){ // domed corymbs/cymes (ninebark, spirea, viburnum)
+        } else if (cory){
+          // in spring the twigs not yet in flower are in bud
+          corymbBloom(cory,heads.length,S.bloom,S.eye,L.budCol||S.eye||shade(S.bloom,-24),season==='Spring');
+        } else if (L.bloomStyle==='cluster'||L.bloomStyle==='corymb'){ // domed corymbs/cymes (spirea, viburnum; a classic ninebark)
           const cr=L.clusterR||4.5;
           heads.forEach(([tx2,ty2])=>{ for (let p=0;p<8;p++){ const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*cr;
             const fx=tx2+Math.cos(a)*rr, fy=ty2-cr*0.5+Math.sin(a)*rr*0.6;
@@ -13940,7 +14034,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         // A berry is a small glossy sphere, and the specular dot is the entire
         // reason winterberry reads as fruit rather than as red confetti — the
         // one place on a shrub where a second fill per shape is clearly earned.
-        if (L.smoke && sh){
+        if (cory && L.seedStyle==='follicles'){
+          // the pods follow the flowers on the same heads, twig by twig as they
+          // finish, and a quarter have shattered by winter
+          corymbFruit(cory, blooming ? Math.max(1,Math.ceil(tips.length*blv)) : 0, S.seed, season==='Winter' ? 0.5 : 1);
+        } else if (L.smoke && sh){
           // the plumes hang on into early fall, faded to grey, and shatter as
           // the leaves come down
           if (!blooming){

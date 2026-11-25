@@ -4381,6 +4381,64 @@ test('a shrub carries its flowers on its own twigs, spread across the crown', ()
   }
 });
 
+/* Ellipses by the colour they were filled in: the shrub flower passes batch a
+   colour's shapes into one path and fill it once (fbFlush). */
+function ellipsesByFill(key,v,season,bloom,detail,leafStage){
+  const out=new Map(); let path=[];
+  const ctx=new Proxy({}, { get(o,p){ if (p in o) return o[p];
+      if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+      if (p==='beginPath') return ()=>{ path=[]; };
+      if (p==='ellipse') return (...a)=>path.push(a);
+      if (p==='fill') return ()=>{ const k=String(o.fillStyle); if (!out.has(k)) out.set(k,[]); out.get(k).push(...path); };
+      return ()=>{}; }, set(o,p,val){ o[p]=val; return true; } });
+  drawPlant(ctx,0,0,key,1,season,4242,0,v,bloom,detail,leafStage);
+  return out;
+}
+
+test('a ninebark in bloom is covered in corymbs along its canes, and they turn to pods in the same places', () => {
+  /* It flowers on short side shoots all along its arching canes, so a shrub
+     in bloom is covered in domed heads; 'cluster' put eight specks at a few
+     twig ends (0.9.170). The pods follow on the same heads. */
+  const P=plantDef('ninebark',null), S=P.sea.Summer, H=plantVisualH(P), W=woodyVisualCw(P);
+  const heads=ellipsesByFill('ninebark',null,'Summer',1).get(shade(S.bloom,-30))||[];
+  assert(heads.length>=60, `${heads.length} flower heads at peak`);
+  const xs=heads.map(e=>e[0]), spread=Math.max(...xs)-Math.min(...xs);
+  assert(spread>W*0.6, `they spread ${spread.toFixed(0)} across a ${W}-wide shrub`);
+  assert(heads.filter(e=>e[1]<-H*0.3).length>heads.length*0.7, 'and stand up in the crown');
+  // after the flowers: pods, where the heads were, and no flowers
+  const after=ellipsesByFill('ninebark',null,'Summer',0);
+  assert(!(after.get(shade(S.bloom,-30))||[]).length, 'no flowers once the bloom is over');
+  const pods=after.get(shade(S.seed,2))||[];
+  assert(pods.length>=20, `${pods.length} knots of pods in July`);
+  const near=pods.filter(p=>heads.some(h=>Math.hypot(p[0]-h[0],p[1]-h[1])<h[2]*1.6)).length;
+  assertEqual(near,pods.length,'every knot of pods hangs where a flower head stood');
+  // half way through the fade: flowers on some heads, pods on the rest
+  const mid=ellipsesByFill('ninebark',null,'Summer',0.45);
+  assert((mid.get(shade(S.bloom,-30))||[]).length>0 && (mid.get(shade(S.seed,2))||[]).length>0, 'flowers and pods together as the bloom fades');
+  // in late spring the heads not yet open are pink buds
+  const may=ellipsesByFill('ninebark',null,'Spring',0.3,{bloomFallback:true},6);
+  assert((may.get(shade(S.eye,-24))||[]).length>=20, 'buds before the flowers open');
+  assert((may.get(shade(S.bloom,-30))||[]).length<heads.length, 'and fewer heads open than at peak');
+  // brown pods hang on into winter, fewer
+  const win=ellipsesByFill('ninebark',null,'Winter',undefined);
+  const wpods=(win.get(shade(P.sea.Winter.seed,2))||[]).length;
+  assert(wpods>0 && wpods<pods.length, `${wpods} knots left in winter`);
+  // the classic fan keeps its old cluster drawing
+  const was=SHRUB_HABIT.on; SHRUB_HABIT.on=false;
+  try { assert(ellipsesByFill('ninebark',null,'Summer',1).size>0, 'the classic renderer still draws a ninebark'); }
+  finally { SHRUB_HABIT.on=was; }
+});
+
+test("a deciduous shrub's new growth turns with it in fall; an evergreen's goes on flushing", () => {
+  const tones=c=>SHRUB_TONES.map(t=>shade(c,t));
+  const has=(key,v,season,col)=>{ const m=ellipsesByFill(key,v,season,1), calls=plantDrawCalls(key,v,season,4242,1);
+    return tones(col).some(t=>calls.includes('set fillStyle='+t)) || tones(col).some(t=>m.has(t)); };
+  const amber=plantDef('ninebark','amberjubilee'), photinia=plantDef('photinia',null);
+  assert(has('ninebark','amberjubilee','Summer',amber.look.newGrowth), 'Amber Jubilee is orange at the tips in summer');
+  assert(!has('ninebark','amberjubilee','Fall',amber.look.newGrowth), 'and purple, not orange-tipped, in fall');
+  assert(has('photinia',null,'Fall',photinia.look.newGrowth), 'a photinia flushes red in fall too');
+});
+
 test('deciduous shrubs leaf out through spring and drop through fall; evergreen and clipped ones never do', () => {
   const lo=k=>woodyLeafOut(plantDef(k,null));
   for (const k of ['arrowwood','ninebark','forsythia','lilac','hydrangea','oakleafhydrangea','redtwig','highbushblueberry'])

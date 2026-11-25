@@ -8885,6 +8885,38 @@ purple-red (`#b04a5c`; Cornell and UF say purple-red, the RHS pink), where its p
 lavender over the dark leaves, since a plume is translucent and takes the leaves' colour under it;
 coppiced 'Royal Purple' is crimson at the tips (`newGrowth` `#9c1e32`). Data only.
 
+**Ninebark redrawn and its cultivars filled in (0.9.170)**, from the gardener's photographs of
+'Summer Wine', 'Amber Jubilee' and the species. *The flowers* (`bloomStyle:'corymb'`;
+`corymbSites`, `corymbHeadB`, `corymbBudB`, `corymbPodsB`, draw.js): a ninebark flowers on short
+side shoots all along last year's arching canes, so in bloom it is covered in domed corymbs an
+inch or two across; 'cluster' drew eight specks at a few twig ends. Each flowering twig now
+carries `headsAlong` heads, the terminal one at its tip and the rest down the cane to `headsFrom`
+of its length, alternating above and below it (side shoots alternate; in a line they read as
+strings of beads), `clusterR` the head's radius. A head is its shaded underside, a lit dome, a
+dark gap and two dots of the season's `eye` (the pink of buds and anthers); in spring the twigs
+not yet in flower carry tight pink buds (`L.budCol` or `eye`). *The fruit*
+(`seedStyle:'follicles'`): the SAME places (laid out once a draw on a stream of their own) carry
+a knot of inflated pods on alternate heads, red in summer as the bloom fades (a Summer `seed`
+colour, drawn on the twigs no longer flowering), brown and half gone by winter. Pods are
+UNROTATED ellipses: rotated, they cost a millisecond of every fall and winter bake. Habit
+renderer only; the classic fan draws 'corymb' as 'cluster'. *The leaf* is `leafShape:'lobed3'`
+(`LOBED3_OUTLINE`, three lobes, the palmate outline's twelve points; `_shP` now holds which
+outline). *New growth on a deciduous shrub no longer flushes in fall* (`flush` in
+`drawShrubHabit`): an 'Amber Jubilee' turns purple, not orange-tipped; an evergreen photinia or
+pieris goes on flushing, and no other shrub changed. *The cultivars* (sources and estimates:
+`docs/plant-data/ninebark-sources.json`, MBG Plant Finder and Proven Winners): Summer Wine Black,
+Summer Wine Rosé, Tiny Wine, Panther, 'Lady in Red' (Ruby Spice), Ginger Wine, 'Center Glow',
+Coppertina (Diable D'Or, 'Mindia'), 'Dart's Gold', Lemon Candy and 'Nanus', 16 choices in all.
+A trade name is the name, unquoted, and the registered cultivar a synonym ("Physocarpus
+opulifolius 'Seward'"), so either finds it (Sombrero Salsa Red's convention; Summer Wine, Little
+Devil and Amber Jubilee were written as quoted cultivar names). 'Summer Wine' is near-black wine
+red with pinkish heads; 'Amber Jubilee' is upright, gold-green with orange new growth, purple in
+fall (MBG; it was olive drab); the species is hardy to zone 2 (MBG). Sizes solved with
+`dev/cultivar-size.cjs`. Bakes, headless Chrome against the old drawing: summer 0.66-1.31 ms
+(0.53-0.92), fall and winter level. `dev/ninebark-review.html` shows every choice in four seasons,
+bud to pod (`#pheno`, `?pheno=0` hides it), heads close up (`headSeason=Fall` for pods), at true
+scale, and checks sprite edges (`?check`).
+
 **Flowering mats and pussytoes (0.9.122).** *The mossphlox habit drew a stem a full plant
 height for every flower* (moss phlox, aubretia, rock rose, periwinkle, trailing bellflower,
 blue-eyed Mary), ending nowhere near the flower, which it sited down in the mat beside it:

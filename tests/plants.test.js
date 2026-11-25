@@ -150,7 +150,7 @@ test('the evergreen audit\'s Tier 3: the trees that waited for the renderer', ()
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
   assertEqual(PLANT_KEYS.length,924,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),832,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),843,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -2180,6 +2180,49 @@ test('audited shrub sizes pin the former inheritance errors', () => {
   assertEqual(size('panniclehydrangea','bobo').join(','),'34,42','Bobo mature size');
   assertEqual(size('oakleafhydrangea').join(','),'84,84','oakleaf hydrangea species size');
   assertEqual(size('oakleafhydrangea','peewee').join(','),'42,36','Pee Wee mature size');
+});
+
+test('the ninebarks are sourced, sized, and found by their trade and registered names', () => {
+  /* 0.9.170, docs/plant-data/ninebark-sources.json: MBG Plant Finder and Proven
+     Winners. Height x spread in inches and USDA zones, as each source gives them. */
+  const want={
+    diabolo:[96,96,'3-7'], summerwine:[60,60,'3-8'], summerwineblack:[66,66,'3-7'], summerwinerose:[78,78,'3-7'],
+    tinywine:[48,42,'3-8'], littledevil:[48,48,'3-7'], panther:[54,30,'3-8'], ladyinred:[48,54,'2-8'],
+    gingerwine:[66,66,'3-7'], centerglow:[84,84,'3-7'], coppertina:[84,84,'3-7'], amberjubilee:[66,48,'2-8'],
+    dartsgold:[60,60,'3-7'], lemoncandy:[30,36,'2-8'], nanus:[24,30,'2-8'],
+  };
+  // the cultivar over its species, as plantDef merges it (this file loads the data alone)
+  const plantDef=(k,v)=>{ const B=PLANTS[k], C=B.cv[v]||{}, sea={};
+    for (const t of SEASON_KEYS) sea[t]=Object.assign({},B.sea[t]||{},(C.sea||{})[t]||{});
+    return Object.assign({},B,C,{look:Object.assign({},B.look,C.look||{}),sea}); };
+  assertEqual(Object.keys(PLANTS.ninebark.cv).sort().join(','),Object.keys(want).sort().join(','),'the ninebark choices');
+  assertEqual(PLANTS.ninebark.zones.join('-'),'2-8','the species is hardy to zone 2 (MBG)');
+  for (const [v,[h,w,z]] of Object.entries(want)){
+    const P=plantDef('ninebark',v);
+    assertEqual(P.heightIn+'x'+P.spread,h+'x'+w,`${v}: size`);
+    assertEqual(P.zones.join('-'),z,`${v}: zones`);
+    assert(P.space<=P.spread, `${v}: spacing within its spread`);
+    assertEqual(P.look.bloomStyle,'corymb',`${v}: corymbs along the canes`);
+    assertEqual(P.look.seedStyle,'follicles',`${v}: then pods`);
+    for (const s of ['Summer','Fall']) assert(P.sea[s].seed,`${v}: pods in ${s}`);
+  }
+  // a trade name is the name, the registered cultivar a synonym, so either is found
+  const syn=v=>(PLANTS.ninebark.cv[v].synonyms||[]).join('|');
+  assert(/'Seward'/.test(syn('summerwine')) && /'Jefam'/.test(syn('amberjubilee')) && /'Donna May'/.test(syn('littledevil')), 'Summer Wine, Amber Jubilee and Little Devil carry their cultivar names');
+  assert(/'Mindia'/.test(syn('coppertina')) && /Diable D'Or/.test(syn('coppertina')), "Coppertina is 'Mindia', Diable D'Or in Europe");
+  assert(/Ruby Spice/.test(syn('ladyinred')), "'Lady in Red' is sold as Ruby Spice");
+  for (const v of ['summerwine','amberjubilee','coppertina','tinywine','gingerwine'])
+    assert(!/^'/.test(PLANTS.ninebark.cv[v].name), `${v}: a trade name is not quoted`);
+  // what the photographs show: Amber Jubilee is gold-green with orange tips and purple in fall
+  const rgb=c=>{ const n=parseInt(c.slice(1),16); return [n>>16&255,n>>8&255,n&255]; };
+  const aj=plantDef('ninebark','amberjubilee'), [r,g,b]=rgb(aj.sea.Summer.fol), [fr,fg,fb]=rgb(aj.sea.Fall.fol);
+  assert(r>120 && g>120 && b<90, 'Amber Jubilee is gold-green in summer, not olive drab');
+  assert(fb>fg && fr>fg, 'and purple in fall');
+  assert(aj.look.newGrowth && aj.look.habit==='upright', 'upright, with orange new growth');
+  // Summer Wine is near-black wine red, its flowers pinkish
+  const sw=plantDef('ninebark','summerwine'), [sr,sg,sb]=rgb(sw.sea.Summer.fol), [br,bg]=rgb(sw.sea.Summer.bloom);
+  assert(sr+sg+sb<240 && sr>sb, 'Summer Wine is a dark wine red');
+  assert(br>bg+8, 'with pinkish-white flowers');
 });
 
 test('new shrub ranges and horticultural provenance remain relational', () => {
