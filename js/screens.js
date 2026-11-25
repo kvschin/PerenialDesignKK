@@ -4,148 +4,156 @@
    self-review goals. Finishing is the gardener's decision, never a rule score. */
 const DAILY_THEMES = [
   {
-    id:"dry-prairie",
-    title:"Dry Prairie Matrix",
-    season:"Summer",
-    palette:[{"s":"bluestem","v":null},{"s":"dropseed","v":null},{"s":"sideoats","v":null},{"s":"bluegrama","v":null},{"s":"pallida","v":null},{"s":"angustifolia","v":null},{"s":"purpleprairieclover","v":null},{"s":"butterfly","v":null},{"s":"liatris","v":null},{"s":"goldenrod","v":null}],
-    exercises:[["Woven meadow","Let the grasses connect the bed, with flowers emerging through them."],["Prairie pockets","Build a few compact flowering pockets surrounded by grass."],["A repeated horizon","Repeat low grasses along the route, with upright accents behind."]],
-    goals:["Keep the grasses visually connected.","Mix flowering forms into the grass.","Leave a clear route through the planting."]
-  },
-  {
-    id:"woodland",
-    title:"Shade Woodland Floor",
-    season:"Spring",
-    palette:[{"s":"pennsedge","v":null},{"s":"rosysedge","v":null},{"s":"plantainsedge","v":null},{"s":"christmasfern","v":null},{"s":"marginalwoodfern","v":null},{"s":"maidenhairfern","v":null},{"s":"hosta","v":null},{"s":"heuchera","v":null},{"s":"woodlandphlox","v":null},{"s":"solomonsseal","v":null}],
-    exercises:[["Leaf layers","Build a low woodland carpet beneath arching and upright leaves."],["A quiet clearing","Leave a calm opening between a few bold foliage groups."],["Fern rhythm","Carry a repeated fern shape along the path."]],
-    goals:["Contrast fine and broad leaves.","Place low plants beneath taller foliage.","Look for a quiet area between bold groups."]
-  },
-  {
-    id:"pollinator",
-    title:"Pollinator Patch",
-    season:"Summer",
-    palette:[{"s":"echinacea","v":null},{"s":"monarda","v":null},{"s":"mountainmint","v":null},{"s":"penstemon","v":null},{"s":"goldenalexander","v":null},{"s":"liatrispycnostachya","v":null},{"s":"rudbeckia","v":null},{"s":"newengland","v":null},{"s":"butterfly","v":null},{"s":"dropseed","v":null}],
-    exercises:[["Flower patches","Use generous patches of flowers with space to see each patch."],["A small feast","Create a compact composition from a restrained flowering palette."],["Connected blooms","Repeat flowering patches across the site instead of isolating each species."]],
-    goals:["Make flowering groups easy to distinguish.","Repeat a flower colour through the planting.","Use the Bloom calendar to inspect flowering gaps."]
-  },
-  {
-    id:"four-season",
-    title:"Four-Season Interest",
-    season:"Fall",
-    palette:[{"s":"bluestem","v":null},{"s":"dropseed","v":null},{"s":"karl","v":null},{"s":"echinacea","v":null},{"s":"penstemon","v":null},{"s":"amsonia","v":null},{"s":"aster","v":null},{"s":"sedum","v":null},{"s":"goldenrod","v":null},{"s":"alliumPurpleSensation","v":null}],
-    exercises:[["Standing structure","Make a framework that still reads when the flowers fade."],["One lasting focal point","Use a strong central shape with a restrained supporting palette."],["Winter echoes","Repeat lasting forms so the winter view has a clear rhythm."]],
-    goals:["Include shapes that stand after flowering.","Balance a focal group with repeated supporting plants.","Inspect summer and winter using Time."]
-  },
-  {
-    id:"cottage",
-    title:"Cottage Abundance",
-    season:"Summer",
-    palette:[{"s":"yarrow","v":null},{"s":"meadowsage","v":null},{"s":"echinacea","v":null},{"s":"phlox","v":null},{"s":"stachys","v":null},{"s":"catmint","v":null},{"s":"shastadaisy","v":null},{"s":"spikespeedwell","v":null},{"s":"dropseed","v":null},{"s":"quakinggrass","v":null}],
-    exercises:[["Soft edges","Let low flowers soften the path while taller plants rise behind."],["A restrained cottage","Make a full-looking border from a small, repeated plant palette."],["Flower ribbons","Carry repeated flower colours through the planting like ribbons."]],
-    goals:["Use low flowers to soften the path.","Place taller accents behind lower planting.","Repeat colours to connect the abundance."]
-  },
-  {
-    id:"gravel",
-    title:"Hot, Dry Gravel",
-    season:"Summer",
-    palette:[{"s":"bluegrama","v":null},{"s":"bluefescue","v":null},{"s":"dropseed","v":null},{"s":"pallida","v":null},{"s":"liatris","v":null},{"s":"purpleprairieclover","v":null},{"s":"yucca","v":null},{"s":"eryngiumbourgatii","v":null},{"s":"lambsear","v":null},{"s":"pussytoes","v":null}],
-    exercises:[["Shapes in gravel","Set upright accents among low mounds with open ground between."],["One sculptural accent","Give a strong plant shape room to stand out from a quiet setting."],["Repeated islands","Arrange repeated groups separated by visible open ground."]],
-    goals:["Leave open ground between groups.","Contrast an upright form with low mounds.","Give the strongest shape room to read."]
-  },
-  {
-    id:"wet-spot",
-    title:"Slow-Draining Low",
-    season:"Summer",
-    palette:[{"s":"foxsedge","v":null},{"s":"grayssedge","v":null},{"s":"tussocksedge","v":null},{"s":"swampmilkweed","v":null},{"s":"liatrisspicata","v":null},{"s":"babyjoe","v":null},{"s":"northernblueflag","v":null},{"s":"blueflagiris","v":null},{"s":"roughgoldenrod","v":null},{"s":"greatstjohnswort","v":null}],
-    exercises:[["Sedge framework","Use sedges to connect flowering groups in a damp-site planting."],["A damp pocket","Concentrate a few moisture-loving plants in a coherent central group."],["Wet meadow rhythm","Repeat sedges and flowers through the bed while keeping the route clear."]],
-    goals:["Connect flowers with a sedge layer.","Keep taller plants from hiding the lower layer.","Keep the outside route clear."]
-  },
-  {
-    id:"monochrome",
-    title:"Monochrome Study",
-    season:"Summer",
-    palette:[{"s":"yarrow","v":null},{"s":"penstemon","v":null},{"s":"whiteprairieclover","v":null},{"s":"mountainmint","v":null},{"s":"shastadaisy","v":null},{"s":"culvers","v":null},{"s":"candytuft","v":null},{"s":"echinacea","v":"whiteswan"},{"s":"dropseed","v":null},{"s":"karl","v":null}],
-    exercises:[["White and cream","Connect white and cream flowers with grasses for texture."],["A pale focal point","Make one pale flowering group the focus of a restrained composition."],["White ribbons","Repeat white and cream flowers through the bed, changing height and texture."]],
-    goals:["Use white and cream flowers as the main colour.","Let foliage and grasses provide contrast.","Repeat the pale flowers through the composition."]
-  },
-  {
-    id:"grasses",
-    title:"Grasses Only",
-    season:"Fall",
-    palette:[{"s":"bluestem","v":null},{"s":"dropseed","v":null},{"s":"sideoats","v":null},{"s":"bluegrama","v":null},{"s":"lovegrass","v":null},{"s":"karl","v":null},{"s":"moorhexe","v":null},{"s":"switchgrass","v":null},{"s":"prairiejunegrass","v":null},{"s":"bluefescue","v":null}],
-    exercises:[["Moving textures","Combine low fountains and upright grasses to make contrasting textures."],["Grass sculpture","Create a small composition where each grass shape has room to read."],["A flowing rhythm","Repeat the same grass shapes through the planting like a repeating phrase."]],
-    goals:["Contrast low fountains and upright forms.","Leave room for mature clumps.","Inspect movement and winter structure using Time."]
-  },
-  {
-    id:"late-season",
-    title:"Late-Season Glow",
-    season:"Fall",
-    palette:[{"s":"aster","v":null},{"s":"newengland","v":null},{"s":"smoothaster","v":null},{"s":"goldenrod","v":null},{"s":"autumnGoldenrod","v":null},{"s":"sedum","v":null},{"s":"narrowleafironweed","v":null},{"s":"bluestem","v":null},{"s":"dropseed","v":null},{"s":"switchgrass","v":null}],
-    exercises:[["Autumn partners","Set late flowers against warm grasses and lasting seedheads."],["A late focal point","Build a restrained autumn composition around one flowering focal group."],["Autumn procession","Repeat late flowers along the route with grasses between."]],
-    goals:["Balance late flowers with grasses.","Connect flowering groups through repetition.","Inspect the autumn view using Time."]
-  },
-  {
-    id:"deer-border",
-    title:"Deer-Resistant Border",
-    season:"Summer",
-    palette:[{"s":"yarrow","v":null},{"s":"meadowsage","v":null},{"s":"monarda","v":null},{"s":"mountainmint","v":null},{"s":"agastache","v":null},{"s":"catmint","v":null},{"s":"calamint","v":null},{"s":"lambsear","v":null},{"s":"dropseed","v":null},{"s":"bluestem","v":null}],
-    exercises:[["Aromatic border","Connect aromatic flowers with contrasting foliage along the path."],["A tough little garden","Use a small palette to make a legible, repeated border."],["Scented repetition","Carry aromatic groups through the planting in a repeated sequence."]],
-    goals:["Use aromatic plants along the route.","Contrast fine leaves with a bolder texture.","Remember deer resistance is relative, not a guarantee."]
-  },
-  {
-    id:"rhythm",
-    title:"Repetition & Rhythm",
-    season:"Summer",
-    palette:[{"s":"dropseed","v":null},{"s":"karl","v":null},{"s":"bluestem","v":null},{"s":"echinacea","v":null},{"s":"stachys","v":null},{"s":"meadowsage","v":null},{"s":"sedum","v":null},{"s":"penstemon","v":null},{"s":"allium","v":null},{"s":"rudbeckia","v":null}],
-    exercises:[["A repeated phrase","Choose a short planting phrase and repeat it across the site."],["Three-plant composition","Explore how much variety three repeated species can create."],["Four-part rhythm","Use four species in a recurring sequence with contrasting forms."]],
-    goals:["Make the repeated planting phrase visible.","Carry the same idea through the whole site.","Use spacing to create pauses in the rhythm."]
-  },
-  {
     id:"matrix",
     title:"Matrix & Scatter",
     season:"Summer",
-    palette:[{"s":"dropseed","v":null},{"s":"bluestem","v":null},{"s":"sideoats","v":null},{"s":"prairiejunegrass","v":null},{"s":"pallida","v":null},{"s":"purpleprairieclover","v":null},{"s":"butterfly","v":null},{"s":"liatris","v":null},{"s":"pussytoes","v":null},{"s":"heartleafalexander","v":null}],
+    palette:[{s:"dropseed",v:null},{s:"bluestem",v:null},{s:"sideoats",v:null},{s:"prairiejunegrass",v:null},{s:"pallida",v:null},{s:"purpleprairieclover",v:null},{s:"butterfly",v:null},{s:"liatris",v:null},{s:"pussytoes",v:null},{s:"heartleafalexander",v:null}],
     exercises:[["A woven carpet","Make a connected grass layer with flowering plants threaded through."],["Quiet matrix","Keep the grass layer calm and let a few flowering accents stand out."],["Repeated scatter","Repeat the same flowering accents through a continuous grass layer."]],
     goals:["Keep the grass matrix visually connected.","Let flowering accents emerge through the matrix.","Avoid isolated blocks that break the ground layer."]
-  },
-  {
-    id:"hummingbird",
-    title:"Hummingbird Garden",
-    season:"Summer",
-    palette:[{"s":"columbine","v":null},{"s":"penstemon","v":null},{"s":"indianpink","v":null},{"s":"scarletbeebalm","v":null},{"s":"cardinallobelia","v":null},{"s":"greatbluelobelia","v":null},{"s":"obedientplant","v":null},{"s":"liliumsuperbum","v":null},{"s":"switchgrass","v":null},{"s":"foxsedge","v":null}],
-    exercises:[["Flower stops","Arrange patches of tubular flowers in a moist, sun-to-part-shade study."],["A compact stopover","Concentrate a few flowering species into bold groups."],["A flowering route","Repeat flowering patches through the site with supporting foliage between."]],
-    goals:["Make bold patches of tubular flowers.","Use supporting foliage between flowering groups.","Check the Bloom calendar for a sequence of flowers."]
-  },
-  {
-    id:"spring",
-    title:"Spring Ephemerals",
-    season:"Spring",
-    palette:[{"s":"bluebells","v":null},{"s":"woodlandphlox","v":null},{"s":"shootingstar","v":null},{"s":"columbine","v":null},{"s":"dwarfcrestediris","v":null},{"s":"hepatica","v":null},{"s":"yellowtroutlily","v":null},{"s":"christmasfern","v":null},{"s":"rosysedge","v":null},{"s":"maidenhairfern","v":null}],
-    exercises:[["Spring into summer","Place spring flowers among leafy companions that fill later gaps."],["A spring clearing","Make a small spring-flowering pocket framed by summer foliage."],["Woodland echoes","Repeat spring flowers and their leafy companions along the route."]],
-    goals:["Plant spring flowers beside leafy companions.","Look for summer gaps after early flowers fade.","Compare spring and summer using Time."]
-  },
-  {
-    id:"foliage",
-    title:"Foliage First",
-    season:"Summer",
-    palette:[{"s":"hosta","v":null},{"s":"hakone","v":null},{"s":"heuchera","v":null},{"s":"brunnera","v":null},{"s":"solomonsseal","v":null},{"s":"japanesepaintedfern","v":null},{"s":"christmasfern","v":null},{"s":"marginalwoodfern","v":null},{"s":"evergoldsedge","v":null},{"s":"plantainsedge","v":null}],
-    exercises:[["Leaf contrasts","Compose with fine, broad and upright leaves in a part-shade study."],["One bold leaf","Let a bold-leaved focal group stand out against quieter textures."],["Texture rhythm","Repeat contrasting foliage shapes through the bed."]],
-    goals:["Contrast fine, broad and upright leaves.","Balance a bold focal group with quieter textures.","Look at the design without relying on flower colour."]
   },
   {
     id:"evergreen",
     title:"Evergreen Bones",
     season:"Winter",
-    palette:[{"s":"boxwoodlow","v":null},{"s":"yewlow","v":null},{"s":"inkberry","v":null},{"s":"sweetbox","v":null},{"s":"skimmia","v":null},{"s":"loworegongrape","v":null},{"s":"christmasfern","v":null},{"s":"marginalwoodfern","v":null},{"s":"evergoldsedge","v":null},{"s":"hollyfern","v":null}],
+    palette:[{s:"boxwoodlow",v:null},{s:"yewlow",v:null},{s:"inkberry",v:null},{s:"sweetbox",v:null},{s:"skimmia",v:null},{s:"loworegongrape",v:null},{s:"christmasfern",v:null},{s:"marginalwoodfern",v:null},{s:"evergoldsedge",v:null},{s:"hollyfern",v:null}],
     exercises:[["Winter framework","Use compact woody evergreens with a lower leafy layer."],["A winter focal point","Give one woody form prominence in a restrained winter composition."],["Evergreen rhythm","Repeat evergreen forms to connect the winter view."]],
     goals:["Leave mature woody plants room to grow.","Connect woody forms with lower foliage.","Inspect the winter view using Time."]
+  },
+  {
+    id:"water-edge",
+    title:"Water's Edge",
+    season:"Summer",
+    palette:[{s:"pickerelweed",v:null},{s:"marshmarigold",v:null},{s:"americansweetflag",v:null},{s:"softrush",v:null},{s:"arrowhead",v:null},{s:"cardinallobelia",v:null},{s:"swampmilkweed",v:null},{s:"blueflagiris",v:null},{s:"tussocksedge",v:null},{s:"fragrantwaterlily",v:null}],
+    exercises:[["From water to land","Grade the planting from plants in the water, through the margin, to drier ground."],["A marginal frame","Frame one stretch of water with a bold group of marginal plants and leave the rest open."],["Reflections","Keep part of the water clear so the planting at its edge is seen twice."]],
+    goals:["Give each plant its place: in the water, at the margin or on drier ground.","Leave some of the water open.","Keep a way to the water's edge clear."]
+  },
+  {
+    id:"cottage",
+    title:"Cottage Abundance",
+    season:"Summer",
+    palette:[{s:"yarrow",v:null},{s:"meadowsage",v:null},{s:"echinacea",v:null},{s:"phlox",v:null},{s:"stachys",v:null},{s:"catmint",v:null},{s:"shastadaisy",v:null},{s:"spikespeedwell",v:null},{s:"dropseed",v:null},{s:"quakinggrass",v:null}],
+    exercises:[["Soft edges","Let low flowers soften the path while taller plants rise behind."],["A restrained cottage","Make a full-looking border from a small, repeated plant palette."],["Flower ribbons","Carry repeated flower colours through the planting like ribbons."]],
+    goals:["Use low flowers to soften the path.","Place taller accents behind lower planting.","Repeat colours to connect the abundance."]
+  },
+  {
+    id:"bulbs",
+    title:"Bulbs Through Perennials",
+    season:"Spring",
+    palette:[{s:"crocus",v:null},{s:"scillasiberica",v:null},{s:"muscari",v:null},{s:"daffodil",v:null},{s:"tulipsylvestris",v:null},{s:"camassia",v:null},{s:"alliumPurpleSensation",v:null},{s:"bluemoorgrass",v:null},{s:"amsonia",v:null},{s:"sanguineumgeranium",v:null}],
+    exercises:[["A bulb carpet","Scatter early bulbs through a perennial layer that will hide their fading leaves."],["Bold bulb drifts","Plant a few bold drifts of bulbs that flower one after another."],["A spring succession","Arrange the bulbs so something flowers from early to late spring along the route."]],
+    goals:["Plant bulbs among perennials, not on bare ground.","Choose perennials that cover fading bulb leaves.","Step through spring using Time to watch the sequence."]
+  },
+  {
+    id:"blue-gold",
+    title:"Blue and Gold",
+    season:"Summer",
+    palette:[{s:"meadowsage",v:"caradonna"},{s:"catmint",v:null},{s:"russiansage",v:null},{s:"amsonia",v:null},{s:"baptisia",v:null},{s:"goldenrod",v:null},{s:"coreopsis",v:null},{s:"yarrow",v:"moonshine"},{s:"goldenalexander",v:null},{s:"bluestem",v:"theblues"}],
+    exercises:[["Complementary pairs","Pair blue and yellow flowers so that each makes the other look brighter."],["Mostly blue","Let blue lead the planting, with a few yellow accents to lift it."],["Alternating notes","Alternate blue and yellow groups along the route in a steady beat."]],
+    goals:["Pair blue and yellow flowers within view of each other.","Decide which colour leads and which accents.","Use blue-grey foliage to link the two colours."]
+  },
+  {
+    id:"deer-border",
+    title:"Deer-Resistant Border",
+    season:"Summer",
+    palette:[{s:"yarrow",v:null},{s:"meadowsage",v:null},{s:"monarda",v:null},{s:"mountainmint",v:null},{s:"agastache",v:null},{s:"catmint",v:null},{s:"calamint",v:null},{s:"lambsear",v:null},{s:"dropseed",v:null},{s:"bluestem",v:null}],
+    exercises:[["Aromatic border","Connect aromatic flowers with contrasting foliage along the path."],["A tough little garden","Use a small palette to make a legible, repeated border."],["Scented repetition","Carry aromatic groups through the planting in a repeated sequence."]],
+    goals:["Use aromatic plants along the route.","Contrast fine leaves with a bolder texture.","Remember deer resistance is relative, not a guarantee."]
   },
   {
     id:"sensory",
     title:"Sensory Garden",
     season:"Summer",
-    palette:[{"s":"lavender","v":null},{"s":"catmint","v":null},{"s":"calamint","v":null},{"s":"agastache","v":null},{"s":"meadowsage","v":null},{"s":"lambsear","v":null},{"s":"silvermound","v":null},{"s":"yarrow","v":null},{"s":"dropseed","v":null},{"s":"bluefescue","v":null}],
+    palette:[{s:"lavender",v:null},{s:"catmint",v:null},{s:"calamint",v:null},{s:"agastache",v:null},{s:"meadowsage",v:null},{s:"lambsear",v:null},{s:"silvermound",v:null},{s:"yarrow",v:null},{s:"dropseed",v:null},{s:"bluefescue",v:null}],
     exercises:[["A scented edge","Place aromatic and soft foliage near the path in a sunny, free-draining study."],["A small sensory corner","Create a compact corner of contrasting soft and aromatic foliage."],["Texture along the path","Repeat aromatic groups and soft textures along the route."]],
     goals:["Put aromatic and soft foliage near the route.","Keep taller plants behind lower planting.","Repeat textures so the edge feels connected."]
+  },
+  {
+    id:"hot-colours",
+    title:"Hot Colours",
+    season:"Summer",
+    palette:[{s:"helenium",v:"moerheim"},{s:"redhotpoker",v:null},{s:"blanketflower",v:null},{s:"butterfly",v:null},{s:"rudbeckia",v:null},{s:"yarrow",v:"terracotta"},{s:"falsesunflower",v:null},{s:"echinacea",v:"tikitorch"},{s:"crocosmia",v:null},{s:"switchgrass",v:"shenandoah"}],
+    exercises:[["Warm drifts","Build drifts of red, orange and yellow flowers held together by grasses."],["A single hot spot","Gather the hottest colours into one group and let green calm the rest of the site."],["Sunset gradient","Grade the colours from yellow at one end of the site to deep red at the other."]],
+    goals:["Use warm colours as the main theme.","Give hot colours some green or grass between them.","Check the Bloom calendar for a long warm season."]
+  },
+  {
+    id:"dry-prairie",
+    title:"Dry Prairie Matrix",
+    season:"Summer",
+    palette:[{s:"bluestem",v:null},{s:"dropseed",v:null},{s:"sideoats",v:null},{s:"bluegrama",v:null},{s:"pallida",v:null},{s:"angustifolia",v:null},{s:"purpleprairieclover",v:null},{s:"butterfly",v:null},{s:"liatris",v:null},{s:"goldenrod",v:null}],
+    exercises:[["Woven meadow","Let the grasses connect the bed, with flowers emerging through them."],["Prairie pockets","Build a few compact flowering pockets surrounded by grass."],["A repeated horizon","Repeat low grasses along the route, with upright accents behind."]],
+    goals:["Keep the grasses visually connected.","Mix flowering forms into the grass.","Leave a clear route through the planting."]
+  },
+  {
+    id:"spring",
+    title:"Spring Ephemerals",
+    season:"Spring",
+    palette:[{s:"bluebells",v:null},{s:"woodlandphlox",v:null},{s:"shootingstar",v:null},{s:"columbine",v:null},{s:"dwarfcrestediris",v:null},{s:"hepatica",v:null},{s:"yellowtroutlily",v:null},{s:"christmasfern",v:null},{s:"rosysedge",v:null},{s:"maidenhairfern",v:null}],
+    exercises:[["Spring into summer","Place spring flowers among leafy companions that fill later gaps."],["A spring clearing","Make a small spring-flowering pocket framed by summer foliage."],["Woodland echoes","Repeat spring flowers and their leafy companions along the route."]],
+    goals:["Plant spring flowers beside leafy companions.","Look for summer gaps after early flowers fade.","Compare spring and summer using Time."]
+  },
+  {
+    id:"silver",
+    title:"Silver Foliage",
+    season:"Summer",
+    palette:[{s:"broadleafwormwood",v:null},{s:"fringedsage",v:null},{s:"silvermound",v:null},{s:"lambsear",v:null},{s:"blueoatgrass",v:null},{s:"largebluefescue",v:null},{s:"silvermoorgrass",v:null},{s:"eryngiumbourgatii",v:null},{s:"rattlesnake",v:null},{s:"lavender",v:null}],
+    exercises:[["Silver and shadow","Set silver foliage against darker greens so that both read clearly."],["A pale glow","Gather silver plants into one luminous group in a quiet green setting."],["Silver threads","Repeat silver plants through the site so the eye follows them from group to group."]],
+    goals:["Make silver and grey foliage the main feature.","Contrast fine silver leaves with one bolder shape.","Look at the planting by night with the day and night switch."]
+  },
+  {
+    id:"shrub-border",
+    title:"Shrubs and Perennials",
+    season:"Fall",
+    palette:[{s:"ninebark",v:null},{s:"arrowwood",v:null},{s:"oakleafhydrangea",v:null},{s:"fothergilla",v:null},{s:"virginiasweetspire",v:null},{s:"beautyberry",v:null},{s:"bigrootgeranium",v:null},{s:"amsonia",v:null},{s:"newengland",v:null},{s:"pennsedge",v:null}],
+    exercises:[["Shrubs as anchors","Place a few shrubs as anchors and weave perennials between them."],["A layered border","Step the planting from low perennials at the front to shrubs at the back."],["Autumn colour","Repeat shrubs with strong autumn colour so they connect across the site."]],
+    goals:["Leave shrubs room for their mature spread.","Fill between and in front of the shrubs with perennials.","Inspect autumn colour and winter twigs using Time."]
+  },
+  {
+    id:"entrance",
+    title:"Welcoming Entrance",
+    season:"Summer",
+    palette:[{s:"dropseed",v:null},{s:"bluefescue",v:null},{s:"bluestem",v:null},{s:"meadowsage",v:null},{s:"catmint",v:null},{s:"stachys",v:null},{s:"echinacea",v:null},{s:"penstemon",v:null},{s:"sedum",v:null},{s:"yarrow",v:null}],
+    exercises:[["Mark the arrival","Treat the path's outer end as the entrance. Use a recognisable planting group to welcome someone into the garden."],["Lead the eye","Carry a planting motif from the entrance toward the far end of the path, with a clear destination."],["Reveal around the bend","Use the turn in the path to reveal a focal planting gradually, keeping the inside of the bend low."]],
+    goals:["Make the entrance easy to recognise.","Leave the route open as plants reach mature size.","Give the arrival and the destination different emphasis."]
+  },
+  {
+    id:"foliage",
+    title:"Foliage First",
+    season:"Summer",
+    palette:[{s:"hosta",v:null},{s:"hakone",v:null},{s:"heuchera",v:null},{s:"brunnera",v:null},{s:"solomonsseal",v:null},{s:"japanesepaintedfern",v:null},{s:"christmasfern",v:null},{s:"marginalwoodfern",v:null},{s:"evergoldsedge",v:null},{s:"plantainsedge",v:null}],
+    exercises:[["Leaf contrasts","Compose with fine, broad and upright leaves in a part-shade study."],["One bold leaf","Let a bold-leaved focal group stand out against quieter textures."],["Texture rhythm","Repeat contrasting foliage shapes through the bed."]],
+    goals:["Contrast fine, broad and upright leaves.","Balance a bold focal group with quieter textures.","Look at the design without relying on flower colour."]
+  },
+  {
+    id:"rhythm",
+    title:"Repetition & Rhythm",
+    season:"Summer",
+    palette:[{s:"dropseed",v:null},{s:"karl",v:null},{s:"bluestem",v:null},{s:"echinacea",v:null},{s:"stachys",v:null},{s:"meadowsage",v:null},{s:"sedum",v:null},{s:"penstemon",v:null},{s:"allium",v:null},{s:"rudbeckia",v:null}],
+    exercises:[["A repeated phrase","Choose a short planting phrase and repeat it across the site."],["Three-plant composition","Explore how much variety three repeated species can create."],["Four-part rhythm","Use four species in a recurring sequence with contrasting forms."]],
+    goals:["Make the repeated planting phrase visible.","Carry the same idea through the whole site.","Use spacing to create pauses in the rhythm."]
+  },
+  {
+    id:"wet-spot",
+    title:"Slow-Draining Low",
+    season:"Summer",
+    palette:[{s:"foxsedge",v:null},{s:"grayssedge",v:null},{s:"tussocksedge",v:null},{s:"swampmilkweed",v:null},{s:"liatrisspicata",v:null},{s:"babyjoe",v:null},{s:"northernblueflag",v:null},{s:"blueflagiris",v:null},{s:"roughgoldenrod",v:null},{s:"greatstjohnswort",v:null}],
+    exercises:[["Sedge framework","Use sedges to connect flowering groups in a damp-site planting."],["A damp pocket","Concentrate a few moisture-loving plants in a coherent central group."],["Wet meadow rhythm","Repeat sedges and flowers through the bed while keeping the route clear."]],
+    goals:["Connect flowers with a sedge layer.","Keep taller plants from hiding the lower layer.","Keep the outside route clear."]
+  },
+  {
+    id:"pollinator",
+    title:"Pollinator Patch",
+    season:"Summer",
+    palette:[{s:"echinacea",v:null},{s:"monarda",v:null},{s:"mountainmint",v:null},{s:"penstemon",v:null},{s:"goldenalexander",v:null},{s:"liatrispycnostachya",v:null},{s:"rudbeckia",v:null},{s:"newengland",v:null},{s:"butterfly",v:null},{s:"dropseed",v:null}],
+    exercises:[["Flower patches","Use generous patches of flowers with space to see each patch."],["A small feast","Create a compact composition from a restrained flowering palette."],["Connected blooms","Repeat flowering patches across the site instead of isolating each species."]],
+    goals:["Make flowering groups easy to distinguish.","Repeat a flower colour through the planting.","Use the Bloom calendar to inspect flowering gaps."]
+  },
+  {
+    id:"host-plants",
+    title:"Butterfly Host Plants",
+    season:"Summer",
+    palette:[{s:"commonmilkweed",v:null},{s:"butterfly",v:null},{s:"prairiemilkweed",v:null},{s:"goldenalexander",v:null},{s:"whiteturtlehead",v:null},{s:"newengland",v:null},{s:"pussytoes",v:null},{s:"commonblueviolet",v:null},{s:"bluestem",v:null},{s:"spicebush",v:null}],
+    exercises:[["Food for every stage","Mix plants that caterpillars eat with flowers that feed the butterflies."],["A host-plant patch","Gather host plants into one generous patch that can be left a little untidy."],["Leave the stems","Plan an area to stand uncut through winter, where insects can shelter."]],
+    goals:["Include plants that caterpillars eat, not only flowers.","Plant host plants in groups rather than one of each.","Check which stems will still stand in winter using Time."]
   },
   {
     id:"patio-view",
@@ -156,12 +164,84 @@ const DAILY_THEMES = [
     goals:["Choose what the eye meets first from the patio.","Keep low planting beside the paving and taller forms beyond.","Check the view from another camera angle before finishing."]
   },
   {
-    id:"entrance",
-    title:"Welcoming Entrance",
+    id:"tapestry",
+    title:"Naturalistic Tapestry",
     season:"Summer",
-    palette:[{s:"dropseed",v:null},{s:"bluefescue",v:null},{s:"bluestem",v:null},{s:"meadowsage",v:null},{s:"catmint",v:null},{s:"stachys",v:null},{s:"echinacea",v:null},{s:"penstemon",v:null},{s:"sedum",v:null},{s:"yarrow",v:null}],
-    exercises:[["Mark the arrival","Treat the path's outer end as the entrance. Use a recognisable planting group to welcome someone into the garden."],["Lead the eye","Carry a planting motif from the entrance toward the far end of the path, with a clear destination."],["Reveal around the bend","Use the turn in the path to reveal a focal planting gradually, keeping the inside of the bend low."]],
-    goals:["Make the entrance easy to recognise.","Leave the route open as plants reach mature size.","Give the arrival and the destination different emphasis."]
+    palette:[{s:"molinia",v:null},{s:"sesleria",v:null},{s:"persicaria",v:null},{s:"greatburnet",v:null},{s:"astrantia",v:null},{s:"culvers",v:null},{s:"joepye",v:null},{s:"echinacea",v:null},{s:"stachys",v:null},{s:"helenium",v:null}],
+    exercises:[["Plants as a tapestry","Weave repeated perennials and grasses together so that no single group dominates."],["Structure and filler","Place a few tall structural plants, then fill between them with a quieter layer."],["A see-through veil","Set airy, tall plants near the front so the planting behind is seen through them."]],
+    goals:["Mix plants into a layered tapestry rather than solid blocks.","Let a few structural plants stand above the rest.","Check how the planting reads after flowering using Time."]
+  },
+  {
+    id:"monochrome",
+    title:"Monochrome Study",
+    season:"Summer",
+    palette:[{s:"yarrow",v:null},{s:"penstemon",v:null},{s:"whiteprairieclover",v:null},{s:"mountainmint",v:null},{s:"shastadaisy",v:null},{s:"culvers",v:null},{s:"candytuft",v:null},{s:"echinacea",v:"whiteswan"},{s:"dropseed",v:null},{s:"karl",v:null}],
+    exercises:[["White and cream","Connect white and cream flowers with grasses for texture."],["A pale focal point","Make one pale flowering group the focus of a restrained composition."],["White ribbons","Repeat white and cream flowers through the bed, changing height and texture."]],
+    goals:["Use white and cream flowers as the main colour.","Let foliage and grasses provide contrast.","Repeat the pale flowers through the composition."]
+  },
+  {
+    id:"late-season",
+    title:"Late-Season Glow",
+    season:"Fall",
+    palette:[{s:"aster",v:null},{s:"newengland",v:null},{s:"smoothaster",v:null},{s:"goldenrod",v:null},{s:"autumnGoldenrod",v:null},{s:"sedum",v:null},{s:"narrowleafironweed",v:null},{s:"bluestem",v:null},{s:"dropseed",v:null},{s:"switchgrass",v:null}],
+    exercises:[["Autumn partners","Set late flowers against warm grasses and lasting seedheads."],["A late focal point","Build a restrained autumn composition around one flowering focal group."],["Autumn procession","Repeat late flowers along the route with grasses between."]],
+    goals:["Balance late flowers with grasses.","Connect flowering groups through repetition.","Inspect the autumn view using Time."]
+  },
+  {
+    id:"winter",
+    title:"Winter Silhouettes",
+    season:"Winter",
+    palette:[{s:"switchgrass",v:null},{s:"bluestem",v:null},{s:"miscanthus",v:null},{s:"karl",v:null},{s:"monarda",v:null},{s:"rudbeckia",v:null},{s:"echinacea",v:null},{s:"sedum",v:null},{s:"baptisia",v:null},{s:"rattlesnake",v:null}],
+    exercises:[["Seedheads in snow","Choose plants for the shapes they keep long after flowering."],["Dark against pale","Set dark seedheads in front of pale winter grasses."],["Grasses as a frame","Use grasses as the framework and set the seedheads within it."]],
+    goals:["Choose plants that stand through winter.","Contrast round seedheads with upright grasses.","Compare winter with summer using Time."]
+  },
+  {
+    id:"four-season",
+    title:"Four-Season Interest",
+    season:"Fall",
+    palette:[{s:"bluestem",v:null},{s:"dropseed",v:null},{s:"karl",v:null},{s:"echinacea",v:null},{s:"penstemon",v:null},{s:"amsonia",v:null},{s:"aster",v:null},{s:"sedum",v:null},{s:"goldenrod",v:null},{s:"alliumPurpleSensation",v:null}],
+    exercises:[["Standing structure","Make a framework that still reads when the flowers fade."],["One lasting focal point","Use a strong central shape with a restrained supporting palette."],["Winter echoes","Repeat lasting forms so the winter view has a clear rhythm."]],
+    goals:["Include shapes that stand after flowering.","Balance a focal group with repeated supporting plants.","Inspect summer and winter using Time."]
+  },
+  {
+    id:"woodland",
+    title:"Shade Woodland Floor",
+    season:"Spring",
+    palette:[{s:"pennsedge",v:null},{s:"rosysedge",v:null},{s:"plantainsedge",v:null},{s:"christmasfern",v:null},{s:"marginalwoodfern",v:null},{s:"maidenhairfern",v:null},{s:"hosta",v:null},{s:"heuchera",v:null},{s:"woodlandphlox",v:null},{s:"solomonsseal",v:null}],
+    exercises:[["Leaf layers","Build a low woodland carpet beneath arching and upright leaves."],["A quiet clearing","Leave a calm opening between a few bold foliage groups."],["Fern rhythm","Carry a repeated fern shape along the path."]],
+    goals:["Contrast fine and broad leaves.","Place low plants beneath taller foliage.","Look for a quiet area between bold groups."]
+  },
+  {
+    id:"grasses",
+    title:"Grasses Only",
+    season:"Fall",
+    palette:[{s:"bluestem",v:null},{s:"dropseed",v:null},{s:"sideoats",v:null},{s:"bluegrama",v:null},{s:"lovegrass",v:null},{s:"karl",v:null},{s:"moorhexe",v:null},{s:"switchgrass",v:null},{s:"prairiejunegrass",v:null},{s:"bluefescue",v:null}],
+    exercises:[["Moving textures","Combine low fountains and upright grasses to make contrasting textures."],["Grass sculpture","Create a small composition where each grass shape has room to read."],["A flowing rhythm","Repeat the same grass shapes through the planting like a repeating phrase."]],
+    goals:["Contrast low fountains and upright forms.","Leave room for mature clumps.","Inspect movement and winter structure using Time."]
+  },
+  {
+    id:"gravel",
+    title:"Hot, Dry Gravel",
+    season:"Summer",
+    palette:[{s:"bluegrama",v:null},{s:"bluefescue",v:null},{s:"dropseed",v:null},{s:"pallida",v:null},{s:"liatris",v:null},{s:"purpleprairieclover",v:null},{s:"yucca",v:null},{s:"eryngiumbourgatii",v:null},{s:"lambsear",v:null},{s:"pussytoes",v:null}],
+    exercises:[["Shapes in gravel","Set upright accents among low mounds with open ground between."],["One sculptural accent","Give a strong plant shape room to stand out from a quiet setting."],["Repeated islands","Arrange repeated groups separated by visible open ground."]],
+    goals:["Leave open ground between groups.","Contrast an upright form with low mounds.","Give the strongest shape room to read."]
+  },
+  {
+    id:"ground-layer",
+    title:"Living Ground Layer",
+    season:"Spring",
+    palette:[{s:"pennsedge",v:null},{s:"wildginger",v:null},{s:"foamflower",v:null},{s:"barrenwort",v:null},{s:"creepingphlox",v:null},{s:"greenandgold",v:null},{s:"alleghenyspurge",v:null},{s:"wildgeranium",v:null},{s:"ladysmantle",v:null},{s:"sweetwoodruff",v:null}],
+    exercises:[["No bare soil","Knit low plants together until the ground is covered."],["Carpet and accents","Lay a carpet of one or two groundcovers and lift it with a few taller plants."],["Patchwork","Plant groundcovers in patches that interlock without leaving gaps."]],
+    goals:["Cover the ground with plants rather than mulch.","Combine spreading and clumping plants.","Compare spring and summer using Time."]
+  },
+  {
+    id:"hummingbird",
+    title:"Hummingbird Garden",
+    season:"Summer",
+    palette:[{s:"columbine",v:null},{s:"penstemon",v:null},{s:"indianpink",v:null},{s:"scarletbeebalm",v:null},{s:"cardinallobelia",v:null},{s:"greatbluelobelia",v:null},{s:"obedientplant",v:null},{s:"liliumsuperbum",v:null},{s:"switchgrass",v:null},{s:"foxsedge",v:null}],
+    exercises:[["Flower stops","Arrange patches of tubular flowers in a moist, sun-to-part-shade study."],["A compact stopover","Concentrate a few flowering species into bold groups."],["A flowering route","Repeat flowering patches through the site with supporting foliage between."]],
+    goals:["Make bold patches of tubular flowers.","Use supporting foliage between flowering groups.","Check the Bloom calendar for a sequence of flowers."]
   }
 ];
 const DAILY_SITES={
@@ -203,21 +283,75 @@ const DAILY_SITES={
     conditions:'Design for sun and free-draining soil. Gravel beds accept plants; the darker slate is the route to keep clear.'},
   corner:{label:'Tapered corner',widthFt:30,lengthFt:24,
     description:'A tapered corner within a 30 × 24 ft outline, with a turning path and two unequal planting areas.',
-    conditions:'Use repetition to connect the broad bed and the narrowing end. The plot outline and all ground materials are editable.'}
+    conditions:'Use repetition to connect the broad bed and the narrowing end. The plot outline and all ground materials are editable.'},
+  /* The second set of sites (0.9.165). Seven sites over sixty days had the same
+     layout back on screen every few days, and three of the themes stood on one
+     site for all three of their exercises. Each of these is a different way a
+     garden is laid out, not a different colour of the same one. A description
+     names its size once, as "W × L ft", and no other length: dailySiteText
+     converts that one phrase for a metric gardener, and an inch or a foot
+     anywhere else would stay imperial. */
+  pond:{label:'Pond margin',widthFt:30,lengthFt:24,
+    description:'A 30 × 24 ft garden around a natural pond, with beds running down to the water and a gravel path along one bank.',
+    conditions:'Sun, with wet ground at the water and average soil further out. Water plants go in the pond and its margin suits plants for wet ground. Depth is not modelled.'},
+  stream:{label:'Streamside',widthFt:30,lengthFt:21,
+    description:'A 30 × 21 ft garden crossed by a winding stream, with a timber footbridge, wet banks and drier beds above them.',
+    conditions:'Sun to part shade. Plants that stand in shallow water can go in the stream and the banks suit wet-ground plants. Flow and depth are not simulated.'},
+  pool:{label:'Formal pool',widthFt:30,lengthFt:21,
+    description:'A 30 × 21 ft garden with a rectangular pool set in a pale paved terrace, framed by planting beds.',
+    conditions:'An open, sunny site. Water lilies and marginals can go in the pool; keep enough of it clear to reflect the planting.'},
+  meadow:{label:'Mown path through meadow',widthFt:30,lengthFt:24,
+    description:'A 30 × 24 ft long meadow with a mown path winding through it, two planting bays and a small flagstone seat.',
+    conditions:'Sun and average soil. The long meadow is plantable: set drifts and accents straight into it, and keep the mown path open.'},
+  lawn:{label:'Borders round a lawn',widthFt:30,lengthFt:24,
+    description:'A 30 × 24 ft garden with an oval lawn surrounded by deep curving borders and a paved circle at its head.',
+    conditions:'Sun to part shade. Keep the lawn and its entrance open; the borders are yours to fill.'},
+  double:{label:'Double border',widthFt:30,lengthFt:18,
+    description:'A 30 × 18 ft garden with a mown grass path between two deep borders and a paved square at its centre.',
+    conditions:'An open, sunny site. Plan the two borders together so they answer each other across the path.'},
+  raised:{label:'Raised beds',widthFt:30,lengthFt:21,
+    description:'A 30 × 21 ft courtyard of four timber raised beds, divided by brick paths and edged with plantable gravel.',
+    conditions:'Sun and free-draining soil. The gravel around the raised beds takes plants too, and the beds can be reshaped with the grade tools.'},
+  diagonal:{label:'Diagonal walk',widthFt:30,lengthFt:24,
+    description:'A 30 × 24 ft garden crossed corner to corner by a bluestone path, with a small landing halfway and two broad beds.',
+    conditions:'Sun to part shade. The path splits the site into two angled beds; plant them to be seen from the walk.'},
+  edge:{label:'Woodland edge',widthFt:30,lengthFt:18,
+    description:'A 30 × 18 ft border beneath an established redbud and flowering dogwood, with a winding path along the front.',
+    conditions:'Part shade under the trees, brighter at the front. The trees cast real shade and are left out of plant counts; move or remove them with the usual tools.'},
+  treebed:{label:'Under a shade tree',widthFt:24,lengthFt:24,
+    description:'A 24 × 24 ft lawn with a broad round bed beneath an established Japanese maple and a slate path to a seat by its trunk.',
+    conditions:'Part shade beneath the tree, sun on the lawn around it. The tree casts real shade and is left out of plant counts.'},
+  bank:{label:'Stepped bank',widthFt:30,lengthFt:24,
+    description:'A 30 × 24 ft bank of three stone-walled terraces climbing from a level path, with flights of steps up the middle.',
+    conditions:'A sunny, free-draining slope. The terraces, walls and steps are all editable with the grade tools.'},
+  berm:{label:'Berm in a gravel garden',widthFt:30,lengthFt:24,
+    description:'A 30 × 24 ft gravel garden with a broad grassy berm rising from it and a slate path curving along its foot.',
+    conditions:'Sun and free-draining soil, driest on the crown of the berm. Plant into the grass or the gravel, or lay a bed over the mound; it is soft earth from the grade tools.'}
 };
-// Each exercise starts on an ecologically suitable site. Shade exercises keep
-// their canopy; damp-site palettes never rotate onto a dry gravel template.
+/* Each exercise starts on an ecologically suitable site. Shade exercises keep
+   a canopy; damp-site palettes never rotate onto a dry gravel template; and a
+   theme's three exercises stand on three different sites.
+   The ORDER of DAILY_THEMES and these triples were chosen together (0.9.165),
+   by a search over every theme's suitable sites, so that across the 90-day
+   cycle no site comes back within 12 days of itself. Day d is theme d % 30 and
+   exercise floor(d / 30) % 3, so neighbouring themes are neighbouring days:
+   reorder the list or change a triple and a test checks the spacing again. */
 const DAILY_SITE_ROTATION={
-  'dry-prairie':['slope','gravel','corner'], woodland:['woodland','woodland','woodland'],
-  pollinator:['corner','patio','slope'], 'four-season':['slope','patio','corner'],
-  cottage:['narrow','patio','corner'], gravel:['gravel','gravel','gravel'],
-  'wet-spot':['hollow','hollow','hollow'], monochrome:['narrow','patio','corner'],
-  grasses:['slope','gravel','corner'], 'late-season':['slope','patio','narrow'],
-  'deer-border':['narrow','patio','corner'], rhythm:['narrow','corner','patio'],
-  matrix:['slope','gravel','corner'], hummingbird:['hollow','hollow','hollow'],
-  spring:['woodland','woodland','woodland'], foliage:['woodland','woodland','woodland'],
-  evergreen:['patio','patio','patio'], sensory:['narrow','gravel','patio'],
-  'patio-view':['patio','patio','patio'], entrance:['corner','narrow','corner']
+  matrix:['slope','meadow','corner'], evergreen:['pool','edge','treebed'],
+  'water-edge':['pond','stream','pool'], cottage:['double','patio','lawn'],
+  bulbs:['diagonal','double','narrow'], 'blue-gold':['lawn','slope','patio'],
+  'deer-border':['patio','narrow','diagonal'], sensory:['narrow','raised','double'],
+  'hot-colours':['corner','diagonal','raised'], 'dry-prairie':['gravel','berm','slope'],
+  spring:['edge','treebed','woodland'], silver:['bank','gravel','berm'],
+  'shrub-border':['treebed','corner','edge'], entrance:['stream','meadow','gravel'],
+  foliage:['woodland','edge','treebed'], rhythm:['raised','bank','corner'],
+  'wet-spot':['pond','hollow','stream'], pollinator:['diagonal','lawn','patio'],
+  'host-plants':['lawn','slope','diagonal'], 'patio-view':['patio','pool','lawn'],
+  tapestry:['slope','narrow','double'], monochrome:['double','raised','narrow'],
+  'late-season':['narrow','patio','bank'], winter:['berm','diagonal','meadow'],
+  'four-season':['corner','double','berm'], woodland:['treebed','woodland','edge'],
+  grasses:['bank','meadow','gravel'], gravel:['gravel','berm','raised'],
+  'ground-layer':['woodland','edge','treebed'], hummingbird:['hollow','pond','stream']
 };
 /* A winding route, as tiles: `centre(t)` is the path's centreline x at row t,
    and a tile is on it when its centre lies within DAILY_ROUTE_HALF of that line,
@@ -230,19 +364,179 @@ const DAILY_SITE_ROTATION={
    drawn as a curve, and with the step between rows held to one tile, because a
    path whose rows only touch at a corner pinches into a string of lozenges. */
 const DAILY_ROUTE_HALF=1.05;
-function dailyRouteTile(x,y,gh,centre){
+function dailyRouteTile(x,y,gh,centre,half=DAILY_ROUTE_HALF){
   const cx=x+0.5,cy=y+0.5;
-  for(let t=-1;t<=gh+1;t+=0.05)if(Math.hypot(cx-centre(t),cy-t)<DAILY_ROUTE_HALF)return true;
+  // a point further than `half` along the route cannot be within `half` of it,
+  // so only the few steps beside the tile ask the curve (the same t values as ever)
+  for(let t=-1;t<=gh+1;t+=0.05){
+    const dy=cy-t; if(dy>=half||dy<=-half)continue;
+    if(Math.hypot(cx-centre(t),dy)<half)return true;
+  }
   return false;
 }
+// the same, for a route that runs ACROSS the site: centre(t) is its y at column t
+function dailyRouteAcross(x,y,gw,centre,half=DAILY_ROUTE_HALF){ return dailyRouteTile(y,x,gw,centre,half); }
+/* The later sites describe a tile at a time: `cell(x,y,inner)` returns its
+   ground ({k,c}, with `x` for a crossing laid on water) and, where the ground is
+   raised or lowered, its grade ({h,w}, with `s` for a step and `m`/`z` for soft
+   earth), or null for plain lawn. `inner` is false on the outermost ring. */
+function dailyEachTile(p,cell){
+  for(let y=0;y<p.gh;y++)for(let x=0;x<p.gw;x++){
+    if(!blobOnPlot(x,y,p.gw,p.gh,p.shape))continue;
+    const r=cell(x,y,x>0&&y>0&&x<p.gw-1&&y<p.gh-1); if(!r)continue;
+    const key=x+','+y;
+    if(r.k)p.terrain[key]=r.x?{k:r.k,c:r.c,x:r.x}:{k:r.k,c:r.c};
+    if(r.h||r.m){
+      const e={h:r.h||0,w:r.w||'none'};
+      if(r.s)e.s=r.s;
+      if(r.m){e.m=true;e.z=r.z;}
+      p.elevation[key]=e;
+    }
+  }
+}
+/* One function a site. Each lays its routes first, so a path or a bridge always
+   wins the tile, and reaches the plot's edge, so the way in is from outside. */
+const DAILY_SITE_LAYOUTS={
+  /* A pond of two lobes and a path along the far bank. One bed material on the
+     water sites: two bed materials meet along exact tile lines (they are peers,
+     §11), so a bog band round the water drew as a staircase. */
+  pond(p){
+    const lobe=(cx,cy)=>Math.min(Math.hypot((cx-7.5)/4.6,(cy-8)/3.4),Math.hypot((cx-11)/2.8,(cy-10.2)/2.3));
+    const walk=t=>15.4-1.6*Math.sin((t+2)*Math.PI/11);
+    dailyEachTile(p,(x,y,inner)=>{
+      if(dailyRouteTile(x,y,p.gh,walk))return {k:'path',c:'warm'};
+      if(!inner)return null;
+      const r=lobe(x+.5,y+.5);
+      return r<1?{k:'water',c:'pond'}:{k:'bed',c:'soil'};
+    });
+  },
+  /* The stream runs edge to edge and the path crosses it where it turns, so the
+     footbridge is a level deck two tiles wide rather than a slanted one. */
+  stream(p){
+    const river=t=>6.6+2.1*Math.sin((t-1.5)*Math.PI/11);
+    dailyEachTile(p,(x,y,inner)=>{
+      const wet=dailyRouteAcross(x,y,p.gw,river,1.35), way=x===6||x===7;
+      if(wet)return way?{k:'water',c:'river',x:'plank'}:{k:'water',c:'river'};
+      if(way)return {k:'path',c:'sandstone'};
+      if(!inner)return null;
+      return {k:'bed',c:'soil'};
+    });
+  },
+  pool(p){
+    dailyEachTile(p,(x,y,inner)=>{
+      if(x>=7&&x<=12&&y>=5&&y<=7)return {k:'water',c:'formal'};
+      if((x>=5&&x<=14&&y>=3&&y<=9)||(x>=9&&x<=10&&y>=10))return {k:'path',c:'porcelain'};
+      return inner?{k:'bed',c:'soil'}:null;
+    });
+  },
+  // the mown path is bare ground, which is mown lawn, so only the seat is paved
+  meadow(p){
+    const mown=t=>9+3.6*Math.sin((t-1)*Math.PI/13);
+    dailyEachTile(p,(x,y,inner)=>{
+      const cx=x+.5,cy=y+.5;
+      if(Math.hypot(cx-14.2,cy-7.2)<1.6)return {k:'path',c:'sandstone'};
+      if(dailyRouteTile(x,y,p.gh,mown)||!inner)return null;
+      if(Math.hypot((cx-4.6)/3,(cy-4.2)/2.3)<1||Math.hypot((cx-15.2)/3.2,(cy-12.2)/2.3)<1)return {k:'bed',c:'soil'};
+      return {k:'lawn',c:'meadow'};
+    });
+  },
+  lawn(p){
+    dailyEachTile(p,(x,y)=>{
+      const cx=x+.5,cy=y+.5;
+      if(Math.hypot(cx-10,cy-4)<1.6)return {k:'path',c:'paver'};
+      const oval=Math.pow(Math.abs(cx-10)/5.4,2.6)+Math.pow(Math.abs(cy-8.4)/3.8,2.6)<1;
+      // the borders run to the boundary, so the corners are planted and the outer edge straight
+      if(oval||(Math.abs(cx-10)<1.1&&cy>11.5))return null;
+      return {k:'bed',c:'soil'};
+    });
+  },
+  /* The path between the borders is mown grass, bare ground, so only its square
+     is paved. Both borders run to the plot's edge: an edge facing lawn is drawn
+     soft, and with lawn all round them two rectangles rounded into pills. */
+  double(p){
+    dailyEachTile(p,(x,y)=>{
+      if(x>=8&&x<=11&&y>=4&&y<=7)return {k:'path',c:'sandstone'};
+      return y!==5&&y!==6?{k:'bed',c:'soil'}:null;
+    });
+  },
+  raised(p){
+    dailyEachTile(p,(x,y,inner)=>{
+      if(y===6||y===7||x===9||x===10)return {k:'path',c:'brick'};
+      if(!inner)return null;
+      const bx=(x>=2&&x<=7)||(x>=12&&x<=17), by=(y>=2&&y<=4)||(y>=9&&y<=11);
+      return bx&&by?{k:'bed',c:'soil',h:2,w:'sleeper'}:{k:'bed',c:'gravel'};
+    });
+  },
+  diagonal(p){
+    const walk=t=>15.6-t*0.8;
+    dailyEachTile(p,(x,y,inner)=>{
+      if(dailyRouteTile(x,y,p.gh,walk)||Math.hypot(x+.5-9.6,y+.5-7.6)<1.8)return {k:'path',c:'bluestone'};
+      return inner?{k:'bed',c:'mulch'}:null;
+    });
+  },
+  edge(p){
+    const walk=t=>7.6+0.9*Math.sin((t-2)*Math.PI/10);
+    dailyEachTile(p,(x,y,inner)=>{
+      if(dailyRouteAcross(x,y,p.gw,walk))return {k:'path',c:'lime'};
+      return inner?{k:'bed',c:'leaf'}:null;
+    });
+    p.context.push({id:'canopy-1',s:'redbud',v:null,x:5,y:3},{id:'canopy-2',s:'floweringdogwood',v:null,x:14,y:2});
+  },
+  treebed(p){
+    dailyEachTile(p,(x,y)=>{
+      const cx=x+.5,cy=y+.5;
+      if((Math.abs(cx-8)<1.1&&cy>10)||Math.hypot(cx-8,cy-10.3)<1.9)return {k:'path',c:'slate'};
+      return Math.hypot((cx-8)/6.2,(cy-7.6)/5.8)<1?{k:'bed',c:'mulch'}:null;
+    });
+    p.context.push({id:'canopy-1',s:'japanesemaple',v:null,x:7,y:6});
+  },
+  /* Three terraces two levels apart (about 10 in), each flight one step deep,
+     which is the flight the Steps tool lays down a drop that size: the step goes
+     on the LOWER ground, a level above it, and points the way it goes down. */
+  bank(p){
+    const level=y=>y<4?6:y<8?4:y<11?2:0, stair=x=>x>=8&&x<=11;
+    dailyEachTile(p,(x,y,inner)=>{
+      const h=level(y);
+      if(y===11||y===12)return stair(x)&&y===11?{k:'path',c:'sandstone',h:1,w:'stone',s:2}:{k:'path',c:'sandstone'};
+      if(stair(x)&&(y===8||y===4))return {k:'path',c:'sandstone',h:h+1,w:'stone',s:2};
+      if((stair(x)&&y>=1&&y<11)||(x>=6&&x<=13&&(y===1||y===2)))return {k:'path',c:'sandstone',h,w:'stone'};
+      if(!inner)return h?{h,w:'stone'}:null;
+      return h?{k:'bed',c:'soil',h,w:'stone'}:{k:'bed',c:'soil'};
+    });
+  },
+  /* The berm is laid by the Berm tool's own profile (bermLevels), so it is the
+     mound the gardener would get from that tool, soft and inside its slope limit.
+     It is grass: soft ground under a bed or a meadow is shaded a tile at a time,
+     and on gravel, soil or meadow those tiles showed as a faint grid, where bare
+     grass is lit as one smooth surface. Its foot meets the path. */
+  berm(p){
+    const walk=t=>16.3-1.4*Math.sin((t+1)*Math.PI/15), inside=(x,y)=>x>=0&&y>=0&&x<p.gw&&y<p.gh;
+    const onWalk=(x,y)=>dailyRouteTile(x,y,p.gh,walk);
+    const mound=bermLevels({x0:3,y0:2,x1:14,y1:12},4,()=>0,(x,y)=>!inside(x,y)||onWalk(x,y),inside);
+    dailyEachTile(p,(x,y,inner)=>{
+      if(onWalk(x,y))return {k:'path',c:'slate'};
+      const v=mound.get(x+','+y);
+      if(v>=0.15)return {h:Math.round(v),w:'none',m:true,z:Math.round(v*100)/100};
+      return inner?{k:'bed',c:'gravel'}:null;
+    });
+  }
+};
 /* Pure blueprint: preview, start and saved brief all consume the same data.
    Legacy layouts remain available only to older saved briefs. */
+const dailySitePlans=new Map();
+// a blueprint is pure, so each kind is built once and every caller gets its own copy
 function dailySitePlan(kind){
+  if(!Object.prototype.hasOwnProperty.call(DAILY_SITES,kind))return null;
+  if(!dailySitePlans.has(kind))dailySitePlans.set(kind,buildDailySitePlan(kind));
+  return JSON.parse(JSON.stringify(dailySitePlans.get(kind)));
+}
+function buildDailySitePlan(kind){
   const site=DAILY_SITES[kind]; if(!site)return null;
   const gw=ftToTiles(site.widthFt),gh=ftToTiles(site.lengthFt);
   const p={v:1,kind,label:site.label,description:site.description,
     conditions:site.conditions||'Everything on the site is editable.',gw,gh,
     shape:kind==='corner'?[[0,0],[20,0],[14,16],[0,16]]:null,terrain:{},elevation:{},context:[]};
+  if(DAILY_SITE_LAYOUTS[kind]){DAILY_SITE_LAYOUTS[kind](p);return p;}
   for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){
     if(!blobOnPlot(x,y,gw,gh,p.shape))continue;
     let k=null,c='soil',h=0,w='none';
@@ -302,15 +596,45 @@ function renderDailySite(prefix,c,resuming=false){
   $(prefix+'Site').textContent=dailySiteText(p.description)+' '+p.conditions;
   $(prefix+'SiteCaption').textContent=resuming?'Original starting site · your edits are saved in the garden':'Your starting site · everything is editable';
   const legend=$(prefix+'SiteLegend');legend.replaceChildren();
-  for(const [kind,label] of [['bed','Planting beds'],['path','Paths / terrace'],
-      ...(p.context.length?[['tree','Existing tree canopy']]:[]),
-      ...(Object.keys(p.elevation).length?[['grade','Grade changes']]:[])]){
+  for(const [kind,label,colour] of dailySiteLegend(p)){
     const span=document.createElement('span'),swatch=document.createElement('i');
     swatch.className='daily-site-swatch '+kind;swatch.setAttribute('aria-hidden','true');
+    if(colour)swatch.style.background=colour;
     span.append(swatch,label);legend.appendChild(span);
   }
   canvas.setAttribute('aria-label',p.label+'. '+dailySiteText(p.description)+' '+p.conditions);
   drawDailySitePlan(canvas,p);
+}
+/* The preview's colours, a step darker than the plan sheet's so the site reads
+   at the size of a phone. A material with no tone of its own takes its kind's. */
+const DAILY_PATH_TONES={slate:'#7f888a',bluestone:'#8b959b',brick:'#b47b63',paver:'#bdb9b0',porcelain:'#dcd7cd',sandstone:'#d5bf96',lime:'#ddd4be'};
+const DAILY_BED_TONES={gravel:'#b8ad8e',leaf:'#97866b',mulch:'#8b6e54',bog:'#77785a'};
+function dailySiteTone(t){
+  if(!t)return '#b5bc91';
+  if(t.k==='water')return t.c==='formal'?'#4e7d8b':'#6f9eac';
+  if(t.k==='lawn')return '#c6c189';
+  if(t.k==='path')return DAILY_PATH_TONES[t.c]||'#d2c5aa';
+  return DAILY_BED_TONES[t.c]||'#ac9272';
+}
+// what the legend names: only what this site has, each swatch the colour the map uses for it
+function dailySiteLegend(p){
+  const t=Object.values(p.terrain),e=Object.values(p.elevation),most=k=>{
+    const n=new Map();for(const r of t)if(r.k===k&&!r.x)n.set(r.c,(n.get(r.c)||0)+1);
+    let best=null;for(const [c,v] of n)if(!best||v>best[1])best=[c,v];
+    return best?dailySiteTone({k,c:best[0]}):null;
+  };
+  let bare=false;
+  for(let y=0;y<p.gh&&!bare;y++)for(let x=0;x<p.gw;x++)if(blobOnPlot(x,y,p.gw,p.gh,p.shape)&&!p.terrain[x+','+y]){bare=true;break;}
+  return [['bed','Planting beds',most('bed')],
+    ...(t.some(r=>r.k==='lawn')?[['meadow','Long meadow',most('lawn')]]:[]),
+    ...(bare?[['lawn','Lawn',dailySiteTone(null)]]:[]),
+    ['path','Paths / terrace',most('path')],
+    ...(t.some(r=>r.k==='water')?[['water','Water',most('water')]]:[]),
+    ...(t.some(r=>r.x)?[['bridge','Footbridge',null]]:[]),
+    ...(p.context.length?[['tree',p.context.length>1?'Existing tree canopies':'Existing tree canopy',null]]:[]),
+    ...(e.some(r=>!r.m&&!r.s)?[['grade','Grade changes',null]]:[]),
+    ...(e.some(r=>r.s)?[['steps','Steps',null]]:[]),
+    ...(e.some(r=>r.m)?[['mound','Mounded ground',null]]:[])];
 }
 function drawDailySitePlan(canvas,p){
   const ctx=canvas.getContext('2d');if(!ctx)return;
@@ -324,16 +648,38 @@ function drawDailySitePlan(canvas,p){
   for(let y=0;y<p.gh;y++)for(let x=0;x<p.gw;x++){
     if(!blobOnPlot(x,y,p.gw,p.gh,p.shape))continue;
     const key=x+','+y,t=p.terrain[key],e=p.elevation[key];
-    ctx.fillStyle=t?(t.k==='path'?(t.c==='slate'?'#7f888a':'#d2c5aa'):t.c==='gravel'?'#b8ad8e':t.c==='leaf'?'#97866b':'#ac9272'):'#b5bc91';
-    ctx.fillRect(ox+x*scale,oy+y*scale,scale+.5,scale+.5);
-    if(e){ctx.fillStyle=e.h<0?'rgba(47,66,49,.15)':`rgba(255,248,215,${e.h*.11})`;ctx.fillRect(ox+x*scale,oy+y*scale,scale+.5,scale+.5);}
-    // Trace grade boundaries, including the lower hollow, without implying water.
+    const X=ox+x*scale,Y=oy+y*scale;
+    ctx.fillStyle=dailySiteTone(t);
+    ctx.fillRect(X,Y,scale+.5,scale+.5);
+    if(t&&t.x){
+      // a footbridge: its boards across the water, the way the garden lays them
+      ctx.fillStyle=t.x==='stepping'?'#aaa498':'#9b7a52';ctx.fillRect(X,Y,scale+.5,scale+.5);
+      ctx.strokeStyle='rgba(60,42,26,.55)';ctx.lineWidth=1;
+      for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(X,Y+i*scale/4);ctx.lineTo(X+scale,Y+i*scale/4);ctx.stroke();}
+    }
+    if(e){
+      const lift=e.m?e.z:e.h;
+      ctx.fillStyle=lift<0?'rgba(47,66,49,.15)':`rgba(255,248,215,${Math.min(2,lift)*.11+Math.max(0,lift-2)*.05})`;
+      ctx.fillRect(X,Y,scale+.5,scale+.5);
+    }
+    if(e&&e.s){
+      // a step: treads drawn across the way it goes down
+      const [sx,sy]=ELEV_DIRS[e.s-1];ctx.strokeStyle='rgba(70,62,50,.6)';ctx.lineWidth=1;
+      for(const f of [.33,.66]){ctx.beginPath();
+        if(sx)ctx.moveTo(X+f*scale,Y),ctx.lineTo(X+f*scale,Y+scale);else ctx.moveTo(X,Y+f*scale),ctx.lineTo(X+scale,Y+f*scale);ctx.stroke();}
+    }
+    /* Trace grade boundaries, including the lower hollow, without implying water.
+       Soft earth has no face to draw, so its levels are dashed, like contours. */
     const height=e?.h||0;
-    ctx.strokeStyle='#655d4c';ctx.lineWidth=1.4;
+    ctx.strokeStyle='#655d4c';
     for(const [dx,dy,ax,ay,bx,by] of [[1,0,1,0,1,1],[0,1,0,1,1,1]]){
-      if(!blobOnPlot(x+dx,y+dy,p.gw,p.gh,p.shape)||(p.elevation[(x+dx)+','+(y+dy)]?.h||0)===height)continue;
+      const n=p.elevation[(x+dx)+','+(y+dy)];
+      if(!blobOnPlot(x+dx,y+dy,p.gw,p.gh,p.shape)||(n?.h||0)===height)continue;
+      const soft=(e?.m||!e)&&(n?.m||!n);
+      ctx.lineWidth=soft?1:1.4;ctx.setLineDash(soft?[3,3]:[]);
       ctx.beginPath();ctx.moveTo(ox+(x+ax)*scale,oy+(y+ay)*scale);ctx.lineTo(ox+(x+bx)*scale,oy+(y+by)*scale);ctx.stroke();
     }
+    ctx.setLineDash([]);
   }
   for(const tree of p.context){
     const x=ox+(tree.x+.5)*scale,y=oy+(tree.y+.5)*scale;

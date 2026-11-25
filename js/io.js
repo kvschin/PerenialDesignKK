@@ -550,12 +550,23 @@ function normalizeDailySitePlan(p){
       const xy=key.split(',').map(Number);
       if(!/^\d+,\d+$/.test(key)||xy.join(',')!==key||!inside(...xy)||!gardenRecord(r))return null;
       if(name==='terrain'){
-        const styles=r.k==='bed'?BED_STYLES:r.k==='path'?PATH_COLORS:[];
+        /* Water, a meadow and a footbridge joined the bed and the path in
+           0.9.165. Mown lawn is never a record (it is bare ground), and a
+           crossing is laid only on water, as the Crossing tool lays it. */
+        const styles=r.k==='bed'?BED_STYLES:r.k==='path'?PATH_COLORS:r.k==='water'?WATER_STYLES:
+          r.k==='lawn'?LAWN_STYLES.filter(s=>!s.none):[];
         if(!styles.some(s=>s.id===r.c))return null;
-        target[key]={k:r.k,c:r.c};
+        if(r.x!==undefined&&(r.k!=='water'||!CROSSING_TYPES.some(s=>s.id===r.x&&s.id!=='none')))return null;
+        target[key]=r.x?{k:r.k,c:r.c,x:r.x}:{k:r.k,c:r.c};
       }else{
         if(!Number.isInteger(r.h)||r.h<ELEV_MIN||r.h>ELEV_MAX||!WALL_STYLES.some(s=>s.id===r.w))return null;
+        // a step points the way it goes down; soft earth carries the height its profile drew
+        if(r.s!==undefined&&!(Number.isInteger(r.s)&&r.s>=1&&r.s<=4))return null;
+        if(r.m!==undefined&&(r.m!==true||!Number.isFinite(r.z)||Math.abs(r.z-r.h)>1||r.s!==undefined))return null;
+        if(r.m===undefined&&r.z!==undefined)return null;
         target[key]={h:r.h,w:r.w};
+        if(r.s)target[key].s=r.s;
+        if(r.m){target[key].m=true;target[key].z=r.z;}
       }
     }
   }

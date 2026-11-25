@@ -14,8 +14,11 @@ same unfiltered list), **Plant Library** (`btnLibrary` — browse every
 species: list + seasonal images + facts + cultivars), and **Daily design
 challenge** (`btnDaily` — an unscored daily brief with three design goals,
 a small prepared site, saved progress and an optional finish/share image).
-`DAILY_THEMES` defines 20 themes with three distinct composition exercises each,
-forming a 60-day rotation. Each theme owns ten exact species/cultivar suggestions
+`DAILY_THEMES` defines 30 themes with three distinct composition exercises each,
+forming a 90-day rotation (0.9.166 added ten: Naturalistic Tapestry, Hot Colours,
+Blue and Gold, Silver Foliage, Winter Silhouettes, Bulbs Through Perennials,
+Shrubs and Perennials, Water's Edge, Butterfly Host Plants and Living Ground
+Layer). Each theme owns ten exact species/cultivar suggestions
 and three self-review goals. View from the Patio and Welcoming Entrance add
 viewpoint, layering, arrival and reveal exercises to the planting-style themes. The user's
 local calendar date determines the prompt and the start screen freezes it
@@ -57,10 +60,33 @@ attempt on that day. Older untagged
 gardens remain ordinary planners. Metadata survives imports, exports, menu
 navigation and reopen; only a new ordinary garden clears it. The daily
 exception to blank plots is an authored, fully editable starting landscape.
-`DAILY_SITE_ROTATION` matches exercises to seven suitable sites: woodland clearing,
-narrow border, patio edge, gentle terraced slope, lowered planting hollow, gravel
-pockets and tapered corner. Sites are 24–30 ft wide and 12–24 ft deep, without a
+`DAILY_SITE_ROTATION` matches exercises to nineteen suitable sites: woodland
+clearing, narrow border, patio edge, gentle terraced slope, lowered planting hollow,
+gravel pockets and tapered corner, and (0.9.166) pond margin, streamside with a
+plank footbridge, formal pool, mown path through a long meadow, borders round a
+lawn, double border on a grass walk, timber raised beds in a brick-and-gravel
+courtyard, diagonal walk, woodland edge under two trees, a round bed under a
+Japanese maple, a stepped bank (three walled terraces, a flight through each) and a
+grassy berm in a gravel garden. Sites are 24–30 ft wide and 12–24 ft deep, without a
 house. Legacy border/split/island sites remain available for older saved briefs.
+**The order of `DAILY_THEMES` and the rotation's triples were chosen together**,
+by a search over each theme's suitable sites: day d is theme d % 30 and exercise
+floor(d / 30) % 3, so neighbouring themes are neighbouring days, and across the
+90 days no site comes back within 12 days of itself and no theme uses one site
+twice (a test holds both). Seven sites over 60 days put the same layout back on
+screen within a day or two (woodland on 9 days, patio on 14).
+The later sites are one function each in `DAILY_SITE_LAYOUTS`, describing a tile at
+a time through `dailyEachTile`; `dailyRouteAcross` is `dailyRouteTile` for a route
+that runs across the site. Lessons from authoring them, each seen in the renderer:
+two BED materials meet along exact tile lines (they are peers, §11), so a bog band
+round water or soil on a gravel berm drew as a staircase (one bed material a site,
+or materials separated by a level change, as the raised beds are); a bed with lawn
+on every side rounds into a pill, so the double border and the lawn's borders run
+to the plot edge; and soft ground under a bed, a meadow or gravel is shaded a tile
+at a time and shows that grid, so the berm is bare grass, which is lit as one
+surface. A mown path is bare ground, so routes are checked as path, footbridge and
+bare lawn together, one connected network. `dailySitePlan` builds each kind once
+and hands out copies.
 The woodland's winding gravel path and the gravel site's bending slate path are
 CURVES (`dailyRouteTile`: a centreline, tiles within 1.05 of it measured square to
 the line), never stepping more than one tile between rows; they were straight
@@ -74,19 +100,22 @@ renderer rule keeping the first step square against any hard edge was tried
 for this and reverted: it fixed the tab and put lumps where the hollow's path
 ring merely brushes the plot edge.
 `dailySitePlan` builds a pure, deterministic blueprint, including label/description,
-conditions, dimensions, optional four-point outline, bed/path materials, grade and
-at most two context trees. `normalizeDailySitePlan` bounds and copies that data;
+conditions, dimensions, optional four-point outline, bed/path/water/meadow materials
+(a crossing `x` only on water), grade (steps `s`, soft earth `m`/`z`) and at most
+two context trees. `normalizeDailySitePlan` bounds and copies that data;
 the preview and creation use the same snapshot. The start screen shows a top-down
-preview with dimensions, north and an accessible legend; the in-garden brief can
+preview with dimensions, north and an accessible legend that names only what the
+site has, each swatch the colour the map draws it (`dailySiteLegend`, `dailySiteTone`); the in-garden brief can
 show the original site separately from the gardener's edits. `prepareDailySite`
 applies the snapshot only at creation through `setPlotShape` and `setTile`; reload
 never reseeds it. No generator or preview work runs in the frame loop. Suggested
 moisture/drainage are design assumptions, not a hydrology simulation. Gravel beds
 remain plantable; hollow beds use soil at grade -1, not water. The terraced slope
 uses grade +1/+2 and dry-stone edges beside a level route. The woodland starts
-with a mature serviceberry, placed via `matureWoodyDraft` after the season is set,
-so it contributes real canopy shade. Its `dailySiteId` matches the saved context
-descriptor and excludes that one original from the empty-finish plant count.
+with a mature serviceberry (the woodland edge with a redbud and a flowering dogwood,
+the shade-tree bed with a Japanese maple), placed via `matureWoodyDraft` after the
+season is set, so it contributes real canopy shade. Its `dailySiteId` matches the
+saved context descriptor and excludes that one original from the empty-finish plant count.
 Moves, undo and saved schemes preserve identity;
 selection copies strip it, and ordinary new plantings never receive it. Duplicate
 imported tags exempt at most one matching tree. Context remains editable/removable.

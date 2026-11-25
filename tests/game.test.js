@@ -12755,9 +12755,9 @@ test('daily briefs follow the local calendar and have independent saved snapshot
     assertEqual(normalizeDailyChallenge(bad),null,'invalid snapshots are rejected');
 });
 
-test('60 distinct daily exercises offer suggested palettes without tracked constraints',()=>{
+test('90 distinct daily exercises offer suggested palettes without tracked constraints',()=>{
   setup(); const ids=new Set(), briefs=new Set();
-  const cycle=DAILY_THEMES.length*3;assertEqual(cycle,60);
+  const cycle=DAILY_THEMES.length*3;assertEqual(cycle,90);
   for(let day=0;day<cycle;day++){
     const c=dailyChallengeFor(new Date(2026,8,1+day));
     assert(c&&c.v===3); ids.add(c.id); briefs.add(c.brief);
@@ -12908,7 +12908,7 @@ test('daily prepared sites are repeatable, editable layers with no inherited pla
     setTile('plants','2,2',{s:'bluestem',d:0,t:1}); resetNewGardenState();
     assertEqual(game.challenge,null,'new ordinary gardens clear the prior brief');
     prepareDailySite(kind);
-    assertEqual(live(game.plants).length,kind==='woodland'?1:0);
+    assertEqual(live(game.plants).length,dailySitePlan(kind).context.length,'only the trees the site comes with: '+kind);
     assert(!game.houses.length&&!game.buildings.length);
     const layout=()=>Object.entries(game.terrain).map(([key,p])=>[key,p.k,p.c]);
     const first=JSON.stringify(layout());
@@ -12925,7 +12925,11 @@ test('daily starter snapshots are bounded, deeply independent and keep legacy br
   assertEqual(p.terrain['1,1'].c,'leaf');assertEqual(p.context[0].x,7);
   for(const bad of [{...p,gw:500},{...p,description:'x'.repeat(401)},
     {...p,shape:[[0,0],[1,0],[1,1],[0,1]]},{...p,shape:[[0,0],[20,16],[20,0],[0,16]]},
-    {...p,terrain:{'0,0':{k:'water',c:'pond'}}},{...p,terrain:{'20,1':{k:'bed',c:'soil'}}},
+    {...p,terrain:{'0,0':{k:'water',c:'ocean'}}},{...p,terrain:{'20,1':{k:'bed',c:'soil'}}},
+    {...p,terrain:{'1,1':{k:'bed',c:'soil',x:'plank'}}},{...p,terrain:{'1,1':{k:'water',c:'pond',x:'none'}}},
+    {...p,terrain:{'1,1':{k:'lawn',c:'mown'}}},{...p,terrain:{'1,1':{k:'moat',c:'pond'}}},
+    {...p,elevation:{'1,1':{h:1,w:'none',s:5}}},{...p,elevation:{'1,1':{h:1,w:'none',m:true,z:4}}},
+    {...p,elevation:{'1,1':{h:1,w:'none',z:1.2}}},{...p,elevation:{'1,1':{h:1,w:'none',m:true,z:1.2,s:2}}},
     {...p,elevation:{'1,1':{h:99,w:'none'}}},{...p,context:[{...p.context[0],s:'echinacea'}]},
     {...p,context:[p.context[0],p.context[0]]}])assertEqual(normalizeDailySitePlan(bad),null);
   assertEqual(normalizeDailyChallenge({...c,sitePlan:null}),null);
@@ -12936,26 +12940,70 @@ test('daily starter snapshots are bounded, deeply independent and keep legacy br
   }
 });
 
+/* The ground you can walk on is one network: a path, a footbridge, or bare
+   mown grass (the mown path through a meadow, the lawn the borders face). Before
+   0.9.165 only paved paths counted; a mown path is the route on two sites now. */
+function dailyRouteKeys(p){
+  const keys=new Set();
+  for(let y=0;y<p.gh;y++)for(let x=0;x<p.gw;x++){
+    if(!blobOnPlot(x,y,p.gw,p.gh,p.shape))continue;
+    const t=p.terrain[x+','+y];
+    if(!t||t.k==='path'||t.x)keys.add(x+','+y);
+  }
+  return keys;
+}
 test('authored sites fit their briefs and leave connected routes and generous planting space',()=>{
-  const kinds=new Set();
+  const kinds=new Set(),SHADE=['woodland','edge','treebed'],WET=['hollow','pond','stream','pool'];
   for(let day=0;day<DAILY_THEMES.length*3;day++){
     const c=dailyChallengeFor(new Date(2026,8,1+day)),p=c.sitePlan;kinds.add(c.site);
     assertEqual(JSON.stringify(p),JSON.stringify(dailySitePlan(c.site)),'frozen layout matches its preview');
-    assert(Object.values(p.terrain).filter(t=>t.k==='bed').length>=80,'space for repeated planting');
-    const path=Object.keys(p.terrain).filter(k=>p.terrain[k].k==='path'),seen=new Set(),todo=[path[0]];
+    assert(Object.values(p.terrain).filter(t=>t.k==='bed'||t.k==='lawn').length>=80,'space for repeated planting: '+c.site);
+    assert(Object.values(p.terrain).some(t=>t.k==='path'),'somewhere paved to stand: '+c.site);
+    const route=dailyRouteKeys(p),seen=new Set(),todo=[route.values().next().value];
     while(todo.length){const key=todo.pop();if(seen.has(key))continue;seen.add(key);
       const [x,y]=key.split(',').map(Number);
       for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
-        const next=(x+dx)+','+(y+dy);if(p.terrain[next]?.k==='path'&&!seen.has(next))todo.push(next);
+        const next=(x+dx)+','+(y+dy);if(route.has(next)&&!seen.has(next))todo.push(next);
       }
     }
-    assertEqual(seen.size,path.length,'route stays connected: '+c.site);
-    assert(path.every(k=>!p.elevation[k]),'route is level');
-    if(/^(woodland|spring|foliage)-/.test(c.id))assertEqual(c.site,'woodland');
-    if(/^(wet-spot|hummingbird)-/.test(c.id))assertEqual(c.site,'hollow');
-    if(/^evergreen-/.test(c.id))assertEqual(c.site,'patio');
+    assertEqual(seen.size,route.size,'route stays connected: '+c.site);
+    // a path climbs only by steps, a level at a time, and a step is always a path
+    for(const [key,t] of Object.entries(p.terrain)){
+      if(t.k!=='path')continue;
+      const [x,y]=key.split(',').map(Number),h=p.elevation[key]?.h||0;
+      for(const [dx,dy] of [[1,0],[0,1]]){
+        const nk=(x+dx)+','+(y+dy);if(p.terrain[nk]?.k!=='path')continue;
+        const nh=p.elevation[nk]?.h||0;
+        assert(Math.abs(nh-h)<=1&&(nh===h||p.elevation[key]?.s||p.elevation[nk]?.s),'route changes level only at a step: '+c.site+' '+key);
+      }
+      assert(!p.elevation[key]?.m,'no route on soft ground: '+c.site);
+    }
+    for(const [key,e] of Object.entries(p.elevation))if(e.s)assertEqual(p.terrain[key]?.k,'path','a step is paved: '+key);
+    if(/^(woodland|spring|foliage|ground-layer)-/.test(c.id))assert(SHADE.includes(c.site)&&p.context.length,c.id+' stands under trees');
+    if(/^(wet-spot|hummingbird|water-edge)-/.test(c.id))assert(WET.includes(c.site),c.id+' stands on damp ground');
+    if(/^water-edge-/.test(c.id))assert(Object.values(p.terrain).some(t=>t.k==='water'),c.id+' has water to plant');
+    if(/^(gravel|dry-prairie|silver|sensory)-/.test(c.id))assert(!WET.includes(c.site)&&!SHADE.includes(c.site),c.id+' is dry and open');
   }
-  assertEqual(kinds.size,7);
+  assertEqual(kinds.size,Object.keys(DAILY_SITES).filter(k=>!['border','split','island'].includes(k)).length,'every current site is in the rotation');
+});
+
+/* What the gardener asked for in 0.9.165: seven sites over sixty days put the
+   same layout back on screen within a day or two, and a theme could stand on one
+   site for all three of its exercises. */
+test('the daily rotation spaces every site out and gives each theme three different sites',()=>{
+  const cycle=DAILY_THEMES.length*3,sites=[];
+  for(let day=0;day<cycle;day++)sites.push(dailyChallengeFor(new Date(2026,8,1+day)).site);
+  const last={},first={};let min=Infinity,uses={};
+  sites.forEach((k,d)=>{if(k in last)min=Math.min(min,d-last[k]);else first[k]=d;last[k]=d;uses[k]=(uses[k]||0)+1;});
+  for(const k in last)min=Math.min(min,cycle-last[k]+first[k]);   // the cycle wraps
+  assert(min>=12,'a site comes back after only '+min+' days');
+  assert(Math.max(...Object.values(uses))<=6,'no site carries more than six days in ninety');
+  for(const theme of DAILY_THEMES){
+    const own=DAILY_SITE_ROTATION[theme.id];
+    assert(own&&own.length===3&&new Set(own).size===3,theme.id+' has three different sites');
+    assert(own.every(k=>DAILY_SITES[k]),theme.id+' names real sites');
+  }
+  assertEqual(Object.keys(DAILY_SITE_ROTATION).length,DAILY_THEMES.length,'every theme has a rotation, and only themes do');
 });
 
 /* The winding routes used to be a straight two-tile strip stepped sideways by
@@ -12999,15 +13047,78 @@ test('the patio site reaches its terrace by a path at least three tiles long',()
    0.011 apart in OKLab (about half a just-noticeable difference), so the path
    was a slightly smoother patch of the same brown. Winter is left out because
    snow covers both. */
+/* Beside it: the pairs that touch. Every path used to be checked against every
+   bed on the site, which on the raised-bed courtyard compared the brick paths
+   with the soil of beds they never meet (gravel runs between them). */
 test('every daily route reads against the beds beside it',()=>{
+  let pairs=0;
   for(const kind of Object.keys(DAILY_SITES)){
-    const p=dailySitePlan(kind),paths=new Set(),beds=new Set();
-    for(const t of Object.values(p.terrain))(t.k==='path'?paths:beds).add(t.c);
-    for(const a of paths)for(const b of beds)for(const s of ['Spring','Summer','Fall']){
-      const d=oklabDist(oklabOf(pathFill({k:'path',c:a},false)),oklabOf(bedFill({k:'bed',c:b},AMBIENCE[s])));
-      assert(d>=0.08,kind+': '+a+' path on '+b+' beds in '+s+' is only '+d.toFixed(3)+' apart');
+    const p=dailySitePlan(kind),touch=new Set();
+    for(const [key,t] of Object.entries(p.terrain)){
+      if(t.k!=='path')continue;
+      const [x,y]=key.split(',').map(Number);
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const n=p.terrain[(x+dx)+','+(y+dy)];
+        if(n&&n.k==='bed')touch.add(t.c+'|'+n.c);
+      }
+    }
+    for(const pair of touch){
+      const [a,b]=pair.split('|');pairs++;
+      for(const s of ['Spring','Summer','Fall']){
+        const d=oklabDist(oklabOf(pathFill({k:'path',c:a},false)),oklabOf(bedFill({k:'bed',c:b},AMBIENCE[s])));
+        assert(d>=0.08,kind+': '+a+' path on '+b+' beds in '+s+' is only '+d.toFixed(3)+' apart');
+      }
     }
   }
+  assert(pairs>=15,'the check saw the sites\' paths and beds ('+pairs+' pairs)');
+});
+
+test('new daily sites carry their water, bridge, steps and soft earth through the saved brief',()=>{
+  const plan=k=>{const p=dailySitePlan(k),n=normalizeDailySitePlan(p);assert(n,k+' normalizes');
+    assertEqual(JSON.stringify(n),JSON.stringify(p),k+' survives normalizing unchanged');return p;};
+  // a footbridge is laid on water and is one rectangle, so it is drawn as one deck
+  const stream=plan('stream'),deck=Object.entries(stream.terrain).filter(([,t])=>t.x);
+  assert(deck.length>=4&&deck.every(([,t])=>t.k==='water'&&t.x==='plank'),'the bridge is planks on the stream');
+  const xs=deck.map(([k])=>+k.split(',')[0]),ys=deck.map(([k])=>+k.split(',')[1]);
+  assertEqual(deck.length,(Math.max(...xs)-Math.min(...xs)+1)*(Math.max(...ys)-Math.min(...ys)+1),'the deck is a rectangle');
+  for(const k of ['pond','pool'])assert(Object.values(plan(k).terrain).some(t=>t.k==='water'),k+' has water');
+  assert(Object.values(plan('pool').terrain).some(t=>t.c==='formal'),'the formal pool is a formal pool');
+  assert(Object.values(plan('meadow').terrain).filter(t=>t.k==='lawn'&&t.c==='meadow').length>=80,'a meadow to plant in');
+  // each step stands one level above the ground it goes down to, and the level behind it is one higher
+  const bank=plan('bank'),steps=Object.entries(bank.elevation).filter(([,e])=>e.s);
+  assert(steps.length>=6,'flights of steps');
+  for(const [key,e] of steps){
+    const [x,y]=key.split(',').map(Number),[dx,dy]=ELEV_DIRS[e.s-1];
+    const down=bank.elevation[(x+dx)+','+(y+dy)]?.h||0,up=bank.elevation[(x-dx)+','+(y-dy)]?.h||0;
+    assertEqual(e.h-down,1,'a step stands a level above where it lands: '+key);
+    assertEqual(up-e.h,1,'and a level below what it climbs to: '+key);
+  }
+  // soft earth is the Berm tool's: within the slope limit, and drawn heights within a level of the rules' level
+  const berm=plan('berm'),soft=Object.entries(berm.elevation).filter(([,e])=>e.m);
+  assert(soft.length>=40&&Math.max(...soft.map(([,e])=>e.h))>=3,'a real mound');
+  for(const [key,e] of soft){
+    assert(Math.abs(e.z-e.h)<=0.5&&e.w==='none','soft earth has no wall and a drawn height: '+key);
+    const [x,y]=key.split(',').map(Number);
+    for(const [dx,dy] of [[1,0],[0,1],[1,1],[1,-1]]){
+      const n=berm.elevation[(x+dx)+','+(y+dy)],nz=n?(n.m?n.z:n.h):0;
+      assert(Math.abs(nz-e.z)<=BERM_SLOPE_MAX+1e-6,'inside the slope limit at '+key);
+    }
+  }
+  // and the shade sites' trees stand in beds, where their canopy is real shade
+  for(const k of ['edge','treebed'])assert(plan(k).context.every(q=>plan(k).terrain[q.x+','+q.y].k==='bed'),k+' trees stand in beds');
+});
+
+test('the site legend names only what the site has, in the colours the map uses',()=>{
+  const names=k=>dailySiteLegend(dailySitePlan(k)).map(r=>r[0]);
+  assert(names('pond').includes('water')&&!names('pond').includes('bridge'));
+  assert(names('stream').includes('bridge')&&names('stream').includes('water'));
+  assert(names('meadow').includes('meadow')&&names('meadow').includes('lawn'));
+  assert(names('bank').includes('steps')&&names('bank').includes('grade')&&!names('bank').includes('mound'));
+  assert(names('berm').includes('mound')&&!names('berm').includes('grade'),'soft earth is not a wall');
+  assert(names('edge').includes('tree')&&dailySiteLegend(dailySitePlan('edge')).find(r=>r[0]==='tree')[1].endsWith('canopies'));
+  assert(!names('narrow').includes('water')&&!names('narrow').includes('tree'));
+  const path=dailySiteLegend(dailySitePlan('gravel')).find(r=>r[0]==='path');
+  assertEqual(path[2],dailySiteTone({k:'path',c:'slate'}),'the swatch is the slate the map draws');
 });
 
 test('all prepared briefs accept suggested plants through ordinary placement tools',()=>{
@@ -13070,7 +13181,8 @@ test('site preview uses its saved blueprint without touching the live garden',()
 });
 
 test('edited starter layers and tree identity survive save, reload and export without reseeding',async()=>{
-  for(const kind of ['woodland','slope','hollow','corner']){
+  // the later sites carry water, a footbridge, steps, soft earth and two trees through a save
+  for(const kind of ['woodland','slope','hollow','corner','stream','bank','berm','edge','meadow']){
     const c=Array.from({length:DAILY_THEMES.length*3},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site===kind),p=c.sitePlan;
     setup(p.gw,p.gh);game.worldId='starter-'+kind;game.challenge=c;game.pausedAt=Date.now();prepareDailySite(p);
     const key=Object.keys(p.terrain)[0];clearTile('terrain',key);

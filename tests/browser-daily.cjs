@@ -345,7 +345,8 @@ async function checkSites(browser,url,viewport,isMobile){
     await context.addInitScript(()=>localStorage.setItem('hortus:welcomed','1'));
     const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url,{waitUntil:'load'});await page.evaluate(()=>document.fonts.ready);
-    for(const kind of ['woodland','narrow','patio','slope','hollow','gravel','corner']){
+    const kinds=await page.evaluate(()=>Object.keys(DAILY_SITES).filter(k=>!['border','split','island'].includes(k)));
+    for(const kind of kinds){
       const frozen=await page.evaluate(kind=>{
         dailySelection=Array.from({length:DAILY_THEMES.length*3},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site===kind);
         dailyResumeId=null;dailyReady=true;dailyCriteria=normalizeFilters({zone:null});renderDailyEntry();show('dailyScreen');
@@ -363,13 +364,13 @@ async function checkSites(browser,url,viewport,isMobile){
       const initial=await page.evaluate(async()=>{
         await pendingSaves();const p=game.challenge.sitePlan;
         return {id:game.worldId,plan:JSON.stringify(p),count:dailyPlantCount(),shape:game.plotShape,
-          beds:Object.values(game.terrain).filter(t=>t.k==='bed').length,
-          heights:Object.values(game.elevation).map(e=>e.h),trees:Object.values(game.plants).map(p=>plantEstab(p)),
+          beds:Object.values(game.terrain).filter(t=>t.k==='bed'||t.k==='lawn').length,trees:p.context.length,
+          heights:Object.values(game.elevation).map(e=>e.h),established:Object.values(game.plants).map(p=>plantEstab(p)),
           saved:(await sGet('hortus:world:'+game.worldId)).challenge.sitePlan};
       });
       assert.equal(initial.plan,frozen);assert.equal(JSON.stringify(initial.saved),frozen);
       assert.equal(initial.count,0,'starter alone cannot finish');assert(initial.beds>=80);
-      if(kind==='woodland')assert.deepEqual(initial.trees,[1]);
+      assert.deepEqual(initial.established,Array(initial.trees).fill(1),'every tree the site comes with stands mature');
       if(kind==='slope')assert(initial.heights.includes(1)&&initial.heights.includes(2));
       if(kind==='hollow')assert(initial.heights.every(h=>h===-1));
       if(kind==='corner')assert(initial.shape&&initial.shape.length===4);
@@ -379,7 +380,8 @@ async function checkSites(browser,url,viewport,isMobile){
       await page.locator('#btnChallengeFinishReturn').click();
       // Edits travel through real tools, storage and reopening, never the generator.
       const edited=await page.evaluate(async()=>{
-        const key=Object.keys(game.terrain).find(k=>game.terrain[k].k==='bed'&&!game.plants[k]),[x,y]=key.split(',').map(Number);
+        const open=k=>(game.terrain[k].k==='bed'||game.terrain[k].k==='lawn')&&!game.plants[k];
+        const key=Object.keys(game.terrain).find(k=>open(k)&&!game.elevation[k])||Object.keys(game.terrain).find(open),[x,y]=key.split(',').map(Number);
         game.tool='path';applyToolAt(x,y);
         const c=game.challenge;if(c.site==='woodland'){
           selWrite([{x:7,y:9,plant:game.plants['7,9']}],()=>[8,9],true);

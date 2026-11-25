@@ -1564,6 +1564,10 @@ canvas.layer-eye{display:block}
 .daily-site-swatch{display:inline-block;width:12px;height:12px;border:1px solid #756f5c;border-radius:2px;background:#ac9272}
 .daily-site-swatch.path{background:#d2c5aa}.daily-site-swatch.tree{background:#78916c;border-radius:50%}
 .daily-site-swatch.grade{background:linear-gradient(135deg,#cec19c 48%,#655d4c 49%,#655d4c 58%,#ac9272 59%)}
+.daily-site-swatch.lawn{background:#b5bc91}.daily-site-swatch.meadow{background:#c6c189}.daily-site-swatch.water{background:#6f9eac}
+.daily-site-swatch.bridge{background:repeating-linear-gradient(0deg,#9b7a52 0 3px,#5f4630 3px 4px)}
+.daily-site-swatch.steps{background:repeating-linear-gradient(0deg,#d5bf96 0 3px,#655d4c 3px 4px)}
+.daily-site-swatch.mound{background:radial-gradient(circle,#efe7cf 0 25%,#ac9272 26% 45%,#655d4c 46% 52%,#ac9272 53%)}
 /* At least the size of what it heads: at 12px "Design goals" was smaller than
    the 14px goals under it. */
 .daily-label{display:block;font-size:15px;font-weight:600;letter-spacing:.01em;margin:20px 0 10px;color:var(--text-primary)}
