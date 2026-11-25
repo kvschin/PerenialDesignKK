@@ -1862,11 +1862,25 @@ function tileReachesRect(sx,sy,rect){
    the exact ramp of its three corners' light, which its neighbours share, so it
    runs on across the slope; a ramp fitted a tile met its neighbour a shade off
    and drew the tiles as a mosaic over a dark mulch. The ramp has to follow the
-   tone through its bends too (softWashFill), or it is the triangles that show. */
-function softShadeOverlay(ctx,tiles){
+   tone through its bends too (softWashFill), or it is the triangles that show.
+
+   soft-light, so a dark mulch darkens and lightens as itself rather than being
+   washed with cream or green; the ramp is doubled to carry through it.
+
+   The blend is what costs, per DRAW: a fill in soft-light is several times one in
+   source-over, whatever its size, and this was a fill a triangle, four a tile.
+   Measured (0.9.169) on a 31x31 garden with 183 soft tiles under beds and meadow,
+   a full ground bake: 44-52 ms in Chrome against 20-22 with no wash, the same
+   triangles filled flat in soft-light 49 ms, flat in source-over 21, the region
+   clip nothing. So on a ground bake the triangles are laid into ONE scratch with
+   `lighter` and the scratch goes down once in soft-light (softWashBatch). `lighter`
+   ADDS, so the two partial coverages along a shared edge sum to the whole, which
+   source-over would not, and a pixel inside a triangle is the triangle's own tone
+   either way. The portrait, and any canvas that is not a bake surface, keeps the
+   fill a triangle: a portrait must have nothing accelerated composited into it. */
+function softShadeOverlay(ctx,tiles,rect){
   if (!tiles.length) return;
-  /* soft-light, so a dark mulch darkens and lightens as itself rather than being
-     washed with cream or green; the ramp is doubled to carry through it */
+  if ((ctx===groundCtx || ctx===groundSpareCtx) && softWashBatch(ctx,tiles,rect)) return;
   const was=ctx.globalCompositeOperation; ctx.globalCompositeOperation='soft-light';
   for (const tris of tiles) for (const t of tris){
     ctx.fillStyle=softWashFill(ctx,t.l,t.vl);
@@ -1874,6 +1888,50 @@ function softShadeOverlay(ctx,tiles){
     ctx.fill();
   }
   ctx.globalCompositeOperation=was;
+}
+/* The wash for a ground bake, as one draw (softShadeOverlay). The scratch is the
+   triangles' box in DEVICE pixels, whole pixels, so it lands on the canvas with no
+   resampling and its triangles rasterise exactly as they would on the canvas: a
+   band of a partial bake and a full bake agree. It comes from spriteBakeSurface and
+   leaves as an ImageBitmap, which is what keeps Firefox's canvas on the GPU (the
+   sprite note in §11), and is retired a frame later like a sprite. The canvas's
+   clip (the region's outline, a band's rectangle) still applies to the draw.
+   False where it cannot run (no getTransform), and the caller fills per triangle. */
+function softWashBatch(ctx,tiles,rect){
+  const m=typeof ctx.getTransform==='function' ? ctx.getTransform() : null;
+  if (!m || !Number.isFinite(m.a) || !ctx.canvas) return false;
+  const dx=(x,y)=>m.a*x+m.c*y+m.e, dy=(x,y)=>m.b*x+m.d*y+m.f;
+  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  for (const tris of tiles) for (const t of tris) for (const p of t.l){
+    const X=dx(p[0],p[1]), Y=dy(p[0],p[1]);
+    if (X<x0) x0=X; if (X>x1) x1=X; if (Y<y0) y0=Y; if (Y>y1) y1=Y;
+  }
+  if (rect){                                       // a band: no need for more than it
+    const rx=[dx(rect[0],rect[1]),dx(rect[2],rect[1]),dx(rect[0],rect[3]),dx(rect[2],rect[3])];
+    const ry=[dy(rect[0],rect[1]),dy(rect[2],rect[1]),dy(rect[0],rect[3]),dy(rect[2],rect[3])];
+    x0=Math.max(x0,Math.min(...rx)); x1=Math.min(x1,Math.max(...rx));
+    y0=Math.max(y0,Math.min(...ry)); y1=Math.min(y1,Math.max(...ry));
+  }
+  const bx=Math.max(0,Math.floor(x0)-2), by=Math.max(0,Math.floor(y0)-2);
+  const bw=Math.min(ctx.canvas.width,Math.ceil(x1)+2)-bx, bh=Math.min(ctx.canvas.height,Math.ceil(y1)+2)-by;
+  if (!(bw>0 && bh>0)) return true;                // none of it on this canvas
+  const surf=spriteBakeSurface('wash',bw,bh), g=surf.getContext('2d');
+  if (!g) return false;
+  g.setTransform(m.a,m.b,m.c,m.d,m.e-bx,m.f-by);
+  g.globalCompositeOperation='lighter';
+  for (const tris of tiles) for (const t of tris){
+    g.fillStyle=softWashFill(g,t.l,t.vl);
+    g.beginPath(); g.moveTo(t.l[0][0],t.l[0][1]); g.lineTo(t.l[1][0],t.l[1][1]); g.lineTo(t.l[2][0],t.l[2][1]); g.closePath();
+    g.fill();
+  }
+  const img=spriteBakeImage('wash',surf);
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha=1; ctx.globalCompositeOperation='soft-light';
+  ctx.drawImage(img,bx,by);
+  ctx.restore();
+  retireSpriteImage(img);
+  return true;
 }
 function paintRegionGrain(ctx,tiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,rect){
   flagRegionBegin();
@@ -1903,7 +1961,7 @@ function paintRegionGrain(ctx,tiles,region,o,base,isWater,amb,x0,x1,y0,y1,W,H,re
       // repaint it — a full-tile fill on every tile of every bed.
       else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
     }
-    softShadeOverlay(ctx,softTris);
+    softShadeOverlay(ctx,softTris,rect);
   } finally { flagRegionEnd(); }
 }
 function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t,rect){

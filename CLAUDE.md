@@ -4975,10 +4975,33 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     noise. That wash is more than half of such a bake (20-22 ms without it), and the
     cost is the soft-light BLEND, per draw: the same triangles filled flat in
     soft-light 49 ms, flat source-over 21, the gradients 2.5, the region clip
-    nothing. Laying the triangles into one scratch with `lighter` (which sums
-    coverage exactly, so no seams) and compositing that once in soft-light is the
-    lever if a berm garden's bake ever matters. `dev/ground-verify.cjs` gained an arm
-    with berms under gravel and meadow. Left as it was: the light is per vertex on the
+    nothing. `dev/ground-verify.cjs` gained an arm with berms under gravel and meadow.
+    **So on a ground bake the wash is ONE draw** (0.9.169; `softWashBatch`,
+    renderer.js). The region's triangles are laid into a scratch the size of their
+    box in DEVICE pixels, whole pixels, with `lighter`, and the scratch goes down once
+    in soft-light under the region's clip. `lighter` ADDS, so the two partial
+    coverages along a shared edge sum to the whole, where the triangle-at-a-time
+    soft-light blended an edge pixel twice and left a faint line along each edge of
+    the darkest part of a mound (3-4 levels; the batch differs from it by 1 level on
+    average, at most 4, and exactly there). The scratch is `spriteBakeSurface('wash')`
+    leaving as an ImageBitmap, retired a frame later, the sprite pattern that keeps
+    Firefox's canvas on the GPU; a band of a partial bake takes no more scratch than
+    the band. Only `groundCtx`/`groundSpareCtx` take it: the portrait is a software
+    canvas with nothing accelerated composited into it (§16), and it, the sandbox (no
+    `getTransform`) and anything else fill a triangle at a time. Same garden, full
+    bake, per triangle -> batched -> no wash at all, min of 15: headless Chrome 56-61
+    -> 25 -> 21 ms at 100% and 45 -> 26 -> 22 fitted; headed Chrome 40 -> 22 -> 19 and
+    45 -> 26 -> 22; headed Firefox 54 -> 43 -> 41 and 31 -> 26 -> 25; headless
+    Firefox (software) 62 -> 60 -> 48 and 39 -> 38 -> 33. `ff-accel-check.cjs` on the
+    demo garden with two of its beds raised on berms: accelerated for all 3,225
+    frames, pans 155-165 fps. `ground-verify.cjs`'s berm arm, scrolled against full,
+    batched / per triangle: `--soft` 0.24 / 0.24% of pixels and 0.53 / 1.55% on the
+    drag, Firefox 0.28 / 0.28%. In Chrome on the GPU the batched arm reads ~5% (thin
+    lawn edges and blades all over the plot, not the wash): the tool's own readbacks
+    put the ground canvas on the CPU and the GPU-made bitmap moves its rasteriser
+    between the old picture and the new one, which the app, never reading that
+    canvas back, cannot do. Check a wash change with `--soft`.
+    Left as it was: the light is per vertex on the
     tile mesh, zero at a flat corner, so the lit area at a berm's toe follows its tile
     footprint, as it does on bare grass. A berm's TOE is soft
     ground at grade (`{h:0, m:true, z}`), so it feathers out rather than starting

@@ -28673,6 +28673,51 @@ test('the wash over a bed on a berm follows its tone along every triangle edge, 
   assert(worstShared < 0.6, 'and the tiles either side of an edge lay the same wash on it: ' + worstShared.toFixed(2));
 });
 
+/* On a ground bake the wash is ONE soft-light draw of a scratch the triangles were
+   laid into (softWashBatch, 0.9.169): soft-light costs per draw, and it was four
+   draws a tile, more than half the bake of a bed on a berm. Anything else, the
+   portrait above all, keeps the fill a triangle. */
+test('the wash on a ground bake goes down as one draw at whole device pixels; elsewhere a fill a triangle', () => {
+  bermGarden(4);
+  const W = 1200, H = 800, tiles = [];
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (isSoftTile(x, y)) tiles.push(softTileTris(x, y, W, H));
+  const fake = (m) => {
+    const c = { fills: 0, draws: [], canvas: { width: 2400, height: 1600 }, globalCompositeOperation: 'source-over', globalAlpha: 1,
+      getTransform: () => m, save(){}, restore(){}, setTransform(){}, beginPath(){}, moveTo(){}, lineTo(){}, closePath(){},
+      createLinearGradient(){ return { addColorStop(){} }; }, fill(){ c.fills++; },
+      drawImage(img, x, y){ c.draws.push([x, y, c.globalCompositeOperation]); } };
+    return c;
+  };
+  const m = { a: 1.5, b: 0, c: 0, d: 1.5, e: 37.3, f: 21.6 };
+  const was = groundCtx;
+  try {
+    const bake = fake(m); groundCtx = bake;
+    softShadeOverlay(bake, tiles);
+    assertEqual(bake.fills, 0, 'no fill on the bake itself');
+    assertEqual(bake.draws.length, 1, 'one draw');
+    const [bx, by, op] = bake.draws[0];
+    assertEqual(op, 'soft-light', 'in soft-light');
+    assert(Number.isInteger(bx) && Number.isInteger(by), 'at whole device pixels: ' + bx + ',' + by);
+    let x0 = Infinity, y0 = Infinity, X0 = Infinity, Y0 = Infinity, X1 = -Infinity, Y1 = -Infinity;
+    for (const tr of tiles) for (const t of tr) for (const p of t.l){
+      x0 = Math.min(x0, m.a * p[0] + m.e); y0 = Math.min(y0, m.d * p[1] + m.f);
+      X0 = Math.min(X0, p[0]); Y0 = Math.min(Y0, p[1]); X1 = Math.max(X1, p[0]); Y1 = Math.max(Y1, p[1]);
+    }
+    assert(bx <= x0 && bx >= x0 - 3 && by <= y0 && by >= y0 - 3, `from the triangles' corner: ${bx},${by} for ${x0.toFixed(1)},${y0.toFixed(1)}`);
+    // a band of a partial bake (in draw units, across the middle of the berm) takes no more scratch than the band
+    const mx = (X0 + X1) / 2, my = (Y0 + Y1) / 2, rect = [mx - 40, my - 10, mx + 40, my + 10];
+    const band = fake(m); groundCtx = band;
+    softShadeOverlay(band, tiles, rect);
+    assert(band.draws.length === 1 && band.draws[0][0] >= Math.floor(rect[0] * m.a + m.e) - 2 && band.draws[0][1] >= Math.floor(rect[1] * m.d + m.f) - 2,
+      'a band starts at the band: ' + JSON.stringify(band.draws));
+    // not a bake canvas: a fill a triangle, nothing composited
+    const other = fake(m);
+    softShadeOverlay(other, tiles);
+    assertEqual(other.fills, tiles.length * 4, 'a fill a triangle');
+    assertEqual(other.draws.length, 0, 'and no scratch');
+  } finally { groundCtx = was; }
+});
+
 test('the list bills a berm by its earth and a swale by what it takes out', () => {
   bermGarden(4);
   buildBerm(bermPlan({ x0: 6, y0: 18, x1: 18, y1: 26 }, -2));

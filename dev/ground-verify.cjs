@@ -300,8 +300,13 @@ function inPage() {
         for (const k in game.terrain) { const t = game.terrain[k]; if (t && !t.removed && t.e) setTile("terrain", k, Object.assign({}, t, { e })); }
         markGroundChanged(); }]),
       /* Soft ground under a material: its grain goes through each tile's plane and
-         its light is a wash laid a triangle at a time (softShadeOverlay), both of
-         which a band must draw exactly as a full bake does. */
+         its light is a wash (softShadeOverlay), both of which a band must draw
+         exactly as a full bake does. In Chrome on the GPU this arm reads a few per
+         cent of pixels (thin lawn edges and blades, all over the plot) where --soft
+         reads 0.2-0.5%: this tool's readbacks put the ground canvas on the CPU, and
+         the wash's GPU-made ImageBitmap (softWashBatch) moves its rasteriser between
+         the old picture and the new one. The app never reads that canvas back.
+         Check a wash change with --soft. */
       ["berms under gravel and meadow", () => { game.edgeStyle = "organic";
         for (const [b, k, c] of [[[2, 2, 10, 8], "bed", "gravel"], [[13, 15, 22, 22], "lawn", "meadow"]]) {
           buildBerm(bermPlan({ x0: b[0], y0: b[1], x1: b[2], y1: b[3] }, 4));
