@@ -28616,6 +28616,63 @@ test('a bed over a berm and on past it is one bed, drawn over the slope', () => 
   assert(n > 40, 'sampled along its length: ' + n);
 });
 
+/* The wash a bed or meadow takes on soft ground (softShadeOverlay) is a gradient a
+   triangle. Each has to follow softWashTone exactly along its edges, or two
+   triangles meeting at an edge give it two washes and the mound shows a diamond
+   grid (0.9.168: the ramp from tone(lo) to tone(hi) cut straight across the tone's
+   bends). Measured as soft-light over mid grey, the way the canvas lays it. */
+function washFillAt(fill, p){
+  const rgba = s => { const m = s.match(/rgba?\(([^)]+)\)/)[1].split(',').map(Number); return [m[0], m[1], m[2], m.length > 3 ? m[3] : 1]; };
+  let c;
+  if (typeof fill === 'string') c = rgba(fill);
+  else {
+    const dx = fill.x1 - fill.x0, dy = fill.y1 - fill.y0;
+    const s = Math.max(0, Math.min(1, ((p[0] - fill.x0) * dx + (p[1] - fill.y0) * dy) / (dx * dx + dy * dy)));
+    const st = fill.stops;
+    let i = 0; while (i < st.length - 2 && st[i + 1][0] < s) i++;
+    const a = rgba(st[i][1]), b = rgba(st[i + 1][1]), span = st[i + 1][0] - st[i][0], k = span > 0 ? (s - st[i][0]) / span : 1;
+    c = a.map((v, j) => v + (b[j] - v) * k);
+  }
+  const d = 0.5, src = c[0] / 255;
+  const blend = src <= 0.5 ? d - (1 - 2 * src) * d * (1 - d) : d + (2 * src - 1) * (Math.sqrt(d) - d);
+  return (d + c[3] * (blend - d)) * 255;
+}
+function washRecorder(){
+  return { createLinearGradient(x0, y0, x1, y1){ return { x0, y0, x1, y1, stops: [], addColorStop(o, c){ this.stops.push([o, c]); } }; } };
+}
+test('the wash over a bed on a berm follows its tone along every triangle edge, so neighbours agree', () => {
+  bermGarden(4);
+  buildBerm(bermPlan({ x0: 6, y0: 18, x1: 18, y1: 26 }, -2));
+  const ctx = washRecorder(), W = 1200, H = 800, along = [0.15, 0.5, 0.85];
+  let edges = 0, crossings = 0, worstTone = 0, worstShared = 0;
+  const tris = {};
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (isSoftTile(x, y)) tris[x + ',' + y] = softTileTris(x, y, W, H);
+  for (const k in tris){
+    for (const t of tris[k]){
+      const fill = softWashFill(ctx, t.l, t.vl);
+      if (typeof fill !== 'string' && t.vl.some(v => v < 0) && t.vl.some(v => v > 0)) crossings++;
+      for (const [i, j] of [[0, 1], [1, 2], [2, 0]]) for (const f of along){
+        const p = [t.l[i][0] + (t.l[j][0] - t.l[i][0]) * f, t.l[i][1] + (t.l[j][1] - t.l[i][1]) * f];
+        const want = washFillAt(softWashTone(t.vl[i] + (t.vl[j] - t.vl[i]) * f), p);
+        worstTone = Math.max(worstTone, Math.abs(washFillAt(fill, p) - want)); edges++;
+      }
+    }
+    // the edge it shares with the tile beside it (x+1) and below it (y+1), from both sides
+    const [x, y] = k.split(',').map(Number);
+    for (const [nk, mine, theirs] of [[(x + 1) + ',' + y, 1, 3], [x + ',' + (y + 1), 2, 0]]){
+      if (!tris[nk]) continue;
+      const a = tris[k][mine], b = tris[nk][theirs], fa = softWashFill(ctx, a.l, a.vl), fb = softWashFill(ctx, b.l, b.vl);
+      for (const f of along){
+        const p = [a.l[1][0] + (a.l[2][0] - a.l[1][0]) * f, a.l[1][1] + (a.l[2][1] - a.l[1][1]) * f];
+        worstShared = Math.max(worstShared, Math.abs(washFillAt(fa, p) - washFillAt(fb, p)));
+      }
+    }
+  }
+  assert(edges > 2000 && crossings > 20, `a real berm and swale: ${edges} edge points, ${crossings} triangles crossing from shade to light`);
+  assert(worstTone < 0.6, 'each triangle lays the tone of the light along its edges, within a level: ' + worstTone.toFixed(2));
+  assert(worstShared < 0.6, 'and the tiles either side of an edge lay the same wash on it: ' + worstShared.toFixed(2));
+});
+
 test('the list bills a berm by its earth and a swale by what it takes out', () => {
   bermGarden(4);
   buildBerm(bermPlan({ x0: 6, y0: 18, x1: 18, y1: 26 }, -2));

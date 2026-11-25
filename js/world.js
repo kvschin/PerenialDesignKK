@@ -2467,7 +2467,7 @@ function softShade(col,light){ const a=Math.round(light*SOFT_SHADE_K); return a 
    centre and its four corners (least squares), so a tile costs one gradient where
    one a triangle cost four; neighbours share their corners' light, so the ramps
    meet nearly level across an edge. */
-function softTileFill(ctx,tris,col,over){ return softRampFill(ctx,tris.lights,over ? softWashTone : v=>softShade(col,v)); }
+function softTileFill(ctx,tris,col){ return softRampFill(ctx,tris.lights,v=>softShade(col,v)); }
 /* The linear ramp of `tone` that fits lights at points [x,y,light], as a canvas
    gradient: exact on a triangle's three, the least-squares fit on a tile's five. */
 function softRampFill(ctx,L,tone){
@@ -2498,10 +2498,53 @@ function drawSoftTileGround(ctx,tris,col,marks){
   marks();
   ctx.restore();
 }
-// the wash over a material's grain (softShadeOverlay): white lightens, black darkens, through soft-light
-function softWashTone(v){
-  v*=2;
-  return v>0 ? `rgba(255,255,255,${Math.min(0.6,v*1.4).toFixed(3)})` : `rgba(0,0,0,${Math.min(0.7,-v*1.6).toFixed(3)})`;
+/* The wash over a material's grain (softShadeOverlay): white lightens, black
+   darkens, through soft-light, by an alpha that rises with the light to a cap. */
+const SOFT_WASH={lift:2.8, liftMax:0.6, sink:3.2, sinkMax:0.7};
+/* `up` says which side a light of exactly 0 belongs to: clear white starts a ramp
+   that goes up from it, clear black ends one that comes up to it. */
+function softWashTone(v,up){
+  return (v>0 || (v===0 && up)) ? `rgba(255,255,255,${Math.min(SOFT_WASH.liftMax,v*SOFT_WASH.lift).toFixed(3)})`
+                                : `rgba(0,0,0,${Math.min(SOFT_WASH.sinkMax,-v*SOFT_WASH.sink).toFixed(3)})`;
+}
+/* One soft triangle's wash, from its three corners [x,y] and their lights V: the
+   EXACT plane of light through them, as a gradient that follows softWashTone to
+   the letter. The tone is not linear in the light: it changes colour at 0 (black
+   to white) and stops at two caps. A gradient from tone(lo) to tone(hi) alone
+   interpolates straight across those bends, so two triangles sharing an edge, each
+   with its own lo and hi, gave that edge two different washes; drawn over a bed
+   on a berm, every triangle edge showed, a diamond grid across the mound (0.9.168).
+   So a stop goes at each bend the ramp crosses, zero being a pair (black, then
+   white, both clear), and a ramp that starts or ends at exactly 0 (a corner on
+   flat ground) takes the clear colour of its own side, or it runs through grey.
+   Between stops the colour is constant and only the alpha moves, linearly in the
+   light, which is the same whether a browser interpolates premultiplied or not;
+   and the light is the same at a shared corner from either side, so the wash runs
+   on across the edge. */
+const SOFT_WASH_BENDS=[-SOFT_WASH.sinkMax/SOFT_WASH.sink, 0, SOFT_WASH.liftMax/SOFT_WASH.lift];
+function softWashFill(ctx,P,V){
+  let lo=V[0], hi=V[0];
+  if (V[1]<lo) lo=V[1]; if (V[1]>hi) hi=V[1]; if (V[2]<lo) lo=V[2]; if (V[2]>hi) hi=V[2];
+  if (hi-lo<0.004) return softWashTone((lo+hi)/2);
+  const x1=P[1][0]-P[0][0], y1=P[1][1]-P[0][1], v1=V[1]-V[0];
+  const x2=P[2][0]-P[0][0], y2=P[2][1]-P[0][1], v2=V[2]-V[0];
+  const det=x1*y2-x2*y1;
+  if (!det) return softWashTone((lo+hi)/2);
+  // the light rises along (A,B) at g2 a unit; the gradient runs from lo to hi along it,
+  // set out from the first corner so it stays beside the triangle
+  const A=(v1*y2-v2*y1)/det, B=(x1*v2-x2*v1)/det, g2=A*A+B*B;
+  if (g2<1e-12) return softWashTone((lo+hi)/2);
+  const s0=(lo-V[0])/g2, s1=(hi-V[0])/g2, span=hi-lo;
+  const gr=ctx.createLinearGradient(P[0][0]+A*s0,P[0][1]+B*s0,P[0][0]+A*s1,P[0][1]+B*s1);
+  gr.addColorStop(0,softWashTone(lo,true));
+  for (const b of SOFT_WASH_BENDS){
+    if (!(b>lo && b<hi)) continue;
+    const at=(b-lo)/span;
+    if (b===0){ gr.addColorStop(at,'rgba(0,0,0,0)'); gr.addColorStop(at,'rgba(255,255,255,0)'); }
+    else gr.addColorStop(at,softWashTone(b));
+  }
+  gr.addColorStop(1,softWashTone(hi,false));
+  return gr;
 }
 /* Does this garden hold any ground BELOW grade? The face of a hollow belongs
    to the tiles AROUND it, which sit at grade and carry no elevation record, so

@@ -82,9 +82,9 @@ two BED materials meet along exact tile lines (they are peers, §11), so a bog b
 round water or soil on a gravel berm drew as a staircase (one bed material a site,
 or materials separated by a level change, as the raised beds are); a bed with lawn
 on every side rounds into a pill, so the double border and the lawn's borders run
-to the plot edge; and soft ground under a bed, a meadow or gravel is shaded a tile
-at a time and shows that grid, so the berm is bare grass, which is lit as one
-surface. A mown path is bare ground, so routes are checked as path, footbridge and
+to the plot edge; and soft ground under a bed, a meadow or gravel showed a grid in
+its shading, so the berm is bare grass, which is lit as one surface (0.9.168 fixed
+the grid, §12c; the site was left as authored). A mown path is bare ground, so routes are checked as path, footbridge and
 bare lawn together, one connected network. `dailySitePlan` builds each kind once
 and hands out copies.
 The woodland's winding gravel path and the gravel site's bending slate path are
@@ -4943,10 +4943,44 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     shading per triangle read as facets, a binned translucent overlay as seams, and
     marks drawn once a triangle cost four flat tiles. A material's grain covers its
     base, so a region on soft ground gets a `soft-light` wash over the grain, one
-    ramp a tile (`softShadeOverlay`); a wash a triangle was most of the cost.
+    ramp a TRIANGLE (`softShadeOverlay`, `softWashFill`): a ramp fitted a tile met
+    its neighbour a shade off and drew the tiles as a mosaic.
     Measured on a software canvas: a soft tile 44 µs against 17 for a flat one, and
     a 31x31 garden with 179 soft tiles (two berms, a swale, a bed and a path on
-    them) bakes in 20 ms against 18 without them. A berm's TOE is soft
+    them) bakes in 20 ms against 18 without them.
+    **The wash follows its tone through every bend** (0.9.168; `softWashFill`,
+    `SOFT_WASH`, world.js). A bed, gravel or long meadow over a berm drew a diamond
+    grid across the mound, one cell a triangle, in Chrome and Firefox alike, which
+    is why the daily challenge's gravel-garden berm went out as bare grass. The
+    light was continuous and the TONE was not: `softWashTone` is white over light and
+    black over shade, each with an alpha rising to a cap, and each triangle's
+    gradient ran straight from tone(lo) to tone(hi). Canvas interpolates colour stops
+    unpremultiplied, so across the turn from shade to light that passes through grey,
+    and two triangles sharing an edge, each with its own lo and hi, laid two washes on
+    it. Measured as soft-light over mid grey along every triangle edge of a berm and a
+    swale: 26 levels off the tone along a triangle's own edge and 8.7 between
+    neighbours; after, 0.25 and 0.23. Each gradient now takes a stop at every bend it
+    crosses (a clear black-then-white pair at 0, and each cap), and a ramp starting or
+    ending at exactly 0, which is every corner on flat ground and so every toe tile,
+    takes the clear colour of its own side; between stops only the alpha moves, so
+    straight and premultiplied interpolation agree. Without that zero rule the toe
+    kept a crenellated lit edge. Rendered (the wash alone over grey, four berms), the
+    largest pixel-to-pixel step went 16 levels to 4 at 130% and 13 to 3 at 240%, and
+    pixels stepping 5 or more from 5,665 and 7,766 to none. A test walks every
+    triangle edge of a berm and a swale, and reads 26 and 8.7 against the old ramp.
+    Cost, a full ground bake of a 31x31 garden with four berms, three under soil,
+    gravel and long meadow (183 soft region tiles), interleaved min of 15, before and
+    after: headless Chrome 44-52 ms both ways over three runs, headed Chrome 52.1 /
+    52.0 at 100% and 46.3 / 46.5 fitted, Firefox 63 / 63 and 39-40 / 40-41. Within
+    noise. That wash is more than half of such a bake (20-22 ms without it), and the
+    cost is the soft-light BLEND, per draw: the same triangles filled flat in
+    soft-light 49 ms, flat source-over 21, the gradients 2.5, the region clip
+    nothing. Laying the triangles into one scratch with `lighter` (which sums
+    coverage exactly, so no seams) and compositing that once in soft-light is the
+    lever if a berm garden's bake ever matters. `dev/ground-verify.cjs` gained an arm
+    with berms under gravel and meadow. Left as it was: the light is per vertex on the
+    tile mesh, zero at a flat corner, so the lit area at a berm's toe follows its tile
+    footprint, as it does on bare grass. A berm's TOE is soft
     ground at grade (`{h:0, m:true, z}`), so it feathers out rather than starting
     half a level up; `tidyGradeWallsAround` leaves it alone and Level takes it.
     *Regions*: a soft tile counts as grade to the terrain trace (`regionLevelAt`),

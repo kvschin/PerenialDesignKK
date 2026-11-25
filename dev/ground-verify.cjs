@@ -299,6 +299,15 @@ function inPage() {
       ...["brick", "stone"].map(e => ["edging: " + e, () => { game.edgeStyle = "organic";
         for (const k in game.terrain) { const t = game.terrain[k]; if (t && !t.removed && t.e) setTile("terrain", k, Object.assign({}, t, { e })); }
         markGroundChanged(); }]),
+      /* Soft ground under a material: its grain goes through each tile's plane and
+         its light is a wash laid a triangle at a time (softShadeOverlay), both of
+         which a band must draw exactly as a full bake does. */
+      ["berms under gravel and meadow", () => { game.edgeStyle = "organic";
+        for (const [b, k, c] of [[[2, 2, 10, 8], "bed", "gravel"], [[13, 15, 22, 22], "lawn", "meadow"]]) {
+          buildBerm(bermPlan({ x0: b[0], y0: b[1], x1: b[2], y1: b[3] }, 4));
+          for (let y = b[1] - 1; y <= b[3] + 1; y++) for (let x = b[0] - 1; x <= b[2] + 1; x++) setTile("terrain", x + "," + y, { k, c, t: 1 });
+        }
+        markGroundChanged(); }],
     ];
     for (const [name, setup] of variants) {
       setup();

@@ -1861,14 +1861,15 @@ function tileReachesRect(sx,sy,rect){
    of its base, so a lit base would barely show. A translucent wash a TRIANGLE,
    the exact ramp of its three corners' light, which its neighbours share, so it
    runs on across the slope; a ramp fitted a tile met its neighbour a shade off
-   and drew the tiles as a mosaic over a dark mulch. */
+   and drew the tiles as a mosaic over a dark mulch. The ramp has to follow the
+   tone through its bends too (softWashFill), or it is the triangles that show. */
 function softShadeOverlay(ctx,tiles){
   if (!tiles.length) return;
   /* soft-light, so a dark mulch darkens and lightens as itself rather than being
      washed with cream or green; the ramp is doubled to carry through it */
   const was=ctx.globalCompositeOperation; ctx.globalCompositeOperation='soft-light';
   for (const tris of tiles) for (const t of tris){
-    ctx.fillStyle=softRampFill(ctx,t.l.map((p,j)=>[p[0],p[1],t.vl[j]]),softWashTone);
+    ctx.fillStyle=softWashFill(ctx,t.l,t.vl);
     ctx.beginPath(); ctx.moveTo(t.l[0][0],t.l[0][1]); ctx.lineTo(t.l[1][0],t.l[1][1]); ctx.lineTo(t.l[2][0],t.l[2][1]); ctx.closePath();
     ctx.fill();
   }
