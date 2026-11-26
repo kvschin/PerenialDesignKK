@@ -229,7 +229,10 @@
            seedTufts/seedSpan/seedAwn/seedFan for repeated hairy spikelets
            along a narrow upright fertile culm, or `seedStyle:'bluestem'`
            (little bluestem) for culms/racemes/racemeLen/racemeFrom: a
-           fluffy raceme out of a spathe at each node of the upper culm.
+           fluffy raceme out of a spathe at each node of the upper culm;
+           broomsedge adds racemePair, spatheLen, spatheW and cottonA.
+           `turkeyfoot` with `feet:true` draws big bluestem's heads
+           (drawTurkeyFeet): racemeLen, sideFeet, culmFan, culmLen.
            A cloud grass may set `cloudStyle:'smoke'` (culmLen, panBase,
            panW, panBranches, panHairs, branchAng, spkLen, spkW, hazeA,
            cloudShade, comb) and `leafStyle:'fountain'` (leafLen,
@@ -346,7 +349,7 @@ const PLANTS = {
     }},
   bigbluestem:{ name:'Big Bluestem', latin:'Andropogon gerardii', synonyms:['Andropogon gerardi'], form:'turkeyfoot', type:'grass', h:69, heightIn:72,
     space:24, spread:30, zones:[3,9], _legacyNative:true, sun:'full', moist:'medium', phen:'warm',
-    look:{crownIn:12, basalN:24, basalLen:0.58, basalLift:0.86, basalFan:0.8, stems:10, art2:true},
+    look:{crownIn:12, basalN:24, basalLen:0.58, basalLift:0.86, basalFan:0.8, stems:10, art2:true, feet:true, culmFan:1.3, culmLen:0.93, racemeLen:0.07},
     blurb:'King of the tallgrass — turkey-foot seedheads at eye level by September. The Flint Hills are made of it.',
     sea:{Spring:{fol:'#789286'}, Summer:{fol:'#66847a',folTip:'#806064',bloom:'#77515e'}, Fall:{fol:'#a8584a',seed:'#8b685e'}, Winter:{fol:'#8a5947',seed:'#b6a48d'}},
     cv:{
@@ -354,10 +357,10 @@ const PLANTS = {
         heightIn:60, h:56, spread:24,
         sea:{Summer:{fol:'#536553',folTip:'#4b344d'}, Fall:{fol:'#4a3549',folTip:'#342737',seed:'#765766'}, Winter:{fol:'#604b49',seed:'#a89380'}}},
       redoctober:{name:"'Red October'", note:'upright big bluestem with wine-red fall foliage', _legacyNative:false,
-        heightIn:66, h:66, spread:36, zones:[4,9],
+        heightIn:66, h:66, spread:36, zones:[4,9], look:{culmLen:0.87},
         sea:{Spring:{fol:'#718b6a',folTip:'#87484a'}, Summer:{fol:'#5d705d',folTip:'#7e4650'}, Fall:{fol:'#943b3f',folTip:'#b3433f',seed:'#82575f'}, Winter:{fol:'#754a43',seed:'#ab9580'}}},
       dancingwind:{name:"'Dancing Wind'", note:'upright green-and-red big bluestem maturing to deep scarlet',
-        heightIn:75, h:66, spread:30, zones:[4,9], look:{culmHW:1.0},
+        heightIn:75, h:66, spread:30, zones:[4,9], look:{culmHW:1.0, culmLen:1},
         sea:{Summer:{fol:'#788653',folTip:'#98484b',bloom:'#8e5360'}, Fall:{fol:'#a43f3e',folTip:'#7f3038',seed:'#81545e'}, Winter:{fol:'#875548',seed:'#aa937c'}}},
     }},
   switchgrass:{ name:'Switchgrass', latin:'Panicum virgatum', form:'cloudgrass', type:'grass', h:54, heightIn:60,
@@ -932,7 +935,8 @@ const PLANTS = {
      Sources, and the reasoning where they conflict, are in docs/plant-data/grass-sources.json. */
   broomsedge:{ name:'Broomsedge', latin:'Andropogon virginicus', synonyms:['Anatherum virginicum'], form:'bunchgrass', type:'grass', h:42, heightIn:42,
     space:15, spread:18, zones:[4,9], nativeTo:['north-america','central-america','south-america'], provenance:'species', sun:'full', moist:'dry', phen:'warm',
-    look:{art2:true, crownIn:8, leaves:26, leafLen:0.6, fan:1.25, spread:0.48, seedEvery:3, bladeShade:15, seedStyle:'fluffyRaceme', seedTufts:6, seedSpan:0.42, seedAwn:3.0, seedFan:0.32},
+    look:{art2:true, crownIn:8, leaves:26, leafLen:0.6, fan:1.25, spread:0.48, bladeShade:15, seedStyle:'bluestem', culms:11, racemes:3,
+      racemeLen:0.034, racemeFrom:0.42, racemePair:true, spatheLen:0.085, spatheW:1.4, cottonA:0.55, culmsAt:0.7, seedFan:0.32},
     blurb:'A tough native bunchgrass of old fields and poor, dry ground: slim green tufts that turn orange in fall and hold that colour all winter, with white fluff tucked along the upper stems. It reseeds into bare ground and thin pasture, where farmers count it a weed, and it dies in wet winter soil. In the European Union it is on the list of invasive species of Union concern and may not be sold or grown there.',
     sea:{Spring:{fol:'#7c986a'}, Summer:{fol:'#6c8c5e'}, Fall:{fol:'#c8843e',bloom:'#e4dac6',seed:'#eee6d4'}, Winter:{fol:'#c27b3c',seed:'#e9e1d0'}}},
   splitbeardbluestem:{ name:'Splitbeard Bluestem', latin:'Andropogon ternarius', synonyms:['Anatherum ternarium'], form:'bunchgrass', type:'grass', h:36, heightIn:36,
