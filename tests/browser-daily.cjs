@@ -187,7 +187,9 @@ async function check(browser,url,name,viewport,isMobile){
     await page.locator('#btnMenu').click();await page.locator('#btnChallengeFinish').click();
     assert.match(await page.locator('#challengeStatus').textContent(),/Add some plants/);
     await page.keyboard.press('Escape');
-    assert(await page.locator('#challengeFinishScreen').isHidden());
+    // Closed at once; still painted for its exit fade (motionOut), so wait it out.
+    assert(await page.locator('#challengeFinishScreen').evaluate(el=>el.classList.contains('hidden')));
+    await page.locator('#challengeFinishScreen').waitFor({state:'hidden',timeout:1000});
     assert.equal(await page.evaluate(()=>document.activeElement.id),'btnMenu');
     // Returning before finishing leads with the saved garden, not the setup.
     await page.locator('#btnMenu').click();await page.locator('#btnQuit').click();

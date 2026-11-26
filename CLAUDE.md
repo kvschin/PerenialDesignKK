@@ -10244,6 +10244,23 @@ heavy for three frames to engage.
   **An animation keyed on a class that a rebuild re-applies replays on every
   rebuild**, so anything inside the catalog needs a one-shot marker set by the
   press and consumed by the rebuild the press causes.
+  **Things that appeared and vanished now enter and leave** (0.9.177): the
+  plant card grows out of the edge facing its plant (`data-enter`, so
+  `placePlantCard`'s className write is untouched; `plantCardOpen()` is false
+  while it fades out, `data-leave`), the toast rises in and comes in again
+  for a new message (`on`, `toast-in`, `toast-swap`; a warning ends in a
+  nudge), the Plants/Landscape switch slides a thumb, a Start here check pops
+  once and the list folds away at the first plant, Your gardens deals its
+  cards in (a duplicate pops, a deleted one fades), the season name rolls on
+  the frame the season turns, and a finished daily brief's image develops in
+  under a check. **An exit keeps a hidden element painted**: `closeOverlay`
+  still sets `hidden` at once, and `motionOut(el,ms)` (ui.js) adds
+  `.motion-out`, which keeps it painted, inert and click-through until its
+  own `animationend` or the timeout, so the global rule is
+  `.hidden:not(.motion-out)`. The other helpers are `afterMotion`,
+  `motionOnce` and `motionOutStop`; exits ease on `--ease-exit`, since on the
+  entrance curves an exit was mostly gone in its first third. `#confirmPop`
+  is removed from the page outright and still has no exit.
 - **Settings is ONE surface with two doors** (`#settingsScreen`,
   `settingsSections`/`renderSettings`/`openSettings` in screens.js): the gear
   at the top-right of the main menu, and a single **Settings** row in the garden
