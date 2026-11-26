@@ -4087,7 +4087,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (`gsNight`, a scratch canvas of its own, reading no game state).
 
 11h. **Edit feedback at the tile** (`EDIT_FX`, `drawEditFx`, renderer.js;
-    Nov 2026). Planting had its 550ms diamond (`game.fx`) and an erase, an undo
+    0.9.179). Planting had its 550ms diamond (`game.fx`) and an erase, an undo
     or a refused tap had only a toast at the top of the screen, which in a big
     garden says that something happened and not where. Four answers at the tile,
     each capped so a frame's cost is bounded whatever a fill or sweep does:
@@ -4133,7 +4133,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     against 3.3, for at most 400ms. Live, the idle cadence stays 28-30fps before
     and after an effect.
 
-11i. **View transitions** (Nov 2026; `viewTween`, `startViewTween`/`stepViewTween`/
+11i. **View transitions** (0.9.179; `viewTween`, `startViewTween`/`stepViewTween`/
     `cancelViewTween`/`finishViewTween`, `zoomStep`, `fitPlotTarget`,
     `compassPlacements`/`beginCompassTurn`/`compassTurnLerp`, view.js;
     `requestViewFade`/`takeViewFade`/`VIEW_FADE_MS`, `finishGardenOpen(fade)`,
