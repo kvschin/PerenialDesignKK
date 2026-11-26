@@ -227,7 +227,13 @@
            `brush`, or `pendant` for a shared distinctive fruiting habit.
            Non-mound bunchgrasses may use `seedStyle:'fluffyRaceme'` plus
            seedTufts/seedSpan/seedAwn/seedFan for repeated hairy spikelets
-           along a narrow upright fertile culm.
+           along a narrow upright fertile culm, or `seedStyle:'bluestem'`
+           (little bluestem) for culms/racemes/racemeLen/racemeFrom: a
+           fluffy raceme out of a spathe at each node of the upper culm.
+           A cloud grass may set `cloudStyle:'smoke'` (culmLen, panBase,
+           panW, panBranches, panHairs, branchAng, spkLen, spkW, hazeA,
+           cloudShade, comb) and `leafStyle:'fountain'` (leafLen,
+           leafSpread, leafDroop, leafW) for a mound of hair-fine leaves.
    sea     per-season appearance, the Oudolf heart of the game:
            fol (foliage), folTip (optional contrasting last third of a grass
            blade), bloom (flower this season, omit for none),
@@ -302,7 +308,7 @@ const PLANTS = {
   /* ---------- grasses & sedges: the matrix ---------- */
   bluestem:{ name:'Little Bluestem', latin:'Schizachyrium scoparium', form:'bunchgrass', type:'grass', h:40, heightIn:42,
     roles:['coastal'], space:18, spread:24, zones:[3,9], _legacyNative:true, sun:'full', moist:'dry', phen:'warm',
-    look:{art2:true, sideScale:0.56, crownIn:9, leaves:26, seedEvery:4, bladeShade:15, seedStyle:'fluffyRaceme', seedTufts:5, seedSpan:0.28, seedAwn:4.6, seedFan:0.48},
+    look:{art2:true, sideScale:0.56, crownIn:9, leaves:26, leafLen:0.92, bladeShade:15, seedStyle:'bluestem', culms:12, racemes:6, racemeLen:0.058, racemeFrom:0.4, seedFan:0.48},
     blurb:'Blue-green all summer, then the best copper in the prairie. Backlit in November it glows.',
     sea:{Spring:{fol:'#7b9874'}, Summer:{fol:'#688b84',bloom:'#8d626b'}, Fall:{fol:'#bd623f',seed:'#e8ddc7'}, Winter:{fol:'#9e593e',seed:'#eee4d2'}},
     cv:{
@@ -406,16 +412,15 @@ const PLANTS = {
     }},
   dropseed:{ name:'Prairie Dropseed', latin:'Sporobolus heterolepis', form:'cloudgrass', type:'grass', h:25, heightIn:30,
     space:18, spread:24, zones:[3,9], _legacyNative:true, sun:'full', moist:'dry', phen:'warm',
-    look:{art2:true, sideScale:0.68, crownIn:12, leaves:48, leafFan:2.35, leafLen:0.68, bladeSpread:0.6, leafArch:0.72,
-      leafUpright:0.55, leafW:0.72, bladeHW:0.62, stems:8, stemFan:0.38, stemBase:10,
-      stemLean:0.035, panicle:'mist', cloudDots:10, cloudWidth:12, cloudHeight:12,
-      cloudRadius:0.48, cloudSquash:1.5},
+    look:{art2:true, sideScale:0.97, crownIn:12, leafStyle:'fountain', leaves:150, leafLen:0.66, leafSpread:1.05, leafDroop:0.85,
+      leafW:0.6, stems:10, stemFan:0.42, stemLean:0.035, stemW:0.4, cloudStyle:'smoke', culmLen:0.97, panBase:0.58,
+      panW:0.22, panBranches:8, panHairs:3, branchAng:1.1, spkLen:0.7, spkW:0.5, comb:0.15, hazeA:0.035, cloudShade:'#7a6450'},
     blurb:'A fine-textured fountain that smells faintly of popcorn in bloom. Turns pumpkin-gold in fall.',
-    sea:{Spring:{fol:'#78965c'}, Summer:{fol:'#648451',bloom:'#b78f88'}, Fall:{fol:'#c18a43',panicle:'#aa8965',seed:'#86634e'}, Winter:{fol:'#b79a73',panicle:'#b09a79',seed:'#917b61'}},
+    sea:{Spring:{fol:'#78965c'}, Summer:{fol:'#648451',bloom:'#b78f88'}, Fall:{fol:'#c18a43',panicle:'#b49a74',seed:'#9a7658'}, Winter:{fol:'#b79a73',panicle:'#b09a79',seed:'#917b61'}},
     cv:{
       tara:{name:"'Tara'", heightIn:24, note:'compact upright vase with pink flowers and vivid red-orange fall color',
         h:21, spread:24, zones:[4,9],
-        look:{sideScale:0.73, leafFan:1.65,bladeSpread:0.55,leafArch:0.82,leafUpright:0.50,stemFan:0.22,stemBase:8,cloudWidth:10,cloudHeight:9},
+        look:{sideScale:0.96, leafSpread:0.8, leafDroop:0.6, stemFan:0.28},
         sea:{Summer:{fol:'#718b5f',panicle:'#a18473',bloom:'#b9848e'}, Fall:{fol:'#bd6944',panicle:'#9d765d',seed:'#765442'}, Winter:{fol:'#aa8264',seed:'#8d735d'}}},
     }},
   indiangrass:{ name:'Indiangrass', latin:'Sorghastrum nutans', form:'vertgrass', type:'grass', h:59, heightIn:72,
@@ -500,9 +505,9 @@ const PLANTS = {
     sea:{Spring:{fol:'#718a83',bloom:'#564c60'}, Summer:{fol:'#687f79',seed:'#b8ad8d'}, Fall:{fol:'#74847a',seed:'#c1b493'}, Winter:{fol:'#6b7872',seed:'#b7aa8d'}}},
   lovegrass:{ name:'Purple Lovegrass', latin:'Eragrostis spectabilis', form:'cloudgrass', type:'grass', h:12, heightIn:20,
     space:18, spread:24, zones:[5,9], _legacyNative:true, sun:'full', moist:'dry', phen:'warm',
-    look:{art2:true, crownIn:10, leaves:24, leafFan:2.3, leafLen:0.42, bladeSpread:0.82, leafW:1.05, stems:8, stemFan:1.3,
-      stemBase:13, stemLean:0.04, stemW:0.7, panicle:'mist', cloudDots:23, cloudWidth:30, cloudHeight:20,
-      cloudRadius:0.45, cloudTop:0.66, cloudSquash:1, topScale:1.3, sideScale:1.63},
+    look:{art2:true, crownIn:10, leaves:24, leafFan:2.3, leafLen:0.42, bladeSpread:0.82, leafW:1.05, stems:14, stemFan:0.95,
+      stemLean:0.04, stemW:0.5, cloudStyle:'smoke', culmLen:0.97, panBase:0.38, panW:0.42, panBranches:12, panHairs:3,
+      branchAng:1.25, spkLen:0.9, spkW:0.4, comb:0.2, hazeA:0.06, cloudShade:'#4e2c4a', topScale:1.3, sideScale:1.63},
     blurb:'A low native grass that throws a purple haze in late summer, then dries into a rolling tumble of seed.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#6f8f5a',bloom:'#9a5a8e'}, Fall:{fol:'#b0825a',seed:'#a06486'}, Winter:{fol:'#a88a6a',seed:'#c2a07c'}}},
   pinkmuhly:{ name:'Pink Muhly Grass', latin:'Muhlenbergia capillaris', form:'cloudgrass', type:'grass', h:32, heightIn:42,
@@ -530,17 +535,15 @@ const PLANTS = {
   tuftedhair:{ name:'Tufted Hairgrass', latin:'Deschampsia cespitosa', form:'cloudgrass', type:'grass', h:19, heightIn:30,
     group:'hairgrass', groupLabel:'Hairgrass', chip:'Tufted',
     roles:['coastal'], space:18, spread:24, zones:[4,8], _legacyNative:true, sun:'part', moist:'moist', phen:'cool',
-    look:{art2:true, crownIn:10, leaves:30, leafFan:1.7, leafLen:0.43, bladeSpread:0.62, leafW:0.9, stems:9, stemFan:1,
-      stemBase:13, stemLean:0.04, stemW:0.7, panicle:'mist', cloudDots:19, cloudWidth:28, cloudHeight:25,
-      cloudRadius:0.48, cloudTop:0.82, topScale:1.3, sideScale:1.06},
+    look:{art2:true, crownIn:10, leaves:34, leafFan:1.7, leafLen:0.56, bladeSpread:0.62, leafW:0.8, stems:16, stemFan:0.62,
+      stemLean:0.04, stemW:0.45, cloudStyle:'smoke', culmLen:0.91, panBase:0.46, panW:0.3, panBranches:12, panHairs:4,
+      spkLen:1, spkW:0.34, comb:0.22, hazeA:0.05, cloudShade:'#7d6c48', topScale:1.3, sideScale:1.13},
     blurb:'Cool-season tufts with airy gold seed in early summer. Better in moisture and light shade than hot dry prairie.',
     sea:{Spring:{fol:'#5f8a58'}, Summer:{fol:'#5d7a4c',bloom:'#d8c99a',seed:'#d8c99a'}, Fall:{fol:'#c2a85a',seed:'#d8c08a'}, Winter:{fol:'#b09a70',seed:'#d8c8a8'}},
     cv:{
       goldtau:{name:"'Goldtau'", note:'compact green tuft under a long-lasting golden veil',
         heightIn:24, h:16, spread:24,
-        look:{leaves:24, stems:9, leafFan:1.5, leafLen:0.48, bladeSpread:0.68, leafW:1,
-          stemFan:0.72, stemBase:11, stemLean:0.04, panicle:'mist', cloudDots:16,
-          cloudWidth:20, cloudHeight:15, cloudRadius:0.55, cloudTop:1.02},
+        look:{sideScale:1.15, leaves:28, stems:14, leafFan:1.5, leafLen:0.56, bladeSpread:0.68, leafW:0.9, stemFan:0.55, panBase:0.42},
         sea:{Summer:{fol:'#647f52',bloom:'#d1bd80',panicle:'#bd9f64',seed:'#d8c790'},
           Fall:{fol:'#bea253',panicle:'#ba9b61',seed:'#cfb67d'}, Winter:{fol:'#a98f68',seed:'#d5c49f'}}},
       bronzeschleier:{name:"'Bronzeschleier'", note:'Bronze Veil: taller, the cloud ageing to bronze', heightIn:42, h:33, spread:30,
@@ -744,9 +747,9 @@ const PLANTS = {
     sea:{Spring:{fol:'#7d9668',bloom:'#c9b47e'}, Summer:{fol:'#748c60',bloom:'#c4ad78',seed:'#d2c49c'}, Fall:{fol:'#a89a6e',seed:'#c8bb94'}, Winter:{fol:'#9a8e68',seed:'#bcae8a'}}},
   sandlovegrass:{ name:'Sand Lovegrass', latin:'Eragrostis trichodes', form:'cloudgrass', type:'grass', h:26, heightIn:36,
     space:24, spread:30, zones:[5,9], _legacyNative:true, sun:'full', moist:'dry', phen:'warm',
-    look:{topScale:1.04, art2:true, sideScale:0.71, crownIn:12, leaves:30, stems:13, leafFan:1.25, leafLen:0.58, bladeSpread:0.56, leafW:1.05,
-      stemFan:0.62, stemBase:13, stemLean:0.06, panicle:'mist', cloudDots:25, cloudWidth:23,
-      cloudHeight:19, cloudRadius:0.5},
+    look:{topScale:1.1, art2:true, sideScale:0.94, crownIn:12, leaves:30, stems:15, leafFan:1.25, leafLen:0.58, bladeSpread:0.56, leafW:1.05,
+      stemFan:0.62, stemLean:0.06, stemW:0.5, cloudStyle:'smoke', culmLen:0.97, panBase:0.36, panW:0.38, panBranches:12, panHairs:4,
+      branchAng:1.15, spkLen:1, spkW:0.4, comb:0.2, hazeA:0.06, cloudShade:'#4e3448'},
     blurb:'A North American sand-prairie grass with a large airy purple haze in late summer, then a finely textured tawny seed cloud.',
     sea:{Spring:{fol:'#799661'}, Summer:{fol:'#668557',bloom:'#94758c'}, Fall:{fol:'#b8925c',seed:'#a98c89'}, Winter:{fol:'#a88a68',seed:'#c5ae94'}}},
 
@@ -799,8 +802,8 @@ const PLANTS = {
     space:12, spread:15, zones:[4,8], nativeTo:['north-america','europe','asia'], provenance:'species', sun:'part', moist:'dry', phen:'cool',
     roles:['evergreen'],
     look:{art2:true, sideScale:1.17, crownIn:8, leaves:44, leafFan:1.9, leafLen:0.5, bladeSpread:0.7, leafW:0.55, bladeHW:0.6, leafArch:0.55, leafUpright:0.45,
-      stems:9, stemFan:0.9, stemBase:10, stemLean:0.04, stemW:0.5, panicle:'mist', cloudDots:18, cloudWidth:20, cloudHeight:18,
-      cloudRadius:0.42, cloudTop:0.85, topScale:1.3},
+      stems:12, stemFan:0.8, stemLean:0.04, stemW:0.4, cloudStyle:'smoke', culmLen:0.91, panBase:0.5, panW:0.26, panBranches:9,
+      panHairs:3, spkLen:0.9, spkW:0.34, comb:0.2, hazeA:0.05, cloudShade:'#4f3a4a', topScale:1.3},
     blurb:'A fine evergreen hairgrass for dry shade, native to eastern North America and to Europe: dark green tufts of hair-thin leaves under shimmering purple-bronze panicles in early summer that ripen to gold. Lean, acid, well-drained soil; it sulks in rich wet ground.',
     sea:{Spring:{fol:'#5c7f4f',bloom:'#a08896'}, Summer:{fol:'#5a7a4d',bloom:'#b49a7a',seed:'#c9ad7c'}, Fall:{fol:'#5f7a4f',seed:'#c2a77e'}, Winter:{fol:'#62774f'}}},
   bushybluestem:{ name:'Bushy Bluestem', latin:'Andropogon glomeratus', form:'vertgrass', type:'grass', h:49, heightIn:54,
@@ -8988,9 +8991,9 @@ const PLANTS = {
   elliottslovegrass:{ name:"Elliott's Lovegrass", latin:'Eragrostis elliottii', form:'cloudgrass', type:'grass', h:29, heightIn:36,
     space:18, spread:24, zones:[8,10], _legacyNative:true, sun:'full', moist:'medium', phen:'warm',
     roles:['matrix','movement','coastal'],
-    look:{sideScale:0.61, art2:true, crownIn:10, leaves:28, stems:12, leafFan:1.45, leafLen:0.52, bladeSpread:0.60,
-      leafW:0.85, stemFan:0.72, stemBase:12, stemLean:0.06, panicle:'mist', cloudTop:0.90,
-      cloudDots:24, cloudWidth:24, cloudHeight:16, cloudRadius:0.48, cloudSquash:1.7},
+    look:{sideScale:0.9, art2:true, crownIn:10, leaves:28, stems:15, leafFan:1.45, leafLen:0.52, bladeSpread:0.60,
+      leafW:0.85, stemFan:0.66, stemLean:0.06, stemW:0.45, cloudStyle:'smoke', culmLen:0.97, panBase:0.4, panW:0.34, panBranches:11,
+      panHairs:4, branchAng:1.15, spkLen:1, spkW:0.38, comb:0.2, hazeA:0.05, cloudShade:'#5a5662'},
     blurb:'Fine blue-green bunches open into an airy fall haze. This Florida lovegrass is short-lived and goes dormant in winter, so repeat it through a matrix and allow some seedling renewal.',
     sea:{Spring:{fol:'#809781'}, Summer:{fol:'#718b76'}, Fall:{fol:'#84906d',bloom:'#b1a5b4',seed:'#a49a9e'}, Winter:{fol:'#a68f6d',seed:'#b5a287'}}},
   dwarffakahatcheegrass:{ name:'Dwarf Fakahatchee Grass', latin:'Tripsacum floridanum', synonyms:['Tripsacum dactyloides var. floridanum'], form:'vertgrass', type:'grass', h:27, heightIn:36,

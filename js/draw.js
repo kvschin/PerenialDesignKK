@@ -894,6 +894,111 @@ function drawFluffyRaceme(ctx,tx,ty,a,span,col,tufts,rnd,awn,fluff){
   ctx.stroke(); ctx.globalAlpha=oldAlpha;
 }
 
+/* Little bluestem's flowering culms (`seedStyle:'bluestem'`, 0.9.176). One short fluffy raceme
+   at each culm's tip read as a row of little flags along the top of the clump. The plant carries
+   its seed all down the upper half of every culm: at each node a narrow spathe, coloured like the
+   leaves, and out of it on a short stalk a raceme an inch or two long whose joints are fringed with
+   silky white hairs, so in fall and winter the top of a copper clump is studded with curving
+   cottony tufts that catch the light. In flower the racemes are slim and bronze, with a few
+   orange anthers. The culms come from a stream of their own, so the leaves are the same plant in
+   every season; they are laid partway through the leaves, so the nearest leaves cross them.
+   Culms and stalks are one stroke, spathes one fill, the axes one stroke, the cotton two fills and
+   its hairs three thread buckets by light. */
+const BLS_CULMS=24, BLS_MAX=200;
+const _blsC=new Float64Array(BLS_CULMS*6), _blsR=new Float64Array(BLS_MAX*10), _blsS=new Float64Array(BLS_MAX*6);
+function drawBluestemCulms(ctx,L,S,H,rx,sway,seed,m,col,fluff,blooming,snow){
+  const r=mulberry((seed^0x51b3e5)>>>0), per=L.racemes||5, fan=L.seedFan||0.5, fol=S.fol||col, ga=ctx.globalAlpha;
+  const rlBase=H*(L.racemeLen||0.075), from=L.racemeFrom||0.48;
+  m=Math.min(m,BLS_CULMS);
+  let nR=0, nS=0;
+  const lightAt=(x,y)=>(x/(H*0.45))*LIT.x+((y+H*0.72)/(H*0.32))*LIT.y;
+  // a raceme from (ax,ay) heading (dx,dy), curving toward side s
+  const raceme=(ax,ay,dx,dy,s,stalk)=>{
+    if (nR>=BLS_MAX) return;
+    const pl=stalk?H*(0.018+r()*0.022):0, x0=ax+dx*pl, y0=ay+dy*pl;
+    const rl=rlBase*(0.75+r()*0.45), bend=s*(0.1+r()*0.12)*rl;
+    const x1=x0+dx*rl-dy*bend*0.6, y1=y0+dy*rl+dx*bend*0.6+rl*0.08*fluff;
+    const cx=x0+dx*rl*0.55-dy*bend, cy=y0+dy*rl*0.55+dx*bend;
+    const j=nR*10; _blsR[j]=x0; _blsR[j+1]=y0; _blsR[j+2]=cx; _blsR[j+3]=cy; _blsR[j+4]=x1; _blsR[j+5]=y1;
+    _blsR[j+6]=ax; _blsR[j+7]=ay; _blsR[j+8]=rl; _blsR[j+9]=lightAt((x0+x1)/2,(y0+y1)/2); nR++;
+    // the hairs: off the axis toward its tip, both sides, longer as the seed ripens
+    const nh=blooming?2:Math.round(4+7*fluff), hl=rl*(blooming?0.1:0.12+0.22*fluff);
+    for (let h=0;h<nh;h++){
+      const t=0.12+0.88*(h+r()*0.7)/nh, px=qBez(t,x0,cx,x1), py=qBez(t,y0,cy,y1);
+      let tx=2*(1-t)*(cx-x0)+2*t*(x1-cx), ty=2*(1-t)*(cy-y0)+2*t*(y1-cy); const td=Math.hypot(tx,ty)||1; tx/=td; ty/=td;
+      const hs=(h&1)?1:-1, a=hs*(0.55+r()*0.6), ca=Math.cos(a), sa=Math.sin(a);
+      const ux=tx*ca-ty*sa, uy=tx*sa+ty*ca, len=hl*(0.6+r()*0.8);
+      const l=_blsR[j+9]*0.7+(ux*LIT.x+uy*LIT.y)*0.6+(r()-0.5)*0.4, b=l>0.25?2:l<-0.3?0:1;
+      thrPush(b,px,py,px+ux*len,py+uy*len);
+    }
+  };
+  for (let i=0;i<m;i++){
+    const u=m>1?(i+0.2+r()*0.6)/m:0.5, side=u-0.5;
+    grassCrownAt(rx,u,-1,r,0.6);
+    const bx=_crX, by=_crY, len=H*(0.86+r()*0.12)*(1-0.08*Math.abs(side)*2);
+    const tx=bx+side*H*fan*0.42+sway*H*0.02+(r()-0.5)*H*0.04, ty=by-len;
+    const cx=bx+(tx-bx)*0.22, cy=by-len*0.55, c=i*6;
+    _blsC[c]=bx; _blsC[c+1]=by; _blsC[c+2]=cx; _blsC[c+3]=cy; _blsC[c+4]=tx; _blsC[c+5]=ty;
+    // racemes down the upper part of the culm, alternate, angled up and out of their spathes
+    const k=Math.max(1,Math.round(per*(0.7+r()*0.6)));
+    for (let q=0;q<k;q++){
+      const t=from+(0.94-from)*(q+0.3+r()*0.5)/k, ax=qBez(t,bx,cx,tx), ay=qBez(t,by,cy,ty);
+      let dx=2*(1-t)*(cx-bx)+2*t*(tx-cx), dy=2*(1-t)*(cy-by)+2*t*(ty-cy); const dd=Math.hypot(dx,dy)||1; dx/=dd; dy/=dd;
+      const s=((q+i)&1)?1:-1, a=s*(0.3+r()*0.35), ca=Math.cos(a), sa=Math.sin(a), ux=dx*ca-dy*sa, uy=dx*sa+dy*ca;
+      if (nS<BLS_MAX){ const sl=H*(0.03+r()*0.02), w=0.55, o=nS*6, vx=dx*Math.cos(a*0.6)-dy*Math.sin(a*0.6), vy=dx*Math.sin(a*0.6)+dy*Math.cos(a*0.6);
+        _blsS[o]=ax-dy*w; _blsS[o+1]=ay+dx*w; _blsS[o+2]=ax+dy*w; _blsS[o+3]=ay-dx*w; _blsS[o+4]=ax+vx*sl; _blsS[o+5]=ay+vy*sl; nS++; }
+      raceme(ax,ay,ux,uy,s,true);
+    }
+    // and one at the tip
+    let dx=tx-cx, dy=ty-cy; const dd=Math.hypot(dx,dy)||1; dx/=dd; dy/=dd;
+    raceme(tx,ty,dx,dy,(i&1)?1:-1,false);
+    if (snow && (i&1)) { const j=(nR-1)*10; snow.push([qBez(0.5,_blsR[j],_blsR[j+2],_blsR[j+4]),qBez(0.5,_blsR[j+1],_blsR[j+3],_blsR[j+5])-1,2.2]); }
+  }
+  // culms and the stalks out to each raceme
+  ctx.lineCap='round'; ctx.strokeStyle=shade(fol,-16); ctx.lineWidth=L.seedStemW||0.6; ctx.beginPath();
+  for (let i=0;i<m;i++){ const c=i*6; ctx.moveTo(_blsC[c],_blsC[c+1]); ctx.quadraticCurveTo(_blsC[c+2],_blsC[c+3],_blsC[c+4],_blsC[c+5]); }
+  ctx.stroke();
+  ctx.lineWidth=(L.seedStemW||0.6)*0.7; ctx.beginPath();
+  for (let q=0;q<nR;q++){ const j=q*10; ctx.moveTo(_blsR[j+6],_blsR[j+7]); ctx.lineTo(_blsR[j],_blsR[j+1]); }
+  ctx.stroke();
+  // the spathes: narrow, leaf-coloured, a shade warmer
+  ctx.fillStyle=shade(S.folTip?mixHex(fol,S.folTip,0.5):fol,-6); ctx.beginPath();
+  for (let q=0;q<nS;q++){ const o=q*6; ctx.moveTo(_blsS[o],_blsS[o+1]); ctx.lineTo(_blsS[o+2],_blsS[o+3]); ctx.lineTo(_blsS[o+4],_blsS[o+5]); ctx.closePath(); }
+  ctx.fill();
+  // the racemes' axes, then their cotton: a soft body, a brighter core where the light is
+  ctx.strokeStyle=blooming?col:shade(mixHex(col,fol,0.45),-22); ctx.lineWidth=blooming?1:0.45; ctx.beginPath();
+  for (let q=0;q<nR;q++){ const j=q*10; ctx.moveTo(_blsR[j],_blsR[j+1]); ctx.quadraticCurveTo(_blsR[j+2],_blsR[j+3],_blsR[j+4],_blsR[j+5]); }
+  ctx.stroke();
+  const lit=mixHex(col,'#ffffff',0.45), dim=mixHex(col,fol,0.32);
+  if (!blooming){
+    const body=(sel,w,colr,alpha)=>{
+      ctx.globalAlpha=ga*alpha; ctx.fillStyle=colr; ctx.beginPath();
+      for (let q=0;q<nR;q++){ const j=q*10; if (!sel(_blsR[j+9])) continue;
+        const mx=qBez(0.55,_blsR[j],_blsR[j+2],_blsR[j+4]), my=qBez(0.55,_blsR[j+1],_blsR[j+3],_blsR[j+5]);
+        const ang=Math.atan2(_blsR[j+5]-_blsR[j+1],_blsR[j+4]-_blsR[j]), rl=_blsR[j+8];
+        ctx.moveTo(mx+Math.cos(ang)*rl*0.5,my+Math.sin(ang)*rl*0.5); ctx.ellipse(mx,my,rl*0.5,0.4+rl*w*fluff,ang,0,7); }
+      ctx.fill();
+    };
+    body(()=>true,0.24,dim,0.2*fluff);
+    body(l=>l<=0.15,0.11,col,0.38);
+    body(l=>l>0.15,0.11,lit,0.5);
+    ctx.globalAlpha=ga;
+  }
+  ctx.lineWidth=L.seedHairW||0.42;
+  ctx.globalAlpha=ga*0.6; thrStroke(ctx,0,dim);
+  ctx.globalAlpha=ga*0.72; thrStroke(ctx,1,col);
+  ctx.globalAlpha=ga*0.85; thrStroke(ctx,2,lit);
+  // in flower, the odd orange anther hangs from a raceme
+  if (blooming){
+    ctx.globalAlpha=ga*0.8; ctx.fillStyle=L.antherCol||'#c98f4a'; ctx.beginPath();
+    for (let q=0;q<nR;q+=2){ const j=q*10, px=qBez(0.5,_blsR[j],_blsR[j+2],_blsR[j+4]), py=qBez(0.5,_blsR[j+1],_blsR[j+3],_blsR[j+5])+0.9;
+      ctx.moveTo(px+0.4,py); ctx.ellipse(px,py,0.4,0.62,0,0,7); }
+    ctx.fill();
+  }
+  ctx.globalAlpha=ga;
+  _crX=_crY=0;
+}
+
 /* Bulb flower primitives. Bulbs need a little more silhouette than a generic
    dot, but they are also repeated in drifts, so these stay deliberately small:
    one filled path for a star, or a few tapered leaf primitives for the larger
@@ -8923,6 +9028,52 @@ function drawGrassMop(ctx,col,n,reach,spread,droop,w,alpha,rx,rnd,sn){
   }
   stroke(); ctx.globalAlpha=ga; ctx.lineJoin='miter'; _crX=_crY=0;
 }
+/* Prairie dropseed's leaves (`leafStyle:'fountain'` on a cloud grass, 0.9.176): a dense mound of
+   hair-fine leaves, each rising from the crown, arching over and falling, the outer ones nearly to
+   the ground, so the clump is a rounded fountain. As blades fanned in the picture plane it was a
+   tuft. Leaves point all the way round; each is built in the round, rising and reaching out along
+   its own bearing, and the ground is foreshortened, so one leaning toward the viewer comes down the
+   screen in front of the crown. The far half goes down first and darker, each half three strokes
+   by light, over a soft dark mass that closes the gaps a few hundred threads leave. */
+const FM_MAX=220, _fmP=new Float64Array(FM_MAX*12), _fmB=new Uint8Array(FM_MAX);
+function drawFineFountain(ctx,col,n,reach,spread,droop,w,rx,rnd,sn){
+  const ga=ctx.globalAlpha, R=reach*spread;
+  // the mound under the leaves
+  ctx.globalAlpha=ga*0.42; ctx.fillStyle=shade(col,-30); ctx.beginPath();
+  ctx.ellipse(0,-reach*0.3,R*0.78+rx,reach*0.36,0,0,7); ctx.fill();
+  ctx.globalAlpha=ga; ctx.lineWidth=w; ctx.lineCap='round'; ctx.lineJoin='round';
+  n=Math.min(n,FM_MAX*2);
+  let m=0;
+  const stroke=(far)=>{
+    for (let b=0;b<3;b++){
+      let any=false; ctx.beginPath();
+      for (let i=0;i<m;i++){ if (_fmB[i]!==b) continue; const j=i*12; any=true;
+        ctx.moveTo(_fmP[j],_fmP[j+1]); for (let s=1;s<6;s++) ctx.lineTo(_fmP[j+2*s],_fmP[j+2*s+1]); }
+      if (any){ ctx.strokeStyle=shade(col,(b===0?-24:b===1?-6:16)-(far?10:0)); ctx.stroke(); }
+    }
+    m=0;
+  };
+  const half=n>>1;
+  for (let k=0;k<n;k++){
+    if (k===half) stroke(true);
+    // far half then near half, each walked from the sides in to the middle
+    const q=k<half?k/half:(k-half)/(n-half), far=k<half;
+    // the far half from straight back out to the sides, the near half from the sides in to straight ahead
+    const th=(far?Math.PI/2+((k&1)?1:-1)*q*Math.PI/2:Math.PI*1.5+((k&1)?1:-1)*(1-q)*Math.PI/2)+(rnd()-0.5)*0.2;
+    const cs=Math.cos(th), sz=-Math.sin(th);           // sz>0: toward the viewer
+    const e=0.4+0.6*Math.pow(rnd(),0.7), len=reach*(0.72+rnd()*0.36);
+    grassCrownAt(rx,(cs+1)/2,(sz+1)/2,rnd,0.8);
+    const bx=_crX, by=_crY, out=len*spread*(0.3+0.7*e), peak=len*(1-0.42*e), tip=peak*(1-droop*(0.35+0.65*e));
+    const cx=bx+cs*out*0.42, cy=by-peak*1.22+sz*out*0.21, tx=bx+cs*out, ty=by-tip+sz*out*0.5;
+    const lit=(cs*LIT.x)*0.8+(e<0.5?0.35:-0.1)+(far?-0.25:0.1)+(rnd()-0.5)*0.5;
+    const b=lit>0.32?2:lit<-0.18?0:1;
+    if (m<FM_MAX){ const j=m*12; _fmB[m]=b;
+      for (let s=0;s<=5;s++){ const t=s/5; _fmP[j+2*s]=qBez(t,bx,cx,tx); _fmP[j+2*s+1]=qBez(t,by,cy,ty); }
+      m++; }
+    if (sn && !far && k%9===4) sn.push([qBez(0.5,bx,cx,tx),qBez(0.5,by,cy,ty),2.2]);
+  }
+  stroke(false); ctx.lineJoin='miter'; _crX=_crY=0;
+}
 /* Mexican feather grass as it grows (`habit:'ponytail'`, 0.9.174). The mop above drew it as a cup
    of stiff threads fanned from a point, cream all over, with sky between them: a shaving brush. The
    plant is a fountain of hair. Its threads rise TOGETHER out of a tight crown, as a ponytail does,
@@ -9024,7 +9175,10 @@ function drawFeatherPonytail(ctx,L,S,H,rx,rnd,n,plume,sn){
    at every end, short dashes with an awn, not dots. A faint haze of the bloom colour lies behind each
    panicle, which is what reads as a cloud from a distance. Panicles are painted far to near, so the
    haze of a near one veils the hairs of the one behind it, and spikelets take three lights by where
-   they sit in the cloud. No culms in a season with nothing on them: a muhly in summer is its leaves. */
+   they sit in the cloud. No culms in a season with nothing on them: a muhly in summer is its leaves.
+   The lovegrasses, hairgrasses and prairie dropseed draw it too (0.9.176): `branchAng` spreads the
+   branches wider off the axis (a lovegrass's near-level ones), and a season's `panicle` colour is the
+   branches and haze under spikelets of another colour (a dropseed's tan panicle and dark seed). */
 const SMK_MAX=24, _smk=new Float64Array(SMK_MAX*8), _smkO=new Int8Array(SMK_MAX);
 const SMK_SEG=400, _smkB=new Float64Array(SMK_SEG*4);   // one panicle's branches and hairs
 function drawSmokeCloud(ctx,L,S,H,rx,rnd,sway,cloud,sn,snow){
@@ -9034,7 +9188,11 @@ function drawSmokeCloud(ctx,L,S,H,rx,rnd,sway,cloud,sn,snow){
   // no two clumps quite the same pink: some a shade paler, some deeper, so a sweep of them separates
   const tone=rnd()-0.5; cloud=mixColHex(cloud,tone<0?(L.cloudShade||'#5e4366'):'#fff6fa',Math.abs(tone)*0.32);
   const shadow=mixHex(cloud,L.cloudShade||'#5e4366',0.46), lit=mixHex(cloud,'#fff6fa',0.34);
-  const branchCol=shade(mixHex(cloud,fol,0.22),-30);
+  // A season's `panicle` colour is the branches and the haze between the spikelets: a dropseed's
+  // tan panicle under its dark seeds, a hairgrass's gold veil. Without one both follow the spikelets.
+  const pan=S.panicle, hz=pan?mixHex(cloud,pan,0.65):cloud;
+  const hShadow=pan?mixHex(hz,L.cloudShade||'#5e4366',0.46):shadow, hLit=pan?mixHex(hz,'#fff6fa',0.34):lit;
+  const branchCol=pan?shade(pan,-24):shade(mixHex(cloud,fol,0.22),-30), ba=L.branchAng||1;
   // the culms, laid first and stroked together
   for (let i=0;i<m;i++){
     const u=m>1?i/(m-1):0.5, side=u-0.5;
@@ -9070,9 +9228,9 @@ function drawSmokeCloud(ctx,L,S,H,rx,rnd,sway,cloud,sn,snow){
     const hx0=qBez(pb+(1-pb)*0.45,x0,cx,x1), hy0=qBez(pb+(1-pb)*0.45,y0,cy,y1);
     const axA=Math.atan2(y1-sy,x1-sx), axL=span*0.56;
     const hl=domeLit(hx0,hy0);
-    ctx.globalAlpha=ga*hazeA*(hl<0?1.3:0.9); ctx.fillStyle=shadow;
+    ctx.globalAlpha=ga*hazeA*(hl<0?1.3:0.9); ctx.fillStyle=hShadow;
     ctx.beginPath(); ctx.ellipse(hx0,hy0+wmax*0.25,axL*1.02,wmax*1.05,axA,0,7); ctx.fill();
-    ctx.globalAlpha=ga*hazeA*(hl>0.2?1.1:0.8); ctx.fillStyle=hl>0.35?lit:cloud;
+    ctx.globalAlpha=ga*hazeA*(hl>0.2?1.1:0.8); ctx.fillStyle=hl>0.35?hLit:hz;
     ctx.beginPath(); ctx.ellipse(hx0,hy0,axL*0.8,wmax*0.78,axA,0,7); ctx.fill();
     ctx.beginPath(); ctx.ellipse(hx0+LIT.x*wmax*0.12,hy0+LIT.y*wmax*0.16,axL*0.55,wmax*0.5,axA,0,7); ctx.fill();
     ctx.globalAlpha=ga;
@@ -9089,7 +9247,7 @@ function drawSmokeCloud(ctx,L,S,H,rx,rnd,sway,cloud,sn,snow){
       const f=(b+0.3+rnd()*0.4)/nb, t=pb+(1-pb)*f;
       const ax=qBez(t,x0,cx,x1), ay=qBez(t,y0,cy,y1);
       let dx=2*(1-t)*(cx-x0)+2*t*(x1-cx), dy=2*(1-t)*(cy-y0)+2*t*(y1-cy); const dd=Math.hypot(dx,dy)||1; dx/=dd; dy/=dd;
-      const side=(b&1)?1:-1, ang=side*(0.75+rnd()*0.55), ca=Math.cos(ang), sa=Math.sin(ang);
+      const side=(b&1)?1:-1, ang=side*(0.75+rnd()*0.55)*ba, ca=Math.cos(ang), sa=Math.sin(ang);
       const ux=dx*ca-dy*sa, uy=dx*sa+dy*ca;
       // widest a third of the way up, little at the tip
       const w=wmax*Math.pow(Math.sin(Math.PI*Math.min(1,f*0.9+0.08)),0.7)*Math.max(0,1.15-f*0.55);
@@ -9727,7 +9885,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     } else {
       const fan=L.fan||1.5, spread=L.spread||0.55;
+      // little bluestem's culms go in partway through the leaves, so the nearest leaves cross them
+      const blsHead=L.seedStyle==='bluestem'&&mature?bunchHead:null, blsAt=blsHead?Math.floor(n*(L.culmsAt||0.62)):-1;
       for (let k=0;k<n;k++){
+        if (k===blsAt) drawBluestemCulms(ctx,L,S,H,crownRx,sway,seed,stemFor(L.culms||12),blsHead,
+          !S.seed?0.5:S.bloom?0.5+0.5*Math.max(0,1-Math.min(1,blv)):1,blooming&&!S.seed,sn);
         const i = a2 ? fanIdx(k,n) : k;
         grassCrownIn(ctx,crownRx,i/(n-1),k/n,rnd);
         const a = (i/(n-1)-0.5)*fan + (rnd()-0.5)*0.3;
@@ -9746,7 +9908,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.quadraticCurveTo(bx*0.4, by*0.62, bx, by); ctx.stroke();
         }
         if (sn && i%3===0 && !(bunchHead && mature)) sn.push([bx*0.63+_crX,by*0.7+_crY,2.4]);
-        if (bunchHead && mature && i%(L.seedEvery||2)===0){
+        if (bunchHead && mature && !blsHead && i%(L.seedEvery||2)===0){
           if (L.seedStyle==='fluffyRaceme'){
             // Fertile culms are straighter and tighter than the basal leaves.
             // Seed maturity lengthens the hairs as the Aug-Oct bloom fades.
@@ -9929,7 +10091,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const L=P.look||{}, n = stemFor(L.leaves||11), a2=art2On(L);
     const leafFan=L.leafFan||1.3, leafSpread=L.bladeSpread!==undefined?L.bladeSpread:0.6;
     const leafArch=L.leafArch||0.7, leafLean=L.leafLean!==undefined?L.leafLean:0.05;
+    // Where snow lands when a smoke grass has no cloud to hold it (wavy hairgrass's winter): on its leaves.
+    const smokeLeafSnow=L.cloudStyle==='smoke'&&grassSnowOn(season,mature)?[]:null;
     ctx.lineCap='round';
+    // A fountain of hair-fine leaves arching out and over nearly to the ground: prairie dropseed.
+    if (L.leafStyle==='fountain'){
+      if (S.fol) drawFineFountain(ctx,S.fol,n,H*(L.leafLen||0.6),L.leafSpread||1,L.leafDroop===undefined?0.7:L.leafDroop,
+        L.leafW||0.7,crownRx,rnd,smokeLeafSnow);
+    } else
     for (let k=0;k<n;k++){ // arching or upright blades
       const i=a2?fanIdx(k,n):k;
       const u=n>1?i/(n-1):0.5;
@@ -9948,6 +10117,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.beginPath(); ctx.moveTo(baseX,0);
         ctx.quadraticCurveTo(bx*0.4,-len*leafArch,bx,by); ctx.stroke();
       }
+      if (smokeLeafSnow && k%5===2) smokeLeafSnow.push([qBez(0.6,0,bx*0.4,bx)+_crX,qBez(0.6,0,-len*leafArch,by)+_crY,2.2]);
       grassCrownOut(ctx);
     }
     const sn = stemFor(L.stems||6), cloud=S.seed||(blooming?S.bloom:null), panicle=S.panicle||cloud;
@@ -9957,6 +10127,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     if (L.cloudStyle==='smoke'){
       const smoke=(blooming?S.bloom:null)||S.seed;
       if (smoke && mature) drawSmokeCloud(ctx,L,S,H*((P.heightIn||P.h)/P.h),crownRx,rnd,sway,smoke,sn,snow);
+      if (snow && !snow.length && smokeLeafSnow) for (const p of smokeLeafSnow) snow.push(p);
     } else
     for (let i=0;i<sn;i++){
       const u=sn>1?i/(sn-1):0.5, side=u-0.5;

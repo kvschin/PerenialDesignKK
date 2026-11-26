@@ -8675,6 +8675,32 @@ multiplies by the species' `h`), so a species drawn shorter takes its cultivars 
 'Eldorado' 17% narrower, 'Bronzeschleier' 28%), one drawn taller takes them wider (fountain grass's, 11-24%), and a
 cultivar drawn shorter over a fixed-size cloud widens that cloud. 25 choices took a wider `sideScale`, measured on real pixels in `dev/grass-review.html?check` and on the
 recorded geometry. The dev-only Classic renderer is not held: it draws 'Red October' and Slender Indiangrass 10-12% off.
+**Little bluestem's seed, prairie dropseed, and the smoke cloud for the lovegrasses and hairgrasses
+(0.9.176).** *Little bluestem* drew one short tuft at each culm's tip, a row of flags along the top of the
+clump. It is `seedStyle:'bluestem'` (`drawBluestemCulms`, draw.js): `culms` fertile culms, each with
+`racemes` racemes down its upper part from `racemeFrom` (0.4 of the way up), alternate, each out of a
+narrow leaf-coloured spathe on a short stalk, a curving axis `racemeLen` of the height; in flower slim
+and bronze with the odd orange anther, in seed a translucent cotton body and silky hairs in three lights,
+so the copper shows through. The culms come from a stream of their own (`seed^0x51b3e5`) and go in
+partway through the leaves (`culmsAt`), so the nearest leaves cross them and a clump keeps the same
+leaves in every season (a test hides the culm pass and compares spring with fall). Broomsedge and
+splitbeard bluestem keep `fluffyRaceme`. *Prairie dropseed* was a tuft of blades under stiff stems topped
+with dots, lollipops. Its leaves are `leafStyle:'fountain'` on a cloud grass (`drawFineFountain`): a
+mound of hair-fine leaves built in the round, every one arching over and falling, the outer ones nearly
+to the ground, far half first and darker, over a soft dark mass; the panicles are the smoke cloud with
+tiny spikelets, thin and see-through, tan branches under darker seed in fall. *Purple, sand and
+Elliott's lovegrass, tufted hairgrass (with 'Goldtau' and 'Bronzeschleier') and wavy hairgrass* left
+the mist cloud's dandelion clocks for `cloudStyle:'smoke'`. Two opt-in smoke settings: `branchAng`
+widens the branches off the axis, and a season's `panicle` colour becomes the branches and haze. A smoke
+grass with no cloud in a season lays its snow on its leaves (wavy hairgrass's winter). Its sprite box
+follows the culms' real height (`L.cloudStyle==='smoke'` in `plantDrawBox`), so `cloudTop` and
+`cloudHeight` no longer size it. Every other plant draws call for call as before (1,767 choices hashed);
+heights within 4%; 1,344 real-size pictures and 576 sprites clean after new `sideScale` values for
+dropseed, 'Tara', sand and Elliott's lovegrass, tufted hairgrass and 'Goldtau'. Bake cost on a software
+canvas: little bluestem 0.46 to 1.3 ms in seed, the hairgrasses 0.7 to 1.6, the lovegrasses 0.7 to 1.7,
+dropseed 0.6 to 0.8, the range pink muhly sits in. A purple lovegrass whose lowest panicle branches
+reach the ground reads to the crown test as a crown: `panW` 0.42 keeps them clear.
+
 **Mexican feather grass and pink muhly were redrawn from photographs (0.9.174).** Feather grass was a
 stiff cream whisk fanned from a point; it is `habit:'ponytail'` (`drawFeatherPonytail`, draw.js): threads
 rise together in a tight bundle, part near the top and arch over, the outer ones falling to about a sixth

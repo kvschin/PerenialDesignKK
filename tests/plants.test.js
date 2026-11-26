@@ -1449,16 +1449,18 @@ test('signature grass cultivars keep their real-world size hierarchy', () => {
     "prairie dropseed needs the correctly spelled 'Tara' cultivar");
   assertEqual(PLANTS.dropseed.form,'cloudgrass',
     'prairie dropseed needs separate low foliage and airy panicle layers');
-  assert(PLANTS.dropseed.look.panicle && PLANTS.dropseed.sea.Winter.seed,
+  assert(PLANTS.dropseed.look.cloudStyle==='smoke' && PLANTS.dropseed.sea.Winter.seed && PLANTS.dropseed.sea.Winter.panicle,
     'prairie dropseed keeps airy panicles as winter structure');
   assert(PLANTS.dropseed.sea.Fall.panicle && PLANTS.dropseed.sea.Fall.panicle !== PLANTS.dropseed.sea.Fall.seed,
     'prairie dropseed needs golden-brown panicle branches distinct from its darker seeds');
   assert(PLANTS.bluestem.cv.hahatonka.sea.Summer.folTip && PLANTS.bluestem.cv.hahatonka.sea.Fall.folTip,
     'Ha Ha Tonka needs red-gray summer segments and burgundy fall accents');
-  assertEqual(PLANTS.bluestem.look.seedStyle,'fluffyRaceme',
+  assertEqual(PLANTS.bluestem.look.seedStyle,'bluestem',
     'little bluestem species and cultivars share their characteristic fluffy racemes');
-  assert(PLANTS.bluestem.look.seedTufts>=4 && PLANTS.bluestem.look.seedSpan>=0.25,
+  assert(PLANTS.bluestem.look.racemes>=4 && PLANTS.bluestem.look.racemeFrom<=0.5,
     'little bluestem racemes need several tufts spread down the upper stem');
+  for (const v of Object.keys(PLANTS.bluestem.cv)) assert(!(PLANTS.bluestem.cv[v].look||{}).seedStyle,
+    'and no cultivar draws its seed another way');
   assert(PLANTS.bigbluestem.cv.redoctober.sea.Spring.folTip,
     'Red October needs red spring accents before its full fall display');
   for (const ref of [

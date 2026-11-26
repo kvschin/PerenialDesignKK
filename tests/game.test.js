@@ -1819,8 +1819,8 @@ test('yellow flag draws as the iris it is', () => {
 
 test('fine grass clouds batch their florets without losing the panicle silhouette', () => {
   const before=ART2.on;ART2.on=true;
-  // pink muhly left the mist cloud for a smoke of its own (0.9.174), tested below
-  try {for(const [key,season] of [['switchgrass','Fall'],['lovegrass','Summer'],['tuftedhair','Summer']]){
+  // pink muhly (0.9.174), the lovegrasses and hairgrasses (0.9.176) left the mist cloud for the smoke, tested below
+  try {for(const [key,season] of [['switchgrass','Fall'],['giantsacaton','Summer'],['alkalisacaton','Summer']]){
     const L=PLANTS[key].look,style=L.panicle;
     const batched=JSON.parse(nativePerennialTrace(key,season));
     try {L.panicle=true;
@@ -1924,6 +1924,85 @@ test('Mexican feather grass rises as one bundle and falls over as a fountain', (
     // in spring it is green all over, with paler tips and no blond
     const spring=grassStrokes('mexicanfeather',null,'Spring',7).filter(s=>s.kind==='stroke').map(s=>s.style);
     assert(spring.every(c=>near(c,D.sea.Summer.bloom)>20),'no panicles before it flowers');
+  } finally { ART2.on=was; }
+});
+test('little bluestem carries fluffy racemes down the upper half of every culm', () => {
+  // It drew one short tuft at each culm's tip, a row of flags along the top of the clump. Its seed is
+  // a raceme at every node of the upper culm, white with silky hairs by fall.
+  const was=ART2.on, D=PLANTS.bluestem;
+  const near=(a,b)=>{ const p=colorParts(a), q=colorParts(b); return Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2]); };
+  const cotton=(r,col)=>r.filter(s=>s.kind==='ellipse'&&!s.style.startsWith('rgba')&&near(s.style,col)<70).map(s=>-s.pts[0][1]);
+  try { ART2.on=true;
+    assertEqual(D.look.seedStyle,'bluestem','draws the bluestem culms');
+    for (const season of ['Fall','Winter']) for (const seed of [7,101,4410]){
+      const r=grassStrokes('bluestem',null,season,seed), top=-Math.min(...r.flatMap(s=>s.pts.map(p=>p[1])));
+      const tufts=cotton(r,D.sea[season].seed), culms=D.look.culms;
+      assert(tufts.length>=culms*4,`${season} seed ${seed}: ${tufts.length} cotton tufts for ${culms} culms`);
+      const lo=Math.min(...tufts), hi=Math.max(...tufts);
+      assert(hi-lo>top*0.45,`${season} seed ${seed}: tufts run ${(hi-lo).toFixed(1)} down a clump ${top.toFixed(1)} tall`);
+      assert(lo>top*0.33,`${season} seed ${seed}: and only on the upper culm, the lowest at ${lo.toFixed(1)}`);
+    }
+    assertEqual(cotton(grassStrokes('bluestem',null,'Spring',7),D.sea.Fall.seed).length,0,'no seed in spring');
+  } finally { ART2.on=was; }
+});
+test('little bluestem is the same clump of leaves in every season', () => {
+  // The culms come from a stream of their own, so a clump in seed keeps the leaves it had in spring.
+  const was=ART2.on, orig=drawBluestemCulms; let skip=false;
+  const shape=season=>{ const ops=[];
+    const ctx=new Proxy({},{get(o,p){ if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        return (...a)=>{ if(!skip&&['moveTo','lineTo','quadraticCurveTo','bezierCurveTo'].includes(p)) ops.push(p+a.map(x=>x.toFixed(3)).join(',')); }; },
+      set(o,p,v){o[p]=v;return true;}});
+    drawPlant(ctx,0,0,'bluestem',1,season,4410,0,null,1); return ops.join(';'); };
+  try { ART2.on=true;
+    drawBluestemCulms=(...a)=>{ skip=true; try { return orig(...a); } finally { skip=false; } };
+    const spring=shape('Spring');
+    assert(spring.length>1000,'the spring clump draws its leaves');
+    assertEqual(shape('Fall'),spring,'the leaves of a clump in seed are the leaves it had in spring');
+  } finally { drawBluestemCulms=orig; ART2.on=was; }
+});
+test('prairie dropseed is a fountain of fine leaves under airy panicles', () => {
+  // It drew a tuft of blades under stiff stems topped with dots, lollipops. Its leaves are a mound of
+  // hair-fine threads arching out and over nearly to the ground, and fine panicles stand well above.
+  const was=ART2.on;
+  try { ART2.on=true;
+    for (const v of [null,'tara']){
+      const D=plantDef('dropseed',v), ref='dropseed'+(v?':'+v:'');
+      assertEqual(D.look.leafStyle,'fountain',ref+': draws a fountain of leaves');
+      assertEqual(D.look.cloudStyle,'smoke',ref+': and the smoke panicle');
+      for (const seed of [7,101,4410]){
+        // each leaf is one polyline from the crown
+        const leaves=[];
+        for (const s of grassStrokes('dropseed',v,'Spring',seed)) if (s.kind==='stroke'){ let cur=null;
+          for (const p of s.pts){ if (p[2]){ cur=[p]; leaves.push(cur); } else if (cur) cur.push(p); } }
+        assert(leaves.length>=100,`${ref} seed ${seed}: ${leaves.length} leaves`);
+        const xs=leaves.flatMap(l=>l.map(p=>p[0])), tall=Math.max(...leaves.flatMap(l=>l.map(p=>-p[1]))), wide=Math.max(...xs)-Math.min(...xs);
+        assert(wide>tall*1.8,`${ref} seed ${seed}: a mound ${wide.toFixed(1)} wide and ${tall.toFixed(1)} tall`);
+        const falls=leaves.filter(l=>-l[l.length-1][1]<Math.max(...l.map(p=>-p[1]))*0.6).length;
+        assert(falls>leaves.length*0.4,`${ref} seed ${seed}: ${falls} of ${leaves.length} leaves arch over and fall`);
+        const fall=grassStrokes('dropseed',v,'Fall',seed), panTop=-Math.min(...fall.flatMap(s=>s.pts.map(p=>p[1])));
+        assert(panTop>tall*1.35,`${ref} seed ${seed}: panicles reach ${panTop.toFixed(1)} over leaves ${tall.toFixed(1)} tall`);
+        assert(fall.some(s=>s.kind==='stroke'&&s.style===shade(D.sea.Fall.panicle,-24)),`${ref} seed ${seed}: the branches are the tan panicle, under darker seed`);
+      }
+    }
+  } finally { ART2.on=was; }
+});
+test('the lovegrasses and hairgrasses flower as smoke, not spokes out to beads', () => {
+  // Each drew its panicle as straight lines from one point out to dots, a dandelion clock.
+  const was=ART2.on;
+  try { ART2.on=true;
+    for (const [k,v,season] of [['lovegrass',null,'Summer'],['sandlovegrass',null,'Fall'],['elliottslovegrass',null,'Fall'],
+        ['tuftedhair',null,'Summer'],['tuftedhair','goldtau','Summer'],['tuftedhair','bronzeschleier','Fall'],['wavyhairgrass',null,'Summer']]){
+      const D=plantDef(k,v), ref=k+(v?':'+v:'');
+      assertEqual(D.look.cloudStyle,'smoke',ref+': draws the smoke cloud');
+      const r=grassStrokes(k,v,season,101), starts=new Map();
+      for (const s of r) if (s.kind==='stroke') for (const p of s.pts) if (p[2]){
+        const key=p[0].toFixed(2)+','+p[1].toFixed(2); starts.set(key,(starts.get(key)||0)+1); }
+      const fan=Math.max(...starts.values());
+      assert(fan<=4,`${ref}: ${fan} lines leave one point, which is a spoke wheel`);
+      const lines=r.filter(s=>s.kind==='stroke').reduce((n,s)=>n+s.pts.filter(p=>p[2]).length,0);
+      assert(lines>=Math.round(D.look.stems)*40,`${ref}: ${lines} strokes of branch, hair and spikelet`);
+    }
   } finally { ART2.on=was; }
 });
 /* fcPush/fcDraw and thrPush/thrStroke batch into module scratch that resets
@@ -3535,7 +3614,7 @@ test('grass blade-tip colour adds one optional tip pass', () => {
   assertEqual(fills[2],'#d7cf67','stripe uses the authored color');
 });
 
-test('little bluestem seedheads are elongated feathery racemes, not oval buttons', () => {
+test('broomsedge seedheads are elongated feathery racemes, not oval buttons', () => {
   const ops=[];
   const ctx=new Proxy({globalAlpha:1}, {
     get(o,p){
@@ -3547,7 +3626,7 @@ test('little bluestem seedheads are elongated feathery racemes, not oval buttons
   drawFluffyRaceme(ctx,2,-18,0.25,20,'#e8ddc7',4,mulberry(9137),3.8);
   const ellipses=ops.filter(x=>x[0]==='ellipse');
   const hairs=ops.filter(x=>x[0]==='lineTo');
-  assertEqual(PLANTS.bluestem.look.seedStyle,'fluffyRaceme','little bluestem opts into the feathery seed grammar');
+  assertEqual(PLANTS.broomsedge.look.seedStyle,'fluffyRaceme','broomsedge opts into the feathery seed grammar');
   assertEqual(ellipses.length,0,'the feathery style never falls back to a filled oval or seed ball');
   assert(hairs.length>=16,'each node carries one narrow spikelet and several fine hairs');
   const ys=ops.filter(x=>x[0]==='moveTo').map(x=>x[2]);

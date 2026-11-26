@@ -2406,7 +2406,10 @@ function plantDrawBox(P,key,growth){
   // height. Size its sprite for the tallest panicle plus cloud rather than
   // clipping tall, airy forms such as Molinia 'Transparent'.
   const artH=plantArtTop(P)*(0.25+0.75*growth);
-  const herbTop=P.form==='cloudgrass'
+  // A smoke cloud's culms are as tall as the plant really is (drawSmokeCloud), whatever its leaves.
+  const herbTop=P.form==='cloudgrass' && L.cloudStyle==='smoke'
+    ? Math.max(H*1.12, H*((P.heightIn||P.h)/P.h)*(L.culmLen||0.97)*1.06+10)
+    : P.form==='cloudgrass'
     ? Math.max(H*1.12, H*1.05*(L.cloudTop||0.92)+(L.cloudHeight||11)+6)
     : P.form==='sotol' ? artH*1.05
     : artH*1.12;
