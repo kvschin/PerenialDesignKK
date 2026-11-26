@@ -5454,10 +5454,21 @@ function snapCamFor(rot){
   try{ const [vx,vy]=worldToView(SPAWNX,SPAWNY); return [isoX(vx,vy), isoY(vx,vy)-(VH/ZOOM)*0.21]; }
   finally{ game.rot=r0; }
 }
+/* A turn of the view used to be a cut: the plot jumped a quarter turn, the
+   camera snapped to its centre and a toast said how far. Now the last frame
+   dissolves over the new view (requestViewFade, renderer.js) while the compass
+   marks orbit round to their new edges (beginCompassTurn), and the toast is
+   left for reduced motion, where the cut is still the whole of it. The camera
+   still SNAPS, on this call: the ground pre-bakes the next rotation at
+   snapCamFor's camera, and an eased Fit still under way must not carry it off
+   that point afterwards (cancelViewTween). */
 function rotateView(dir){
+  cancelViewTween();
+  const eased=requestViewFade('rot');
+  if (eased) beginCompassTurn(VIEW_FADE_MS.rot);
   game.rot=(game.rot+(dir||1)+4)%4; snapCam(); game.dirty=true;
   updateCompass();
-  toast(`View rotated — ${game.rot*90}°.`);
+  if (!eased) toast(`View rotated — ${game.rot*90}°.`);
 }
 /* The golden-hour photo (takePhoto) was a row of the garden menu until 0.9.114
    and went with the menu's regrouping. `game.photo` outlives it as the

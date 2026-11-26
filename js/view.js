@@ -66,19 +66,110 @@ function calcZoom(){
   baseZoom = Math.min(innerWidth,innerHeight)<PHONE_ZOOM_MAX_SIDE ? 0.75 : 1;
   ZOOM = Math.max(zoomFloor, Math.min(ZOOM_MAX, baseZoom*userZoom));
 }
-function setUserZoom(z){
-  /* Zooming out past the floor asks whether this plot, in this layout, needs
-     to go further to be seen whole. Only then: a wheel is a stream of ticks,
-     and the answer is a cached rectangle and four projections. */
+/* Zooming out past the floor asks whether this plot, in this layout, needs to go
+   further to be seen whole. Only then: a wheel is a stream of ticks, and the
+   answer is a cached rectangle and four projections. From the floor itself: the
+   phone's base zoom used to leave userZoom a dead band (0.4 to 0.53) in which a
+   pinch moved a number and not the view. */
+function clampUserZoom(z){
   if (z*baseZoom<zoomFloor && game.inGarden) lowerZoomFloor(plotFitZoom());
-  // from the floor itself: the phone's base zoom used to leave userZoom a dead
-  // band (0.4 to 0.53) in which a pinch moved a number and not the view
-  userZoom = Math.max(zoomFloor/baseZoom, Math.min(USER_ZOOM_MAX, z));
+  return Math.max(zoomFloor/baseZoom, Math.min(USER_ZOOM_MAX, z));
+}
+/* The direct route: a wheel tick, a pinch. It takes the camera from an eased
+   change still under way (viewTween), so the gardener's own gesture always wins. */
+function setUserZoom(z){
+  cancelViewTween();
+  userZoom = clampUserZoom(z);
   calcZoom();   // no snapCam: the designer's camera is free and stays where it is
   updateZoomPill();
   tourNote('look');   // the tour camera step: every zoom route funnels here
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
+/* ---------- eased view changes ----------
+   Fit and the zoom pill's +/- (and the +/- keys) used to jump the camera in one
+   frame, which loses the gardener's place: a Fit from 200% on a corner of the
+   plot cut straight to the whole plot with nothing to say where the corner went.
+   Now they ease over VIEW_TWEEN_MS: the camera point at the zoom anchor moves in
+   a straight line and the zoom goes in equal RATIOS (a 2x change is the same
+   speed in and out), both on an ease-out, advanced from the frame loop
+   (stepViewTween, frame() in screens.js).
+   To the renderer an eased change is simply a short zoom gesture: ZOOM moves
+   frame to frame, so the ground blits its stale bake scaled until
+   GROUND_ZOOM_SETTLE after the last step and the sprites wait out
+   SPRITE_ZOOM_SETTLE, exactly as after a wheel. Anything the gardener does to
+   the camera takes it: a wheel tick or a pinch (setUserZoom), any press on the
+   canvas (input.js), a rotation, a resize, and a new eased change, which starts
+   from wherever this one had got to. Opening a garden is not eased: a saved view
+   is restored and an opening is fitted in one frame, behind the cover. */
+const VIEW_TWEEN_MS=240;
+let viewTween=null;
+function viewTweenActive(){ return !!viewTween; }
+function cancelViewTween(){ viewTween=null; }
+function viewTweenNow(){ return (typeof performance!=='undefined' && performance.now) ? performance.now() : Date.now(); }
+function easeOutCubic(f){ return 1-Math.pow(1-f,3); }
+/* Land on the target now (a save, a quit): the eased change becomes the instant one. */
+function finishViewTween(){ const w=viewTween; if (w) stepViewTween(w.t0+w.ms); }
+/* x, y: the camera to end on; z: the userZoom to end on, already clamped. */
+function startViewTween(x,y,z){
+  if (reducedMotion() || !game.inGarden){
+    viewTween=null; userZoom=z; calcZoom(); cam.x=x; cam.y=y;
+    compassKey=''; updateCompass(); updateZoomPill();
+    return false;
+  }
+  viewTween={x0:cam.x, y0:cam.y, z0:userZoom, x1:x, y1:y, z1:z, t0:viewTweenNow(), ms:VIEW_TWEEN_MS};
+  return true;
+}
+function stepViewTween(t){
+  const w=viewTween; if (!w) return;
+  const f=Math.max(0,Math.min(1,(t-w.t0)/w.ms)), e=easeOutCubic(f);
+  if (f>=1){
+    // exactly the target, not the curve's last sample: a Fit must end where an instant Fit does
+    viewTween=null; userZoom=w.z1; calcZoom(); cam.x=w.x1; cam.y=w.y1;
+    compassKey='';
+  } else {
+    userZoom = w.z0>0 && w.z1>0 ? w.z0*Math.pow(w.z1/w.z0,e) : w.z0+(w.z1-w.z0)*e;
+    calcZoom();
+    cam.x=w.x0+(w.x1-w.x0)*e; cam.y=w.y0+(w.y1-w.y0)*e;
+  }
+  updateZoomPill();
+}
+/* An eased Fit that zooms OUT bakes the ground once, at where it is going.
+   Treated as a wheel gesture it baked again every time the shrinking old bake
+   stopped covering the plot on screen (groundZoomDriftDue), and with a pan
+   beyond the margin (panDev): measured, 4 full bakes inside one 240ms Fit at
+   1440x900 and 6 at a phone viewport, where an instant Fit costs 1. A Fit's
+   destination shows the whole plot, so a bake THERE (plus its margin) holds all
+   the ground any frame on the way can show; those frames blit it magnified
+   (soft for the first few, while it moves fastest) and the last frame is that
+   bake exactly, so nothing settles afterwards. The renderer asks
+   viewTweenGroundTarget once per tween, when it must bake; while
+   viewTweenGroundHeld it trusts the coverage test alone, the margin and
+   magnification triggers being for a gesture whose end nobody knows. A zoom
+   step, or a Fit zooming IN, bakes as a wheel does. */
+function viewTweenTargetZOOM(w){ return Math.max(zoomFloor, Math.min(ZOOM_MAX, baseZoom*w.z1)); }
+function viewTweenGroundTarget(){
+  const w=viewTween;
+  if (!w || !w.fit || w.groundAhead) return null;
+  const z=viewTweenTargetZOOM(w);
+  if (!(z<ZOOM)) return null;
+  w.groundAhead=true;                // once: if it does not cover, the next bake is an ordinary one
+  return {z, x:w.x1, y:w.y1};
+}
+function viewTweenGroundHeld(groundZoomNow,gx,gy){
+  const w=viewTween;
+  return !!(w && w.groundAhead && groundZoomNow===viewTweenTargetZOOM(w) && gx===w.x1 && gy===w.y1);
+}
+/* The zoom pill and the +/- keys: one step of the wheel's size, eased. A second
+   press while the first is still easing goes on from where the first was GOING,
+   so three quick presses are three steps, as they were. */
+function zoomStep(f){
+  if (reducedMotion() || !game.inGarden) return zoomBy(f);
+  const from = viewTween && viewTween.zoomOnly ? viewTween.z1 : userZoom;
+  const x=cam.x, y=cam.y;
+  startViewTween(x,y,clampUserZoom(from*f));
+  if (viewTween) viewTween.zoomOnly=true;
+  tourNote('look');
+}
 /* Change-guarded, like every other per-frame HUD write (hudText/hudDisplay).
    Every zoom route lands here, and a wheel is a stream of ~6% ticks — so this
    wrote textContent on a node inside the backdrop-filtered #hud several times a
@@ -189,8 +280,8 @@ function plotFitZoom(box=plotFitBox(),safe=usableCanvasRect()){
   const availW=Math.max(180,safe.right-safe.left), availH=Math.max(180,safe.bottom-safe.top);
   return Math.min(availW/Math.max(1,box.maxX-box.minX), availH/Math.max(1,box.maxY-box.minY));
 }
-function fitPlot(){
-  if (!game.inGarden) return;
+/* Where a Fit puts the camera and the zoom, worked out without moving either. */
+function fitPlotTarget(){
   calcZoom();
   const box=plotFitBox(), {minX,maxX,minY,maxY}=box;
   const safe=usableCanvasRect();
@@ -198,12 +289,22 @@ function fitPlot(){
   const fit=plotFitZoom(box,safe);
   lowerZoomFloor(fit);
   const targetZoom=Math.max(zoomFloor,Math.min(1.45,fit));
-  userZoom=Math.max(zoomFloor/baseZoom,Math.min(USER_ZOOM_MAX,targetZoom/baseZoom));
+  const z=Math.max(zoomFloor/baseZoom,Math.min(USER_ZOOM_MAX,targetZoom/baseZoom));
+  const Z=Math.max(zoomFloor, Math.min(ZOOM_MAX, baseZoom*z));   // calcZoom's answer for z
+  const W=VW/Z, H=VH/Z;
+  const wantX=(safe.left+safe.right)/(2*Z), wantY=(safe.top+safe.bottom)/(2*Z);
+  return {x:W/2+(minX+maxX)/2-wantX, y:H*0.24+(minY+maxY)/2-wantY, z};
+}
+/* {ease:true} from the Fit buttons; an opening (enterGarden, settleOpeningFit)
+   and every other caller fits in one frame. */
+function fitPlot(opts){
+  if (!game.inGarden) return;
+  const tg=fitPlotTarget();
+  if (opts && opts.ease && startViewTween(tg.x,tg.y,tg.z)){ viewTween.fit=true; return; }
+  cancelViewTween();
+  userZoom=tg.z;
   calcZoom();
-  const W=VW/ZOOM, H=VH/ZOOM;
-  const wantX=(safe.left+safe.right)/(2*ZOOM), wantY=(safe.top+safe.bottom)/(2*ZOOM);
-  cam.x=W/2+(minX+maxX)/2-wantX;
-  cam.y=H*0.24+(minY+maxY)/2-wantY;
+  cam.x=tg.x; cam.y=tg.y;
   compassKey='';
   updateCompass();
   updateZoomPill();
@@ -263,6 +364,7 @@ function restoreGardenView(v){
   v=normalizeGardenView(v);
   if (!v || !game.inGarden) return false;
   if (v.x<-4 || v.y<-4 || v.x>GW+4 || v.y>GH+4) return false;
+  cancelViewTween();
   /* A reopened garden can be zoomed out as far as a new one, and a view saved
      that far out comes back that far out. */
   lowerZoomFloor(plotFitZoom());
@@ -408,7 +510,8 @@ function sizeCanvas(c, opts){
        every path (library dock, window resize, rotation, the rAF settles in
        setActiveCanvas) is covered by construction. */
     const d=viewportAnchorDelta(w-VW, h-VH, ZOOM);
-    if ((d.dx||d.dy) && typeof game!=='undefined' && game.inGarden){ cam.x+=d.dx; cam.y+=d.dy; }
+    // an eased Fit aimed at the old canvas would land off target: the view stops where it is
+    if ((d.dx||d.dy) && typeof game!=='undefined' && game.inGarden){ cancelViewTween(); cam.x+=d.dx; cam.y+=d.dy; }
     VW=w; VH=h;   // the visible/active canvas owns render + pointer size
   }
   // Assigning canvas.width RESETS the bitmap even when the value is unchanged,
@@ -555,15 +658,11 @@ function compassChromeRects(stateKey){
 function compassBlockedByChrome(p,rects){
   return rects.some(r=>p[0]>=r.left && p[0]<=r.right && p[1]>=r.top && p[1]<=r.bottom);
 }
-function updateCompass(){
-  const dom=compassElements(); if (!dom) return;
-  const chromeKey=compassChromeStateKey();
-  const key=[game.inGarden?1:0,game.rot,effectiveSiteNorthDeg(),VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH,game.plotRev,chromeKey].join('|');
-  if (key===compassKey) return;
-  compassKey=key;
-  if (!game.inGarden){ dom.labels.forEach(el=>el.classList.add('off')); return; }
-  const W=VW/ZOOM, H=VH/ZOOM, pad=42;
-  const chromeRects=compassChromeRects(chromeKey);
+/* Where each cardinal mark sits at the current rotation and camera, in CSS px:
+   its point on the plot edge (x, y), the angle its arrow points out at, and the
+   plot's centre on screen, which a turn of the view orbits the marks around. */
+function compassPlacements(){
+  const W=VW/ZOOM, H=VH/ZOOM;
   const project=(x,y)=>{ const [sx,sy]=screenOfFlat(x,y,W,H); return [sx*ZOOM,sy*ZOOM]; };
   const center=[(GW-1)/2,(GH-1)/2], bounds={l:-.5,r:GW-.5,t:-.5,b:GH-.5};
   const shape=game.plotShape;
@@ -582,19 +681,76 @@ function updateCompass(){
     }
     return [center[0]+d[0]*(edge+offset),center[1]+d[1]*(edge+offset)];
   };
-  const dirs=siteDirections(), edges={};
-  Object.keys(dirs).forEach(d=>{ edges[d]={m:ray(dirs[d],.26),tip:ray(dirs[d],1.08)}; });
+  const dirs=siteDirections(), out={centre:project(center[0],center[1])};
+  Object.keys(dirs).forEach(d=>{
+    const m=ray(dirs[d],.26), tipW=ray(dirs[d],1.08);
+    const p=project(m[0],m[1]), tip=project(tipW[0],tipW[1]);
+    out[d]={x:p[0], y:p[1], ang:Math.atan2(tip[1]-p[1],tip[0]-p[0])*180/Math.PI};
+  });
+  return out;
+}
+/* A turn of the view moves every mark to another edge. Jumping there in one
+   frame, while the picture under it dissolves (requestViewFade), told the
+   gardener nothing about which way the garden had gone round; so for the length
+   of the fade each mark orbits from where it was to where it is going, around
+   the plot's centre (which itself slides from where it was on screen to where
+   snapCam puts it), by the shorter way round, which on a quarter turn is the
+   same way for all four. beginCompassTurn records where they were and must run
+   BEFORE the rotation changes. */
+let compassTurn=null;
+function beginCompassTurn(ms){
+  if (!game.inGarden || !compassElements()) { compassTurn=null; return; }
+  let from=compassPlacements();
+  // a second turn pressed while the first is still going starts from where the marks ARE
+  if (compassTurn){
+    const f=(viewTweenNow()-compassTurn.t0)/compassTurn.ms;
+    if (f<1) from=compassTurnLerp(compassTurn.from,from,easeOutCubic(Math.max(0,f)));
+  }
+  compassTurn={from, t0:viewTweenNow(), ms};
+}
+function compassTurnLerp(a,b,e){
+  const ca=a.centre, cb=b.centre;
+  const c=[ca[0]+(cb[0]-ca[0])*e, ca[1]+(cb[1]-ca[1])*e];
+  const out={centre:c};
+  for (const d of Object.keys(b)){
+    if (d==='centre') continue;
+    const p0=a[d], p1=b[d]; if (!p1) continue;
+    if (!p0){ out[d]=p1; continue; }
+    const v0=[p0.x-ca[0],p0.y-ca[1]], v1=[p1.x-cb[0],p1.y-cb[1]];
+    const r0=Math.hypot(v0[0],v0[1]), r1=Math.hypot(v1[0],v1[1]);
+    const a0=Math.atan2(v0[1],v0[0]), a1=Math.atan2(v1[1],v1[0]);
+    const da=((a1-a0)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI;   // the shorter way round
+    const r=r0+(r1-r0)*e, ang=a0+da*e;
+    const dArrow=((p1.ang-p0.ang)%360+540)%360-180;
+    out[d]={x:c[0]+Math.cos(ang)*r, y:c[1]+Math.sin(ang)*r, ang:p0.ang+dArrow*e};
+  }
+  return out;
+}
+function updateCompass(){
+  const dom=compassElements(); if (!dom) return;
+  let turnE=1;
+  if (compassTurn){
+    const f=(viewTweenNow()-compassTurn.t0)/compassTurn.ms;
+    if (f>=1 || !game.inGarden) compassTurn=null;
+    else turnE=easeOutCubic(Math.max(0,f));
+  }
+  const chromeKey=compassChromeStateKey();
+  const key=[game.inGarden?1:0,game.rot,effectiveSiteNorthDeg(),VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH,game.plotRev,chromeKey,turnE.toFixed(3)].join('|');
+  if (key===compassKey) return;
+  compassKey=key;
+  if (!game.inGarden){ dom.labels.forEach(el=>el.classList.add('off')); return; }
+  const pad=42;
+  const chromeRects=compassChromeRects(chromeKey);
+  let place=compassPlacements();
+  if (compassTurn) place=compassTurnLerp(compassTurn.from,place,turnE);
   dom.labels.forEach(el=>{
-    const d=el.dataset.dir, def=edges[d]; if (!def) return;
-    const p=project(def.m[0],def.m[1]);
-    if (p[0]<-pad || p[0]>VW+pad || p[1]<-pad || p[1]>VH+pad || compassBlockedByChrome(p,chromeRects)){
+    const d=el.dataset.dir, p=place[d]; if (!p) return;
+    if (p.x<-pad || p.x>VW+pad || p.y<-pad || p.y>VH+pad || compassBlockedByChrome([p.x,p.y],chromeRects)){
       el.classList.add('off'); return;
     }
-    const tip=project(def.tip[0],def.tip[1]);
-    const ang=Math.atan2(tip[1]-p[1],tip[0]-p[0])*180/Math.PI;
     el.classList.remove('off');
-    el.style.transform=`translate(${Math.round(p[0])}px,${Math.round(p[1])}px) translate(-50%,-50%)`;
-    el.style.setProperty('--compass-arrow',`${ang.toFixed(1)}deg`);
+    el.style.transform=`translate(${Math.round(p.x)}px,${Math.round(p.y)}px) translate(-50%,-50%)`;
+    el.style.setProperty('--compass-arrow',`${p.ang.toFixed(1)}deg`);
   });
 }
 

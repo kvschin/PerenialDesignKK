@@ -14,15 +14,16 @@
 
    Usage:
      node perf-audit.cjs --profile phone --engine chrome --out r.json
+     node perf-audit.cjs --only view     (a turn of the view, a Fit, a zoom step, the lights)
+     --repo <dir> serves another checkout (an export of HEAD, for a before/after)
 */
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 const { spawn } = require('child_process');
 const { closeTestBrowser, sweepStaleTestBrowsers } = require('./close-test-browser.cjs');
-const REPO = path.resolve(__dirname, '..');
-
 const argv = process.argv.slice(2);
 const flag = n => argv.includes('--' + n);
 const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
+const REPO = path.resolve(opt('repo', path.join(__dirname, '..')));
 const SOFT = flag('soft');
 const OUTFILE = opt('out', null);
 const GARDEN = opt('garden', 'demo');          // demo | stress
@@ -188,6 +189,54 @@ function inPage(env) {
     if (nav) out.nav = { domInteractive: +nav.domInteractive.toFixed(1), dcl: +nav.domContentLoadedEventEnd.toFixed(1), load: +nav.loadEventEnd.toFixed(1) };
     out.paint = {}; for (const p of performance.getEntriesByType('paint')) out.paint[p.name] = +p.startTime.toFixed(1);
 
+    /* VIEW CHANGES: a turn of the view, a Fit, the lights. Each is ONE event
+       fired into the running loop and followed for `n` frames; what matters is
+       the frames right after it (the worst gap, how many were over a 60Hz
+       frame), and how many full ground bakes it asked for. Run on any build:
+       one without eased changes takes the same calls instantly, which is the
+       "before". `--only view` runs these alone. */
+    const settle = ms => new Promise(r => setTimeout(r, ms));
+    async function liveEvent(name, prep, fire, reps, n) {
+      const per = [];
+      for (let k = 0; k < reps; k++) {
+        prep(k);
+        await settle(900);                 // the crisp settles land, and a rotation's pre-bake (GROUND_IDLE_MS)
+        for (let i = 0; i < 3; i++) await raf();
+        dbg.on = true; dbgReset(); devReset(); dbg.fpsAt = 1e12; dbg.n = 0;
+        const gaps = []; let prev = await raf();
+        const a = performance.now(); fire(k); const fireMs = performance.now() - a;
+        for (let i = 0; i < n; i++) { const t = await raf(); gaps.push(t - prev); prev = t; }
+        const ev = snapEvents();
+        per.push({ fireMs: +fireMs.toFixed(2), gaps, drawn: dbg.n,
+          bakes: (ev.bake ? ev.bake.n : 0), bakeMax: ev.bake ? ev.bake.max : 0 });
+        dbg.on = false; dbg.fpsAt = 0;
+      }
+      const all = per.flatMap(p => p.gaps), worst = per.map(p => Math.max(...p.gaps));
+      const res = {
+        reps, framesFollowed: n,
+        rafGapMs: st(all), worstGapPerEvent: worst.map(v => +v.toFixed(1)),
+        over16: per.map(p => p.gaps.filter(g => g > 16.7).length),
+        fireMs: per.map(p => p.fireMs), drawn: per.map(p => p.drawn),
+        fullBakes: per.map(p => p.bakes), bakeMaxMs: per.map(p => p.bakeMax)
+      };
+      out[name] = res;
+      return res;
+    }
+    async function viewScenarios() {
+      const camA = { x: cam.x, y: cam.y }, zA = userZoom;
+      await liveEvent('view-rotate', () => { }, () => rotateView(1), 4, 45);
+      // a Fit from 200% on a corner of the plot, as a gardener presses it
+      await liveEvent('view-fit', () => {
+        setUserZoom(2); const c = screenOfFlat(GW * 0.15, GH * 0.2, VW / ZOOM, VH / ZOOM);
+        cam.x += c[0] - VW / ZOOM / 2; cam.y += c[1] - VH / ZOOM * 0.24;
+      }, () => (document.getElementById('btnZoomFit') || {}).onclick(), 4, 45);
+      await liveEvent('view-zoom-step', () => { fitPlot(); }, k => (document.getElementById(k % 2 ? 'btnZoomOut' : 'btnZoomIn') || {}).onclick(), 4, 45);
+      await liveEvent('view-night', () => { }, () => document.getElementById('btnDayNight').onclick(), 4, 60);
+      setLayerVis('night', false, false); cam.x = camA.x; cam.y = camA.y; setUserZoom(zA);
+      if (typeof updateDayNightBtn === 'function') updateDayNightBtn();
+    }
+    if (env.only === 'view') { await viewScenarios(); return out; }
+
     // ============ LIVE half (app loop running) ============
     const cam0 = { x: cam.x, y: cam.y };
     await live('live-idle', () => { }, 60);
@@ -233,6 +282,8 @@ function inPage(env) {
       await live('live-fast-forward', () => { }, 90);
     } catch (e) { out.notes.push('ff: ' + e.message); }
     game.ffActive = false; game.pausedAt = wasPaused;
+
+    await viewScenarios();
 
     // ============ PINNED half ============
     crashed = true;                  // stop the app's loop: two renders a vsync is queue pressure, not a measurement
@@ -368,7 +419,7 @@ const driverFor = (probeFn, boot) => `
     const startup = { marks: window.__marks||[] };
     ${boot}
     const fn = (${String(probeFn)});
-    const out = await fn({startup});
+    const out = await fn({startup, only:${JSON.stringify(opt('only', null))}});
     out.profileName = ${JSON.stringify(PROFILE)};
     out.engine = ${JSON.stringify(ENGNAME)};
     out.soft = ${JSON.stringify(SOFT)};
