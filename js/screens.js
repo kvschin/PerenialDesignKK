@@ -1907,6 +1907,7 @@ function enterGarden(){
   hidePlantCard();     // a card about the last garden's plant would describe nothing here
   game.ruler=null;
   resetSeasonFade();   // never crossfade from a previous garden's last frame
+  cancelViewTween();   // nor ease towards a Fit aimed at it
   cancelPendingSkip(); // nor land a Skip meant for it
   game.tool='hand'; game.toolVar=null; game.clockSuspended=false; game.startTs=Date.now();
   game.previewMode=game.previewMode||'established';
@@ -2847,6 +2848,7 @@ function quitToMenu(){
   finishGardenOpen();
   if (game.photoEditing) closeSitePhotoEdit(false);
   landSkipNow();                 // a Skip still preparing is still a Skip
+  finishViewTween();             // an eased Fit lands where it was going, and is saved there
   suspendClock();
   if (game.inGarden&&hasStorage){
     try{ rememberGardenPortrait(captureGardenPortrait()); }
@@ -3416,7 +3418,11 @@ if ($('btnStaleSecondary')) $('btnStaleSecondary').onclick=()=>{
   saveSolo(true);
 };
 addEventListener('pagehide',()=>{ landSkipNow(); suspendClock(); autosaveNow(); });
-if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ setLayerVis('night',!game.layerVis.night);
+/* The lights come on: the day frame dissolves over the night one (600ms,
+   requestViewFade). Only the snapshot moves; the night map is built once, on the
+   first night frame, and kept as it always was while the view stands still. */
+if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ requestViewFade('night');
+  setLayerVis('night',!game.layerVis.night);
   updateDayNightBtn(); refreshCanvasTools();
   toast(game.layerVis.night?'Night — your garden lighting switches on.':'Back to daylight.'); };
 if ($('btnPause')) $('btnPause').onclick=toggleClock;
@@ -3532,9 +3538,9 @@ $('btnPlanList').onclick=()=>{ closeOverlay('planScreen'); openExport(); };
 $('btnBloom').onclick=()=>{ closeOverlay('gardenMenu'); openBloomCalendar(); };
 $('btnBloomClose').onclick=()=>closeOverlay('bloomScreen');
 $('btnAct').onclick=()=>{ if (ENABLE_MOBILE_ACT_BUTTON) actHere(); };
-if ($('btnZoomOut')) $('btnZoomOut').onclick=()=>zoomBy(0.89);
-if ($('btnZoomIn')) $('btnZoomIn').onclick=()=>zoomBy(1.12);
-if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot();
+if ($('btnZoomOut')) $('btnZoomOut').onclick=()=>zoomStep(0.89);
+if ($('btnZoomIn')) $('btnZoomIn').onclick=()=>zoomStep(1.12);
+if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot({ease:true});
 if ($('btnLibraryToggle')) $('btnLibraryToggle').onclick=toggleLibrary;
 if ($('btnLibraryPlacing')) $('btnLibraryPlacing').onclick=()=>setSheetState('full');
 (function wireSheetHandle(){
@@ -4538,7 +4544,8 @@ function hasTransientGardenWork(){
   return !!(gardenOpening || game.ffActive || hasActiveGesture()
     || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length)
     || editFxBusy()           // a sprout, an erase ghost, an undo flash or a refusal still drawing (EDIT_FX)
-    || seasonFadeActive()    // the season crossfade needs live frames for ~1s
+    || seasonFadeActive()     // a crossfade (season, a turn, the lights) needs live frames while it runs
+    || viewTweenActive()      // and so does an eased Fit or zoom step, for its 240ms
     || skipPending()          // and a Skip being prepared lands sooner at full rate
     || spritesPending());     // clumps still drawn as a stand-in: their bakes should not wait on the idle cadence
 }
@@ -5219,6 +5226,7 @@ function frame(t){
   if (game.inGarden){
     const tFrame=dnow();
     pollFastForwardHold();          // the hold deadline, checked where it cannot be starved
+    stepViewTween(t);               // an eased Fit or zoom step: before the frame's sig is read
     /* Fast-forward advances by REAL elapsed time, not by the 50ms frame clamp.
        Sharing that clamp made the fast-forward RATE a function of framerate: it
        is a fixed FF_RATE ms of garden time per ms of real time only while a

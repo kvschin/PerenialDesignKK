@@ -290,9 +290,10 @@ did besides sync was fire `hapticFeedback('place')`, so its call sites call that
 directly and the once-per-completed-gesture haptic rule is unchanged.
 **Legacy story saves open in the planner** — `loadSolo` ignores the blob's
 `mode` (still written as `'design'` so an older build reads a new save sanely),
-and the garden keeps whatever house and plants it had. The renderer's camera no
-longer eases toward anything: `snapCam` centres on the plot and runs only on
-`enterGarden`/`rotateView`. **A garden opens where it was left, or fitted**
+and the garden keeps whatever house and plants it had. The renderer's camera does
+not FOLLOW anything: `snapCam` centres on the plot and runs only on
+`enterGarden`/`rotateView`. (Fit and the zoom steps do ease, over 240ms, toward
+a camera worked out once: §11i.) **A garden opens where it was left, or fitted**
 (0.9.29): `enterGarden` puts back the saved view (`blob.view`, `{x,y,z}` — the
 world point at the centre of the clear canvas plus `userZoom`, via
 `gardenViewNow`/`restoreGardenView`, view.js) and otherwise calls `fitPlot`. It
@@ -2005,7 +2006,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     boulder from the right. A test pins the basis to `screenOf`'s own step at all
     four rotations, its handedness, the stage's copy and isoBox's sides.
     World logic never rotates — only the mapping. `rotateView(dir)` also
-    fires from the R key or the ⟳ button. (Two-finger twist was removed — it
+    fires from the R key or the ⟳ button, and crossfades into the new view while
+    the compass marks orbit round to their new edges (§11i). (Two-finger twist was removed — it
     fought the pan/zoom gesture; see the note above.)
     **Irregular lots**: `game.plotShape` (optional, saved;
     null = full rectangle) is a 4-vertex polygon on the tile-corner lattice
@@ -4130,6 +4132,101 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sprouts, 40 ghosts, 240 diamonds, a 240-tile flash) a demo frame is 4.4ms
     against 3.3, for at most 400ms. Live, the idle cadence stays 28-30fps before
     and after an effect.
+
+11i. **View transitions** (Nov 2026; `viewTween`, `startViewTween`/`stepViewTween`/
+    `cancelViewTween`/`finishViewTween`, `zoomStep`, `fitPlotTarget`,
+    `compassPlacements`/`beginCompassTurn`/`compassTurnLerp`, view.js;
+    `requestViewFade`/`takeViewFade`/`VIEW_FADE_MS`, `finishGardenOpen(fade)`,
+    renderer.js). Five ways the view changed were hard cuts that lost the
+    gardener's place: Fit, the zoom pill's +/- and the +/- keys jumped the camera
+    in one frame, a turn of the view snapped a quarter turn and toasted, the lights
+    came on in one frame, and the "Opening garden…" cover vanished. Now:
+    *Fit and the zoom steps EASE* over `VIEW_TWEEN_MS` (240) on an ease-out cubic:
+    the camera point at the zoom anchor moves in a line and the zoom in equal
+    ratios, advanced from `frame()` (`stepViewTween`, before the frame's signature
+    is read). The last step lands on the exact target, so an eased Fit ends where
+    an instant one does, to the bit (a test). A zoom step pressed while one is
+    easing goes on from the TARGET of the last, so three quick presses are three
+    steps. To the renderer this is a short zoom gesture: ZOOM moves frame to
+    frame, so the ground blits its stale bake scaled until `GROUND_ZOOM_SETTLE`
+    after the last step and the sprites wait out `SPRITE_ZOOM_SETTLE`, as after a
+    wheel. **With one exception, a Fit that zooms OUT, and it is a cost fix**
+    (`viewTweenGroundTarget`/`viewTweenGroundHeld`, view.js; the full-bake branch
+    of render). Treated exactly as a wheel, the shrinking old bake stopped covering
+    the plot every ~1.4x of zoom (`groundZoomDriftDue`) and the camera ran past the
+    margin (`panDev>=MD`), so one eased Fit from 200% on a corner did 4 FULL ground
+    bakes at 1440x900 and 6 at a phone viewport, where the instant Fit it replaced
+    did 1 — on a phone, several 50-100ms bakes inside 240ms. A Fit's destination
+    shows the whole plot, so the first time that frame must bake it bakes at the
+    DESTINATION's zoom and camera instead (borrowed and put back, like a ground
+    job's camera), which holds every frame on the way; while that bake is the
+    ground (`viewTweenGroundHeld`) the margin and the 1.6x-magnification triggers
+    stand down and only the coverage test (`groundZoomDriftDue`, device space, the
+    blit's own arithmetic) is asked. The frames on the way blit it magnified — soft
+    for the frame or two where it moves fastest — and the last frame IS that bake,
+    so nothing settles afterwards: 1 full bake per Fit at both sizes. Asked once a
+    tween, so a bake that somehow did not cover falls back to an ordinary one rather
+    than repeating. A zoom step and a Fit zooming in bake as a wheel does. The gardener always wins:
+    `setUserZoom` (a wheel tick, a pinch) cancels it before it writes, so does any
+    press on the canvas (the first line of input.js's pointerdown), a rotation,
+    `restoreGardenView`, a canvas resize (`sizeCanvas`: the target was worked out
+    for the old canvas) and entering a garden; Save & quit lands it first
+    (`finishViewTween`) so the saved view is the target. The wheel stays instant
+    (`zoomBy`), and an OPENING is never eased: `enterGarden`, `settleOpeningFit`
+    and every other caller of `fitPlot()` without `{ease:true}` fit in one frame.
+    *A turn of the view and the lights CROSSFADE*, on the season crossfade's
+    machinery, which is now the one crossfade (`seasonFade` keeps its name and
+    fields): `requestViewFade(kind)` asks for the next render to snapshot the canvas
+    at the top of the frame, where the season fade already did (the canvas still
+    holds the frame the gardener was looking at), and the snapshot fades out over
+    `VIEW_FADE_MS[kind]` — `rot` 300, `night` 600, `season` 1100. One snapshot at a
+    time: a request while one is fading snapshots the blend on screen, so nothing
+    jumps, and the longer remaining time runs on, so a turn never cuts the
+    season's crossfade short. Refused under reduced motion, in a photo, behind the
+    opening cover, and while a Skip is preparing; a Skip landing
+    (`suppressNextSeasonFade`) drops any fade asked for or running, since a turn
+    still fading over the Skip would blend the old palette in just the same. The
+    camera still SNAPS on the rotateView call: the ground pre-bakes the next
+    rotation at `snapCamFor`'s camera, and `rotateView` cancels an eased Fit first so
+    nothing carries it off that point afterwards (a test steps frames after the
+    turn and holds the camera there). The compass marks ORBIT for the length of the
+    fade: `beginCompassTurn` records where they were before the rotation changes,
+    and `updateCompass` interpolates each mark round the plot's on-screen centre
+    (which slides from where it was to where `snapCam` puts it) by the shorter way,
+    which on a quarter turn is the same way for all four; a second turn pressed mid-
+    orbit starts from where the marks are. The toast is left for reduced motion,
+    where the cut is the whole of it. The night map is not rebuilt per frame: the
+    snapshot is the only thing that moves, and the night frame under it keeps its
+    map as it always did while the view stands still. The snapshot stays a
+    full-screen `<canvas>`: at that size Firefox makes it an accelerated surface
+    like the garden's own (§11's re-upload trap is SMALL canvases), and it is made
+    in the frame that needs it, which an ImageBitmap's promise cannot do.
+    *The opening cover fades out* over `OPEN_COVER_FADE_MS` (250) once the first
+    complete frame is on the canvas: `finishGardenOpen(true)` from render takes the
+    canvas's `visibility:hidden` off and gives the cover `.leaving` (opacity 0,
+    `pointer-events:none`), hidden for good 290ms later; quitting, a crash and every
+    other ending hide it at once, and the live canvas still receives nothing before
+    preparation ends. Each eased change and each fade is in
+    `hasTransientGardenWork` (`viewTweenActive`, `seasonFadeActive` which counts a
+    pending request), so frames run at full rate only while one runs; the cover's
+    fade is CSS over a finished canvas and asks for no garden frames. Not done: the
+    Your gardens card's portrait growing into the garden.
+    **Measured** with `node dev/perf-audit.cjs --only view` (new: four events each of
+    a turn, a Fit from 200% on a corner, a zoom step and the lights, fired into the
+    running loop and followed 45-60 frames; `--repo` serves an export of the old
+    build for the before), demo garden, Chrome 153, 164Hz, worst rAF gap per event
+    and full ground bakes, before → after. Desktop 1440x900: turn 6.2 → 6.2ms, no
+    bakes either way (it now draws every frame of its 300ms); Fit 12-24 → 12-18ms,
+    1 → 1 bake (6 at a phone viewport with the wheel-equivalent first cut, hence the
+    exception above); zoom step 6-12 → 6.2ms; lights 145 → 115ms on the FIRST toggle
+    of a session and 6.2 after, both builds (that frame builds the night map and
+    bakes the lit structures; the fade adds nothing measurable). Phone profile
+    (390x844): Fit 12-18 → 12.2ms, 1 → 1 bake; turn 6.3 → 18ms on the first turn of a
+    session only (one dropped frame), 6.2 after. `node dev/ff-accel-check.cjs` has
+    rotate, lights and Fit phases now and fails on an app error: Firefox stayed
+    accelerated for all 5,467 frames. `dev/ground-verify.cjs` passes and
+    `dev/webkit-check.cjs` (which rotates and toggles night) is clean.
+
 12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
     `game.actX`/`actY` names — the last one a tap or the E key addressed),
     **`inspectPlantAt(x,y)`** (the Hand tool's tap-to-inspect). The plant card
@@ -7246,7 +7343,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `pointerdown` outside the panel (`pauseOutsidePress`), not a backdrop
     click, so the press also acts on whatever it hit. Crossing a season
     boundary naturally or mid-fast-forward runs a **season crossfade**
-    (renderer.js `seasonFade`): the last frame of the
+    (renderer.js `seasonFade`, now the one crossfade a turn of the view and the
+    lights also use, §11i): the last frame of the
     old season is snapshotted once and dissolves over the new season's live
     frames for ~1.1s (one `drawImage`/frame; the season-keyed ground bake
     and sprite caches are untouched; skipped when `reducedMotion()` says so

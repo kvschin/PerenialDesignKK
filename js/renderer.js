@@ -77,7 +77,8 @@ function groundEditThrottled(t, keyChanged, structMatches){
 function groundZoomDriftDue(MD){
   if (!groundCanvas || !(groundZoom>0)) return true;
   const k=ZOOM/groundZoom;
-  if (k>GROUND_ZOOM_IN_MAX) return true;
+  // an eased Fit holding the bake of where it is going: soft on the way, by design (view.js)
+  if (k>GROUND_ZOOM_IN_MAX && !viewTweenGroundHeld(groundZoom,groundCamX,groundCamY)) return true;
   const bdx=DPR*VW/2*(1-k) - k*MD + DPR*ZOOM*(groundCamX-cam.x);
   const bdy=DPR*VH*0.24*(1-k) - k*MD + DPR*ZOOM*(groundCamY-cam.y);
   const bw=groundCanvas.width*k, bh=groundCanvas.height*k;
@@ -3124,7 +3125,7 @@ function releaseGardenSurfaces(){
   groundCanvas=null; groundCtx=null; groundSpare=null; groundSpareCtx=null;
   groundJob=null; groundKey=''; groundKeyStruct=''; groundBaked=null; groundMarginStale=false;
   NIGHT_MAP.cv=null; NIGHT_MAP.g=null; NIGHT_MAP.key=''; NIGHT_MAP.scene=null;
-  seasonFade.active=false; dropSeasonFadeCanvas();
+  seasonFade.active=false; seasonFade.want=null; dropSeasonFadeCanvas();
   releaseWashSurfaces();
   PREBAKE.gen++;
 }
@@ -5110,33 +5111,80 @@ function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT
     dev('portrait',t0);
   }
 }
-/* ---------- season crossfade ----------
+/* ---------- crossfades: the season, a turn of the view, the lights ----------
    Seasons used to flip abruptly (sky, ground, every plant) on the frame the
    day counter crossed the boundary — jarring mid-fast-forward and after the
    menu's Skip. Blending colors per frame would defeat the season-keyed ground
    bake and sprite caches, so instead the LAST frame of the old season is
    snapshotted once and faded out over the new season's live frames: one
    drawImage per frame for ~1.1s, no cache touched. Explicit season skips
-   suppress that blend so the new palette is immediately accurate to compare. */
+   suppress that blend so the new palette is immediately accurate to compare.
+   The same snapshot carries two more changes that used to be hard cuts:
+   turning the view (rotateView), where the plot jumped a quarter turn and the
+   gardener lost their place, and the lights coming on (the day/night button),
+   where night arrived in one frame. Both are a request (requestViewFade) taken
+   at the top of the next render, the one moment the canvas still holds the
+   frame the gardener was looking at. One snapshot at a time: a second request
+   while one is fading snapshots the blend that is on screen, so it never
+   jumps, and the longer of the two runs on. */
 const SEASON_FADE_MS=1100;
-const seasonFade={cv:null, t0:0, active:false, last:null, suppressOnce:false};
+const VIEW_FADE_MS={season:SEASON_FADE_MS, rot:300, night:600};
+/* `want` is a requested fade not yet taken; `ms` and `kind` describe the one
+   running. The name stays seasonFade: the season was its first and longest use. */
+const seasonFade={cv:null, t0:0, active:false, last:null, suppressOnce:false,
+  ms:SEASON_FADE_MS, kind:'', want:null};
 /* Reads the app's own motion preference, not the media query directly: the
    season crossfade is the one animation here that carries information, so
    Settings can keep it while the OS switch is on (and drop it while the OS
    switch is off). reducedMotion() folds both in. */
-function seasonFadeActive(){ return seasonFade.active; }
+function seasonFadeActive(){ return seasonFade.active || !!seasonFade.want; }
 /* The snapshot is a whole-screen canvas, made at each turn and finished with a
    second later. It is emptied when done, not just dropped: a held fast-forward
    turns a season every eight seconds, and in WebKit each dropped snapshot kept
    its pixels (12MB on a large tablet) until a collection that canvas memory
-   does not hurry. */
+   does not hurry. It stays a <canvas> rather than an ImageBitmap: it is the size
+   of the screen, so in Firefox it is an accelerated surface like the garden's
+   own (the re-upload trap in §11 is SMALL canvases), and it has to be made in
+   the frame that needs it, which createImageBitmap's promise cannot do. */
 function dropSeasonFadeCanvas(){
   const cv=seasonFade.cv;
   if (cv){ try{ cv.width=0; cv.height=0; }catch(_){ } }
   seasonFade.cv=null;
 }
-function resetSeasonFade(){ seasonFade.active=false; dropSeasonFadeCanvas(); seasonFade.last=null; seasonFade.suppressOnce=false; }
-function suppressNextSeasonFade(){ seasonFade.active=false; dropSeasonFadeCanvas(); seasonFade.suppressOnce=true; }
+function resetSeasonFade(){ seasonFade.active=false; dropSeasonFadeCanvas(); seasonFade.last=null; seasonFade.suppressOnce=false; seasonFade.want=null; }
+/* A Skip cancels every crossfade, not only the season's: it is the palette
+   comparison, and a turn of the view still fading over it would blend the old
+   palette into the new one just the same. */
+function suppressNextSeasonFade(){ seasonFade.active=false; dropSeasonFadeCanvas(); seasonFade.suppressOnce=true; seasonFade.want=null; }
+/* Ask for the next frame to dissolve from this one. Refused where a fade would
+   be wrong rather than merely unwanted: motion turned down, a photo, a garden
+   still behind its opening cover (there is no picture yet), and a Skip being
+   prepared, whose held frame is the destination's to replace. */
+function requestViewFade(kind){
+  if (!VIEW_FADE_MS[kind] || reducedMotion() || game.photo || !game.inGarden
+      || gardenOpening || (typeof skipPending==='function' && skipPending())) return false;
+  if (!seasonFade.want || VIEW_FADE_MS[kind]>VIEW_FADE_MS[seasonFade.want]) seasonFade.want=kind;
+  return true;
+}
+/* Copy the canvas, which still shows the last frame, into the snapshot. */
+function takeViewFade(t,kind){
+  if (!seasonFade.cv) seasonFade.cv=document.createElement('canvas');
+  if (seasonFade.cv.width!==cnv.width || seasonFade.cv.height!==cnv.height){
+    seasonFade.cv.width=cnv.width; seasonFade.cv.height=cnv.height; }
+  const fcx=seasonFade.cv.getContext('2d');
+  // no context means the browser is out of canvas memory: change without the fade
+  if (!fcx){ seasonFade.active=false; dropSeasonFadeCanvas(); return false; }
+  const ms=VIEW_FADE_MS[kind];
+  // a fade already running keeps the longer of the two: the season's is the one
+  // carrying information, and it must not be cut short by a turn of the view
+  const left=seasonFade.active ? seasonFade.ms-(t-seasonFade.t0) : 0;
+  fcx.clearRect(0,0,seasonFade.cv.width,seasonFade.cv.height);
+  fcx.drawImage(cnv,0,0);                         // the canvas still shows the OLD picture here
+  if (left>ms){ seasonFade.ms=left; }
+  else { seasonFade.ms=ms; seasonFade.kind=kind; }
+  seasonFade.t0=t; seasonFade.active=true;
+  return true;
+}
 function maybeStartSeasonFade(t,season){
   /* Counted on the season CHANGE, not on the crossfade — reduced-motion skips
      the fade but still saw the year turn, and that is the differentiator the
@@ -5148,30 +5196,23 @@ function maybeStartSeasonFade(t,season){
      on screen had moved. Fast-forward, Skip and the natural clock all arrive
      here, so every route out of that step counts. */
   if (seasonFade.last && seasonFade.last!==season) tourNote('season');
+  let kind=seasonFade.want;
   if (seasonFade.last && seasonFade.last!==season && !seasonFade.suppressOnce && !game.photo &&
-      !reducedMotion()){
-    if (!seasonFade.cv) seasonFade.cv=document.createElement('canvas');
-    if (seasonFade.cv.width!==cnv.width || seasonFade.cv.height!==cnv.height){
-      seasonFade.cv.width=cnv.width; seasonFade.cv.height=cnv.height; }
-    const fcx=seasonFade.cv.getContext('2d');
-    // no context means the browser is out of canvas memory: turn without the fade
-    if (fcx){
-      fcx.clearRect(0,0,seasonFade.cv.width,seasonFade.cv.height);
-      fcx.drawImage(cnv,0,0);                     // canvas still shows the OLD season here
-      seasonFade.t0=t; seasonFade.active=true;
-    } else dropSeasonFadeCanvas();
-  }
+      !reducedMotion()) kind='season';
+  if (!game.photo) seasonFade.want=null;            // a photo is one kept frame: the next live one takes it
+  // a Skip landed this frame: whatever was asked for, the destination shows as itself
+  if (kind && !seasonFade.suppressOnce && !game.photo) takeViewFade(t,kind);
   seasonFade.suppressOnce=false;
   seasonFade.last=season;
 }
 function drawSeasonFade(t){
   if (!seasonFade.active) return;
-  const f=(t-seasonFade.t0)/SEASON_FADE_MS;
+  const f=(t-seasonFade.t0)/seasonFade.ms;
   if (f>=1 || !seasonFade.cv || seasonFade.cv.width!==cnv.width || seasonFade.cv.height!==cnv.height){
     seasonFade.active=false; dropSeasonFadeCanvas(); return;   // done, or resized mid-fade
   }
   cx.save(); cx.setTransform(1,0,0,1,0,0);
-  cx.globalAlpha=Math.pow(1-f,1.4);              // ease-out: old season lingers then lets go
+  cx.globalAlpha=Math.pow(1-Math.max(0,f),1.4);  // ease-out: the old picture lingers then lets go
   cx.drawImage(seasonFade.cv,0,0);
   cx.restore();
 }
@@ -5197,21 +5238,36 @@ let gardenOpening=null;
    a longer batch is fewer vsyncs waited out for the same work. BAKE_CAP stays
    under PSPRITE.BUDGET, past which a frame refuses to bake at all. */
 const OPEN_PREP={MS:12, CAP:96, GROUND_COLS:12, DECIDE:2, BAKE_MS:20, BAKE_CAP:144};
+/* The cover leaves by fading (OPEN_COVER_FADE_MS) once the first complete frame
+   is on the canvas, so the garden comes up through it rather than replacing it
+   in one frame. Opacity only, on a DOM plate: the canvas under it is already the
+   finished picture and draws nothing extra for it. */
+const OPEN_COVER_FADE_MS=250;
+let openCoverTimer=0;
 function beginGardenOpen(){
   gardenOpening={ready:false, key:null};
   document.body.classList.add('garden-opening-active');
-  document.getElementById('gardenOpening').classList.remove('hidden');
+  const el=document.getElementById('gardenOpening');
+  clearTimeout(openCoverTimer); el.classList.remove('leaving');
+  el.classList.remove('hidden');
   document.getElementById('hud').inert=true;
 }
 function captureGardenPortrait(){
   const cv=renderGardenPortrait();
   return cv?{v:1,day:absDay(),image:cv.toDataURL('image/jpeg',0.86)}:null;
 }
-function finishGardenOpen(){
+/* `fade` only from render, after the first complete frame: quitting, a crash and
+   anything else that ends an opening take the cover away at once. */
+function finishGardenOpen(fade){
   if (gardenOpening && gardenOpening.cv) gardenOpening.cv.width=gardenOpening.cv.height=0;
   gardenOpening=null;
   document.body.classList.remove('garden-opening-active');
-  document.getElementById('gardenOpening').classList.add('hidden');
+  const el=document.getElementById('gardenOpening');
+  clearTimeout(openCoverTimer);
+  if (fade && !reducedMotion() && !el.classList.contains('hidden')){
+    el.classList.add('leaving');             // opacity to 0; it no longer takes the pointer
+    openCoverTimer=setTimeout(()=>{ el.classList.add('hidden'); el.classList.remove('leaving'); },OPEN_COVER_FADE_MS+40);
+  } else { el.classList.remove('leaving'); el.classList.add('hidden'); }
   document.getElementById('hud').inert=false;
 }
 function prepareGardenOpen(t){
@@ -5671,7 +5727,7 @@ function render(t){
   const zoomSettled = zoomStale && t-groundZoomT>GROUND_ZOOM_SETTLE;
   const mustBake = (gkey!==groundKey && !editThrottled && !seasonOnly)
     || groundRefsChanged()
-    || panDev>=MD
+    || (panDev>=MD && !viewTweenGroundHeld(groundZoom,groundCamX,groundCamY))
     // a stale margin becomes visible the moment the camera moves, so bake at once
     || (camStale && groundMarginStale)
     // a zoom that would leave ground missing on screen cannot wait
@@ -5705,19 +5761,29 @@ function render(t){
       bakeGroundRect(MD-ov,MD-ov,cnv.width+2*ov,cnv.height+2*ov,W,H,amb,t,MD,pad,TILE_W*2);
       groundMarginStale=true;
     } else if (!scrolled){
-      const Mu=MD/(DPR*ZOOM);                            // margin in draw units
-      // expanded tile bbox: the viewport window plus the baked margin
-      const bc=[tileAt(-Mu,-Mu,W,H),tileAt(W+Mu,-Mu,W,H),tileAt(-Mu,H+Mu,W,H),tileAt(W+Mu,H+Mu,W,H)];
-      const bx0=Math.max(0,Math.min(bc[0][0],bc[1][0],bc[2][0],bc[3][0])-pad);
-      const bx1=Math.min(GW-1,Math.max(bc[0][0],bc[1][0],bc[2][0],bc[3][0])+pad);
-      const by0=Math.max(0,Math.min(bc[0][1],bc[1][1],bc[2][1],bc[3][1])-pad);
-      const by1=Math.min(GH-1,Math.max(bc[0][1],bc[1][1],bc[2][1],bc[3][1])+pad);
-      groundCtx.setTransform(1,0,0,1,0,0); groundCtx.clearRect(0,0,groundCanvas.width,groundCanvas.height);
-      groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,MD,MD);   // shift by the margin, device px
-      paintGround(groundCtx,bx0,bx1,by0,by1,W,H,amb,t,Mu);
-      groundCamX=cam.x; groundCamY=cam.y; groundMarginStale=false;
+      /* An eased Fit zooming out bakes once, at its destination's zoom and
+         camera, which hold every frame on the way (viewTweenGroundTarget,
+         view.js). Borrowed and put back like a ground job's camera. */
+      const ahead=zoomStale && !game.photo ? viewTweenGroundTarget() : null;
+      const z0=ZOOM, cx0=cam.x, cy0=cam.y;
+      if (ahead){ ZOOM=ahead.z; cam.x=ahead.x; cam.y=ahead.y; }
+      try{
+        const Wb=VW/ZOOM, Hb=VH/ZOOM;
+        const Mu=MD/(DPR*ZOOM);                            // margin in draw units
+        // expanded tile bbox: the viewport window plus the baked margin
+        const bc=[tileAt(-Mu,-Mu,Wb,Hb),tileAt(Wb+Mu,-Mu,Wb,Hb),tileAt(-Mu,Hb+Mu,Wb,Hb),tileAt(Wb+Mu,Hb+Mu,Wb,Hb)];
+        const bx0=Math.max(0,Math.min(bc[0][0],bc[1][0],bc[2][0],bc[3][0])-pad);
+        const bx1=Math.min(GW-1,Math.max(bc[0][0],bc[1][0],bc[2][0],bc[3][0])+pad);
+        const by0=Math.max(0,Math.min(bc[0][1],bc[1][1],bc[2][1],bc[3][1])-pad);
+        const by1=Math.min(GH-1,Math.max(bc[0][1],bc[1][1],bc[2][1],bc[3][1])+pad);
+        groundCtx.setTransform(1,0,0,1,0,0); groundCtx.clearRect(0,0,groundCanvas.width,groundCanvas.height);
+        groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,MD,MD);   // shift by the margin, device px
+        paintGround(groundCtx,bx0,bx1,by0,by1,Wb,Hb,amb,t,Mu);
+        groundCamX=cam.x; groundCamY=cam.y; groundMarginStale=false; groundZoom=ZOOM;
+      } finally { if (ahead){ ZOOM=z0; cam.x=cx0; cam.y=cy0; } }
     }
-    groundKey=gkey; groundKeyStruct=gStruct; groundZoom=ZOOM;
+    groundKey=gkey; groundKeyStruct=gStruct;
+    if (scrolled || editRect || inPlace) groundZoom=ZOOM;
     groundRefs={terrain:game.terrain,elevation:game.elevation,houses:game.houses};
     if (!scrolled) noteGroundBaked();   // a scroll moves the picture, not the data
     // this bake is authoritative for everything edited up to now, and it starts
@@ -5978,7 +6044,7 @@ function render(t){
        over   — selection/ruler/metric overlays, only when those tools are live
        light  — season tint, snow, dusk/glow: full-screen work EVERY frame */
   dmark('light',tLight);
-  if (gardenOpening && !game.photo) finishGardenOpen();
+  if (gardenOpening && !game.photo) finishGardenOpen(true);
 }
 
 /* ---------- night: what is lit, and the map of it ----------

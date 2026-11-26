@@ -1462,10 +1462,10 @@ function renderViewToolsMenu(){
   pop.id='viewToolsPop'; pop.className='tool-popover view-tools-popover';
   pop.setAttribute('role','menu'); pop.setAttribute('aria-label','View tools');
   pop.appendChild(popButton('Fit plot',null,false,()=>{
-    fitPlot(); game.toolMenu=null; refreshCanvasTools(); toast('Plot fitted to the available canvas.');
+    fitPlot({ease:true}); game.toolMenu=null; refreshCanvasTools(); toast('Plot fitted to the available canvas.');
   },'Fit the whole plot in the clear canvas area'));
-  pop.appendChild(popButton('Zoom out',null,false,()=>{ zoomBy(0.89); },'Zoom out'));
-  pop.appendChild(popButton('Zoom in',null,false,()=>{ zoomBy(1.12); },'Zoom in'));
+  pop.appendChild(popButton('Zoom out',null,false,()=>{ zoomStep(0.89); },'Zoom out'));
+  pop.appendChild(popButton('Zoom in',null,false,()=>{ zoomStep(1.12); },'Zoom in'));
   // Select is not listed here: it moved to the canvas rail, which exists at
   // every breakpoint, and offering it in two places would make the rail's
   // armed state look wrong from the popover.

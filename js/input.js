@@ -172,8 +172,8 @@ addEventListener('keydown',e=>{
   if (k>='1' && k<='6' && multiScheme() && !e.ctrlKey && !e.metaKey && !e.altKey){
     e.preventDefault(); schemeAtIndex(+k-1); return;
   }
-  if (k==='+'||k==='='){ e.preventDefault(); zoomBy(1.12); return; }
-  if (k==='-'){ e.preventDefault(); zoomBy(0.89); return; }
+  if (k==='+'||k==='='){ e.preventDefault(); zoomStep(1.12); return; }
+  if (k==='-'){ e.preventDefault(); zoomStep(0.89); return; }
 });
 addEventListener('keyup',e=>{
   if (e.key===' '){ spaceHeld=false; updateCanvasCursor(); } });
@@ -391,6 +391,7 @@ function finishMultiTouch(){
   else if (act==='redo'){ doRedo(); showGestureCancel('Redo'); }
 }
 cnv.addEventListener('pointerdown',e=>{
+  cancelViewTween();   // any press takes the camera from an eased Fit or zoom step
   const first=!activePtrs.size;
   activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
   if (game.photoEditing && game.underlayCalibration){ e.preventDefault(); recordSitePhotoCalibrationPoint(photoWorldPoint(e)); return; }

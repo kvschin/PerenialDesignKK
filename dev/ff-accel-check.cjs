@@ -35,8 +35,10 @@
      node dev/ff-accel-check.cjs [--garden file.json] [--w 2560 --h 1400]
      node dev/ff-accel-check.cjs --menu [--canvases] [--w 2560 --h 1400]
    Runs the garden (default demo-garden.json) through open, pan, fast-forward,
-   a season Skip, pan, night pan, and prints fps and the probe per phase. Exits
-   1 if the canvas was demoted, naming the frame it happened on. Needs Firefox;
+   a season Skip, pan, night pan, then the view changes (turns of the view and
+   the lights, which crossfade through a full-screen snapshot, and eased Fits),
+   and prints fps and the probe per phase. Exits 1 if the canvas was demoted,
+   naming the frame it happened on, or if the app logged an error. Needs Firefox;
    PP_FIREFOX_PATH points elsewhere. Throwaway profile, service worker disabled
    in the served markup, no personal storage touched. Use a garden big enough
    to sprite-cache (the governor must engage), and a window the size you
@@ -82,7 +84,16 @@ const DRIVER = `
     await run('pan after',4000,()=>{pan=true;t0=performance.now();});
     await run('night pan',5000,()=>{game.layerVis.night=true;});
     pan=false;
+    /* The view changes: a turn of the view and the lights each copy the whole
+       canvas into a snapshot and lay it over the next frames (requestViewFade),
+       and a Fit eases the zoom over a few frames. Each fired a few times, as a
+       gardener would, with time between for the settles. */
+    const fire=(n,gap,fn)=>{ for(let k=0;k<n;k++) setTimeout(()=>fn(k),k*gap); };
+    await run('rotate',5600,()=>fire(6,900,()=>rotateView(1)));
+    await run('lights',6600,()=>fire(6,1100,()=>document.getElementById('btnDayNight').onclick()));
+    await run('fit',5000,()=>fire(4,1200,k=>{ if(k%2){ setUserZoom(2); } else document.getElementById('btnZoomFit').onclick(); }));
     await say({canvas:cnv.width+'x'+cnv.height, sprites:PSPRITE.active, bitmaps:typeof spriteBitmaps!=='undefined'&&spriteBitmaps,
+      errors:(typeof errLog!=='undefined'?errLog:[]).map(e=>e.where+': '+e.msg), crashed:typeof crashed!=='undefined'&&crashed,
       frames:frames.map(f=>[Math.round(f.t),f.phase,+f.sky.toFixed(2)])});
   }catch(e){ await say({error:String(e&&e.stack||e)}); }
 })();
@@ -203,5 +214,9 @@ server.listen(0, '127.0.0.1', async () => {
     process.exit(1);
   }
   console.log('\nstayed accelerated for all ' + r.frames.length + ' frames');
+  if ((r.errors && r.errors.length) || r.crashed) {
+    console.log('but the app reported errors' + (r.crashed ? ' (CRASHED)' : '') + ':\n  ' + (r.errors || []).join('\n  '));
+    process.exit(1);
+  }
   process.exit(0);
 });

@@ -30138,3 +30138,248 @@ test('the edit effects keep full-rate frames only while one is drawing', () => {
   } finally { globalThis.spritesPending = was; }
   resetEditFxForTest();
 });
+
+/* ---------- eased view changes and crossfades (Fit, zoom steps, a turn, the lights, the opening) ---------- */
+function viewMotionCase(fn){
+  setup(31, 31);
+  const oldRect = usableCanvasRect, oldVW = VW, oldVH = VH, oldPref = motionPref, oldToast = toast;
+  const said = [];
+  try {
+    VW = 1200; VH = 800;
+    usableCanvasRect = () => ({ left: 80, top: 64, right: 1192, bottom: 792 });
+    setMotionPref('full');
+    toast = m => { said.push(m); };
+    resetZoomFloor(); userZoom = 1; calcZoom(); cam.x = 0; cam.y = 0;
+    cancelViewTween(); resetSeasonFade();
+    fn(said);
+  } finally {
+    cancelViewTween(); resetSeasonFade(); compassTurn = null;
+    usableCanvasRect = oldRect; VW = oldVW; VH = oldVH; setMotionPref(oldPref); toast = oldToast;
+    game.rot = 0; resetZoomFloor(); userZoom = 1; calcZoom();
+  }
+}
+
+test('an eased Fit ends exactly where an instant Fit does, and eases on the way', () => {
+  viewMotionCase(() => {
+    userZoom = 2.2; calcZoom(); cam.x = 340; cam.y = -120;
+    const start = { x: cam.x, y: cam.y, z: userZoom };
+    fitPlot();                                   // the instant answer
+    const want = { x: cam.x, y: cam.y, z: userZoom };
+    cam.x = start.x; cam.y = start.y; userZoom = start.z; calcZoom();
+    fitPlot({ ease: true });
+    assert(viewTweenActive(), 'the Fit button eases');
+    assert(cam.x === start.x && userZoom === start.z, 'and moves nothing until a frame steps it');
+    assert(hasTransientGardenWork(), 'an eased change keeps frames at full rate while it runs');
+    const t0 = viewTween.t0;
+    stepViewTween(t0 + VIEW_TWEEN_MS / 2);
+    assert(userZoom < start.z && userZoom > want.z, 'half way, the zoom is between: ' + userZoom.toFixed(3));
+    assert(Math.abs(cam.x - want.x) < Math.abs(start.x - want.x), 'and the camera has gone part of the way');
+    // ease-out: more than half the distance in the first half of the time
+    assert(Math.abs(cam.x - start.x) > Math.abs(want.x - start.x) / 2, 'on an ease-out');
+    stepViewTween(t0 + VIEW_TWEEN_MS);
+    assert(!viewTweenActive(), 'and stops');
+    assert(cam.x === want.x && cam.y === want.y && userZoom === want.z, 'on the instant Fit, to the bit');
+    assert(String(hasTransientGardenWork).includes('|| viewTweenActive()'), 'and only while it runs: the full rate is asked by viewTweenActive');
+  });
+});
+
+test('a wheel, a pinch, a press, a rotation or a new step takes the camera from an eased change', () => {
+  viewMotionCase(() => {
+    // a wheel tick (and a pinch: both are setUserZoom)
+    zoomStep(1.12);
+    assert(viewTweenActive() && viewTween.zoomOnly, 'a zoom step eases');
+    const t0 = viewTween.t0;
+    stepViewTween(t0 + 60);
+    const mid = userZoom;
+    zoomBy(0.89);
+    assert(!viewTweenActive(), 'a wheel tick cancels it');
+    assertEqual(+userZoom.toFixed(6), +clampUserZoom(mid * 0.89).toFixed(6), 'and zooms from where the step had got to');
+    const after = { x: cam.x, z: userZoom };
+    stepViewTween(t0 + VIEW_TWEEN_MS);
+    assert(userZoom === after.z && cam.x === after.x, 'a cancelled step moves nothing on later frames');
+    // three quick presses are three steps
+    userZoom = 1; calcZoom();
+    zoomStep(1.12); zoomStep(1.12); zoomStep(1.12);
+    finishViewTween();
+    assertEqual(+userZoom.toFixed(6), +clampUserZoom(1.12 * 1.12 * 1.12).toFixed(6), 'a step pressed mid-ease goes on from where the last was going');
+    // a press on the canvas, read off input.js: the first thing pointerdown does
+    const input = readRepoFile('js/input.js');
+    const down = input.slice(input.indexOf("cnv.addEventListener('pointerdown'"));
+    assert(down.indexOf('cancelViewTween()') > -1 && down.indexOf('cancelViewTween()') < down.indexOf('activePtrs.set'),
+      'any press on the canvas (pan, pinch, a tap) cancels it before anything else reads the camera');
+    assert(/k==='\+'\|\|k==='='\)\{ e\.preventDefault\(\); zoomStep\(1\.12\)/.test(input) && /k==='-'\)\{ e\.preventDefault\(\); zoomStep\(0\.89\)/.test(input),
+      'the +/- keys ease');
+    assert(/cnv\.addEventListener\('wheel'[\s\S]*?zoomBy\(e\.deltaY<0\?1\.12:0\.89\)/.test(input), 'the wheel stays instant');
+    const screens = readRepoFile('js/screens.js');
+    assert(/btnZoomOut'\)\.onclick=\(\)=>zoomStep\(0\.89\)/.test(screens) && /btnZoomIn'\)\.onclick=\(\)=>zoomStep\(1\.12\)/.test(screens)
+      && /btnZoomFit'\)\.onclick=\(\)=>fitPlot\(\{ease:true\}\)/.test(screens), 'the zoom pill eases');
+    // a new Fit while a step eases starts from where the step had got to
+    userZoom = 2; calcZoom(); cam.x = 200; cam.y = 50;
+    zoomStep(0.89); stepViewTween(viewTween.t0 + 80);
+    const here = { x: cam.x, y: cam.y, z: userZoom };
+    fitPlot({ ease: true });
+    assert(!viewTween.zoomOnly && viewTween.x0 === here.x && viewTween.z0 === here.z, 'a new eased change starts where the last one was');
+    // the camera that pinch and wheel set is theirs: setUserZoom cancels before it writes
+    assert(/function setUserZoom\(z\)\{\s*cancelViewTween\(\);/.test(String(setUserZoom).replace(/\r/g, '')), 'setUserZoom (wheel, pinch) cancels first');
+    // a resize cancels: the target was worked out for the old canvas
+    assert(/cancelViewTween\(\); cam\.x\+=d\.dx; cam\.y\+=d\.dy;/.test(String(sizeCanvas)), 'and so does a canvas that changes size');
+    // and an opening is never eased
+    const enter = String(enterGarden);
+    assert(/restoreGardenView\(game\.savedView\)\) fitPlot\(\),/.test(enter), 'an opening fits in one frame');
+    assert(/invalidateUsableRect\(\); fitPlot\(\); mark\(\);/.test(String(settleOpeningFit)), 'and so does its settle');
+    assert(/cancelViewTween\(\)/.test(String(restoreGardenView)), 'a restored view takes the camera too');
+  });
+});
+
+test('a turn of the view ends on snapCamFor, crossfades, and turns the compass with it', () => {
+  viewMotionCase(said => {
+    // an eased Fit under way when the view is turned must not carry the camera off the snap point
+    userZoom = 2; calcZoom(); cam.x = 500; cam.y = 300;
+    fitPlot({ ease: true });
+    const t0 = viewTween.t0;
+    stepViewTween(t0 + 50);
+    rotateView(1);
+    assertEqual(game.rot, 1, 'a quarter turn');
+    const want = snapCamFor(1);
+    assert(cam.x === want[0] && cam.y === want[1], 'the camera is on snapCamFor at once');
+    assert(!viewTweenActive(), 'and the Fit no longer runs');
+    for (let t = t0 + 60; t <= t0 + 1000; t += 16) stepViewTween(t);
+    assert(cam.x === want[0] && cam.y === want[1], 'nothing moves it off afterwards: the ground pre-bakes the next turn there');
+    assertEqual(seasonFade.want, 'rot', 'the next frame dissolves from this one');
+    assert(hasTransientGardenWork(), 'at full rate');
+    assertEqual(said.length, 0, 'with no toast: the picture and the marks say it');
+    assert(compassTurn && compassTurn.ms === VIEW_FADE_MS.rot, 'the compass marks orbit for the length of the fade');
+    // the next render takes the snapshot, and runs the fade for its 300ms
+    maybeStartSeasonFade(1000, calClock().season);
+    assert(seasonFade.active && seasonFade.ms === VIEW_FADE_MS.rot && !seasonFade.want, 'taken at the top of the next frame');
+    drawSeasonFade(1000 + VIEW_FADE_MS.rot + 1);
+    assert(!seasonFadeActive(), 'and gone after 300ms');
+    // the marks: half way round they are between their two edges, then where updateCompass puts them
+    compassTurn = null; game.rot = 0; snapCam();
+    const from = compassPlacements();
+    game.rot = 1; snapCam();
+    const to = compassPlacements();
+    const half = compassTurnLerp(from, to, 0.5), end = compassTurnLerp(from, to, 1);
+    for (const d of ['N', 'E', 'S', 'W']){
+      assert(Math.abs(end[d].x - to[d].x) < 1e-6 && Math.abs(end[d].y - to[d].y) < 1e-6, d + ' lands on its new edge');
+      const moved = Math.hypot(half[d].x - from[d].x, half[d].y - from[d].y), left = Math.hypot(to[d].x - half[d].x, to[d].y - half[d].y);
+      assert(moved > 1 && left > 1, d + ' is on its way half way through');
+    }
+    // the same way round for all four
+    const sgn = d => { const c0 = from.centre, c1 = to.centre;
+      const a0 = Math.atan2(from[d].y - c0[1], from[d].x - c0[0]), a1 = Math.atan2(to[d].y - c1[1], to[d].x - c1[0]);
+      return Math.sign(((a1 - a0) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI); };
+    assert(['N', 'E', 'S', 'W'].every(d => sgn(d) === sgn('N')), 'every mark goes round the same way');
+  });
+});
+
+test('under reduced motion every view change is instant', () => {
+  viewMotionCase(said => {
+    setMotionPref('reduce');
+    userZoom = 2; calcZoom(); cam.x = 300; cam.y = 100;
+    fitPlot({ ease: true });
+    assert(!viewTweenActive(), 'Fit jumps');
+    const fitted = { x: cam.x, z: userZoom };
+    cam.x = 300; userZoom = 2; calcZoom();
+    fitPlot();
+    assert(cam.x === fitted.x && userZoom === fitted.z, 'to where an instant Fit goes');
+    zoomStep(1.12);
+    assert(!viewTweenActive(), 'a zoom step jumps');
+    rotateView(1);
+    assert(!seasonFade.want && !compassTurn, 'a turn is a cut');
+    assert(said.some(m => /View rotated/.test(m)), 'and says so, the toast being the whole of the cue');
+    assert(!requestViewFade('night'), 'the lights come on at once');
+    beginGardenOpen();
+    finishGardenOpen(true);
+    assert(document.getElementById('gardenOpening').classList.contains('hidden'), 'the opening cover goes at once');
+  });
+});
+
+test('the lights come on through a crossfade, and a Skip never does', () => {
+  viewMotionCase(() => {
+    const screens = readRepoFile('js/screens.js');
+    assert(/btnDayNight'\)\.onclick=\(\)=>\{ requestViewFade\('night'\);\s*setLayerVis\('night'/.test(screens),
+      'the day/night button asks for the fade before the lighting changes');
+    assert(requestViewFade('night') && seasonFade.want === 'night', 'night is a 600ms fade');
+    // a turn asked for in the same frame does not shorten it
+    requestViewFade('rot');
+    assertEqual(seasonFade.want, 'night', 'the longer fade is kept');
+    maybeStartSeasonFade(5000, calClock().season);
+    assertEqual(seasonFade.ms, VIEW_FADE_MS.night, 'taken at 600ms');
+    // a season that turns while it fades keeps the season's length
+    seasonFade.last = 'Summer';
+    maybeStartSeasonFade(5100, 'Fall');
+    assertEqual(seasonFade.ms, SEASON_FADE_MS, 'the season crossfade is never cut short');
+    // and a turn of the view taken during the season's fade does not cut it either
+    requestViewFade('rot'); maybeStartSeasonFade(5200, 'Fall');
+    assert(seasonFade.ms >= SEASON_FADE_MS - 200, 'what is left of the season fade runs on');
+    // a Skip: nothing is asked while one is preparing, and one landing drops what was asked
+    resetSeasonFade();
+    requestViewFade('night');
+    suppressNextSeasonFade();
+    assert(!seasonFade.want && !seasonFadeActive(), 'a Skip landing drops a fade already asked for');
+    maybeStartSeasonFade(6000, calClock().season);
+    assert(!seasonFade.active, 'so the destination shows as itself');
+    const was = pendingSkip; pendingSkip = { day: absDay() + 16 };
+    try { assert(!requestViewFade('rot'), 'and nothing is asked for while a Skip is preparing'); }
+    finally { pendingSkip = was; }
+    // nor behind the opening cover, where there is no picture yet
+    beginGardenOpen();
+    try { assert(!requestViewFade('night'), 'nor while a garden is opening'); }
+    finally { finishGardenOpen(); }
+  });
+});
+
+test('the opening cover fades once the first frame is on the canvas, and only then', () => {
+  viewMotionCase(() => {
+    const el = document.getElementById('gardenOpening');
+    beginGardenOpen();
+    assert(!el.classList.contains('hidden') && !el.classList.contains('leaving'), 'the cover is up');
+    assert(document.body.classList.contains('garden-opening-active'), 'and the canvas hidden under it');
+    finishGardenOpen(true);
+    assert(el.classList.contains('leaving') && !el.classList.contains('hidden'), 'it fades rather than vanishing');
+    assert(!document.body.classList.contains('garden-opening-active'), 'over the finished canvas, which shows at once');
+    beginGardenOpen();
+    assert(!el.classList.contains('leaving'), 'a new opening puts it back up whole');
+    finishGardenOpen();
+    assert(el.classList.contains('hidden') && !el.classList.contains('leaving'), 'every other ending takes it away at once');
+    const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
+    const body = src.slice(src.indexOf('function render(t){'));
+    assert(/if \(gardenOpening && !game\.photo\) finishGardenOpen\(true\);\s*\}/.test(body),
+      'render fades it, as the last thing a complete frame does');
+    const css = readRepoFile('styles.css');
+    assert(/\.garden-opening\.leaving\{opacity:0;pointer-events:none;transition:opacity \.25s/.test(css), 'by opacity, and it stops taking the pointer');
+  });
+});
+test('an eased Fit zooming out bakes the ground once, at where it is going', () => {
+  viewMotionCase(() => {
+    userZoom = 2.2; calcZoom(); cam.x = 340; cam.y = -120;
+    fitPlot({ ease: true });
+    assert(viewTween.fit, 'a Fit tween says it is one');
+    const want = { z: Math.max(zoomFloor, Math.min(ZOOM_MAX, baseZoom * viewTween.z1)), x: viewTween.x1, y: viewTween.y1 };
+    assert(!viewTweenGroundHeld(ZOOM, cam.x, cam.y), 'nothing is held before the renderer has baked ahead');
+    const a = viewTweenGroundTarget();
+    assert(a && a.z === want.z && a.x === want.x && a.y === want.y, 'the bake is asked for at the destination zoom and camera');
+    assertEqual(viewTweenGroundTarget(), null, 'once a tween: if it does not cover, the next bake is an ordinary one');
+    assert(viewTweenGroundHeld(a.z, a.x, a.y), 'while that bake is the ground, the margin and magnification triggers stand down');
+    assert(!viewTweenGroundHeld(a.z, a.x + 1, a.y), 'a bake anywhere else is not held');
+    finishViewTween();
+    assert(!viewTweenGroundHeld(a.z, a.x, a.y), 'and nothing is held once the Fit has landed');
+    assert(ZOOM === a.z && cam.x === a.x && cam.y === a.y, 'where the last frame is exactly that bake: nothing settles after it');
+    // a Fit zooming IN, and a zoom step, bake as a wheel does
+    resetZoomFloor(); userZoom = ZOOM_MIN / baseZoom; calcZoom();
+    setWorldSize(9, 9);
+    fitPlot({ ease: true });
+    assert(viewTween && viewTween.z1 > userZoom, 'a small plot fits by zooming in');
+    assertEqual(viewTweenGroundTarget(), null, 'which bakes as a wheel does');
+    cancelViewTween(); userZoom = 1; calcZoom();
+    zoomStep(0.89);
+    assertEqual(viewTweenGroundTarget(), null, 'and so does a zoom step');
+    // the renderer consults it at the two triggers and at the bake
+    const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert(/\(panDev>=MD && !viewTweenGroundHeld\(groundZoom,groundCamX,groundCamY\)\)/.test(src), 'the margin trigger');
+    assert(/k>GROUND_ZOOM_IN_MAX && !viewTweenGroundHeld\(groundZoom,groundCamX,groundCamY\)/.test(src), 'the magnification trigger');
+    assert(/const ahead=zoomStale && !game\.photo \? viewTweenGroundTarget\(\) : null;/.test(src), 'and the full bake, never for a photo');
+    assert(/finally \{ if \(ahead\)\{ ZOOM=z0; cam\.x=cx0; cam\.y=cy0; \} \}/.test(src), 'which borrows the zoom and camera and puts them back');
+  });
+});
