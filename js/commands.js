@@ -156,7 +156,16 @@ function gestureShrubNote(tiles){
   const s=parts.join('; ');
   return s.charAt(0).toUpperCase()+s.slice(1)+'.';
 }
-function rejectPlacement(msg){ hapticFeedback('invalid'); toast(msg); }
+/* A refusal also answers at the tile: a red diamond with one small shake
+   (fxRefuse). It goes where it is told, or, inside actHere, on the tile the tap
+   addressed; a refusal from anywhere else (a drag's rectangle with nothing to
+   point at) is the toast alone. */
+let refuseTile=null;
+function rejectPlacement(msg,x,y){
+  hapticFeedback('invalid'); toast(msg);
+  if (x===undefined && refuseTile){ x=refuseTile[0]; y=refuseTile[1]; }
+  if (x!==undefined) fxRefuse(x,y);
+}
 
 /* ---------- actions ----------
    The tile a tap or the E key addresses. There is no avatar: game.actX/actY is
@@ -226,7 +235,13 @@ function tapSolidTool(spec,x,y,opts){
   if (applyToolAt(tx,ty,opts)){ hapticFeedback('place'); toast(spec.done()); return; }
   rejectPlacement(blockerText(spec.blocker(tx,ty,`${tx},${ty}`),spec.noun()));
 }
+// everything a tap does, with the tile it addressed known to rejectPlacement
 function actHere(opts){
+  const was=refuseTile;
+  refuseTile=[Math.round(game.actX),Math.round(game.actY)];
+  try{ return actOnTile(opts); } finally { refuseTile=was; }
+}
+function actOnTile(opts){
   const x=Math.round(game.actX), y=Math.round(game.actY), k=`${x},${y}`;
   if (isPlacementTool(game.tool)){
     const layer=toolTargetLayer(game.tool);
@@ -337,18 +352,18 @@ function actHere(opts){
   if (toolMeta(game.tool).material){
     // the rule placeTerrainAt applies: lawn may go over a planting, water round a marginal
     if (hasPlant && terrainBlockedByPlant(game.tool,existing)){
-      toast(game.tool==='lawn' ? 'A floating plant is there: lawn would strand it.' : 'Lift the plant first.'); return; }
-    if (hasBulb && game.tool==='water'){ toast('Dig the bulb first.'); return; }
-    if (game.tool==='water' && fenceAt(x,y)){ toast('Move the fence before making water.'); return; }
-    if (game.tool==='water' && lightAt(x,y)){ toast('Move the light before making water.'); return; }
-    if (game.tool==='water' && petAt(x,y)){ toast('Move your pet before making water.'); return; }
-    if (game.tool==='water' && ornamentAt(x,y)){ toast('Move the ornament before making water.'); return; }
-    if (firepitAt(x,y)){ toast('Move the fire pit before changing the ground.'); return; }
-    if (waterFeatureAt(x,y)){ toast('Move the water feature before changing the ground.'); return; }
-  if (supportHoldsGround(x,y)){ toast('Move the support before changing the ground.'); return; }
-    if (game.tool==='water' && structureSupportAt(x,y)){ toast('Move the arch before making water.'); return; }
-    if (pergolaAt(x,y) && game.tool==='water'){ toast('Move the pergola before making water.'); return; }
-    if (boulderAt(x,y)){ toast('Move the boulder before changing the ground.'); return; }
+      rejectPlacement(game.tool==='lawn' ? 'A floating plant is there: lawn would strand it.' : 'Lift the plant first.'); return; }
+    if (hasBulb && game.tool==='water'){ rejectPlacement('Dig the bulb first.'); return; }
+    if (game.tool==='water' && fenceAt(x,y)){ rejectPlacement('Move the fence before making water.'); return; }
+    if (game.tool==='water' && lightAt(x,y)){ rejectPlacement('Move the light before making water.'); return; }
+    if (game.tool==='water' && petAt(x,y)){ rejectPlacement('Move your pet before making water.'); return; }
+    if (game.tool==='water' && ornamentAt(x,y)){ rejectPlacement('Move the ornament before making water.'); return; }
+    if (firepitAt(x,y)){ rejectPlacement('Move the fire pit before changing the ground.'); return; }
+    if (waterFeatureAt(x,y)){ rejectPlacement('Move the water feature before changing the ground.'); return; }
+  if (supportHoldsGround(x,y)){ rejectPlacement('Move the support before changing the ground.'); return; }
+    if (game.tool==='water' && structureSupportAt(x,y)){ rejectPlacement('Move the arch before making water.'); return; }
+    if (pergolaAt(x,y) && game.tool==='water'){ rejectPlacement('Move the pergola before making water.'); return; }
+    if (boulderAt(x,y)){ rejectPlacement('Move the boulder before changing the ground.'); return; }
     const wasSame=terr===game.tool;
     const r=stampBrushAt(x,y,opts);
     /* Lawn has its own words. It fell through to the bed's, so laying a meadow
@@ -377,22 +392,22 @@ function actHere(opts){
     return;
   }
   // a fence is in the way of everything but a climber, which grows ON it
-  if (fenceAt(x,y) && !(PLANTS[game.tool] && PLANTS[game.tool].type==='vine')){ toast('Fence is in the way.'); return; }
-  if (lightAt(x,y)){ toast('A light is in the way.'); return; }
-  if (firepitAt(x,y)){ toast('A fire pit is in the way.'); return; }
-  if (waterFeatureAt(x,y)){ toast('A water feature is in the way.'); return; }
-  if (boulderAt(x,y)){ toast('A boulder is in the way.'); return; }
-  if (ornamentAt(x,y)){ toast(`The ${ornamentKind(ornamentAt(x,y).kind).label.toLowerCase()} is in the way.`); return; }
+  if (fenceAt(x,y) && !(PLANTS[game.tool] && PLANTS[game.tool].type==='vine')){ rejectPlacement('Fence is in the way.'); return; }
+  if (lightAt(x,y)){ rejectPlacement('A light is in the way.'); return; }
+  if (firepitAt(x,y)){ rejectPlacement('A fire pit is in the way.'); return; }
+  if (waterFeatureAt(x,y)){ rejectPlacement('A water feature is in the way.'); return; }
+  if (boulderAt(x,y)){ rejectPlacement('A boulder is in the way.'); return; }
+  if (ornamentAt(x,y)){ rejectPlacement(`The ${ornamentKind(ornamentAt(x,y).kind).label.toLowerCase()} is in the way.`); return; }
   const def=PLANTS[game.tool] ? plantDef(game.tool,game.toolVar) : null;
   if (!def) return;
   // a marginal on dry ground falls through and plants like any perennial
   if (plantedOnWater(def,terr)){
-    if (terr!=='water'){ toast(`${def.name} floats on open water, so it needs a pond, river, or lake tile.`); return; }
+    if (terr!=='water'){ rejectPlacement(`${def.name} floats on open water, so it needs a pond, river, or lake tile.`); return; }
     if (hasPlant){ showPlantCard(existing,x,y); return; }
-    if (hasBulb){ toast('Lift the bulb before planting in water.'); return; }
+    if (hasBulb){ rejectPlacement('Lift the bulb before planting in water.'); return; }
     const shadeBlock=canopyShadeHardBlock(def,x,y);
     if (shadeBlock){
-      toast(canopyShadeHardMessage(def,shadeBlock));
+      rejectPlacement(canopyShadeHardMessage(def,shadeBlock));
       return;
     }
     const shadeWarn=canopyShadeSoftWarning(def,x,y);
@@ -410,9 +425,9 @@ function actHere(opts){
      refuses, the same tile a tree's trunk stands on. */
   if (def.type==='bulb'){
     if (hasBulb){ showPlantCard(bulbHere,x,y); return; }
-    if (!potAt(x,y) && (terr==='path'||terr==='water')){ toast(terr==='water'?'Not in the water.':'Not in the gravel — lift the path first, or stand a pot on it.'); return; }
+    if (!potAt(x,y) && (terr==='path'||terr==='water')){ rejectPlacement(terr==='water'?'Not in the water.':'Not in the gravel — lift the path first, or stand a pot on it.'); return; }
     if (hasPlant && plantLayerOf(existing)==='woody'){
-      toast(`That is where the ${plantNameInline(plantDef(existing.s,existing.v))} stands — tuck the bulbs in around it.`); return; }
+      rejectPlacement(`That is where the ${plantNameInline(plantDef(existing.s,existing.v))} stands — tuck the bulbs in around it.`); return; }
     const n=game.drift?driftCount(def):1;
     if (n>1){ stampDrift(x,y,n,opts); return; }
     if (applyToolAt(x,y,opts)){ hapticFeedback('place');
@@ -422,7 +437,7 @@ function actHere(opts){
   }
   const potHere=potAt(x,y);
   if (potHere && isTreeDef(def)){ rejectPlacement('A tree needs open ground, not a container.'); return; }
-  if (!potHere && (terr==='path'||terr==='water')){ toast(terr==='water'?'Dry land first — land plants and ponds disagree.':'Dig the path up first — plants and gravel disagree, unless you stand a pot on it.'); return; }
+  if (!potHere && (terr==='path'||terr==='water')){ rejectPlacement(terr==='water'?'Dry land first — land plants and ponds disagree.':'Dig the path up first — plants and gravel disagree, unless you stand a pot on it.'); return; }
   if (hasPlant){ showPlantCard(existing,x,y); return; }
   /* Say WHY a climber or a frame refused, rather than the generic line: the
      rule is symmetric (placePlantAt) and neither half is guessable. */
@@ -436,7 +451,7 @@ function actHere(opts){
   if (supHere && supHere.kind==='pergola' && isTreeDef(def)){ rejectPlacement(PERGOLA_BLOCKER_TEXT.tree); return; }
   const shadeBlock=canopyShadeHardBlock(def,x,y);
   if (shadeBlock){
-    toast(canopyShadeHardMessage(def,shadeBlock));
+    rejectPlacement(canopyShadeHardMessage(def,shadeBlock));
     return;
   }
   const shadeWarn=canopyShadeSoftWarning(def,x,y);
@@ -467,7 +482,13 @@ function treePlacedMessage(def,x,y,k){
    paste and loading a garden never call it. That makes it the one honest place
    to count what the gardener has actually planted, which the coach beats
    (ui.js) thread their timing off. */
-function plantFx(x,y,p){ const o=plantOffset(p); game.fx.push({x,y,ox:o.ox,oy:o.oy,t0:performance.now()});
+/* A drift lays its cluster a beat apart (stampDrift sets this around each
+   placement), so it scatters in rather than landing at once. */
+let plantFxDelay=0;
+const PLANT_FX_CAP=400;   // pulses at once: a fill can place a few thousand in one call
+function plantFx(x,y,p){ const o=plantOffset(p);
+  if (game.fx.length<PLANT_FX_CAP) game.fx.push({x,y,ox:o.ox,oy:o.oy,t0:performance.now()+plantFxDelay});
+  fxSprout(p,plantFxDelay);   // the plant grows in from its foot (renderer.js, EDIT_FX)
   coachNotePlanting();
   /* Counted here rather than per gesture, so the number is plants and not taps.
      This runs once per placed TILE — a fat drag is dozens inside one frame — so
@@ -763,10 +784,14 @@ function stampDrift(cx0,cy0,n,opts){
     [rest[i],rest[j]]=[rest[j],rest[i]]; }
   const def=plantDef(game.tool,game.toolVar);
   let placed=0; const tiles=[];
-  for (const [ox,oy] of [offs[0],...rest]){
-    if (placed>=n) break;
-    if (applyToolAt(cx0+ox,cy0+oy,(!ox&&!oy)?opts:null)){ placed++; tiles.push([cx0+ox,cy0+oy]); }
-  }
+  const stagger=reducedMotion() ? 0 : EDIT_FX.DRIFT_STAGGER_MS;
+  try{
+    for (const [ox,oy] of [offs[0],...rest]){
+      if (placed>=n) break;
+      plantFxDelay=placed*stagger;   // each one a beat after the last
+      if (applyToolAt(cx0+ox,cy0+oy,(!ox&&!oy)?opts:null)){ placed++; tiles.push([cx0+ox,cy0+oy]); }
+    }
+  } finally { plantFxDelay=0; }
   /* The tour's drift step: arming the chip is only the setup the copy names
      first — a cluster actually landing is what the step teaches, and >1 is
      what makes it a drift rather than an ordinary planting. */
@@ -890,7 +915,7 @@ function tapPergolaAt(x,y){
     return;
   }
   const r=pergolaTapRect(x,y), bl=pergolaRectBlocker(r);
-  if (bl){ rejectPlacement(PERGOLA_BLOCKER_TEXT[bl.why]+' Drag out a smaller one.'); return; }
+  if (bl){ rejectPlacement(PERGOLA_BLOCKER_TEXT[bl.why]+' Drag out a smaller one.',bl.x,bl.y); return; }
   if (placePergolaRect(r)){
     hapticFeedback('place');
     toast(`Laid a ${pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1)} ${pergolaLabel().toLowerCase()}. Drag corner to corner for another size.`);
@@ -900,7 +925,7 @@ function tapPergolaAt(x,y){
    corners at pointerup). Reported once, for the whole roof. */
 function finishPergolaDrag(x0,y0,x1,y1){
   const r=pergolaRect(x0,y0,x1,y1), bl=pergolaRectBlocker(r);
-  if (bl){ rejectPlacement(PERGOLA_BLOCKER_TEXT[bl.why]); return 0; }
+  if (bl){ rejectPlacement(PERGOLA_BLOCKER_TEXT[bl.why],bl.x,bl.y); return 0; }
   const n=placePergolaRect(r);
   if (n){
     hapticFeedback('place');
@@ -1595,7 +1620,7 @@ function tapTerraceAt(x,y){
     return;
   }
   const r=terraceTapRect(x,y), bl=terraceRectBlocker(r);
-  if (bl){ rejectPlacement(TERRACE_BLOCKER_TEXT[bl.why]+' Drag out a smaller one.'); return; }
+  if (bl){ rejectPlacement(TERRACE_BLOCKER_TEXT[bl.why]+' Drag out a smaller one.',bl.x,bl.y); return; }
   if (buildTerraceRect(r,d)){
     hapticFeedback('place');
     toast(terraceBuiltText(r,d)+' Drag corner to corner for another size.');
@@ -1604,7 +1629,7 @@ function tapTerraceAt(x,y){
 // a drag builds the rectangle between its two corners (input.js, at pointerup)
 function finishTerraceDrag(x0,y0,x1,y1){
   const r=pergolaRect(x0,y0,x1,y1), bl=terraceRectBlocker(r), d=terraceDraft();
-  if (bl){ rejectPlacement(TERRACE_BLOCKER_TEXT[bl.why]); return 0; }
+  if (bl){ rejectPlacement(TERRACE_BLOCKER_TEXT[bl.why],bl.x,bl.y); return 0; }
   const n=buildTerraceRect(r,d);
   if (n){ hapticFeedback('place'); toast(terraceBuiltText(r,d)); }
   else toast('That terrace is already there.');
@@ -2650,15 +2675,18 @@ function eraseBrush(cx,cy,counts){
   const can=(name,mode)=>layerShown(name) && layerEditable(name) && (m==='all'||m===mode);
   const peren=can('perennials','plant'), woody=can('woody','plant');
   const bulbOK=can('bulbs','bulb'), terrOK=can('landscape','terrain');
+  fxLiftGesture(counts);   // a new tally is a new gesture, with its own allowance of ghosts
   for (const [dx,dy] of brushOffsets(game.brushSize)){
     const x=cx+dx, y=cy+dy;
     if (!onPlot(x,y)) continue;
     const k=`${x},${y}`, p=game.plants[k];
+    // what goes shrinks away where it stood (fxLiftPlant), anything else a red diamond
+    const n0=eraseCountTotal(counts); let lifted=false;
     if (p && !p.removed && (plantLayerOf(p)==='woody'?woody:peren)){
-      clearTile('plants',k); counts.plants++; }
+      lifted=true; fxLiftPlant('plants',k,x,y,counts); clearTile('plants',k); counts.plants++; }
     const b=game.bulbs[k];
     if (bulbOK && b && !b.removed){
-      clearTile('bulbs',k); counts.bulbs++; }
+      lifted=true; fxLiftPlant('bulbs',k,x,y,counts); clearTile('bulbs',k); counts.bulbs++; }
     /* A crossing first, the water under it on a second pass: erasing a bridge
        should not drain the pond it crosses. */
     if (terrOK && crossingAt(x,y)){
@@ -2678,7 +2706,7 @@ function eraseBrush(cx,cy,counts){
          a support or a pergola does below: a vine left standing would be on
          ground placePlantAt refuses. */
       const pv=game.plants[k];
-      if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ clearTile('plants',k); counts.plants++; }
+      if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ lifted=true; fxLiftPlant('plants',k,x,y,counts); clearTile('plants',k); counts.plants++; }
       clearTile('fences',k); counts.fence=(counts.fence||0)+1; }
     if (terrOK && lightAt(x,y)){
       clearTile('lights',k); counts.light=(counts.light||0)+1; }
@@ -2695,7 +2723,7 @@ function eraseBrush(cx,cy,counts){
       if (spe){
         for (const [sx2,sy2] of supportFootprint(spe.x,spe.y,spe)){
           const pk=`${sx2},${sy2}`, pv=game.plants[pk];
-          if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ clearTile('plants',pk); counts.plants++; }
+          if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ fxLiftPlant('plants',pk,sx2,sy2,counts); clearTile('plants',pk); counts.plants++; }
         }
         clearTile('supports',spe.key); counts.support=(counts.support||0)+1;
       }
@@ -2704,7 +2732,7 @@ function eraseBrush(cx,cy,counts){
          ground placePlantAt refuses. */
       if (pergolaAt(x,y)){
         const pv=game.plants[k];
-        if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ clearTile('plants',k); counts.plants++; }
+        if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ lifted=true; fxLiftPlant('plants',k,x,y,counts); clearTile('plants',k); counts.plants++; }
         clearTile('pergolas',k); counts.pergola=(counts.pergola||0)+1;
       }
       const bo=boulderAt(x,y);
@@ -2724,6 +2752,7 @@ function eraseBrush(cx,cy,counts){
     if (terrOK){ const bb=buildingAt(x,y);
       if (bb){ const i=game.buildings.indexOf(bb);
         if (removeBuildingAtIndex(i)) counts.building=(counts.building||0)+1; } }
+    if (!lifted && eraseCountTotal(counts)>n0) fxLiftMark(x,y);
   }
 }
 function sweepLift(x,y){ eraseBrush(x,y,sweep); }
@@ -2741,6 +2770,7 @@ function eraseShrubBySpread(x,y,counts){
   if (!(layerShown('woody') && layerEditable('woody') && (m==='all'||m==='plant'))) return false;
   const sh=onPlot(x,y) && shrubAt(x,y);
   if (!sh) return false;
+  fxLiftPlant('plants',sh.key,sh.x,sh.y,counts);
   clearTile('plants',sh.key); counts.plants++;
   return true;
 }
@@ -3652,7 +3682,12 @@ function locatedGroundDiff(prev,next,out){
   for (const k in prev) if (!(k in next)){ if (out.size>=GROUND_DAMAGE_CAP) return false; out.add(k); }
   return true;
 }
+/* The ground tiles the last applySnapshot moved, for the undo flash: a Set,
+   null where a house or footprint moved (no tiles say where), or false past
+   GROUND_DAMAGE_CAP, which is far too much to point at. */
+let snapshotGroundTiles=null;
 function applySnapshotGround(before){
+  snapshotGroundTiles=null;
   /* Houses and building footprints are UNLOCATED. A footprint joins the organic
      edge classification (isLawnTile refuses a building tile), so adding or
      removing one re-classifies arcs over an area no tile list describes — they
@@ -3665,9 +3700,11 @@ function applySnapshotGround(before){
   const tiles=new Set(), levels=new Set();
   if (!locatedGroundDiff(before.terrain,game.terrain,tiles) ||
       !locatedGroundDiff(before.elevation,game.elevation,levels)){
+    snapshotGroundTiles=false;
     markGroundChanged({terrain:true}); return 'full';   // past the cap the overlay stops being cheaper
   }
-  for (const k of levels){ if (tiles.size>=GROUND_DAMAGE_CAP){ markGroundChanged({terrain:true}); return 'full'; } tiles.add(k); }
+  for (const k of levels){ if (tiles.size>=GROUND_DAMAGE_CAP){ snapshotGroundTiles=false; markGroundChanged({terrain:true}); return 'full'; } tiles.add(k); }
+  snapshotGroundTiles=tiles;
   // Nothing on the ground moved, so the bake and the traced contours still
   // stand — this is the planting undo, and it is the common case.
   if (!tiles.size) return 0;
@@ -3755,15 +3792,46 @@ function doUndo(){
   const snap=popLiveSnapshot(undoStack);
   if (!snap){ updateUndoBtn(); toast('Nothing to undo.'); return; }
   redoStack.push(snapshotState()); if (redoStack.length>30) redoStack.shift();
-  const before=game.schemeActive;
+  const before=game.schemeActive, was=historyLayersNow();
   applySnapshot(snap); toast(historyNote('Undone',before));
+  historyFlash(was,before);
 }
 function doRedo(){
   const snap=popLiveSnapshot(redoStack);
   if (!snap){ updateUndoBtn(); toast('Nothing to redo.'); return; }
   undoStack.push(snapshotState()); if (undoStack.length>30) undoStack.shift();
-  const before=game.schemeActive;
+  const before=game.schemeActive, was=historyLayersNow();
   applySnapshot(snap); toast(historyNote('Redone',before));
+  historyFlash(was,before);
+}
+/* ---------- the undo flash ----------
+   In a big garden an undo is a toast and a change you cannot find. applySnapshot
+   already knows which ground tiles it moved (snapshotGroundTiles); the rest of
+   the keyed layers are swapped whole, so the maps from before are compared with
+   the restored ones by RECORD IDENTITY, the invariant locatedGroundDiff rests
+   on (a shallow snapshot shares every record nobody wrote). A piece standing on
+   several tiles is keyed, and flashed, by its origin tile. Past FLASH_CAP tiles,
+   or across a scheme switch, there is nothing local to point at, so no flash. */
+function historyLayersNow(){
+  const o={};
+  for (const L of GAME_LAYERS) if (!L.array && L.k!=='terrain' && L.k!=='elevation') o[L.k]=game[L.k];
+  return o;
+}
+const recGone=r=>!r || r.removed;
+function historyDiffKeys(prev,next,out,cap){
+  prev=prev||{}; next=next||{};
+  if (prev===next) return true;
+  for (const k in next){ const a=prev[k], b=next[k];
+    if (a!==b && !(recGone(a)&&recGone(b))){ if (out.size>=cap) return false; out.add(k); } }
+  for (const k in prev) if (!(k in next) && !recGone(prev[k])){ if (out.size>=cap) return false; out.add(k); }
+  return true;
+}
+function historyFlash(was,schemeBefore){
+  if (game.schemeActive!==schemeBefore || snapshotGroundTiles===false) return false;
+  const cap=EDIT_FX.FLASH_CAP, tiles=new Set(snapshotGroundTiles||[]);
+  if (tiles.size>cap) return false;
+  for (const k in was) if (!historyDiffKeys(was[k],game[k],tiles,cap)) return false;
+  return fxFlashTiles(tiles);
 }
 /* ---------- scheme commands (switching is navigation, not an edit) ----------
    A switch does not push an undo snapshot: it is the same class of action as

@@ -4470,7 +4470,8 @@ function hasActiveGesture(){
 function hasTransientGardenWork(){
   return !!(gardenOpening || game.ffActive || hasActiveGesture()
     || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length)
-    || seasonFadeActive()     // the season crossfade needs live frames for ~1s
+    || editFxBusy()           // a sprout, an erase ghost, an undo flash or a refusal still drawing (EDIT_FX)
+    || seasonFadeActive()    // the season crossfade needs live frames for ~1s
     || skipPending()          // and a Skip being prepared lands sooner at full rate
     || spritesPending());     // clumps still drawn as a stand-in: their bakes should not wait on the idle cadence
 }

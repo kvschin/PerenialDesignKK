@@ -454,7 +454,8 @@ See §13a.
   snapshot, the wash surfaces and what quitting hands back run only there; every
   other browser test is Chromium, and one tool is Firefox. It opens a garden,
   turns night on, rotates, zooms, holds fast-forward, skips four seasons, plants,
-  undoes, quits to the menu and opens the garden again. It fails on a page error,
+  undoes, erases a sweep (whose ghosts draw from the canvas sprites, §11h), quits
+  to the menu and opens the garden again. It fails on a page error,
   an error-log entry, the crash panel, a clump without its own sprite at a
   reveal, or anything the garden still holds at the menu. **It is not an iPad**:
   Playwright's desktop WebKit rasterises in software, so its frame times say
@@ -607,7 +608,9 @@ See §13a.
   counts pixels `outside` the rectangle apart, the failure that matters. `--soft`
   rasterises in software, where a difference cannot be the GPU's noise.
 - `node dev/perf-audit.cjs --profile phone --engine chrome` drives the real app
-  at a real viewport and reports where a frame goes. Two halves, deliberately:
+  at a real viewport and reports where a frame goes (`--garden
+  dev/test-gardens/woodland.prairie.json` takes any garden file in the repo; the
+  shrub border outruns its 420s timeout at the phone profile). Two halves, deliberately:
   **live**, where the app's own rAF loop draws and the probe only supplies input
   (camera, zoom ticks, brush stamps) — the honest end-to-end number, since it
   includes `shouldRenderGarden`, `updateHUD`, the compositor and the
@@ -4081,6 +4084,52 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     lighting demo lays the same night on its stage when its lights come on
     (`gsNight`, a scratch canvas of its own, reading no game state).
 
+11h. **Edit feedback at the tile** (`EDIT_FX`, `drawEditFx`, renderer.js;
+    Nov 2026). Planting had its 550ms diamond (`game.fx`) and an erase, an undo
+    or a refused tap had only a toast at the top of the screen, which in a big
+    garden says that something happened and not where. Four answers at the tile,
+    each capped so a frame's cost is bounded whatever a fill or sweep does:
+    *Sprout* (`fxSprout`, from `plantFx`): a new plant or bulb grows in from its
+    foot, 0.6 -> 1.05 -> 1 over 220ms, as a TRANSFORM on that record's own draw in
+    the entity pass (`drawPlantSprouting`), so it sorts and occludes as the plant
+    does. The key is the plant's own and nothing extra is baked. The entity pass
+    SETS the matrix for a sheared blit, which would discard the scale, so
+    `plantBlitScale` is lifted for that one draw and the blit takes its
+    save/restore path. Every other plant pays one compare (`sproutLive`). At most
+    `SPROUT_BURST` (12) start in one frame (a fill: the first, nearest the tap)
+    and `SPROUT_CAP` (32) run at once, the oldest finishing early. A drift
+    staggers its plants `DRIFT_STAGGER_MS` (35) apart (`plantFxDelay`, set round
+    each placement in `stampDrift`), and a plant whose turn has not come is not
+    drawn. *Lift* (`fxLiftPlant`, in `eraseBrush`): an erased plant or bulb
+    shrinks and fades for 180ms, drawn from its scene record's sprite LOOKED UP
+    BY KEY each frame and never held (a retired bitmap leaves the map at once and
+    is closed a frame later), else procedurally within `LIFT_PROC_MS` (2ms) a
+    frame, else as a diamond; 40 a gesture (a new `counts` object is a new
+    gesture), then red diamonds, which is also what anything else an erase takes
+    gets (`fxLiftMark`, `MARK_CAP` 240, drawn in four fade bands, a stroke each).
+    *Flash* (`historyFlash`, in `doUndo`/`doRedo`): the tiles an undo or redo
+    changed, outlined for 400ms. Ground tiles come from `applySnapshotGround`
+    (`snapshotGroundTiles`); the other keyed layers, which applySnapshot swaps
+    whole, are compared by record identity (`historyDiffKeys`); none past
+    `FLASH_CAP` (240) tiles or across a scheme switch. *Refuse* (`fxRefuse`): a
+    red diamond with one small shake. `rejectPlacement(msg,x,y)` flashes where it
+    is told, or inside `actHere` (now a wrapper over `actOnTile` that keeps
+    `refuseTile`) at the tapped tile; the pergola and terrace rectangles point at
+    the tile in the way. The in-the-way and lift-it-first toasts of a tap became
+    `rejectPlacement`, so they also buzz (`hapticFeedback('invalid')`).
+    `EDIT_FX.until` is when the last effect ends, and `editFxBusy()` in
+    `hasTransientGardenWork` keeps full-rate frames only until then. Effects run
+    on `performance.now()` (`EDIT_FX.now`, set by `editFxFrame` before the entity
+    pass), the clock they were stamped on, not rAF's. Under reduced motion
+    nothing scales, expands or shakes: no sprout, no stagger, no ghost, and the
+    pulse, diamonds and refusal hold still while they fade.
+    Measured (Chrome 158, demo garden and the woodland test garden): with
+    nothing running, an in-page A/B against the previous `drawSceneEnt` and
+    `render` is within the 0.1ms timer resolution (woodland min 9.0 vs 9.0ms,
+    demo 2.6 vs 2.6, phone density); with every effect at its cap at once (32
+    sprouts, 40 ghosts, 240 diamonds, a 240-tile flash) a demo frame is 4.4ms
+    against 3.3, for at most 400ms. Live, the idle cadence stays 28-30fps before
+    and after an effect.
 12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
     `game.actX`/`actY` names — the last one a tap or the E key addressed),
     **`inspectPlantAt(x,y)`** (the Hand tool's tap-to-inspect). The plant card
