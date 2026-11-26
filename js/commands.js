@@ -2475,14 +2475,32 @@ function crownTilesText(P){
    used to close itself after 8 seconds, which is shorter than it takes to read
    the blurb and the roles and then decide whether to press Replace… — the card
    went away under the pointer on its way to the button. */
+/* A card on its way out (data-leave, a 110ms fade) is already closed: Escape,
+   the next tap and the compass treat it as gone, and it takes no pointer. */
 function plantCardOpen(){
   const el=document.getElementById('plantCard');
-  return !!(el && el.style && el.style.display==='block');
+  return !!(el && el.style && el.style.display==='block' && !(el.hasAttribute && el.hasAttribute('data-leave')));
 }
+const PLANT_CARD_LEAVE_MS=120;
 function hidePlantCard(){
   const el=document.getElementById('plantCard'); if (!el) return false;
   const was=plantCardOpen();
-  clearTimeout(el._t); el.style.display='none';
+  const leaving=!!(el.hasAttribute && el.hasAttribute('data-leave'));
+  if (!leaving){
+    clearTimeout(el._t);
+    if (was && el.setAttribute && !reducedMotion()){
+      /* Fade where it stands, then go. Focus leaves it now, as display:none
+         would have taken it, so a key pressed during the fade is not typed
+         into a card that is no longer there. */
+      el.removeAttribute('data-enter'); el.setAttribute('data-leave','');
+      const a=document.activeElement;
+      if (a && a!==document.body && el.contains && el.contains(a) && a.blur) a.blur();
+      el._t=setTimeout(()=>{ el.style.display='none'; el.removeAttribute('data-leave'); },PLANT_CARD_LEAVE_MS);
+    } else {
+      el.style.display='none';
+      if (el.removeAttribute) el.removeAttribute('data-leave');
+    }
+  }
   game.focusPlantKey=null; game.focusTile=null;
   return was;
 }
@@ -2490,6 +2508,13 @@ function showPlantCard(p,px2,py2){
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
   clearTimeout(el._t);
   const focusKey=plantKeyOf(p);
+  /* It comes in only when it OPENS or turns to another plant. placePlantCard
+     runs again on a resize and rewrites the class; the entrance rides an
+     attribute instead, so re-placing it never plays it again. */
+  const wasShowing=plantCardOpen(), prevTile=game.focusTile;
+  const enters=!wasShowing || game.focusPlantKey!==focusKey ||
+    String(prevTile)!==String(px2!==undefined && py2!==undefined ? [px2,py2] : null);
+  if (el.removeAttribute) el.removeAttribute('data-leave');
   game.focusPlantKey=focusKey;
   game.focusTile=(px2!==undefined && py2!==undefined) ? [px2,py2] : null;
   const shaded = px2!==undefined && P.sun!=='part' && !isTreeDef(P) && shadeInfoAt(px2,py2,false);
@@ -2538,6 +2563,18 @@ function showPlantCard(p,px2,py2){
   }
   el.style.display='block';
   placePlantCard();
+  if (enters) plantCardEnter(el);
+}
+/* Grows out of the edge that faces its plant (the side class placePlantCard
+   writes sets the origin, styles.css). Two names for one entrance, swapped
+   each time, so a card turning to a new plant mid-entrance starts over without
+   a forced reflow. */
+function plantCardEnter(el){
+  if (!el.setAttribute || reducedMotion()) return;
+  const v=el.getAttribute('data-enter')==='a' ? 'b' : 'a';
+  el.setAttribute('data-enter',v);
+  if (el._enterStop) el._enterStop();
+  el._enterStop=afterMotion(el,400,()=>{ el._enterStop=null; if (el.getAttribute('data-enter')===v) el.removeAttribute('data-enter'); });
 }
 /* The card sits BESIDE the plant it describes, inside the part of the canvas
    the chrome leaves clear (usableCanvasRect) — never over the docked library
@@ -2608,11 +2645,33 @@ function placePlantCard(){
 }
 function toast(msg,kind){
   const el=document.getElementById('toast');
+  const showing=!!(el.classList && el.classList.contains('on'));
   el.textContent=msg; el.style.opacity=1;
   if (el.classList) el.classList.toggle('warn',kind==='warn');
-  toastClearOfHint(el);
+  toastClearOfHint(el);   // measured at rest, before the entrance moves it
+  toastMotion(el,showing);
   clearTimeout(el._t);
-  el._t=setTimeout(()=>el.style.opacity=0,2600);
+  el._t=setTimeout(()=>{ el.style.opacity=0; if (el.classList) el.classList.remove('on'); },2600);
+}
+/* The toast rises a few pixels into place as it fades in, and a message that
+   replaces one still on screen comes in again rather than swapping its words
+   in place; a warning adds one small sideways nudge (styles.css). Each is a
+   one-shot class, and each comes in two names used alternately, so a toast
+   arriving mid-animation restarts it without a forced reflow. The opacity is
+   still the inline style and its transition, as before. */
+function toastMotion(el,showing){
+  if (!el.classList) return;
+  el.classList.add('on');
+  /* under reduced motion no one-shot at all: even a .01ms animation shows its
+     first keyframe for a frame */
+  if (reducedMotion()) return;
+  const was=el._motion||'';
+  if (was) el.classList.remove(was);
+  // the suffix flips on every toast, so the animation name always changes
+  el._flip=el._flip!==true;
+  const cls=(showing ? 'toast-swap' : 'toast-in')+(el._flip ? '' : '2');
+  el._motion=cls; el.classList.add(cls);
+  afterMotion(el,700,()=>{ if (el._motion===cls){ el.classList.remove(cls); el._motion=''; } });
 }
 /* A tool hint standing in the toast's band is stepped under, not printed
    across: both are translucent, and on a phone with a new garden's Start here

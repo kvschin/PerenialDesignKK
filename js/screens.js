@@ -1107,6 +1107,35 @@ const DAILY_SHARE_FORMATS={
   story:{label:'Story',width:1080,height:1920}
 };
 let dailyShareImage=null, dailyShareRequest=0, dailyFinishing=false,dailySharing=false;
+/* Finishing a brief is the one moment here that is celebrated: the image of
+   the finished design develops in (a fade and a slight settling scale) and a
+   check mark lands on its corner (styles.css, .daily-share-frame). Set by a
+   successful finish, spent by the image that save prepares, so changing the
+   format or the season afterwards just shows the new image. The check stays
+   on any image of a finished design; it is what the status line already says. */
+let dailyDevelopPending=false;
+function dailySavedCheck(frame){
+  if (!frame || !frame.querySelector || !frame.appendChild) return;
+  const have=frame.querySelector('.daily-saved-check');
+  if (have && have.isConnected===true) return;
+  const badge=document.createElement('span'); badge.className='daily-saved-check';
+  badge.setAttribute('aria-hidden','true'); badge.appendChild(uiIcon('check'));
+  frame.appendChild(badge);
+}
+function showDailyImage(img,frame,c){
+  if (!frame || !frame.classList) return;
+  frame.classList.toggle('saved',!!(c && c.completedAt));
+  if (frame.classList.contains('saved')) dailySavedCheck(frame);
+  if (!dailyDevelopPending) return;
+  dailyDevelopPending=false;
+  if (reducedMotion()) return;
+  // held clear until the picture is decoded, or it would show whole for a frame and then start from nothing
+  frame.classList.add('await-develop');
+  let started=false;
+  const go=()=>{ if (started) return; started=true; frame.classList.remove('await-develop'); motionOnce(frame,'developing',1400); };
+  const p=img && img.decode ? img.decode() : null;
+  if (p && p.then){ p.then(go,go); setTimeout(go,900); } else go();
+}
 function syncDailyShareControls(){
   $('btnChallengeDownload').disabled=!dailyShareImage;
   $('btnChallengeCaption').disabled=!dailyShareImage;
@@ -1119,6 +1148,7 @@ function clearDailyShare(hide=true){
   if(dailyShareImage)URL.revokeObjectURL(dailyShareImage.url);
   dailyShareImage=null;
   $('challengeImage').removeAttribute('src');$('challengeCaption').value='';
+  $('challengeImageFrame').classList.remove('saved','await-develop','developing');
   $('challengeShare').classList.toggle('hidden',hide);
   $('challengeShare').setAttribute('aria-busy','false');
   $('btnChallengeShareRetry').classList.add('hidden');
@@ -1141,6 +1171,7 @@ function openChallengeBrief(){
 function openChallengeFinish(){
   const c=game.challenge;if(!c)return;
   closeOverlay('gardenMenu',false);closeOverlay('challengeScreen',false);clearDailyShare();
+  dailyDevelopPending=false;   // only the finish that follows may set it
   $('challengeFinishTitle').textContent=c.completedAt?'Design saved':'Finish design';
   $('challengeFinishName').textContent=c.title;
   $('challengeStatus').textContent='';
@@ -1173,6 +1204,7 @@ async function finishDailyDesign(){
       $('challengeFinishTitle').textContent='Design saved';
       $('challengeStatus').textContent='Finished and saved to Your gardens.';
       syncChallengeFinishButton(true);
+      dailyDevelopPending=true;
     }
     if(shareRequest===dailyShareRequest){
       await prepareDailyShare();
@@ -1243,6 +1275,7 @@ async function prepareDailyShare(){
     dailyShareImage={blob,file,name,url,canShare,worldId:id,title:c.title,format:options.format,season:moment.season};
     $('challengeImage').alt=`${c.title} · ${moment.season} · ${format.label} sharing image`;
     $('challengeImage').src=url;
+    showDailyImage($('challengeImage'),$('challengeImageFrame'),c);
     $('challengeCaption').value=`My ${c.title} garden for the SeedHead daily design challenge on ${dailyDateLabel(c.date,true)}, shown in ${moment.season.toLowerCase()}.\n#SeedHead #GardenDesign`;
     $('challengeShareStatus').textContent=`${format.label} · ${format.width} × ${format.height} PNG · ${moment.season}. `+
       (canShare?'Ready to download or share.':'Ready to download. File sharing isn’t available in this browser.');
@@ -1404,6 +1437,21 @@ function worldDateLabel(ts,now=Date.now()){
   if (d.getFullYear()!==n.getFullYear()) opts.year='numeric';
   return d.toLocaleDateString(undefined,opts);
 }
+/* The gallery's motion (styles.css, "Your gardens" cards). Opening the list
+   deals the cards in, each a step after the one before, the steps capped so a
+   hundred gardens are all in within half a second; a list rebuilt while it is
+   on screen (a rename, a delete, a duplicate) is not dealt again. A garden just
+   duplicated pops in (worldPopId, read once by the build that shows it), and a
+   deleted one fades and folds away before the list closes over it. */
+const WORLD_DEAL_STEPS=8, WORLD_DEAL_MS=700;
+let worldPopId=null, worldDealStop=null;
+function worldCardLeave(id){
+  const list=$('worldList');
+  const card=list && list.children ? Array.from(list.children).find(c=>c && c.getAttribute && c.getAttribute('data-world-id')===id) : null;
+  // a real card on screen only: the test sandbox answers every query with a stub
+  if (!card || card.isConnected!==true || !card.classList || reducedMotion()) return Promise.resolve();
+  return new Promise(res=>{ card.classList.add('leaving'); afterMotion(card,260,res); });
+}
 /* One saved garden, as a card: its picture, its name, and two lines of detail.
 
    U04: a row used to be a <button> with the Actions <button> inside it, which
@@ -1415,6 +1463,8 @@ function worldDateLabel(ts,now=Date.now()){
    overlay as a separate button. */
 function worldCard(w){
   const row=document.createElement('div'); row.className='world-row'; row.setAttribute('role','listitem');
+  row.setAttribute('data-world-id',w.id);
+  if (worldPopId && w.id===worldPopId && !reducedMotion()) row.classList.add('pop');
   const thumb=document.createElement('canvas'); thumb.className='world-thumb';
   thumb.width=280; thumb.height=210;
   thumb.setAttribute('aria-hidden','true');
@@ -1558,7 +1608,10 @@ async function openWorlds(){
     ? `${idx.length} garden${idx.length===1?'':'s'} · saved on this device`
     : 'Saved on this device';
   $('btnNewWorld').replaceChildren(uiIcon('plus'),document.createTextNode('New garden'));
+  const opening=$('worldsScreen').classList.contains('hidden');
   const list=$('worldList'); list.innerHTML='';
+  if (worldDealStop){ worldDealStop(); worldDealStop=null; }
+  list.classList.remove('dealing');
   resetWorldPictures(list);
   /* An empty list SHOWS this screen rather than skipping it. Bouncing straight
      into the questionnaire hid "Import garden" — the only import control in
@@ -1566,7 +1619,16 @@ async function openWorlds(){
      friend shared could not be opened by the person it was sent to. */
   if (idx.length) list.setAttribute('role','list');
   else { list.removeAttribute('role'); list.appendChild(worldsEmptyState()); }
-  idx.sort((a,b)=>b.ts-a.ts).forEach(w=>list.appendChild(worldCard(w)));
+  idx.sort((a,b)=>b.ts-a.ts).forEach((w,i)=>{
+    const card=worldCard(w);
+    if (card.style && card.style.setProperty) card.style.setProperty('--deal',String(Math.min(i,WORLD_DEAL_STEPS)));
+    list.appendChild(card);
+  });
+  worldPopId=null;
+  if (opening && idx.length && !reducedMotion()){
+    list.classList.add('dealing');
+    worldDealStop=afterMotion(list,WORLD_DEAL_MS,()=>{ worldDealStop=null; list.classList.remove('dealing'); });
+  }
   show('worldsScreen');
   list.scrollTop=0;
   /* Rows saved before summaries: read once, in the background, so the next
@@ -1752,8 +1814,11 @@ function showWorldMenu(anchor,w){
    nothing while adoptOrphanedWorlds brought the garden back next visit. */
 async function deleteWorld(id){
   closeWorldMenu();
+  // the card fades while the write runs; the list is rebuilt once both are done
+  const leave=worldCardLeave(id);
   const done=await updateWorldsIndex(fresh=>({index:fresh.filter(w=>w.id!==id),
     del:['hortus:world:'+id]}));
+  await leave;
   if (!done) toast('That garden could not be deleted. It is still in your list.');
   else announceGardenChange(id);
   await openWorlds();
@@ -1806,10 +1871,11 @@ async function duplicateWorld(id){
      the whole operation — the sibling-name count, the id, the blob and the row
      — runs against a single fresh read. Reading names outside this section is
      what made two rapid duplicates come out identically titled. */
-  let name=null;
+  let name=null, made=null;
   await updateWorldsIndex(async fresh=>{
     name=copyGardenName(base,fresh);
     const newIdv=newWorldId(new Set(fresh.map(w=>w.id)));
+    made=newIdv;
     copy.name=name;
     copy.savedAt=Date.now();
     if (!(await sSet('hortus:world:'+newIdv,copy))){ name=null; return null; }
@@ -1820,6 +1886,7 @@ async function duplicateWorld(id){
   });
   if (!name){ toast('That garden could not be duplicated.'); return; }
   toast(`Duplicated "${base}".`);
+  worldPopId=made;
   openWorlds();
 }
 $('btnNewWorld').onclick=startNewGarden;

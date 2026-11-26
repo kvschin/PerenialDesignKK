@@ -279,13 +279,25 @@ function runStartStep(id){
 /* Collapsed by default where the canvas is a strip above a sheet (a phone),
    open where it sits beside the library. Per session; the ✕ is what persists. */
 let startHereSig='', startHereCollapsed=null;
+/* The ticks as last SHOWN, for one garden: a step's check draws in once, on
+   the rebuild where it first appears done (.just-done, styles.css), never on a
+   rebuild after that. A step done while the list is folded draws in when it
+   is next opened. */
+let startHereSeen=null;
 /* Called from updateHUD, so it must cost nothing when there is nothing to do:
    hidden gardens return on booleans, and a visible list rebuilds only when a
    tick, the collapse or the canvas area moves. */
 function syncStartHere(){
   const el=document.getElementById('startHere'); if (!el) return;
   if (!startHereApplies()){
-    if (!el.classList.contains('hidden')){ el.classList.add('hidden'); startHereSig=''; setToastFloor(0); reseatActiveToolStatus(); }
+    if (!el.classList.contains('hidden')){
+      el.classList.add('hidden'); startHereSig='';
+      /* Retired by the first plant (or its ✕), it folds up and away rather
+         than vanishing; leaving the garden it simply goes. It is hidden at once
+         all the same, so the toast and the hint take its place now. */
+      if (game.inGarden) motionOut(el,260);
+      setToastFloor(0); reseatActiveToolStatus();
+    }
     return;
   }
   if (startHereCollapsed===null) startHereCollapsed=mobileSheetUi();
@@ -294,7 +306,10 @@ function syncStartHere(){
   if (sig===startHereSig && !el.classList.contains('hidden')) return;
   startHereSig=sig;
   const n=done.filter(Boolean).length;
+  const seen=startHereSeen && startHereSeen.id===game.worldId ? startHereSeen : null;
   hudText('startHereCount',`${n} of ${START_STEPS.length}`);
+  // folded on a phone the count is all there is to see, so it ticks over instead
+  if (seen && n>seen.n && !reducedMotion()) motionOnce(document.getElementById('startHereCount'),'tick',500);
   const toggle=document.getElementById('btnStartHereToggle');
   if (toggle){
     toggle.setAttribute('aria-expanded',startHereCollapsed?'false':'true');
@@ -305,9 +320,11 @@ function syncStartHere(){
   if (list){
     list.hidden=!!startHereCollapsed;
     list.innerHTML='';
+    const shown=!startHereCollapsed;
     START_STEPS.forEach((s,i)=>{
       const li=document.createElement('li'), b=document.createElement('button');
-      b.type='button'; b.className='start-step'+(done[i]?' done':'');
+      const fresh=!!(shown && seen && done[i] && !seen.done[i]) && !reducedMotion();
+      b.type='button'; b.className='start-step'+(done[i]?' done':'')+(fresh?' just-done':'');
       const check=document.createElement('span'); check.className='start-check'; check.setAttribute('aria-hidden','true');
       const copy=document.createElement('span'); copy.className='start-step-copy';
       const t=document.createElement('b'); t.textContent=s.title;
@@ -317,7 +334,10 @@ function syncStartHere(){
       b.onclick=()=>runStartStep(s.id);
       li.appendChild(b); list.appendChild(li);
     });
+    // a folded list records the count only, so the checks it hid draw in on opening
+    startHereSeen={id:game.worldId, n, done: shown || !seen ? done.slice() : seen.done};
   }
+  motionOutStop(el);   // back (an undo) before its exit had finished
   el.classList.remove('hidden');
   placeStartHere(el);
   /* Folded to its bar on a phone, it stands exactly where a toast appears, and
@@ -2025,6 +2045,31 @@ function setPreviewMode(mode){
 // element — the same pattern the season fill below has always used.
 function hudText(id,txt){ const el=document.getElementById(id);
   if (el && el._t!==txt){ el._t=txt; el.textContent=txt; } }
+/* The season's name ROLLS over when it changes: the old name slides up out of
+   the box and the new one rises into its place (styles.css, .season-roll).
+   Guarded like hudText, so it does DOM work only on the frame the season
+   turns, never per frame. The outgoing name is one kept span (aria-hidden: the
+   real name is already the new one), and the two classes alternate so a turn
+   arriving mid-roll (a quick Skip, a long fast-forward) starts over without a
+   forced reflow. No roll on the first name a garden shows. */
+function hudSeasonName(txt){
+  const el=document.getElementById('seasonName');
+  if (!el || el._t===txt) return;
+  const was=el._t, same=el._garden===game.worldId;
+  el._t=txt; el.textContent=txt; el._garden=game.worldId;
+  if (!was || !same || !game.inGarden || reducedMotion() || !el.parentNode || !el.parentNode.insertBefore) return;
+  let out=el._out;
+  if (!out){
+    out=el._out=document.createElement('span');
+    out.className='season-name season-name-out'; out.setAttribute('aria-hidden','true');
+  }
+  if (out.parentNode!==el.parentNode) el.parentNode.insertBefore(out,el);
+  out.textContent=was;
+  el._roll=el._roll==='season-roll' ? 'season-roll2' : 'season-roll';
+  const host=el.parentNode, cls=el._roll;
+  host.classList.remove('season-roll','season-roll2'); host.classList.add(cls);
+  afterMotion(el,500,()=>{ if (el._roll===cls){ host.classList.remove(cls); if (out.parentNode) out.parentNode.removeChild(out); } });
+}
 /* the per-tool instruction for #actionHint (only built while that hint is enabled) */
 function actionHintText(){
   return game.tool==='building'
@@ -2064,7 +2109,7 @@ function actionHintText(){
 function updateHUD(){
   const cal=calClock();
   syncStartHere();   // returns on booleans unless a new garden's checklist is up
-  hudText('seasonName',cal.season);
+  hudSeasonName(cal.season);
   // A planner: real days are meaningless (a day is 20s), so the readout shows
   // the season + how far through it. The internal clock is unchanged.
   const seasonFrac=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
@@ -2123,9 +2168,61 @@ function overlayFocusables(el){
   return Array.from(el.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'))
     .filter(n=>!n.classList.contains('hidden') && n.getAttribute('aria-hidden')!=='true');
 }
+/* ---------- chrome motion ----------
+   Small one-shot movements for the chrome: entrances, exits and a changed
+   value rolling over. Transform and opacity only (the chrome sits over an
+   animating canvas), plain CSS keyframes (so the one [data-motion="reduce"]
+   rule reaches them), and nothing loops. These two helpers are the JS half:
+   a class put on for one run of its keyframes, and a callback when a node's
+   own animation ends.
+
+   afterMotion runs fn once, on the node's OWN animationend (a child's bubbles
+   up with another target and does not count) or after `ms`, whichever is first.
+   The timeout is what makes it safe: a node that is display:none, in a
+   background tab, or under reduced motion with no animation at all never
+   sends the event. Returns a cancel function. */
+function afterMotion(node,ms,fn){
+  let done=false, timer=0;
+  const off=()=>{ if (node && node.removeEventListener) node.removeEventListener('animationend',finish); };
+  function finish(e){ if (done || (e && e.target!==node)) return; done=true; clearTimeout(timer); off(); fn(); }
+  if (node && node.addEventListener) node.addEventListener('animationend',finish);
+  timer=setTimeout(finish,ms);
+  return ()=>{ if (done) return; done=true; clearTimeout(timer); off(); };
+}
+/* cls on for one run of its keyframes, then off, so the next time it is put on
+   it plays again (ngPop's idea, with afterMotion's timeout behind it). */
+function motionOnce(node,cls,ms=700){
+  if (!node || !node.classList) return;
+  node.classList.add(cls);
+  afterMotion(node,ms,()=>node.classList.remove(cls));
+}
+/* An exit that does not change what the app knows. The element is given
+   `hidden` AT ONCE, as it always was, so every question asked of it ("is it
+   open?", Escape, the focus trap, the next press, the tool hint stepping round
+   it) has the answer it had before; .motion-out only keeps it PAINTED while its
+   exit animation runs (styles.css: .hidden does not apply under .motion-out),
+   inert and click-through, and the timeout takes it off by `ms` even if the
+   animation never reports. Reduced motion hides it as it always did. Used by
+   the overlays (closeOverlay, MOTION_EXIT_MS) and by Start here. */
+const MOTION_EXIT_MS=150;
+function motionOutStop(el){
+  if (!el || !el.classList) return;
+  if (el._outStop){ el._outStop(); el._outStop=null; }
+  if (el.classList.contains('motion-out')){
+    el.classList.remove('motion-out');
+    if (el.removeAttribute) el.removeAttribute('inert');
+  }
+}
+function motionOut(el,ms=MOTION_EXIT_MS){
+  motionOutStop(el);
+  if (!el || !el.classList || !el.setAttribute || reducedMotion()) return;
+  el.classList.add('motion-out'); el.setAttribute('inert','');
+  el._outStop=afterMotion(el,ms,()=>{ el._outStop=null; motionOutStop(el); });
+}
 function openOverlay(id,focusSelector){
   const el=$(id); if (!el) return null;
   el._returnFocus=document.activeElement && document.activeElement.focus ? document.activeElement : null;
+  motionOutStop(el);
   el.classList.remove('hidden');
   const ctl=overlayController(id); if (ctl) ctl.setAttribute('aria-expanded','true');
   requestAnimationFrame(()=>{
@@ -2138,7 +2235,9 @@ function openOverlay(id,focusSelector){
 function closeOverlay(id,restoreFocus=true){
   const el=$(id); if (!el) return;
   if(id==='challengeFinishScreen'&&typeof clearDailyShare==='function')clearDailyShare();
+  const wasOpen=!el.classList.contains('hidden');
   el.classList.add('hidden');
+  if (wasOpen) motionOut(el);
   const ctl=overlayController(id); if (ctl) ctl.setAttribute('aria-expanded','false');
   const back=el._returnFocus; el._returnFocus=null;
   if (restoreFocus && back && back.isConnected!==false && back.focus) back.focus({preventScroll:true});
