@@ -4265,6 +4265,8 @@ function buildToolTrayInner(){
     if (groupId===activeGroup) return;
     const group=TRAY_GROUPS.find(g=>g.id===groupId); if (!group) return;
     if (groupId==='build') tourNote('landscape');
+    // the switch's thumb slides from the half it leaves (modeControl)
+    catalogPulse={kind:'mode',key:TRAY_GROUPS.findIndex(g=>g.id===activeGroup),t:performance.now()};
     saveTrayScroll(); game.trayCat=lastCatByGroup[groupId]||group.cats[0]; game.drill=null; closeDiscoverySourceMenu();
     const d=activeDiscovery();
     setDiscovery({category:groupId==='plants'?(discoveryCollectionView(d)||d.query.trim()?null:game.trayCat):null,limit:36});
@@ -4272,7 +4274,19 @@ function buildToolTrayInner(){
     // the canvas Plant tool, but Landscape now clearly asks for its own tool.
     setTool('hand'); refreshCanvasTools(); buildToolTray();
   };
+  /* The thumb under the chosen half is the host's ::before, placed by --i of
+     --n, so a rebuild puts it where it belongs with nothing to replay. Only the
+     build the switching press causes slides it, from --from: the pulse is read
+     for a frame or two, not pulseIs's 600ms, or a category tap just after a
+     switch would slide it again. */
   const modeControl=()=>{ const seg=document.createElement('div'); seg.className='catalog-mode';
+    if (seg.style && seg.style.setProperty){
+      seg.style.setProperty('--n',String(TRAY_GROUPS.length));
+      seg.style.setProperty('--i',String(Math.max(0,TRAY_GROUPS.findIndex(g=>g.id===activeGroup))));
+      const p=catalogPulse;
+      if (pulseIs('mode') && performance.now()-p.t<120 && p.key>=0 && !reducedMotion()){
+        seg.style.setProperty('--from',String(p.key)); seg.classList.add('slide'); }
+    }
     TRAY_GROUPS.forEach(group=>{ const b=document.createElement('button'); b.type='button';
       b.className=activeGroup===group.id?'sel':''; b.textContent=group.label;
       b.setAttribute('aria-pressed',activeGroup===group.id?'true':'false'); b.onclick=()=>switchGroup(group.id); seg.appendChild(b); });

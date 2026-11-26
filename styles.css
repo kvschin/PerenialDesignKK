@@ -101,6 +101,9 @@
   --motion-panel:200ms;
   --ease-standard:cubic-bezier(.2,.7,.2,1);
   --ease-emphasized:cubic-bezier(.2,.8,.2,1);
+  /* exits accelerate away: the decelerating curves above are for arriving,
+     and an exit on one is mostly gone in its first third */
+  --ease-exit:cubic-bezier(.4,0,1,1);
   --space-1:4px;
   --space-2:8px;
   --space-3:12px;
@@ -275,7 +278,11 @@ button:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
 .modal-screen{background:var(--surface-scrim)}
 .modal-screen>.panel{max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;
   box-shadow:var(--shadow-dialog);--panel-pad:clamp(19px,3vw,26px);padding:var(--panel-pad)}
-.hidden{display:none!important}
+/* .motion-out is something already .hidden (the app treats it as gone) that is
+   still painted for its exit animation, inert and click-through: an overlay
+   for 110ms, Start here for 200ms (motionOut, ui.js). */
+.hidden:not(.motion-out){display:none!important}
+.motion-out,.motion-out *{pointer-events:none!important}
 /* Text for assistive tech only. Outbound links carry a decorative arrow glyph,
    and a glyph is not an announcement — a screen reader reads the link TEXT, so
    "opens in a new tab" has to exist as text or it does not exist at all. */
@@ -525,6 +532,18 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    (data-motion="reduce" strips all animation globally at the bottom) */
 @keyframes panelEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .panel-enter,.modal-screen:not(.hidden)>.panel{animation:panelEnter var(--motion-panel) var(--ease-emphasized)}
+/* ...and leave faster than they came (closeOverlay, ui.js). The screen fades
+   (the scrim with it) while its panel sinks back the way it rose; the two
+   dropdowns lift back up under the control they hang from. It is already
+   .hidden and inert: the app has closed it, this is only its picture going. */
+@keyframes overlayFade{to{opacity:0}}
+/* the panel only moves: the screen's fade already carries it, and fading both
+   multiplied the two into an exit that was gone in a third of its time */
+@keyframes panelExit{to{transform:translateY(5px) scale(.985)}}
+@keyframes dropExit{to{transform:translateY(-6px)}}
+.screen.motion-out{animation:overlayFade 110ms var(--ease-exit) forwards}
+.screen.motion-out>.panel{animation:panelExit 110ms var(--ease-exit) forwards}
+#gardenMenu.motion-out .panel,#pauseScreen.motion-out .panel{animation:dropExit 110ms var(--ease-exit) forwards}
 /* (The New garden page's own rules are the last block of this file: .ng-*.
    The questionnaire and plot screens it replaced were styled here, on a
    blurred translucent panel over the animating border, which the menu's own
@@ -1044,6 +1063,17 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
   transition:border-color var(--motion-control),background var(--motion-control),
              transform var(--motion-control) var(--ease-standard)}
 .world-row:hover{border-color:var(--border-strong);background:var(--surface-control-hover);transform:translateY(-1px)}
+/* Opening the list deals the cards in, --deal steps apart (openWorlds caps it
+   at 8, so the last card is in by half a second however many there are); a
+   garden just duplicated pops in; a deleted one fades and folds before the list
+   is rebuilt without it. The deal waits, so reduced motion switches it off. */
+@keyframes worldDeal{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes worldPop{0%{opacity:0;transform:scale(.86)}60%{opacity:1;transform:scale(1.03)}100%{transform:none}}
+@keyframes worldLeave{to{opacity:0;transform:scale(.88)}}
+#worldList.dealing .world-row{animation:worldDeal 260ms var(--ease-emphasized) backwards;animation-delay:calc(var(--deal,0)*32ms)}
+#worldList .world-row.pop{animation:worldPop 340ms var(--ease-emphasized)}
+#worldList .world-row.leaving{pointer-events:none;animation:worldLeave 200ms var(--ease-exit) forwards}
+[data-motion="reduce"] #worldList.dealing .world-row{animation:none}
 .world-info{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 12px 12px}
 /* Two lines at most. max-height does the cutting, so a browser that will not
    clamp a button still shows two whole lines; the clamp adds the ellipsis
@@ -1257,6 +1287,20 @@ canvas.world-thumb{object-fit:contain}
 .season-box-inner{position:relative;z-index:1;display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
 .season-head{display:flex;align-items:baseline;gap:5px;min-width:0;line-height:1}
 .season-box .season-name{font-size:15.5px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A new season rolls in (hudSeasonName, ui.js): the old name slides up out of
+   the box, which clips it, and the new one rises into place. Two names for the
+   same roll so the next turn can start over mid-roll. */
+.season-head{position:relative}
+.season-name-out{position:absolute;left:0;top:0;max-width:100%;pointer-events:none}
+@keyframes seasonOut{to{opacity:0;transform:translateY(-95%)}}
+@keyframes seasonOut2{to{opacity:0;transform:translateY(-95%)}}
+@keyframes seasonIn{from{opacity:0;transform:translateY(70%)}to{opacity:1;transform:none}}
+@keyframes seasonIn2{from{opacity:0;transform:translateY(70%)}to{opacity:1;transform:none}}
+.season-head.season-roll .season-name-out{animation:seasonOut 190ms var(--ease-exit) forwards}
+.season-head.season-roll2 .season-name-out{animation:seasonOut2 190ms var(--ease-exit) forwards}
+.season-head.season-roll #seasonName{animation:seasonIn 220ms 30ms var(--ease-emphasized) backwards}
+.season-head.season-roll2 #seasonName{animation:seasonIn2 220ms 30ms var(--ease-emphasized) backwards}
+[data-motion="reduce"] .season-name-out{display:none}
 .season-sub{font-size:8.7px;letter-spacing:.09em;text-transform:uppercase;color:#ece1cb;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Hold-to-fast-forward trace.
    This was an SVG <rect rx="5"> in a fixed 150x34 viewBox with
@@ -1666,6 +1710,24 @@ canvas.daily-history-thumb{object-fit:contain}
 .daily-share-frame{width:100%;max-width:320px;margin:12px auto;border-radius:12px;overflow:hidden;background:var(--surface-control)}
 .daily-share-image{display:block;width:100%;height:auto}
 .daily-share-image:not([src]){visibility:hidden}
+/* The finished design develops in, once, when a brief is finished (showDailyImage,
+   screens.js): the image fades up from nothing as it settles from a touch
+   larger, and a check lands on its corner when it is nearly there. The check
+   stays on any image of a finished design. Held clear (await-develop) only
+   until the picture has decoded. */
+.daily-share-frame{position:relative}
+.daily-saved-check{position:absolute;top:10px;right:10px;display:none;align-items:center;justify-content:center;
+  width:34px;height:34px;border-radius:50%;background:var(--color-accent);color:var(--color-bg);
+  box-shadow:0 2px 8px rgba(0,0,0,.28);pointer-events:none}
+.daily-saved-check .ui-icon{width:20px;height:20px;stroke-width:2.6}
+.daily-share-frame.saved .daily-saved-check{display:flex}
+.daily-share-frame.await-develop .daily-share-image,.daily-share-frame.await-develop .daily-saved-check{opacity:0}
+@keyframes imageDevelop{from{opacity:0;transform:scale(1.045)}to{opacity:1;transform:none}}
+@keyframes checkLand{0%{opacity:0;transform:scale(.3) rotate(-25deg)}65%{opacity:1;transform:scale(1.12)}100%{transform:none}}
+.daily-share-frame.developing .daily-share-image{animation:imageDevelop 700ms var(--ease-emphasized)}
+.daily-share-frame.developing .daily-saved-check{animation:checkLand 380ms 480ms var(--ease-emphasized) backwards}
+[data-motion="reduce"] .daily-share-frame.developing .daily-saved-check{animation:none}
+@media (forced-colors: active){ .daily-saved-check{forced-color-adjust:none;background:Highlight;color:HighlightText} }
 @media(max-width:380px){.daily-share-options{grid-template-columns:1fr}}
 .daily-caption{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:90px;padding:12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface-control);color:var(--text-primary);font:inherit;font-size:14px;line-height:1.5;margin-bottom:10px}
 @media(max-width:480px){.daily-actions>.btn{flex-basis:100%}}
@@ -1857,6 +1919,20 @@ canvas.daily-history-thumb{object-fit:contain}
 .start-step.done .start-check{background:var(--color-accent);border-color:var(--color-accent)}
 .start-step.done .start-check::after{content:'';display:block;width:4px;height:8px;margin:2px auto 0;
   border:solid var(--color-bg);border-width:0 2px 2px 0;transform:rotate(45deg)}
+/* A step that has just become done (syncStartHere marks it on that one
+   rebuild): the circle pops and the tick grows into it.
+   The tick waits for the circle, so under reduced motion it has no delay. */
+@keyframes checkPop{0%{transform:scale(.55)}60%{transform:scale(1.14)}100%{transform:none}}
+@keyframes tickDraw{from{opacity:0;transform:rotate(45deg) scale(.15)}to{opacity:1;transform:rotate(45deg)}}
+.start-step.just-done .start-check{animation:checkPop 300ms var(--ease-emphasized)}
+.start-step.just-done .start-check::after{animation:tickDraw 200ms 110ms var(--ease-emphasized) backwards}
+@keyframes countTick{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:none}}
+.start-here-count.tick{display:inline-block;animation:countTick 260ms var(--ease-emphasized)}
+/* Retired by the first plant, it folds up toward its top edge and fades
+   rather than vanishing (syncStartHere: hidden at once, painted while this runs). */
+@keyframes startHereOut{to{opacity:0;transform:translateY(-6px) scaleY(.7)}}
+.start-here.motion-out{transform-origin:50% 0;animation:startHereOut 200ms var(--ease-exit) forwards}
+[data-motion="reduce"] .start-step.just-done .start-check::after{animation:none}
 .start-step-copy{display:flex;flex-direction:column;gap:1px;min-width:0}
 .start-step b{font-size:12.5px;font-weight:600}
 .start-step small{color:var(--text-muted);font-size:11px;line-height:1.35}
@@ -2003,6 +2079,26 @@ canvas.daily-history-thumb{object-fit:contain}
 #toast{position:fixed;top:max(calc(70px + env(safe-area-inset-top)),var(--toast-floor,0px),var(--toast-under,0px));left:50%;transform:translateX(-50%);background:var(--surface-overlay);border:1.5px solid var(--border-active);
   color:var(--text-primary);padding:10px 18px;border-radius:var(--radius-control);font-size:13px;z-index:30;transition:opacity .4s;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
 #toast.warn{background:var(--surface-warn);border-color:#c9843f;color:var(--text-warn)}
+/* toastMotion (commands.js): rises 6px into place as it fades in; a message
+   replacing one on screen comes in again; a warning ends with one small
+   sideways nudge, 3px at most. Every keyframe keeps the translateX(-50%) that
+   centres it, or the toast would jump to the side for the length of the
+   animation. Opacity stays the inline style and its .4s transition, except
+   the swap's dip, which starts from a toast that is already fully shown. */
+@keyframes toastIn{from{transform:translateX(-50%) translateY(6px)}to{transform:translateX(-50%)}}
+@keyframes toastIn2{from{transform:translateX(-50%) translateY(6px)}to{transform:translateX(-50%)}}
+@keyframes toastSwap{from{opacity:.35;transform:translateX(-50%) translateY(4px)}to{opacity:1;transform:translateX(-50%)}}
+@keyframes toastSwap2{from{opacity:.35;transform:translateX(-50%) translateY(4px)}to{opacity:1;transform:translateX(-50%)}}
+@keyframes toastWarn{0%{transform:translateX(-50%) translateY(6px)}40%{transform:translateX(-50%)}
+  62%{transform:translateX(calc(-50% + 3px))}82%{transform:translateX(calc(-50% - 1.5px))}100%{transform:translateX(-50%)}}
+@keyframes toastWarn2{0%{transform:translateX(-50%) translateY(6px)}40%{transform:translateX(-50%)}
+  62%{transform:translateX(calc(-50% + 3px))}82%{transform:translateX(calc(-50% - 1.5px))}100%{transform:translateX(-50%)}}
+#toast.toast-in{animation:toastIn 220ms var(--ease-emphasized)}
+#toast.toast-in2{animation:toastIn2 220ms var(--ease-emphasized)}
+#toast.toast-swap{animation:toastSwap 180ms var(--ease-emphasized)}
+#toast.toast-swap2{animation:toastSwap2 180ms var(--ease-emphasized)}
+#toast.warn.toast-in,#toast.warn.toast-swap{animation:toastWarn 340ms var(--ease-standard)}
+#toast.warn.toast-in2,#toast.warn.toast-swap2{animation:toastWarn2 340ms var(--ease-standard)}
 /* The update offer shares the toast's band. It is persistent and interactive,
    so the toast steps down out of its way while it is up rather than the two
    stacking on the same line. */
@@ -2051,6 +2147,22 @@ body.has-stale #updateBar{top:calc(150px + env(safe-area-inset-top))}
 #buildingActions button.primary{background:var(--action-primary);border-color:var(--action-primary);color:var(--ink)}
 #plantCard{position:fixed;top:108px;right:10px;background:var(--surface-dialog);
   border:1.5px solid var(--border-control);border-radius:var(--radius-panel);padding:14px 26px 14px 18px;z-index:25;max-width:300px;display:none;box-shadow:var(--shadow-overlay)}
+/* It grows out of the edge facing the plant it describes: placePlantCard
+   writes which side of the plant it stands on, and that names the origin and
+   the few pixels it travels from. data-enter is set when it opens or turns to
+   another plant (showPlantCard), never by a re-placing, and its two values
+   are the same entrance under two names so the next one can start over. */
+#plantCard{--pc-dx:0px;--pc-dy:-8px;transform-origin:50% 0}
+#plantCard.plant-card-left{--pc-dx:10px;--pc-dy:0px;transform-origin:100% 40%}
+#plantCard.plant-card-right{--pc-dx:-10px;--pc-dy:0px;transform-origin:0 40%}
+#plantCard.plant-card-top{--pc-dx:0px;--pc-dy:8px;transform-origin:50% 100%}
+#plantCard.plant-card-bottom{--pc-dx:0px;--pc-dy:-8px;transform-origin:50% 0}
+@keyframes pcIn{from{opacity:0;transform:translate(var(--pc-dx),var(--pc-dy)) scale(.94)}to{opacity:1;transform:none}}
+@keyframes pcIn2{from{opacity:0;transform:translate(var(--pc-dx),var(--pc-dy)) scale(.94)}to{opacity:1;transform:none}}
+@keyframes pcOut{to{opacity:0;transform:scale(.97)}}
+#plantCard[data-enter="a"]{animation:pcIn 160ms var(--ease-emphasized)}
+#plantCard[data-enter="b"]{animation:pcIn2 160ms var(--ease-emphasized)}
+#plantCard[data-leave]{pointer-events:none;animation:pcOut 110ms var(--ease-exit) forwards}
 .card-x{position:absolute;top:5px;right:7px;background:none;border:none;color:var(--text-muted);
   font-size:14px;line-height:1;padding:4px;display:flex;align-items:center;justify-content:center}
 .card-x .ui-icon{width:15px;height:15px}
@@ -2672,6 +2784,24 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
 .catalog-mode button{border:0!important;border-radius:var(--radius-pill);color:var(--text-secondary);font:700 13px/1 var(--font-body);transition:background var(--motion-control),transform var(--motion-control) var(--ease-standard),box-shadow var(--motion-control)}
 .catalog-mode button.sel{background:var(--color-neutral-100);color:var(--color-text);box-shadow:0 2px 7px rgba(0,0,0,.22)}
 .catalog-mode button:active{transform:scale(.98)}
+/* The chosen half is filled by a THUMB that slides between them, the host's
+   ::before placed by --i of --n (modeControl, tray.js). It is absolute inside
+   the track's padding, so the switch keeps exactly the box it had: it is the
+   control the finger is still on when the catalog changes under it, and that
+   box must not move (the SHEET note above). The switch is rebuilt with the
+   catalog, so the slide is a one-shot: the press that switches leaves --from
+   and .slide on the next build only. */
+.catalog-mode{position:relative;--mode-pad:4px}
+#sheetHandle .catalog-mode{--mode-pad:3px}
+.catalog-mode::before{content:'';position:absolute;top:var(--mode-pad);bottom:var(--mode-pad);left:var(--mode-pad);
+  width:calc((100% - 2*var(--mode-pad))/var(--n,2));border-radius:var(--radius-pill);
+  background:var(--color-neutral-100);box-shadow:0 2px 7px rgba(0,0,0,.22);
+  transform:translateX(calc(var(--i,0)*100%));pointer-events:none}
+.catalog-mode button{position:relative}
+.catalog-mode button.sel,.catalog-mode button.sel:hover{background:transparent;box-shadow:none}
+@keyframes modeSlide{from{transform:translateX(calc(var(--from,0)*100%))}}
+.catalog-mode.slide::before{animation:modeSlide var(--motion-menu) var(--ease-emphasized)}
+@media (forced-colors: active){ .catalog-mode::before{display:none} }
 .discovery-source,.discovery-filter-trigger{border-color:var(--color-divider);background:var(--color-neutral-100);color:var(--color-text);font-family:var(--font-body);border-radius:var(--radius-pill)}
 .discovery-source i{color:var(--color-accent)}
 .discovery-source-menu{background:var(--surface-dialog);border-color:var(--color-divider);box-shadow:var(--shadow-overlay)}
