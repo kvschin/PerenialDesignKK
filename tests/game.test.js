@@ -1926,23 +1926,61 @@ test('Mexican feather grass rises as one bundle and falls over as a fountain', (
     assert(spring.every(c=>near(c,D.sea.Summer.bloom)>20),'no panicles before it flowers');
   } finally { ART2.on=was; }
 });
-test('little bluestem carries fluffy racemes down the upper half of every culm', () => {
+test('little bluestem and broomsedge carry fluffy racemes down the upper half of every culm', () => {
   // It drew one short tuft at each culm's tip, a row of flags along the top of the clump. Its seed is
   // a raceme at every node of the upper culm, white with silky hairs by fall.
-  const was=ART2.on, D=PLANTS.bluestem;
+  const was=ART2.on;
   const near=(a,b)=>{ const p=colorParts(a), q=colorParts(b); return Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2]); };
   const cotton=(r,col)=>r.filter(s=>s.kind==='ellipse'&&!s.style.startsWith('rgba')&&near(s.style,col)<70).map(s=>-s.pts[0][1]);
   try { ART2.on=true;
-    assertEqual(D.look.seedStyle,'bluestem','draws the bluestem culms');
+    for (const k of ['bluestem','broomsedge']){ const D=PLANTS[k];
+    assertEqual(D.look.seedStyle,'bluestem',k+': draws the bluestem culms');
     for (const season of ['Fall','Winter']) for (const seed of [7,101,4410]){
-      const r=grassStrokes('bluestem',null,season,seed), top=-Math.min(...r.flatMap(s=>s.pts.map(p=>p[1])));
+      const r=grassStrokes(k,null,season,seed), top=-Math.min(...r.flatMap(s=>s.pts.map(p=>p[1])));
       const tufts=cotton(r,D.sea[season].seed), culms=D.look.culms;
-      assert(tufts.length>=culms*4,`${season} seed ${seed}: ${tufts.length} cotton tufts for ${culms} culms`);
+      assert(tufts.length>=culms*4,`${k} ${season} seed ${seed}: ${tufts.length} cotton tufts for ${culms} culms`);
       const lo=Math.min(...tufts), hi=Math.max(...tufts);
-      assert(hi-lo>top*0.45,`${season} seed ${seed}: tufts run ${(hi-lo).toFixed(1)} down a clump ${top.toFixed(1)} tall`);
-      assert(lo>top*0.33,`${season} seed ${seed}: and only on the upper culm, the lowest at ${lo.toFixed(1)}`);
+      assert(hi-lo>top*0.45,`${k} ${season} seed ${seed}: tufts run ${(hi-lo).toFixed(1)} down a clump ${top.toFixed(1)} tall`);
+      assert(lo>top*0.33,`${k} ${season} seed ${seed}: and only on the upper culm, the lowest at ${lo.toFixed(1)}`);
     }
-    assertEqual(cotton(grassStrokes('bluestem',null,'Spring',7),D.sea.Fall.seed).length,0,'no seed in spring');
+    assertEqual(cotton(grassStrokes(k,null,'Spring',7),D.sea.Fall.seed).length,0,k+': no seed in spring');
+    }
+  } finally { ART2.on=was; }
+});
+test("big bluestem's turkey feet are slender racemes, not stubby gloves", () => {
+  // Each head drew as three short fat strokes with a bead on each tip, a cartoon glove, on every
+  // other culm. A head is two to four slender racemes spreading from a peduncle, at every culm's tip
+  // and on some from an upper node too, with no beads.
+  const was=ART2.on, orig=drawTurkeyFeet; let got=null, skip=false;
+  const nul=new Proxy({},{get(o,p){ if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}}); return ()=>{}; },
+    set(o,p,v){o[p]=v;return true;}});
+  const shape=season=>{ const ops=[];
+    const ctx=new Proxy({},{get(o,p){ if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        return (...a)=>{ if(!skip&&['moveTo','lineTo','quadraticCurveTo','bezierCurveTo'].includes(p)) ops.push(p+a.map(x=>x.toFixed(3)).join(',')); }; },
+      set(o,p,v){o[p]=v;return true;}});
+    drawPlant(ctx,0,0,'bigbluestem',1,season,4410,0,null,1); return ops.join(';'); };
+  try { ART2.on=true;
+    drawTurkeyFeet=(...a)=>{ skip=true; try { const n=orig(...a); got={heads:a[3].length,n,r:Array.from(_tfR.slice(0,n*7))}; return n; } finally { skip=false; } };
+    for (const v of [null,'redoctober']) for (const season of ['Summer','Fall','Winter']) for (const seed of [7,101,4410]){
+      got=null; drawPlant(nul,0,0,'bigbluestem',1,season,seed,0,v,1);
+      const D=plantDef('bigbluestem',v), H=plantVisualH(D), at=`${v||'species'} ${season} seed ${seed}`;
+      assert(got,at+': draws its turkey feet');
+      assert(got.heads>=D.look.stems,at+`: ${got.heads} heads on ${D.look.stems} culms`);
+      assert(got.n>=got.heads*2&&got.n<=got.heads*4,at+`: ${got.n} racemes, two to four a head`);
+      for (let q=0;q<got.n;q++){ const o=q*7, l=Math.hypot(got.r[o+4]-got.r[o],got.r[o+5]-got.r[o+1])/H;
+        assert(l>0.04&&l<0.1,at+`: a raceme ${l.toFixed(3)} of the plant's height`); }
+    }
+    // the heads come from a stream of their own: a culm in seed is the culm it was in spring
+    const spring=shape('Spring');
+    assert(spring.length>1000,'the spring clump draws its culms');
+    assertEqual(shape('Fall'),spring,'the culms and leaves in seed are the ones it had in spring');
+  } finally { drawTurkeyFeet=orig; ART2.on=was; }
+  // no beads: in seed nothing up among the heads is an ellipse
+  try { ART2.on=true;
+    const H=plantVisualH(PLANTS.bigbluestem), ell=grassStrokes('bigbluestem',null,'Fall',7).filter(s=>s.kind==='ellipse'&&s.pts[0][1]<-H*0.3);
+    assertEqual(ell.length,0,'no bead on a raceme');
   } finally { ART2.on=was; }
 });
 test('little bluestem is the same clump of leaves in every season', () => {
@@ -3614,7 +3652,7 @@ test('grass blade-tip colour adds one optional tip pass', () => {
   assertEqual(fills[2],'#d7cf67','stripe uses the authored color');
 });
 
-test('broomsedge seedheads are elongated feathery racemes, not oval buttons', () => {
+test('splitbeard bluestem seedheads are elongated feathery racemes, not oval buttons', () => {
   const ops=[];
   const ctx=new Proxy({globalAlpha:1}, {
     get(o,p){
@@ -3626,7 +3664,7 @@ test('broomsedge seedheads are elongated feathery racemes, not oval buttons', ()
   drawFluffyRaceme(ctx,2,-18,0.25,20,'#e8ddc7',4,mulberry(9137),3.8);
   const ellipses=ops.filter(x=>x[0]==='ellipse');
   const hairs=ops.filter(x=>x[0]==='lineTo');
-  assertEqual(PLANTS.broomsedge.look.seedStyle,'fluffyRaceme','broomsedge opts into the feathery seed grammar');
+  assertEqual(PLANTS.splitbeardbluestem.look.seedStyle,'fluffyRaceme','splitbeard bluestem opts into the feathery seed grammar');
   assertEqual(ellipses.length,0,'the feathery style never falls back to a filled oval or seed ball');
   assert(hairs.length>=16,'each node carries one narrow spikelet and several fine hairs');
   const ys=ops.filter(x=>x[0]==='moveTo').map(x=>x[2]);

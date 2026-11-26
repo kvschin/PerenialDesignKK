@@ -945,9 +945,11 @@ function drawBluestemCulms(ctx,L,S,H,rx,sway,seed,m,col,fluff,blooming,snow){
       const t=from+(0.94-from)*(q+0.3+r()*0.5)/k, ax=qBez(t,bx,cx,tx), ay=qBez(t,by,cy,ty);
       let dx=2*(1-t)*(cx-bx)+2*t*(tx-cx), dy=2*(1-t)*(cy-by)+2*t*(ty-cy); const dd=Math.hypot(dx,dy)||1; dx/=dd; dy/=dd;
       const s=((q+i)&1)?1:-1, a=s*(0.3+r()*0.35), ca=Math.cos(a), sa=Math.sin(a), ux=dx*ca-dy*sa, uy=dx*sa+dy*ca;
-      if (nS<BLS_MAX){ const sl=H*(0.03+r()*0.02), w=0.55, o=nS*6, vx=dx*Math.cos(a*0.6)-dy*Math.sin(a*0.6), vy=dx*Math.sin(a*0.6)+dy*Math.cos(a*0.6);
+      if (nS<BLS_MAX){ const sl=L.spatheLen?H*L.spatheLen*(0.8+r()*0.4):H*(0.03+r()*0.02), w=L.spatheW||0.55, o=nS*6, vx=dx*Math.cos(a*0.6)-dy*Math.sin(a*0.6), vy=dx*Math.sin(a*0.6)+dy*Math.cos(a*0.6);
         _blsS[o]=ax-dy*w; _blsS[o+1]=ay+dx*w; _blsS[o+2]=ax+dy*w; _blsS[o+3]=ay-dx*w; _blsS[o+4]=ax+vx*sl; _blsS[o+5]=ay+vy*sl; nS++; }
       raceme(ax,ay,ux,uy,s,true);
+      // broomsedge's racemes come in pairs out of one sheath, the second a little further round
+      if (L.racemePair){ const b=a+s*(0.22+r()*0.15), cb=Math.cos(b), sb=Math.sin(b); raceme(ax,ay,dx*cb-dy*sb,dx*sb+dy*cb,s,true); }
     }
     // and one at the tip
     let dx=tx-cx, dy=ty-cy; const dd=Math.hypot(dx,dy)||1; dx/=dd; dy/=dd;
@@ -979,9 +981,10 @@ function drawBluestemCulms(ctx,L,S,H,rx,sway,seed,m,col,fluff,blooming,snow){
         ctx.moveTo(mx+Math.cos(ang)*rl*0.5,my+Math.sin(ang)*rl*0.5); ctx.ellipse(mx,my,rl*0.5,0.4+rl*w*fluff,ang,0,7); }
       ctx.fill();
     };
-    body(()=>true,0.24,dim,0.2*fluff);
-    body(l=>l<=0.15,0.11,col,0.38);
-    body(l=>l>0.15,0.11,lit,0.5);
+    const ca=L.cottonA||1;
+    body(()=>true,0.24,dim,0.2*fluff*ca);
+    body(l=>l<=0.15,0.11,col,0.38*ca);
+    body(l=>l>0.15,0.11,lit,0.5*ca);
     ctx.globalAlpha=ga;
   }
   ctx.lineWidth=L.seedHairW||0.42;
@@ -997,6 +1000,65 @@ function drawBluestemCulms(ctx,L,S,H,rx,sway,seed,m,col,fluff,blooming,snow){
   }
   ctx.globalAlpha=ga;
   _crX=_crY=0;
+}
+
+/* Big bluestem's turkey feet (0.9.177). Each head drew as three stubby strokes splayed from the culm
+   tip with a bead on each, which read as a cartoon glove. The head is two to four slender racemes, a
+   few inches long, spreading from the top of a peduncle like a bird's foot, curving apart and dipping
+   a little as they ripen; each carries paired spikelets along it, every one with a fine bent awn, so
+   in fall a raceme has a soft fringed outline. They come at every culm's tip and on peduncles from the
+   upper nodes of some. In flower the racemes are purplish with orange anthers hanging from them.
+   The heads come from a stream of their own, so the culms and leaves are the same in every season.
+   Peduncles and axes are one stroke; spikelets three thread buckets by light; awns one more. */
+const TF_MAX=96, _tfR=new Float64Array(TF_MAX*7);
+function drawTurkeyFeet(ctx,L,H,heads,col,blooming,hr){
+  const ga=ctx.globalAlpha, rlBase=H*(L.racemeLen||0.062), lit=mixHex(col,'#f3e6d0',0.16), dark=shade(col,-20);
+  let nR=0;
+  ctx.lineCap='round'; ctx.strokeStyle=shade(col,-16); ctx.lineWidth=L.pedW||0.5; ctx.beginPath();
+  for (const h of heads){
+    let [x,y,dx,dy,k,ped]=h;
+    if (ped){ const ex=x+dx*ped, ey=y+dy*ped; ctx.moveTo(x,y); ctx.quadraticCurveTo(x+dx*ped*0.6,y+dy*ped*0.5,ex,ey); x=ex; y=ey; }
+    const u=hr(), c=u<0.15?2:u<0.85?3:4, spread=(c===2?0.42:c===3?0.78:1.0)*(0.85+hr()*0.3);
+    for (let j=0;j<c && nR<TF_MAX;j++){
+      const f=c>1?j/(c-1)-0.5:0, a=f*spread+(hr()-0.5)*0.16, ca=Math.cos(a), sa=Math.sin(a);
+      const ux=dx*ca-dy*sa, uy=dx*sa+dy*ca, rl=rlBase*k*(0.82+hr()*0.36);
+      const out=f===0?(hr()-0.5)*0.6:Math.sign(f), bend=out*rl*0.16, sag=blooming?0.02:0.07;
+      const o=nR*7;
+      _tfR[o]=x; _tfR[o+1]=y;
+      _tfR[o+2]=x+ux*rl*0.52-uy*bend*0.5; _tfR[o+3]=y+uy*rl*0.52+ux*bend*0.5;
+      _tfR[o+4]=x+ux*rl-uy*bend; _tfR[o+5]=y+uy*rl+ux*bend+rl*sag;
+      _tfR[o+6]=rl; nR++;
+      ctx.moveTo(x,y); ctx.quadraticCurveTo(_tfR[o+2],_tfR[o+3],_tfR[o+4],_tfR[o+5]);
+    }
+  }
+  ctx.stroke();
+  // spikelets along each raceme, alternate sides, pointing on toward its tip; then their awns
+  const per=L.spikelets||7, awns=[];
+  for (let q=0;q<nR;q++){
+    const o=q*7, x0=_tfR[o], y0=_tfR[o+1], cx=_tfR[o+2], cy=_tfR[o+3], x1=_tfR[o+4], y1=_tfR[o+5], rl=_tfR[o+6];
+    for (let s=0;s<per;s++){
+      const t=0.12+0.86*(s+0.5)/per, px=qBez(t,x0,cx,x1), py=qBez(t,y0,cy,y1);
+      let tx=2*(1-t)*(cx-x0)+2*t*(x1-cx), ty=2*(1-t)*(cy-y0)+2*t*(y1-cy); const d=Math.hypot(tx,ty)||1; tx/=d; ty/=d;
+      const side=(s&1)?1:-1, a=side*0.24, ca=Math.cos(a), sa=Math.sin(a), vx=tx*ca-ty*sa, vy=tx*sa+ty*ca, sl=rl*0.17;
+      const l=(vx*LIT.x+vy*LIT.y)*0.7+(side*LIT.x>0?0.25:-0.25)+(hr()-0.5)*0.4, b=l>0.25?2:l<-0.25?0:1;
+      thrPush(b,px,py,px+vx*sl,py+vy*sl);
+      if (awns.length<TF_MAX*per*4){ const a2=side*(0.55+hr()*0.35), c2=Math.cos(a2), s2=Math.sin(a2), al=rl*(blooming?0.1:0.2);
+        awns.push(px+vx*sl,py+vy*sl,px+vx*sl+(tx*c2-ty*s2)*al,py+vy*sl+(tx*s2+ty*c2)*al); }
+    }
+  }
+  ctx.lineWidth=L.spkW||0.85;
+  thrStroke(ctx,0,dark); thrStroke(ctx,1,col); thrStroke(ctx,2,lit);
+  ctx.globalAlpha=ga*(blooming?0.4:0.55); ctx.strokeStyle=mixHex(col,'#efe4d2',blooming?0.2:0.35); ctx.lineWidth=0.32; ctx.beginPath();
+  for (let i=0;i<awns.length;i+=4){ ctx.moveTo(awns[i],awns[i+1]); ctx.lineTo(awns[i+2],awns[i+3]); }
+  ctx.stroke(); ctx.globalAlpha=ga;
+  // in flower, anthers hang from the racemes
+  if (blooming){
+    ctx.globalAlpha=ga*0.85; ctx.fillStyle=L.antherCol||'#c9973f'; ctx.beginPath();
+    for (let q=0;q<nR;q++){ const o=q*7, t=(q&1)?0.4:0.75, px=qBez(t,_tfR[o],_tfR[o+2],_tfR[o+4]), py=qBez(t,_tfR[o+1],_tfR[o+3],_tfR[o+5])+0.9;
+      ctx.moveTo(px+0.38,py); ctx.ellipse(px,py,0.38,0.62,0,0,7); }
+    ctx.fill(); ctx.globalAlpha=ga;
+  }
+  return nR;
 }
 
 /* Bulb flower primitives. Bulbs need a little more silhouette than a generic
@@ -10059,9 +10121,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       grassCrownOut(ctx);
     }
     const n = stemFor(L.stems||8);
+    // turkey feet at every culm's tip, and on some a second from an upper node, from their own stream
+    const feet=turkeyHead&&mature&&L.feet?[]:null, hr=feet?mulberry((seed^0x7f0f35)>>>0):null;
     for (let i=0;i<n;i++){
       grassCrownIn(ctx,crownRx,i/(n-1),-1,rnd,0.7);
-      const ox=(rnd()-0.5)*14, len=H*(0.78+rnd()*0.25), tip=ox+sway*len*0.07;
+      const ox=(rnd()-0.5)*14, len=H*(0.78+rnd()*0.25)*(L.culmLen||1), tip=ox+sway*len*0.07+(L.culmFan?ox*L.culmFan:0);
       const jit=(rnd()-0.5)*22;
       if (sn) sn.push([tip+_crX,(turkeyHead&&i%2===0?-len-4:-len)+_crY,2.4]);
       if (a2){
@@ -10074,7 +10138,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       } else {
         ctx.strokeStyle=shade(S.fol,jit); ctx.lineWidth=1.5;
         ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(ox,-len*0.6,tip,-len); ctx.stroke(); }
-      if (turkeyHead && mature && i%2===0){ // the turkey foot
+      if (feet){
+        // the culm's tangent at its tip, and at an upper node for a head on a peduncle from it
+        let tx=tip-ox, ty=-len*0.8; const td=Math.hypot(tx,ty)||1; tx/=td; ty/=td;
+        feet.push([tip+_crX,-len+_crY,tx,ty,1,0]);
+        if (hr()<(L.sideFeet===undefined?0.6:L.sideFeet)){
+          const t=0.8+hr()*0.1, nx=qBez(t,ox,ox,tip), ny=qBez(t,0,-len*0.6,-len), s=(i&1)?1:-1, a=s*(0.32+hr()*0.2);
+          const ca=Math.cos(a), sa=Math.sin(a);
+          feet.push([nx+_crX,ny+_crY,tx*ca-ty*sa,tx*sa+ty*ca,0.85,H*(0.05+hr()*0.03)]);
+        }
+      } else if (turkeyHead && mature && i%2===0){ // the turkey foot
         ctx.strokeStyle=turkeyHead; ctx.lineWidth=1.6;
         for (let p3=-1;p3<=1;p3++){ ctx.beginPath(); ctx.moveTo(tip,-len);
           ctx.lineTo(tip+p3*3.6, -len-6-(p3===0?2.5:0)); ctx.stroke(); }
@@ -10085,6 +10158,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       grassCrownOut(ctx);
     }
+    if (feet && feet.length) drawTurkeyFeet(ctx,L,H,feet,turkeyHead,blooming&&!S.seed,hr);
     if (sn) snowAnchors=sn;
   }
   else if (P.form === 'cloudgrass'){ // switchgrass/muhly/lovegrass: foliage clump under an airy seed cloud

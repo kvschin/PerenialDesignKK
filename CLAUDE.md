@@ -8675,6 +8675,24 @@ multiplies by the species' `h`), so a species drawn shorter takes its cultivars 
 'Eldorado' 17% narrower, 'Bronzeschleier' 28%), one drawn taller takes them wider (fountain grass's, 11-24%), and a
 cultivar drawn shorter over a fixed-size cloud widens that cloud. 25 choices took a wider `sideScale`, measured on real pixels in `dev/grass-review.html?check` and on the
 recorded geometry. The dev-only Classic renderer is not held: it draws 'Red October' and Slender Indiangrass 10-12% off.
+**Big bluestem's turkey feet and broomsedge's seed (0.9.178).**
+*Big bluestem* drew each head as three short fat strokes splayed from the culm tip with a bead on each,
+a cartoon glove, on every other culm. With `feet:true` on the `turkeyfoot` form a head is
+`drawTurkeyFeet` (draw.js): two to four slender racemes `racemeLen` of the height spreading from a
+peduncle like a bird's foot, curving apart and dipping as they ripen, with spikelets close along each
+and a fine bent awn off every one; at every culm's tip, and on some (`sideFeet`, 0.6) a second on a
+peduncle from an upper node. In flower they are purplish with a few orange anthers, in fall coppery.
+The heads come from a stream of their own (`seed^0x7f0f35`) and are drawn after the culms, so a culm
+in seed is the culm it was in spring (a test hides the feet and compares). `culmFan` fans the culm tips
+from the values the loop already drew (no new random numbers) so the feet separate, and `culmLen`
+(0.93, 'Red October' 0.87, 'Dancing Wind' 1) puts the heads back at the plant's height. *Broomsedge*
+takes the bluestem seed (`seedStyle:'bluestem'`) with three new keys: `racemePair`, a second raceme
+out of each sheath; `spatheLen`/`spatheW`, bigger sheaths, so the clump stays orange; and `cottonA`
+(0.55), fainter cotton, so the fluff reads as flecks along the stems and not as white candles.
+Splitbeard bluestem keeps `fluffyRaceme`. Only those five choices draw differently (1,767 hashed);
+heights within 2%; sprites and 280 real-size pictures clean. Bakes: big bluestem 0.5-0.7 ms to
+0.7-0.9, broomsedge 0.36 to 0.9 ms in seed.
+
 **Little bluestem's seed, prairie dropseed, and the smoke cloud for the lovegrasses and hairgrasses
 (0.9.176).** *Little bluestem* drew one short tuft at each culm's tip, a row of flags along the top of the
 clump. It is `seedStyle:'bluestem'` (`drawBluestemCulms`, draw.js): `culms` fertile culms, each with
