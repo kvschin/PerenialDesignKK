@@ -387,6 +387,11 @@ const BOOT_STRESS = BOOT_DEMO + `
     stressGarden();
     await new Promise(r=>setTimeout(r,1200));`;
 
+// --garden dev/test-gardens/woodland.prairie.json: any exported garden file in the repo
+const BOOT_FILE = f => BOOT_DEMO.replace("'/demo-garden.json'",
+  JSON.stringify('/' + path.relative(REPO, path.resolve(f)).split(path.sep).join('/')));
+const bootFor = g => g === 'stress' ? BOOT_STRESS : /\.json$/i.test(g) ? BOOT_FILE(g) : BOOT_DEMO;
+
 async function run(probeFn, boot) {
   const exe = ENG.exe.find(p => fs.existsSync(p));
   if (!exe) throw new Error('browser not installed');
@@ -406,7 +411,7 @@ async function run(probeFn, boot) {
 (async () => {
   const which = opt('probe', 'garden');
   const res = which === 'ui' ? await run(inPageUI, '')
-    : await run(inPage, GARDEN === 'stress' ? BOOT_STRESS : BOOT_DEMO);
+    : await run(inPage, bootFor(GARDEN));
   const text = JSON.stringify(res, null, 1);
   if (OUTFILE) fs.writeFileSync(OUTFILE, text);
   console.log(OUTFILE ? ('wrote ' + OUTFILE + (res.error ? ('  ERROR: ' + res.error) : '')) : text);

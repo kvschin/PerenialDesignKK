@@ -4730,6 +4730,221 @@ function uplightAims(lights,plantRecs){
     rec.aim=woody.size ? uplightAim(rec.x,rec.y,woody) : null;
   }
 }
+/* ---------- edit feedback where the gardener is looking ----------
+   Planting had a 550ms diamond (game.fx) and nothing else on the canvas: an
+   erase, an undo and a refused tap each answered only with a toast at the top
+   of the screen, which in a big garden says THAT something happened and not
+   WHERE. These are the answers at the tile:
+     sprout  — a new plant grows in from its foot, 0.6 -> 1.05 -> 1 over 220ms.
+               A TRANSFORM on that record's own draw, inside the entity pass,
+               so it sorts and occludes as the plant does. Its sprite key is the
+               plant's own (nothing about the key reads the scale), so nothing
+               is baked for it that the plant would not bake anyway.
+     lift    — an erased plant or bulb shrinks and fades where it stood, drawn
+               from its live sprite (looked up by key every frame, never held:
+               a retired bitmap is close()d a frame later and leaves the map at
+               once), or procedurally within LIFT_PROC_MS, or as a red diamond.
+               Anything else an erase takes is a red diamond.
+     flash   — the tiles an undo or redo changed, a soft outline for 400ms.
+     refuse  — a refused placement: a red diamond with one small shake.
+   Every list is capped, so a frame's cost is bounded whatever a fill or a
+   sweep does, and `until` is the moment the last of them ends:
+   hasTransientGardenWork keeps full-rate frames only until then. Under reduced
+   motion nothing scales, expands or shakes: a brief static outline instead. */
+const EDIT_FX={
+  SPROUT_MS:220, SPROUT_CAP:32, SPROUT_BURST:12, DRIFT_STAGGER_MS:35,
+  LIFT_MS:180, LIFT_CAP:64, LIFT_GESTURE:40, LIFT_PROC_MS:2, MARK_MS:300,
+  MARK_CAP:240, FLASH_MS:400, FLASH_CAP:240, REFUSE_MS:360,
+  sprouts:new Map(),   // plant record -> the moment it starts growing in
+  burst:0,             // sprouts begun since the last frame (a fill is one burst)
+  lifts:[],            // {e: the scene record that was drawn, t0}
+  gesture:null, gestureLifts:0,   // the erase gesture (its counts object) and the ghosts it made
+  marks:[],            // red diamonds: {x,y,t0}
+  flash:null,          // {tiles:[[x,y]...], t0}
+  refuse:null,         // {x,y,t0}
+  until:0,             // when the last effect ends
+  now:0,               // this frame's clock (performance.now, the clock the effects were stamped on)
+  proc:0,              // procedural ghost time spent this frame
+};
+let sproutLive=0;      // EDIT_FX.sprouts.size, read once per drawn plant
+function editFxEnd(t){ if (t>EDIT_FX.until) EDIT_FX.until=t; }
+function editFxBusy(now=performance.now()){ return now<EDIT_FX.until; }
+/* A new plant, from plantFx. `delay` is a drift's stagger (stampDrift). Past
+   SPROUT_BURST in one frame (a fill places hundreds at once) the rest simply
+   appear, and past SPROUT_CAP the oldest finishes early. */
+function fxSprout(p,delay=0){
+  if (!p || EDIT_FX.burst>=EDIT_FX.SPROUT_BURST || reducedMotion()) return false;
+  const S=EDIT_FX.sprouts;
+  if (S.size>=EDIT_FX.SPROUT_CAP && !S.has(p)) S.delete(S.keys().next().value);
+  const t0=performance.now()+delay;
+  S.set(p,t0); sproutLive=S.size; EDIT_FX.burst++;
+  editFxEnd(t0+EDIT_FX.SPROUT_MS);
+  return true;
+}
+// 0.6 -> 1.05 by 70% of the way, then settles to 1
+function sproutCurve(a){
+  if (a<=0) return 0.6;
+  if (a<0.7){ const u=1-a/0.7; return 0.6+0.45*(1-u*u*u); }
+  if (a>=1) return 1;
+  const u=(a-0.7)/0.3; return 1.05-0.05*u*u*(3-2*u);
+}
+/* The scale a record's plant is drawn at this frame: 1 for a plant not
+   sprouting, 0 for a drift's later plant that has not started yet. */
+function sproutScaleOf(p,now=EDIT_FX.now){
+  const t0=EDIT_FX.sprouts.get(p);
+  if (t0===undefined) return 1;
+  if (now<t0) return 0;
+  const a=(now-t0)/EDIT_FX.SPROUT_MS;
+  return a>=1 ? 1 : sproutCurve(a);
+}
+/* drawPlantMaybeCached under a scale about the plant's foot. The entity pass
+   SETS the matrix for a sheared blit (blitPlantSprite), which would throw the
+   scale away, so plantBlitScale is lifted for this one draw and the blit takes
+   its save/restore path, which composes with the scale. */
+function drawPlantSprouting(ctx,s,bx,by,key,growth,season,seed,sway,variant,detail,useSprites,rec){
+  if (s<=0) return;
+  const pbs=plantBlitScale; plantBlitScale=0;
+  ctx.save(); ctx.translate(bx,by); ctx.scale(s,s); ctx.translate(-bx,-by);
+  try{ drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites,rec); }
+  finally{ ctx.restore(); plantBlitScale=pbs; }
+}
+/* An erase is about to clear `layer` at `k`: keep what was drawn there so it
+   can shrink away. `counts` is the erase gesture's tally, so a new object is a
+   new gesture and the ghost allowance starts again. A plant the scene has not
+   drawn (or has not caught up with) gets a red diamond instead. */
+function fxLiftGesture(counts){
+  if (counts!==EDIT_FX.gesture){ EDIT_FX.gesture=counts; EDIT_FX.gestureLifts=0; }
+}
+function fxLiftPlant(layer,k,x,y,counts){
+  fxLiftGesture(counts);
+  const idx=scene && scene.index && scene.index[layer], e=idx && idx.get(k);
+  if (e && e.p===game[layer][k]
+      && EDIT_FX.gestureLifts<EDIT_FX.LIFT_GESTURE && EDIT_FX.lifts.length<EDIT_FX.LIFT_CAP && !reducedMotion()){
+    const t0=performance.now();
+    EDIT_FX.gestureLifts++; EDIT_FX.lifts.push({e,t0});
+    EDIT_FX.sprouts.delete(e.p); sproutLive=EDIT_FX.sprouts.size;
+    editFxEnd(t0+EDIT_FX.LIFT_MS);
+    return true;
+  }
+  fxLiftMark(x,y);
+  return false;
+}
+function fxLiftMark(x,y){
+  const M=EDIT_FX.marks, t0=performance.now();
+  if (M.length && M[M.length-1].x===x && M[M.length-1].y===y && t0-M[M.length-1].t0<40) return;
+  if (M.length>=EDIT_FX.MARK_CAP) M.shift();
+  M.push({x,y,t0});
+  editFxEnd(t0+EDIT_FX.MARK_MS);   // the longer of its two lives (a still one is LIFT_MS)
+}
+// what an undo or redo changed; nothing when it is more than FLASH_CAP tiles
+function fxFlashTiles(keys){
+  const tiles=[];
+  for (const k of keys){
+    if (tiles.length>=EDIT_FX.FLASH_CAP) return false;
+    const i=k.indexOf(','), x=+k.slice(0,i), y=+k.slice(i+1);
+    if (Number.isFinite(x) && Number.isFinite(y)) tiles.push([x,y]);
+  }
+  if (!tiles.length) return false;
+  const t0=performance.now();
+  EDIT_FX.flash={tiles,t0}; editFxEnd(t0+EDIT_FX.FLASH_MS);
+  return true;
+}
+function fxRefuse(x,y){
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  const t0=performance.now();
+  EDIT_FX.refuse={x:Math.round(x),y:Math.round(y),t0}; editFxEnd(t0+EDIT_FX.REFUSE_MS);
+}
+// drop what has ended; returns whether anything is left
+function editFxPrune(now){
+  const S=EDIT_FX.sprouts;
+  if (S.size){ for (const [p,t0] of S) if (now-t0>=EDIT_FX.SPROUT_MS) S.delete(p); sproutLive=S.size; }
+  const L=EDIT_FX.lifts;
+  if (L.length && now-L[0].t0>=EDIT_FX.LIFT_MS) EDIT_FX.lifts=L.filter(l=>now-l.t0<EDIT_FX.LIFT_MS);
+  const M=EDIT_FX.marks, mMs=reducedMotion()?EDIT_FX.LIFT_MS:EDIT_FX.MARK_MS;
+  if (M.length && now-M[0].t0>=mMs) EDIT_FX.marks=M.filter(m=>now-m.t0<mMs);
+  if (EDIT_FX.flash && now-EDIT_FX.flash.t0>=EDIT_FX.FLASH_MS) EDIT_FX.flash=null;
+  if (EDIT_FX.refuse && now-EDIT_FX.refuse.t0>=EDIT_FX.REFUSE_MS) EDIT_FX.refuse=null;
+  return !!(sproutLive || EDIT_FX.lifts.length || EDIT_FX.marks.length || EDIT_FX.flash || EDIT_FX.refuse);
+}
+// the frame's clock for the entity pass, and the end of the last frame's burst
+function editFxFrame(now){
+  EDIT_FX.now=now; EDIT_FX.burst=0; EDIT_FX.proc=0;
+  if (sproutLive) editFxPrune(now);
+}
+// a tile's diamond, scaled `e` about its centre and moved `dx`, into the current path
+function fxDiamondPath(ctx,x,y,W,H,e,dx){
+  const [sx0,sy]=screenOf(x,y,W,H), sx=sx0+(dx||0), cy=sy+TILE_H/2, hw=TILE_W/2*e, hh=TILE_H/2*e;
+  ctx.moveTo(sx,cy-hh); ctx.lineTo(sx+hw,cy); ctx.lineTo(sx,cy+hh); ctx.lineTo(sx-hw,cy); ctx.closePath();
+}
+const FX_LIFT_INK='236,120,96', FX_REFUSE_INK='226,92,70', FX_FLASH_INK='243,236,221';
+/* Ghosts, diamonds, the undo flash and the refusal, drawn after the entity
+   pass (a ghost is leaving, so it goes over the planting). */
+function drawEditFx(ctx,W,H,season,sway,now){
+  if (!editFxPrune(now)) return;
+  const still=reducedMotion();
+  const offX=W/2-cam.x, offY=H*0.24-cam.y;
+  // lifted plants shrink toward their foot and fade
+  for (const l of EDIT_FX.lifts){
+    const a=Math.max(0,(now-l.t0)/EDIT_FX.LIFT_MS), e=l.e;
+    if (e.ox1+offX<0 || e.ox0+offX>W || e.oy1+offY<0 || e.oy0+offY>H) continue;
+    let sx, sy;
+    if (e.px!==undefined){ sx=e.px+offX; sy=e.py+offY; }
+    else { const s=plantScreenOf(e.x,e.y,e.p,W,H); sx=s[0]; sy=s[1]; }
+    const by=sy+TILE_H/2;
+    let g=sceneEntGrowth(e); if (e.stunt) g*=STUNT_GROWTH;
+    if (e.kind===SCENE_K.BULB && g<=0.02){ ctx.beginPath(); fxDiamondPath(ctx,e.x,e.y,W,H,1-0.3*a,0);   // a bulb underground: nothing to shrink
+      ctx.strokeStyle=`rgba(${FX_LIFT_INK},${0.85*(1-a)})`; ctx.lineWidth=2; ctx.stroke(); continue; }
+    const s=1-0.42*a*(2-a), lift=4*a;
+    ctx.save();
+    ctx.globalAlpha=(1-a*a)*0.95;   // held most of the way, then gone: (1-a)^2 was faint by a third
+    ctx.translate(sx,by-lift); ctx.scale(s,s); ctx.translate(-sx,-by);
+    const sp=e._kk!==undefined ? PSPRITE.map.get(e._kk) : null;
+    if (sp && sp.cv && sp.cv.width){ sp.used=PSPRITE.frame; blitPlantSprite(ctx,sp,sx,by,sway); }
+    else if (EDIT_FX.proc<EDIT_FX.LIFT_PROC_MS){
+      const t0=performance.now();
+      drawPlant(ctx,sx,by,e.p.s,g,season,e.seed,sway,e.p.v,undefined,e.detail,leafStageNow(plantDef(e.p.s,e.p.v),season));
+      EDIT_FX.proc+=performance.now()-t0;
+    } else { ctx.beginPath(); fxDiamondPath(ctx,e.x,e.y,W,H,1,0);
+      ctx.strokeStyle=`rgb(${FX_LIFT_INK})`; ctx.lineWidth=2; ctx.stroke(); }
+    ctx.restore();
+  }
+  ctx.globalAlpha=1;
+  /* Red diamonds for what else was erased. Each has its own clock, so they are
+     drawn in four bands of fade, a path and a stroke a band, which bounds a
+     sweep of a 7-wide brush to four strokes whatever it took. */
+  const M=EDIT_FX.marks;
+  if (M.length){
+    const mMs=still?EDIT_FX.LIFT_MS:EDIT_FX.MARK_MS;
+    ctx.lineWidth=2;
+    for (let band=0;band<4;band++){
+      let any=false; ctx.beginPath();
+      for (const m of M){
+        const a=Math.max(0,Math.min(0.999,(now-m.t0)/mMs));
+        if ((a*4|0)!==band) continue;
+        fxDiamondPath(ctx,m.x,m.y,W,H,still?0.9:1-0.35*a,0); any=true;
+      }
+      if (any){ ctx.strokeStyle=`rgba(${FX_LIFT_INK},${still?0.8:0.9*(1-(band+0.5)/4)})`; ctx.stroke(); }
+    }
+  }
+  // the tiles an undo or redo moved: one soft outline, held, then faded
+  const F=EDIT_FX.flash;
+  if (F){
+    const a=Math.max(0,(now-F.t0)/EDIT_FX.FLASH_MS), f=a<0.35?1:1-(a-0.35)/0.65;
+    ctx.beginPath();
+    for (const [x,y] of F.tiles) fxDiamondPath(ctx,x,y,W,H,0.92,0);
+    ctx.strokeStyle=`rgba(${FX_FLASH_INK},${0.28*f})`; ctx.lineWidth=6; ctx.stroke();
+    ctx.strokeStyle=`rgba(${FX_FLASH_INK},${0.9*f})`; ctx.lineWidth=1.6; ctx.stroke();
+  }
+  // a refused tap: red, one small shake, then gone
+  const R=EDIT_FX.refuse;
+  if (R){
+    const a=Math.max(0,(now-R.t0)/EDIT_FX.REFUSE_MS), f=a<0.55?1:1-(a-0.55)/0.45;
+    const dx=still||a>=0.5 ? 0 : 3.5*Math.sin(a/0.5*Math.PI*2)*(1-a);
+    ctx.beginPath(); fxDiamondPath(ctx,R.x,R.y,W,H,0.94,dx);
+    ctx.fillStyle=`rgba(${FX_REFUSE_INK},${0.22*f})`; ctx.fill();
+    ctx.strokeStyle=`rgba(${FX_REFUSE_INK},${0.95*f})`; ctx.lineWidth=2.2; ctx.stroke();
+  }
+}
 /* How big a record's plant is drawn. Under the Established preview that is 1.
    Under Today it is plantGrowth, establishment times the seasonal envelope,
    which reads the clock four times and walks the calendar: asked for every
@@ -4788,6 +5003,9 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===
       let sx, sy;
       if (e.px!==undefined){ sx=e.px+W/2-cam.x; sy=e.py+H*0.24-cam.y; }
       else { const s=plantScreenOf(e.x,e.y,e.p,W,H); sx=s[0]; sy=s[1]; }
+      // a bulb just placed grows in (fxSprout); every other one pays one compare
+      if (sproutLive && ctx===cx){ const s=sproutScaleOf(e.p);
+        if (s!==1){ drawPlantSprouting(ctx,s,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e); return 1; } }
       drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e);
       return 1;
     }
@@ -4796,7 +5014,10 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===
       let sx, sy;
       if (e.px!==undefined){ sx=e.px+W/2-cam.x; sy=e.py+H*0.24-cam.y; }
       else { const s=plantScreenOf(e.x,e.y,e.p,W,H); sx=s[0]; sy=s[1]; }
-      drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
+      // a plant just placed grows in (fxSprout); every other one pays one compare
+      const sp=(sproutLive && ctx===cx) ? sproutScaleOf(e.p) : 1;
+      if (sp!==1) drawPlantSprouting(ctx,sp,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
+      else drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
       if (AHEAD.season && useSprites && ctx===cx) aheadBakePlant(e);
       return 1;
     }
@@ -5654,6 +5875,7 @@ function render(t){
      this scale back (plantBlitScale, blitPlantSprite). */
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
   plantBlitScale=DPR*ZOOM;
+  editFxFrame(performance.now());   // the clock a sprout reads (the one it was stamped on, not rAF's)
   // the same boxes packed in one array (sceneBuildSteps); a scene from anywhere
   // else has none, and its records are read as before
   // (nor has a list a dev tool swapped in: the boxes belong to the array they were built for)
@@ -5693,10 +5915,14 @@ function render(t){
   if (dbg.on){ dbg.ents=drawn; dbg.tiles=(x1-x0+1)*(y1-y0+1); }
   const tFx=dnow();
 
-  // planting pulses: an expanding diamond so a tap visibly took
-  game.fx=game.fx.filter(f=>t-f.t0<550);
+  // planting pulses: an expanding diamond so a tap visibly took. A drift's
+  // later plants carry a start a little ahead (stampDrift), drawn from then on;
+  // with motion reduced the diamond holds still and fades
+  const fxNow=EDIT_FX.now, stillFx=game.fx.length ? reducedMotion() : false;   // matchMedia: only when a pulse is up
+  game.fx=game.fx.filter(f=>fxNow-f.t0<550);
   game.fx.forEach(f=>{
-    const a=(t-f.t0)/550, e2=0.55+a*0.85;
+    const a=(fxNow-f.t0)/550; if (a<0) return;
+    const e2=stillFx ? 1 : 0.55+a*0.85;
     const [sx,sy]=screenOf(f.x+(f.ox||0),f.y+(f.oy||0),W,H), cyx=sy+TILE_H/2;
     cx.strokeStyle=`rgba(243,236,221,${0.95*(1-a)})`; cx.lineWidth=2.5;
     cx.beginPath();
@@ -5704,6 +5930,7 @@ function render(t){
     cx.lineTo(sx, cyx+(TILE_H/2)*e2); cx.lineTo(sx-(TILE_W/2)*e2, cyx);
     cx.closePath(); cx.stroke();
   });
+  if (!game.photo) drawEditFx(cx,W,H,cal.season,sway,fxNow);
   dmark('pulse',tFx);
   const tOver=dnow();
 

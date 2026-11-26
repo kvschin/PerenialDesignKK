@@ -164,6 +164,17 @@ async function session() {
   if (!shrubs || !forbs) problems.push('planting: nothing went in (' + shrubs + ' shrubs, ' + forbs + ' perennials of ' + free.length + ' open tiles)');
   doUndo(); await sleep(300); doRedo(); await sleep(300);
   note('undo and redo');
+  /* An erase sweep: what it lifts shrinks away, drawn from these very sprites
+     (EDIT_FX), which in WebKit are canvases emptied a frame after they retire. */
+  game.eraseMode = 'all'; game.brushSize = 3;
+  const swept = { plants: 0, bulbs: 0, terr: 0 };
+  beginUndo();
+  for (let i = 3; i < free.length && i < 80; i += 5) { const [x, y] = free[i]; eraseBrush(x, y, swept); await raf(); }
+  commitUndo();
+  await sleep(400);
+  note('erased', { plants: swept.plants, bulbs: swept.bulbs });
+  doUndo(); await sleep(400);
+  note('erase undone');
   const gid = game.worldId;
   quitToMenu(); await sleep(2500);
   const held = { sprites: PSPRITE.map.size, structures: SSPRITE.map.size, atlasPages: ATLAS.pages.length, ground: !!groundCanvas, spare: !!groundSpare, wash: washSurf.key };

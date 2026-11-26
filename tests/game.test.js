@@ -29929,3 +29929,212 @@ test('while a bloom fades, a stem that has finished carries seed, not a bud', ()
     assertEqual(phases.length, 0, 'and before the bloom, no heads at all');
   } finally { drawMonardaHead = was; }
 });
+
+/* ---------- edit feedback at the tile (EDIT_FX, renderer.js) ---------- */
+function resetEditFxForTest(){
+  EDIT_FX.sprouts.clear(); sproutLive = 0; EDIT_FX.burst = 0; EDIT_FX.lifts = []; EDIT_FX.marks = [];
+  EDIT_FX.flash = null; EDIT_FX.refuse = null; EDIT_FX.until = 0; EDIT_FX.gesture = null; EDIT_FX.gestureLifts = 0;
+  game.fx = [];
+}
+function withMotion(pref, fn){
+  const was = motionPref;
+  setMotionPref(pref);
+  try { return fn(); } finally { setMotionPref(was); }
+}
+
+test('a new plant sprouts in under a scale on its own draw, with its sprite key unchanged', () => withMotion('full', () => {
+  setup(21, 21); resetEditFxForTest();
+  game.tool = 'bluestem'; game.toolVar = null;
+  assert(applyToolAt(6, 6), 'planted');
+  const p = game.plants['6,6'], t0 = EDIT_FX.sprouts.get(p);
+  assert(t0 !== undefined && sproutLive === 1, 'placing a plant starts a sprout for that record');
+  assert(editFxBusy(t0 + 10) && !editFxBusy(t0 + EDIT_FX.SPROUT_MS + 1), 'busy for the sprout, and no longer');
+  // the curve: from 0.6 at its foot, past 1 at 70%, settled at 1
+  assertEqual(sproutScaleOf(p, t0), 0.6, 'starts at 0.6');
+  assert(Math.abs(sproutScaleOf(p, t0 + 0.7 * EDIT_FX.SPROUT_MS) - 1.05) < 1e-9, 'overshoots to 1.05');
+  assertEqual(sproutScaleOf(p, t0 + EDIT_FX.SPROUT_MS), 1, 'and settles at 1');
+  assertEqual(sproutScaleOf({}, t0), 1, 'a plant that is not sprouting is drawn as it is');
+
+  /* The sprouting draw is the ordinary one under a scale: the same arguments
+     reach drawPlantMaybeCached, so the key it builds, and the sprite it asks
+     for, are the plant's own. */
+  buildScene(800, 600);
+  const rec = scene.index.plants.get('6,6');
+  assert(rec && rec.p === p, 'the scene has the record');
+  const seen = [], was = globalThis.drawPlantMaybeCached;
+  globalThis.drawPlantMaybeCached = function(ctx, bx, by, key, growth, season, seed, sway, variant, detail, useSprites, r){
+    seen.push({args:[bx, by, key, growth, season, seed, sway, variant, JSON.stringify(detail), useSprites, r === rec],
+      kk:plantKeyNow(r, key, variant, season, growth), pbs:plantBlitScale});
+  };
+  const pbs0 = plantBlitScale;
+  plantBlitScale = 2;
+  try {
+    EDIT_FX.now = t0 + 60; drawSceneEnt(rec, 800, 600, 'Summer', 0.3, true);
+    EDIT_FX.now = t0 + 10 * EDIT_FX.SPROUT_MS; drawSceneEnt(rec, 800, 600, 'Summer', 0.3, true);
+  } finally { globalThis.drawPlantMaybeCached = was; }
+  const after = plantBlitScale; plantBlitScale = pbs0;
+  assertEqual(seen.length, 2, 'drawn once each time');
+  assertEqual(JSON.stringify(seen[0].args), JSON.stringify(seen[1].args), 'the same draw, sprouting or not');
+  assertEqual(seen[0].kk, seen[1].kk, 'the same sprite key');
+  assertEqual(seen[0].pbs, 0, 'the sheared-blit shortcut is off inside the scale, so the blit composes with it');
+  assertEqual(seen[1].pbs, 2, 'and on for an ordinary plant');
+  assertEqual(after, 2, 'the entity pass gets its blit scale back');
+  // a drift's later plant is not drawn before its turn
+  EDIT_FX.sprouts.set(p, t0 + 100); sproutLive = EDIT_FX.sprouts.size;
+  seen.length = 0;
+  globalThis.drawPlantMaybeCached = function(){ seen.push(1); };
+  try { EDIT_FX.now = t0 + 50; drawSceneEnt(rec, 800, 600, 'Summer', 0, true); }
+  finally { globalThis.drawPlantMaybeCached = was; }
+  assertEqual(seen.length, 0, 'waiting its turn, it is not drawn yet');
+  resetEditFxForTest();
+}));
+
+test('sprouts are bounded: a fill sprouts a burst, a drag keeps the newest, and they expire', () => withMotion('full', () => {
+  resetEditFxForTest();
+  const now = performance.now(), recs = [];
+  for (let i = 0; i < 50; i++) recs.push({s:'x' + i}), fxSprout(recs[i]);
+  assertEqual(EDIT_FX.sprouts.size, EDIT_FX.SPROUT_BURST, 'one burst sprouts at most SPROUT_BURST');
+  assert(EDIT_FX.sprouts.has(recs[0]) && !EDIT_FX.sprouts.has(recs[49]), 'the first of a fill (nearest the tap) sprout');
+  // a drag: one or two a frame, over many frames
+  for (let f = 0; f < 60; f++){ editFxFrame(now); const r = {s:'d' + f}; recs.push(r); fxSprout(r); }
+  assertEqual(EDIT_FX.sprouts.size, EDIT_FX.SPROUT_CAP, 'never more than SPROUT_CAP at once');
+  assert(EDIT_FX.sprouts.has(recs[recs.length - 1]) && !EDIT_FX.sprouts.has(recs[0]), 'the newest kept, the oldest finished early');
+  assertEqual(sproutLive, EDIT_FX.SPROUT_CAP, 'the per-plant counter follows the map');
+  editFxFrame(now + EDIT_FX.SPROUT_MS + 1000);
+  assertEqual(EDIT_FX.sprouts.size, 0, 'every sprout ends'); assertEqual(sproutLive, 0, 'and the entity pass is back to one compare');
+  // with motion reduced, a plant simply appears
+  withMotion('reduce', () => { assert(!fxSprout({s:'r'}), 'no sprout'); });
+  assertEqual(EDIT_FX.sprouts.size, 0, 'none registered');
+  resetEditFxForTest();
+}));
+
+test('a drift scatters in a beat apart, and lands at once with motion reduced', () => {
+  for (const pref of ['full', 'reduce']) withMotion(pref, () => {
+    setup(21, 21); resetEditFxForTest();
+    game.tool = 'bluestem'; game.toolVar = null; game.drift = true;
+    const said = saidBy(() => { game.actX = 10; game.actY = 10; actHere(); });
+    const starts = game.fx.map(f => f.t0).sort((a, b) => a - b);
+    assert(starts.length > 2, pref + ': a drift landed (' + said.join(' | ') + ')');
+    const span = starts[starts.length - 1] - starts[0];
+    if (pref === 'full'){
+      assert(Math.abs(span - (starts.length - 1) * EDIT_FX.DRIFT_STAGGER_MS) < 15, 'each a beat after the last: ' + span);
+      assertEqual(EDIT_FX.sprouts.size, starts.length, 'and every one sprouts');
+    } else {
+      assert(span < 15, 'all at once: ' + span);
+      assertEqual(EDIT_FX.sprouts.size, 0, 'and nothing scales');
+    }
+    assertEqual(plantFxDelay, 0, 'the stagger does not outlive the drift');
+    game.drift = false; resetEditFxForTest();
+  });
+});
+
+test('an erase shrinks away what it lifted, 40 ghosts a gesture, then red diamonds', () => withMotion('full', () => {
+  setup(21, 21); resetEditFxForTest();
+  game.tool = 'bluestem'; game.toolVar = null;
+  for (let y = 2; y < 12; y++) for (let x = 2; x < 8; x++) applyToolAt(x, y);    // 60 plants
+  game.terrain['15,15'] = {k:'path', c:'gravel'};
+  buildScene(800, 600);
+  resetEditFxForTest();
+  game.eraseMode = 'all'; game.brushSize = 1;
+  const counts = {plants:0, bulbs:0, terr:0};
+  for (let y = 2; y < 12; y++) for (let x = 2; x < 8; x++) eraseBrush(x, y, counts);
+  assertEqual(counts.plants, 60, 'erased them all');
+  assertEqual(EDIT_FX.lifts.length, EDIT_FX.LIFT_GESTURE, 'a ghost each for the first 40');
+  assertEqual(EDIT_FX.marks.length, 20, 'a red diamond each for the rest');
+  assert(EDIT_FX.lifts.every(l => l.e.kind === SCENE_K.PLANT), 'a ghost is the scene record that was drawn');
+  // a new gesture starts its allowance again; what is not a plant is a diamond
+  const marks = EDIT_FX.marks.length;
+  eraseBrush(15, 15, {plants:0, bulbs:0, terr:0});
+  assertEqual(EDIT_FX.marks.length, marks + 1, 'a path tile lifted is a red diamond');
+  assertEqual(EDIT_FX.gestureLifts, 0, 'a new gesture, a new allowance');
+  assert(editFxBusy(), 'busy while they fade');
+  editFxPrune(performance.now() + 5000);
+  assertEqual(EDIT_FX.lifts.length + EDIT_FX.marks.length, 0, 'and they expire');
+  resetEditFxForTest();
+}));
+
+test('a ghost looks its sprite up every frame and never draws one that has left the cache', () => withMotion('full', () => {
+  setup(21, 21); resetEditFxForTest();
+  game.tool = 'bluestem'; game.toolVar = null; applyToolAt(5, 5);
+  buildScene(800, 600);
+  const rec = scene.index.plants.get('5,5');
+  rec._kk = 'TEST|ghost'; rec.ox0 = -1e6; rec.ox1 = 1e6; rec.oy0 = -1e6; rec.oy1 = 1e6;
+  resetEditFxForTest();
+  eraseBrush(5, 5, {plants:0, bulbs:0, terr:0});
+  assertEqual(EDIT_FX.lifts.length, 1, 'one ghost');
+  const blits = [], procs = [], wasB = globalThis.blitPlantSprite, wasD = globalThis.drawPlant;
+  globalThis.blitPlantSprite = (ctx, e) => blits.push(e);
+  globalThis.drawPlant = function(){ procs.push(1); };
+  const entry = {cv:{width:20, height:20}, s:1, ox:0, oy:0, used:0};
+  try {
+    PSPRITE.map.set('TEST|ghost', entry);
+    drawEditFx(cx, 800, 600, 'Summer', 0, EDIT_FX.lifts[0].t0 + 20);
+    assertEqual(blits.length, 1, 'drawn from the live sprite'); assert(blits[0] === entry, 'that sprite');
+    PSPRITE.map.delete('TEST|ghost');   // retired: it leaves the map now and is closed a frame later
+    drawEditFx(cx, 800, 600, 'Summer', 0, EDIT_FX.lifts[0].t0 + 40);
+    assertEqual(blits.length, 1, 'never blitted once it has left the map');
+    assertEqual(procs.length, 1, 'drawn procedurally instead');
+  } finally { globalThis.blitPlantSprite = wasB; globalThis.drawPlant = wasD; PSPRITE.map.delete('TEST|ghost'); }
+  resetEditFxForTest();
+}));
+
+test('undo and redo flash the tiles they changed, and nothing when the change is huge', () => withMotion('full', () => {
+  setup(40, 40); resetEditFxForTest(); undoStack.length = 0; redoStack.length = 0;
+  game.tool = 'bluestem'; game.toolVar = null;
+  withUndo(() => { applyToolAt(3, 3); applyToolAt(4, 3); });
+  withUndo(() => { game.tool = 'path'; applyToolAt(9, 9); game.tool = 'bluestem'; });
+  doUndo();
+  assert(EDIT_FX.flash, 'an undo of a path flashes');
+  assertEqual(EDIT_FX.flash.tiles.map(t => t.join(',')).join(' '), '9,9', 'just the path tile');
+  doUndo();
+  assertEqual(EDIT_FX.flash.tiles.map(t => t.join(',')).sort().join(' '), '3,3 4,3', 'the two plants it took away');
+  doRedo();
+  assertEqual(EDIT_FX.flash.tiles.map(t => t.join(',')).sort().join(' '), '3,3 4,3', 'and a redo the two it put back');
+  // a big change: no flash at all
+  EDIT_FX.flash = null;
+  withUndo(() => { for (let y = 0; y < 20; y++) for (let x = 10; x < 30; x++) applyToolAt(x, y); });
+  assert(Object.keys(game.plants).length > EDIT_FX.FLASH_CAP, 'more than the cap planted');
+  doUndo();
+  assertEqual(EDIT_FX.flash, null, 'too much to point at: no flash');
+  resetEditFxForTest();
+}));
+
+test('a refused placement flashes at the tile, and holds still with motion reduced', () => {
+  setup(21, 21); resetEditFxForTest();
+  game.fences['4,4'] = {style:'black', height:4, t:1};
+  game.tool = 'bluestem'; game.toolVar = null;
+  const said = saidBy(() => { game.actX = 4; game.actY = 4; actHere(); });
+  assert(said.some(m => /in the way/.test(m)), 'the toast still says why: ' + said.join(' | '));
+  assert(EDIT_FX.refuse && EDIT_FX.refuse.x === 4 && EDIT_FX.refuse.y === 4, 'and the tile flashes');
+  assertEqual(refuseTile, null, 'the tapped tile is forgotten after the tap');
+  // a refusal with nowhere to point is the toast alone
+  EDIT_FX.refuse = null; saidBy(() => rejectPlacement('No.'));
+  assertEqual(EDIT_FX.refuse, null, 'outside a tap, no tile');
+  saidBy(() => rejectPlacement('No.', 7, 8));
+  assert(EDIT_FX.refuse.x === 7 && EDIT_FX.refuse.y === 8, 'or where it is told');
+  // one small shake; none with motion reduced
+  const shakes = pref => withMotion(pref, () => {
+    const xs = [], was = globalThis.fxDiamondPath;
+    globalThis.fxDiamondPath = function(ctx, x, y, W, H, e, dx){ xs.push(dx || 0); };
+    try { drawEditFx(cx, 800, 600, 'Summer', 0, EDIT_FX.refuse.t0 + EDIT_FX.REFUSE_MS * 0.12); }
+    finally { globalThis.fxDiamondPath = was; }
+    return xs;
+  });
+  assert(shakes('full').some(dx => Math.abs(dx) > 1), 'it shakes');
+  assert(shakes('reduce').every(dx => dx === 0), 'not with motion reduced');
+  resetEditFxForTest();
+});
+
+test('the edit effects keep full-rate frames only while one is drawing', () => {
+  setup(21, 21); resetEditFxForTest();
+  const was = globalThis.spritesPending;
+  globalThis.spritesPending = () => false;
+  try {
+    const idle = hasTransientGardenWork();
+    fxRefuse(3, 3);
+    assert(hasTransientGardenWork(), 'a refusal on screen keeps the frames coming');
+    EDIT_FX.until = performance.now() - 1;
+    assertEqual(hasTransientGardenWork(), idle, 'and once it has ended, the idle cadence returns');
+  } finally { globalThis.spritesPending = was; }
+  resetEditFxForTest();
+});
