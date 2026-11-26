@@ -225,12 +225,12 @@
            meadow, woodland, and wetland habits. `sedgeHabit:'palm'`
            gives Palm Sedge ranked leaves; `seedStyle` may be `mace`,
            `brush`, or `pendant` for a shared distinctive fruiting habit.
-           Non-mound bunchgrasses may use `seedStyle:'fluffyRaceme'` plus
-           seedTufts/seedSpan/seedAwn/seedFan for repeated hairy spikelets
-           along a narrow upright fertile culm, or `seedStyle:'bluestem'`
+           Non-mound bunchgrasses may use `seedStyle:'bluestem'`
            (little bluestem) for culms/racemes/racemeLen/racemeFrom: a
            fluffy raceme out of a spathe at each node of the upper culm;
-           broomsedge adds racemePair, spatheLen, spatheW and cottonA.
+           broomsedge adds racemePair, spatheLen, spatheW and cottonA;
+           splitbeard `pairSplit` (a V of two racemes on a peduncle
+           stalkLen long), cottonHairs, cottonLen, cottonW and culmLen.
            `turkeyfoot` with `feet:true` draws big bluestem's heads
            (drawTurkeyFeet): racemeLen, sideFeet, culmFan, culmLen.
            A cloud grass may set `cloudStyle:'smoke'` (culmLen, panBase,
@@ -791,14 +791,14 @@ const PLANTS = {
     sea:{Spring:{fol:'#6f8f5c',bloom:'#b08850'}, Summer:{fol:'#5f8250',bloom:'#b08850',seed:'#8f7a55'}, Fall:{fol:'#8d8a58',seed:'#86704e'}, Winter:{fol:'#9a8462',seed:'#80694b'}}},
   rubymuhly:{ name:'Ruby Muhly', latin:'Muhlenbergia reverchonii', form:'cloudgrass', type:'grass', h:20, heightIn:28,
     space:18, spread:24, zones:[5,10], nativeTo:['north-america'], provenance:'species', sun:'full', moist:'dry', phen:'warm',
-    look:{art2:true, crownIn:9, leaves:30, leafFan:1.8, leafLen:0.55, bladeSpread:0.72, leafW:0.75, stems:10, stemFan:1.1,
-      stemBase:12, stemLean:0.035, stemW:0.6, panicle:'mist', cloudDots:26, cloudWidth:28, cloudHeight:24,
-      cloudRadius:0.42, cloudTop:0.7, cloudSquash:1, topScale:1.3, sideScale:1.01},
+    look:{art2:true, crownIn:9, leaves:30, leafFan:1.8, leafLen:0.55, bladeSpread:0.72, leafW:0.75, stems:10, stemFan:0.8,
+      stemLean:0.035, stemW:0.5, cloudStyle:'smoke', culmLen:0.97, panBase:0.4, panW:0.3, panBranches:9, panHairs:3, branchW:0.24,
+      spkLen:1.4, spkW:0.4, comb:0.25, hazeA:0.09, cloudShade:'#6a3550', cloudHeight:24, cloudTop:0.7, sideScale:0.93},
     blurb:'A small native muhly of Texas and Oklahoma limestone and sand: a fine upright tuft under a ruby-pink fall cloud at half the height of pink muhly, and hardier. Lean, well-drained soil and full sun.',
-    sea:{Spring:{fol:'#7a9468'}, Summer:{fol:'#6c8a62'}, Fall:{fol:'#86885e',bloom:'#b04f74',seed:'#b07a86'}, Winter:{fol:'#a89072',seed:'#c9a8a4'}},
+    sea:{Spring:{fol:'#7a9468'}, Summer:{fol:'#6c8a62'}, Fall:{fol:'#86885e',bloom:'#c25d82',seed:'#b98593'}, Winter:{fol:'#a89072',seed:'#c9a8a4'}},
     cv:{
       undaunted:{name:"'Undaunted'", note:'the Plant Select seed strain, chosen from a Texas collection for cold hardiness and a compact ruby cloud',
-        heightIn:24, h:15, spread:24, look:{sideScale:1.6}},
+        heightIn:24, h:15, spread:24, look:{sideScale:1.37}},
     }},
   wavyhairgrass:{ name:'Wavy Hairgrass', latin:'Deschampsia flexuosa', synonyms:['Avenella flexuosa'], form:'cloudgrass', type:'grass', h:12, heightIn:20,
     group:'hairgrass', groupLabel:'Hairgrass', chip:'Wavy',
@@ -941,7 +941,9 @@ const PLANTS = {
     sea:{Spring:{fol:'#7c986a'}, Summer:{fol:'#6c8c5e'}, Fall:{fol:'#c8843e',bloom:'#e4dac6',seed:'#eee6d4'}, Winter:{fol:'#c27b3c',seed:'#e9e1d0'}}},
   splitbeardbluestem:{ name:'Splitbeard Bluestem', latin:'Andropogon ternarius', synonyms:['Anatherum ternarium'], form:'bunchgrass', type:'grass', h:36, heightIn:36,
     space:15, spread:18, zones:[6,9], nativeTo:['north-america','central-america'], provenance:'species', sun:'full', moist:'dry', phen:'warm',
-    look:{art2:true, crownIn:7, leaves:24, leafLen:0.62, fan:1.2, spread:0.48, seedEvery:3, bladeShade:15, seedStyle:'fluffyRaceme', seedTufts:5, seedSpan:0.3, seedAwn:5.2, seedFan:0.55},
+    look:{art2:true, crownIn:7, leaves:24, leafLen:0.62, fan:1.2, spread:0.48, bladeShade:15, seedStyle:'bluestem', culms:8, racemes:1.5,
+      racemeLen:0.075, racemeFrom:0.45, pairSplit:0.7, stalkLen:0.06, spatheLen:0.05, spatheW:0.9, cottonHairs:1.6, cottonLen:0.9,
+      cottonW:2, cottonA:1.1, culmLen:0.86, culmsAt:0.7, seedFan:0.6},
     blurb:'A southeastern bluestem for sun and poor, sandy or gravelly soil: blue-green clumps that turn purple, copper and red in fall, under paired tufts of silky silver hairs that sparkle in low light. Zone 6 is its cold edge: at Chicago Botanic Garden it never flowered and was dead within three winters. It sulks in wet soil.',
     sea:{Spring:{fol:'#7c9a8a'}, Summer:{fol:'#6c8e8a'}, Fall:{fol:'#9c5a52',folTip:'#7a4866',bloom:'#ece8e0',seed:'#f2efe8'}, Winter:{fol:'#a0704e',seed:'#e8e2d6'}},
     cv:{

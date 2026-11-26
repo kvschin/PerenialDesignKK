@@ -1853,15 +1853,15 @@ function grassStrokes(k,v,season,seed){
   drawPlant(ctx,0,0,k,1,season,seed,0,v||null,1);
   return out;
 }
-test('pink muhly flowers as a haze of hair-fine panicles, not spokes out to beads', () => {
+test('pink and ruby muhly flower as a haze of hair-fine panicles, not spokes out to beads', () => {
   // The mist cloud drew each culm's panicle as up to 29 straight lines from ONE point to round dots.
   // A muhly panicle branches all the way up its axis into pedicels, each with one awned spikelet.
   const was=ART2.on;
   try { ART2.on=true;
-    for (const v of [null,'lenca','whitecloud']){
-      const D=plantDef('pinkmuhly',v), ref='pinkmuhly'+(v?':'+v:'');
+    for (const [k,v] of [['pinkmuhly',null],['pinkmuhly','lenca'],['pinkmuhly','whitecloud'],['rubymuhly',null],['rubymuhly','undaunted']]){
+      const D=plantDef(k,v), ref=k+(v?':'+v:'');
       assertEqual(D.look.cloudStyle,'smoke',ref+': draws the smoke cloud');
-      const r=grassStrokes('pinkmuhly',v,'Fall',101), starts=new Map();
+      const r=grassStrokes(k,v,'Fall',101), starts=new Map();
       for (const s of r) if (s.kind==='stroke') for (const p of s.pts) if (p[2]){
         const k=p[0].toFixed(2)+','+p[1].toFixed(2); starts.set(k,(starts.get(k)||0)+1); }
       const fan=Math.max(...starts.values());
@@ -1872,8 +1872,10 @@ test('pink muhly flowers as a haze of hair-fine panicles, not spokes out to bead
       assert(lines>=culms*60,`${ref}: ${lines} strokes of branch, hair and spikelet for ${culms} panicles`);
     }
     // a muhly in summer is its leaves: no culm stands without a cloud on it
-    const top=(season)=>Math.min(...grassStrokes('pinkmuhly',null,season,101).flatMap(s=>s.pts.map(p=>p[1])));
-    assert(top('Summer')>top('Fall')*0.7,`no bare culms in summer: ${top('Summer').toFixed(1)} against ${top('Fall').toFixed(1)} in bloom`);
+    for (const k of ['pinkmuhly','rubymuhly']){
+      const top=(season)=>Math.min(...grassStrokes(k,null,season,101).flatMap(s=>s.pts.map(p=>p[1])));
+      assert(top('Summer')>top('Fall')*0.7,`${k}: no bare culms in summer: ${top('Summer').toFixed(1)} against ${top('Fall').toFixed(1)} in bloom`);
+    }
   } finally { ART2.on=was; }
 });
 test('a muhly in bloom takes the bloom colour, then the seed it fades to', () => {
@@ -3652,23 +3654,34 @@ test('grass blade-tip colour adds one optional tip pass', () => {
   assertEqual(fills[2],'#d7cf67','stripe uses the authored color');
 });
 
-test('splitbeard bluestem seedheads are elongated feathery racemes, not oval buttons', () => {
-  const ops=[];
-  const ctx=new Proxy({globalAlpha:1}, {
-    get(o,p){
-      if(p in o) return o[p];
-      return (...args)=>{ if(['moveTo','lineTo','quadraticCurveTo','ellipse','fill','stroke'].includes(p)) ops.push([p,...args]); };
-    },
-    set(o,p,v){ o[p]=v; return true; },
-  });
-  drawFluffyRaceme(ctx,2,-18,0.25,20,'#e8ddc7',4,mulberry(9137),3.8);
-  const ellipses=ops.filter(x=>x[0]==='ellipse');
-  const hairs=ops.filter(x=>x[0]==='lineTo');
-  assertEqual(PLANTS.splitbeardbluestem.look.seedStyle,'fluffyRaceme','splitbeard bluestem opts into the feathery seed grammar');
-  assertEqual(ellipses.length,0,'the feathery style never falls back to a filled oval or seed ball');
-  assert(hairs.length>=16,'each node carries one narrow spikelet and several fine hairs');
-  const ys=ops.filter(x=>x[0]==='moveTo').map(x=>x[2]);
-  assert(Math.max(...ys)-Math.min(...ys)>15,'tufts spread vertically along the upper stem');
+test('splitbeard bluestem splits its racemes in pairs at the top of a long peduncle', () => {
+  // It drew a zigzag of tiny spikelets at each culm's tip, a row of beaded wires along the top of the
+  // clump. Its seed is a pair of silky white racemes, rarely three, parting in a V from the top of a
+  // slender peduncle that stands out of the spathe: the split beard.
+  const was=ART2.on, orig=drawBluestemCulms; let got=null;
+  const nul=new Proxy({},{get(o,p){ if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}}); return ()=>{}; },
+    set(o,p,v){o[p]=v;return true;}});
+  try { ART2.on=true;
+    drawBluestemCulms=(...a)=>{ const n=orig(...a); got={n,r:Array.from(_blsR.slice(0,n*10))}; return n; };
+    for (const v of [null,'blackmountain']) for (const season of ['Fall','Winter']) for (const seed of [7,101,4410]){
+      got=null; drawPlant(nul,0,0,'splitbeardbluestem',1,season,seed,0,v,1);
+      const D=plantDef('splitbeardbluestem',v), H=plantVisualH(D), at=`${v||'species'} ${season} seed ${seed}`;
+      assertEqual(D.look.seedStyle,'bluestem',at+': draws the bluestem culms');
+      assert(got&&got.n>=D.look.culms*4,at+`: ${got&&got.n} racemes on ${D.look.culms} culms`);
+      assertEqual(got.n%2,0,at+': racemes come in pairs');
+      for (let q=0;q<got.n;q+=2){ const a=q*10, b=a+10, r=got.r;
+        assert(r[a]===r[b]&&r[a+1]===r[b+1],at+': a pair parts from one point');
+        const ped=Math.hypot(r[a]-r[a+6],r[a+1]-r[a+7])/H;
+        assert(ped>0.02,at+`: on a peduncle ${ped.toFixed(3)} of the height, out of its spathe`);
+        const ang=(o)=>Math.atan2(r[o+5]-r[o+1],r[o+4]-r[o]); let d=Math.abs(ang(a)-ang(b)); if (d>Math.PI) d=2*Math.PI-d;
+        assert(d>0.3,at+`: the two racemes part in a V (${d.toFixed(2)} rad)`);
+        for (const o of [a,b]){ const l=r[o+8]/H; assert(l>0.04&&l<0.12,at+`: a raceme ${l.toFixed(3)} of the height`); }
+      }
+    }
+    got=null; drawPlant(nul,0,0,'splitbeardbluestem',1,'Spring',7,0,null,1);
+    assertEqual(got,null,'no seed in spring');
+  } finally { drawBluestemCulms=orig; ART2.on=was; }
 });
 
 test('orchard fruit uses a deterministic bounded glyph budget and respects fruitless cultivars', () => {

@@ -8143,13 +8143,12 @@ exactly the red-twig dogwood effect. `bloomMonths` drives the real-world Bloom C
 unless a precise `bloomDay` is set, the continuous live bloom window. Keep
 `bloomDay` for intentionally staggered within-season animation.
 
-For non-mound `bunchgrass`, `look.seedStyle:'fluffyRaceme'` replaces the
-default terminal oval with alternating hairy spikelets along a separate,
-upright fertile culm. `seedTufts`, `seedSpan` (fraction of rendered height),
-`seedAwn`, and `seedFan` tune that shared grammar. Little bluestem authors it
-on the base record so every cultivar inherits the species-correct seedhead.
-Its hairs lengthen as the August–October bloom window fades, giving late fall
-and winter a fluffier read without adding more visual seasons or month palettes.
+For non-mound `bunchgrass`, `look.seedStyle:'bluestem'` replaces the default
+terminal oval with the bluestems' racemes down the upper culm (`drawBluestemCulms`;
+little bluestem, broomsedge, splitbeard bluestem). Their hairs lengthen as the
+bloom window fades, giving late fall and winter a fluffier read without adding
+more visual seasons. The `fluffyRaceme` style it replaced (a zigzag of tufts at a
+culm's tip) was removed in 0.9.180, when its last plant left it.
 
 **October 2026 audit additions:** Wild Strawberry, Spicebush, Bunchberry,
 Prickly Rose and Woolly Geranium are straight-species records; source notes
@@ -8822,6 +8821,21 @@ multiplies by the species' `h`), so a species drawn shorter takes its cultivars 
 'Eldorado' 17% narrower, 'Bronzeschleier' 28%), one drawn taller takes them wider (fountain grass's, 11-24%), and a
 cultivar drawn shorter over a fixed-size cloud widens that cloud. 25 choices took a wider `sideScale`, measured on real pixels in `dev/grass-review.html?check` and on the
 recorded geometry. The dev-only Classic renderer is not held: it draws 'Red October' and Slender Indiangrass 10-12% off.
+**Splitbeard bluestem's split beard and ruby muhly's smoke (0.9.180).** *Splitbeard bluestem* drew
+`fluffyRaceme`, a zigzag of tiny spikelets at each culm's tip, a row of beaded wires along the top of the
+clump. Its seed is pairs of silky white racemes on slender peduncles standing out of the spathes, each
+pair parting in a V. It takes the bluestem seed with `pairSplit` (the V's angle, in radians, the two
+racemes curving away from each other from a shared point) on a peduncle `stalkLen` of the height long,
+at each node from `racemeFrom` and at the tip, and three cotton keys, `cottonHairs` (how many hairs),
+`cottonLen` (how long) and `cottonW` (how fat the body), with `culmLen` on the culms. All are read
+only where set, so little bluestem and broomsedge draw call for call as before. *Ruby muhly* still drew
+the mist cloud, dandelion clocks, and takes the smoke cloud: a smaller, more upright, airier pink muhly
+in a rose-ruby (`branchW` thins its branches), its Fall bloom a little lighter (`#c25d82`). Its
+`topScale` is gone and its `sideScale` re-solved (0.93, 'Undaunted' 1.37), the mist cloud having been
+wider. No plant used `fluffyRaceme` after this, so `drawFluffyRaceme` and its branch were removed, and
+`drawBluestemCulms` returns its raceme count for the test. Only these four choices draw differently
+(1,767 hashed); heights 97-104%; sprites and 224 real-size pictures clean. Bakes in seed: splitbeard 0.4
+to 0.76 ms, ruby muhly 0.71 to 0.8.
 **Big bluestem's turkey feet and broomsedge's seed (0.9.178).**
 *Big bluestem* drew each head as three short fat strokes splayed from the culm tip with a bead on each,
 a cartoon glove, on every other culm. With `feet:true` on the `turkeyfoot` form a head is
@@ -8836,7 +8850,7 @@ from the values the loop already drew (no new random numbers) so the feet separa
 takes the bluestem seed (`seedStyle:'bluestem'`) with three new keys: `racemePair`, a second raceme
 out of each sheath; `spatheLen`/`spatheW`, bigger sheaths, so the clump stays orange; and `cottonA`
 (0.55), fainter cotton, so the fluff reads as flecks along the stems and not as white candles.
-Splitbeard bluestem keeps `fluffyRaceme`. Only those five choices draw differently (1,767 hashed);
+Splitbeard bluestem kept `fluffyRaceme` until 0.9.180. Only those five choices draw differently (1,767 hashed);
 heights within 2%; sprites and 280 real-size pictures clean. Bakes: big bluestem 0.5-0.7 ms to
 0.7-0.9, broomsedge 0.36 to 0.9 ms in seed.
 
@@ -8849,7 +8863,7 @@ and bronze with the odd orange anther, in seed a translucent cotton body and sil
 so the copper shows through. The culms come from a stream of their own (`seed^0x51b3e5`) and go in
 partway through the leaves (`culmsAt`), so the nearest leaves cross them and a clump keeps the same
 leaves in every season (a test hides the culm pass and compares spring with fall). Broomsedge and
-splitbeard bluestem keep `fluffyRaceme`. *Prairie dropseed* was a tuft of blades under stiff stems topped
+splitbeard bluestem keep `fluffyRaceme` (until 0.9.178 and 0.9.180). *Prairie dropseed* was a tuft of blades under stiff stems topped
 with dots, lollipops. Its leaves are `leafStyle:'fountain'` on a cloud grass (`drawFineFountain`): a
 mound of hair-fine leaves built in the round, every one arching over and falling, the outer ones nearly
 to the ground, far half first and darker, over a soft dark mass; the panicles are the smoke cloud with

@@ -868,32 +868,6 @@ function drawFloret(ctx, cx,cy, r, col, opt){
   ctx.fill();
 }
 
-/* Little bluestem's seed is a narrow raceme of tiny spikelets and long pale
-   hairs, not one oval head perched at the tip. Keep this as a reusable,
-   data-selected grass grammar: several alternating tufts share one fine upper
-   axis, so the silhouette stays vertical and gauzy instead of ball-like. */
-function drawFluffyRaceme(ctx,tx,ty,a,span,col,tufts,rnd,awn,fluff){
-  tufts=Math.max(3,Math.round(tufts||4)); awn=(awn||3.8)*(fluff===undefined?1:fluff);
-  const dx=Math.sin(a)*span*0.38, x0=tx-dx, y0=ty+span;
-  const oldAlpha=ctx.globalAlpha;
-  ctx.strokeStyle=shade(col,12); ctx.lineWidth=0.40; ctx.globalAlpha=0.68;
-  ctx.beginPath(); ctx.moveTo(x0,y0);
-  ctx.quadraticCurveTo(tx-dx*0.42,ty+span*0.46,tx,ty);
-  for(let q=0;q<tufts;q++){
-    const t=q/(tufts-1), side=((q&1)?-1:1)*(a<0?-1:1);
-    const sx=tx-dx*t+(rnd()-0.5)*0.55, sy=ty+span*t;
-    // one short angled spikelet plus three hairs/awns; everything is stroked
-    // in one batch so repeated racemes stay cheap and never become pearl dots
-    ctx.moveTo(sx-side*0.35,sy+0.8); ctx.lineTo(sx+side*1.8,sy-1.15);
-    for(let h=-1;h<=1;h++){
-      const ang=-Math.PI*0.5+side*(0.58+h*0.23)+(rnd()-0.5)*0.16;
-      const len=awn*(0.78+rnd()*0.34);
-      ctx.moveTo(sx,sy); ctx.lineTo(sx+Math.cos(ang)*len,sy+Math.sin(ang)*len);
-    }
-  }
-  ctx.stroke(); ctx.globalAlpha=oldAlpha;
-}
-
 /* Little bluestem's flowering culms (`seedStyle:'bluestem'`, 0.9.176). One short fluffy raceme
    at each culm's tip read as a row of little flags along the top of the clump. The plant carries
    its seed all down the upper half of every culm: at each node a narrow spathe, coloured like the
@@ -912,17 +886,18 @@ function drawBluestemCulms(ctx,L,S,H,rx,sway,seed,m,col,fluff,blooming,snow){
   m=Math.min(m,BLS_CULMS);
   let nR=0, nS=0;
   const lightAt=(x,y)=>(x/(H*0.45))*LIT.x+((y+H*0.72)/(H*0.32))*LIT.y;
-  // a raceme from (ax,ay) heading (dx,dy), curving toward side s
-  const raceme=(ax,ay,dx,dy,s,stalk)=>{
+  // a raceme from (ax,ay) heading (dx,dy), curving toward side s; (sx,sy), when given, is where it
+  // starts, at the top of a peduncle whose foot is (ax,ay)
+  const raceme=(ax,ay,dx,dy,s,stalk,sx,sy)=>{
     if (nR>=BLS_MAX) return;
-    const pl=stalk?H*(0.018+r()*0.022):0, x0=ax+dx*pl, y0=ay+dy*pl;
+    const pl=sx!==undefined?0:stalk?H*(0.018+r()*0.022):0, x0=sx!==undefined?sx:ax+dx*pl, y0=sx!==undefined?sy:ay+dy*pl;
     const rl=rlBase*(0.75+r()*0.45), bend=s*(0.1+r()*0.12)*rl;
     const x1=x0+dx*rl-dy*bend*0.6, y1=y0+dy*rl+dx*bend*0.6+rl*0.08*fluff;
     const cx=x0+dx*rl*0.55-dy*bend, cy=y0+dy*rl*0.55+dx*bend;
     const j=nR*10; _blsR[j]=x0; _blsR[j+1]=y0; _blsR[j+2]=cx; _blsR[j+3]=cy; _blsR[j+4]=x1; _blsR[j+5]=y1;
     _blsR[j+6]=ax; _blsR[j+7]=ay; _blsR[j+8]=rl; _blsR[j+9]=lightAt((x0+x1)/2,(y0+y1)/2); nR++;
     // the hairs: off the axis toward its tip, both sides, longer as the seed ripens
-    const nh=blooming?2:Math.round(4+7*fluff), hl=rl*(blooming?0.1:0.12+0.22*fluff);
+    const nh=blooming?2:Math.round((4+7*fluff)*(L.cottonHairs||1)), hl=rl*(blooming?0.1:0.12+0.22*fluff)*(L.cottonLen||1);
     for (let h=0;h<nh;h++){
       const t=0.12+0.88*(h+r()*0.7)/nh, px=qBez(t,x0,cx,x1), py=qBez(t,y0,cy,y1);
       let tx=2*(1-t)*(cx-x0)+2*t*(x1-cx), ty=2*(1-t)*(cy-y0)+2*t*(y1-cy); const td=Math.hypot(tx,ty)||1; tx/=td; ty/=td;
@@ -932,10 +907,16 @@ function drawBluestemCulms(ctx,L,S,H,rx,sway,seed,m,col,fluff,blooming,snow){
       thrPush(b,px,py,px+ux*len,py+uy*len);
     }
   };
+  // splitbeard (`pairSplit`): a long slender peduncle out of the spathe, and from its top two racemes
+  // parting in a V, each curving away from the other
+  const split=(ax,ay,dx,dy)=>{
+    const pl=H*(L.stalkLen||0.05)*(0.7+r()*0.6), px=ax+dx*pl, py=ay+dy*pl, half=L.pairSplit*(0.38+r()*0.24);
+    for (const s of [-1,1]){ const b=s*half+(r()-0.5)*0.12, cb=Math.cos(b), sb=Math.sin(b); raceme(ax,ay,dx*cb-dy*sb,dx*sb+dy*cb,s,false,px,py); }
+  };
   for (let i=0;i<m;i++){
     const u=m>1?(i+0.2+r()*0.6)/m:0.5, side=u-0.5;
     grassCrownAt(rx,u,-1,r,0.6);
-    const bx=_crX, by=_crY, len=H*(0.86+r()*0.12)*(1-0.08*Math.abs(side)*2);
+    const bx=_crX, by=_crY, len=H*(0.86+r()*0.12)*(1-0.08*Math.abs(side)*2)*(L.culmLen||1);
     const tx=bx+side*H*fan*0.42+sway*H*0.02+(r()-0.5)*H*0.04, ty=by-len;
     const cx=bx+(tx-bx)*0.22, cy=by-len*0.55, c=i*6;
     _blsC[c]=bx; _blsC[c+1]=by; _blsC[c+2]=cx; _blsC[c+3]=cy; _blsC[c+4]=tx; _blsC[c+5]=ty;
@@ -947,13 +928,16 @@ function drawBluestemCulms(ctx,L,S,H,rx,sway,seed,m,col,fluff,blooming,snow){
       const s=((q+i)&1)?1:-1, a=s*(0.3+r()*0.35), ca=Math.cos(a), sa=Math.sin(a), ux=dx*ca-dy*sa, uy=dx*sa+dy*ca;
       if (nS<BLS_MAX){ const sl=L.spatheLen?H*L.spatheLen*(0.8+r()*0.4):H*(0.03+r()*0.02), w=L.spatheW||0.55, o=nS*6, vx=dx*Math.cos(a*0.6)-dy*Math.sin(a*0.6), vy=dx*Math.sin(a*0.6)+dy*Math.cos(a*0.6);
         _blsS[o]=ax-dy*w; _blsS[o+1]=ay+dx*w; _blsS[o+2]=ax+dy*w; _blsS[o+3]=ay-dx*w; _blsS[o+4]=ax+vx*sl; _blsS[o+5]=ay+vy*sl; nS++; }
-      raceme(ax,ay,ux,uy,s,true);
-      // broomsedge's racemes come in pairs out of one sheath, the second a little further round
-      if (L.racemePair){ const b=a+s*(0.22+r()*0.15), cb=Math.cos(b), sb=Math.sin(b); raceme(ax,ay,dx*cb-dy*sb,dx*sb+dy*cb,s,true); }
+      if (L.pairSplit) split(ax,ay,ux,uy);
+      else {
+        raceme(ax,ay,ux,uy,s,true);
+        // broomsedge's racemes come in pairs out of one sheath, the second a little further round
+        if (L.racemePair){ const b=a+s*(0.22+r()*0.15), cb=Math.cos(b), sb=Math.sin(b); raceme(ax,ay,dx*cb-dy*sb,dx*sb+dy*cb,s,true); }
+      }
     }
     // and one at the tip
     let dx=tx-cx, dy=ty-cy; const dd=Math.hypot(dx,dy)||1; dx/=dd; dy/=dd;
-    raceme(tx,ty,dx,dy,(i&1)?1:-1,false);
+    if (L.pairSplit) split(tx,ty,dx,dy); else raceme(tx,ty,dx,dy,(i&1)?1:-1,false);
     if (snow && (i&1)) { const j=(nR-1)*10; snow.push([qBez(0.5,_blsR[j],_blsR[j+2],_blsR[j+4]),qBez(0.5,_blsR[j+1],_blsR[j+3],_blsR[j+5])-1,2.2]); }
   }
   // culms and the stalks out to each raceme
@@ -978,7 +962,7 @@ function drawBluestemCulms(ctx,L,S,H,rx,sway,seed,m,col,fluff,blooming,snow){
       for (let q=0;q<nR;q++){ const j=q*10; if (!sel(_blsR[j+9])) continue;
         const mx=qBez(0.55,_blsR[j],_blsR[j+2],_blsR[j+4]), my=qBez(0.55,_blsR[j+1],_blsR[j+3],_blsR[j+5]);
         const ang=Math.atan2(_blsR[j+5]-_blsR[j+1],_blsR[j+4]-_blsR[j]), rl=_blsR[j+8];
-        ctx.moveTo(mx+Math.cos(ang)*rl*0.5,my+Math.sin(ang)*rl*0.5); ctx.ellipse(mx,my,rl*0.5,0.4+rl*w*fluff,ang,0,7); }
+        ctx.moveTo(mx+Math.cos(ang)*rl*0.5,my+Math.sin(ang)*rl*0.5); ctx.ellipse(mx,my,rl*0.5,0.4+rl*w*fluff*(L.cottonW||1),ang,0,7); }
       ctx.fill();
     };
     const ca=L.cottonA||1;
@@ -1000,6 +984,7 @@ function drawBluestemCulms(ctx,L,S,H,rx,sway,seed,m,col,fluff,blooming,snow){
   }
   ctx.globalAlpha=ga;
   _crX=_crY=0;
+  return nR;
 }
 
 /* Big bluestem's turkey feet (0.9.177). Each head drew as three stubby strokes splayed from the culm
@@ -9971,24 +9956,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         }
         if (sn && i%3===0 && !(bunchHead && mature)) sn.push([bx*0.63+_crX,by*0.7+_crY,2.4]);
         if (bunchHead && mature && !blsHead && i%(L.seedEvery||2)===0){
-          if (L.seedStyle==='fluffyRaceme'){
-            // Fertile culms are straighter and tighter than the basal leaves.
-            // Seed maturity lengthens the hairs as the Aug-Oct bloom fades.
-            const side=i/(n-1)-0.5, sa=side*(L.seedFan||0.52);
-            const stemH=H*(0.90+rnd()*0.12), sx=side*H*(L.seedFan||0.52)*0.34+sway*H*0.018, sy=-stemH;
-            if (sn) sn.push([sx+_crX,sy+_crY,2.4]);
-            ctx.strokeStyle=shade(S.fol,-18); ctx.lineWidth=L.seedStemW||0.58;
-            ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo(sx*0.35,-stemH*0.52,sx,sy); ctx.stroke();
-            const maturity=S.seed ? Math.max(0,1-Math.min(1,blv)) : 0;
-            const fluff=0.50+maturity*0.50, racemeCol=S.seed||bunchHead;
-            drawFluffyRaceme(ctx,sx,sy,sa,H*(L.seedSpan||0.22),racemeCol,
-              Math.max(3,Math.round((L.seedTufts||4)*(0.78+0.22*maturity))),rnd,L.seedAwn||3.8,fluff);
-          } else {
-            if (sn) sn.push([bx+_crX,by+_crY,2.4]);
-            if (a2) drawFloret(ctx,bx,by,2.1,bunchHead,{squash:1.62,rot:a});
-            else { ctx.fillStyle=bunchHead;
-              ctx.beginPath(); ctx.ellipse(bx,by,2.1,3.4,a,0,7); ctx.fill(); }
-          }
+          if (sn) sn.push([bx+_crX,by+_crY,2.4]);
+          if (a2) drawFloret(ctx,bx,by,2.1,bunchHead,{squash:1.62,rot:a});
+          else { ctx.fillStyle=bunchHead;
+            ctx.beginPath(); ctx.ellipse(bx,by,2.1,3.4,a,0,7); ctx.fill(); }
         }
         grassCrownOut(ctx);
       }
