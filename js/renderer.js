@@ -4963,9 +4963,59 @@ function sceneEntGrowth(e){
   e._gAt=at;
   return (e._g=plantGrowth(e.p));
 }
+/* ---------- a pet's occasional flick ----------
+   A pet is a still pose, and has to be (§12a): one that breathed would keep the
+   whole garden repainting forever. But a cat that never moves an ear reads as a
+   cushion, so every 15-30 seconds (PET_FLICK) each pet on screen flicks its
+   tail or twitches an ear for a few hundred ms (0.9.180). Its own seed sets its
+   rhythm, so two pets do not flick together, and which of the two it does
+   changes from one flick to the next.
+   The rest pose stays the cached sprite; the flick is drawn LIVE, by drawPet's
+   pose argument, beside that cache and never through drawStructEnt, which is
+   what a structure that moves has to do or the cache freezes it. Full-rate
+   frames are asked for only while one plays (petFlickBusy, in
+   hasTransientGardenWork): the idle 30fps cadence notices the start within a
+   frame, and PET_FLICK.until says how long to keep going. Only a pet the
+   entity pass draws, so only one on screen; none with less motion, in a photo,
+   or off the live canvas. */
+const PET_FLICK={MIN_S:15, MAX_S:30, TAIL_MS:460, WAG_MS:620, EAR_MS:300, until:0};
+function petFlickRhythm(e){
+  if (e._fl && e._fl.x===e.x && e._fl.y===e.y) return e._fl;
+  const r=mulberry((tileSeed(e.x,e.y)^0x7e7f11)>>>0);
+  const per=(PET_FLICK.MIN_S+r()*(PET_FLICK.MAX_S-PET_FLICK.MIN_S))*1000;
+  return (e._fl={x:e.x, y:e.y, per, off:r()*per, h:r()*1000});
+}
+// the flick a pet is in at `now` (ms, the frame clock), or null at rest
+function petFlickPose(e,now){
+  const R=petFlickRhythm(e), a=now+R.off, local=a%R.per;
+  if (!(local<PET_FLICK.WAG_MS)) return null;                // nearly always: one compare
+  const k=Math.floor(a/R.per), pick=hash01(k,R.h);
+  const cat=petSpecies(e.p&&e.p.species).id==='cat';
+  const ear=pick>=0.62, dur=ear?PET_FLICK.EAR_MS:cat?PET_FLICK.TAIL_MS:PET_FLICK.WAG_MS;
+  if (local>=dur || reducedMotion()) return null;
+  const u=local/dur, env=Math.sin(Math.PI*u), dir=hash01(k+7,R.h)<0.5?-1:1;
+  PET_FLICK.until=Math.max(PET_FLICK.until,now-local+dur);
+  // a cat swishes once; a dog wags three times; an ear turns out and back, quickly
+  if (ear) return {ear:Math.pow(env,0.55)};
+  return {tail:cat ? dir*env : dir*Math.sin(u*Math.PI*6)*Math.sqrt(env)};
+}
+function petFlickBusy(now=performance.now()){ return now<PET_FLICK.until; }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
 function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===cx){
   switch(e.kind){
+    case SCENE_K.PET:
+      // a flick is drawn live; at rest it falls through to the cached sprite
+      if (ctx===cx && cacheStructures && !game.photo){
+        const pose=petFlickPose(e,EDIT_FX.now);
+        if (pose){
+          let sx, sy;
+          if (e.px!==undefined){ sx=e.px+W/2-cam.x; sy=e.py+H*0.24-cam.y; }
+          else { const a=screenOf(e.x,e.y,W,H); sx=a[0]; sy=a[1]; }
+          drawPet(ctx,sx,sy+TILE_H/2,e.p,1,pose);
+          return 0;
+        }
+      }
+      // falls through
     /* Every structure goes through one cached blitter. They are pure
        functions of (record, season, rot, camera) — no `t`, no `sway` — so
        they are as cacheable as the ground, and this is where they stopped
@@ -4977,7 +5027,6 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===
     case SCENE_K.SUPPORT:
     case SCENE_K.PERGOLA:   // missing here until 0.9.62, so no pergola ever drew
     case SCENE_K.BOULDER:
-    case SCENE_K.PET:
     case SCENE_K.POT:
     case SCENE_K.SEAT:
     case SCENE_K.ORNAMENT:
@@ -5980,6 +6029,9 @@ function render(t){
   structSampling=false;
   if (dbg.on){ dbg.ents=drawn; dbg.tiles=(x1-x0+1)*(y1-y0+1); }
   const tFx=dnow();
+  // bees and butterflies over the flowers, by day (before the season's light,
+  // which tints them with the garden); no frames of their own
+  drawPollinators(cx,W,H,t,cal,W/2-cam.x,H*0.24-cam.y);
 
   // planting pulses: an expanding diamond so a tap visibly took. A drift's
   // later plants carry a start a little ahead (stampDrift), drawn from then on;
@@ -6205,6 +6257,197 @@ function drawFireflies(ctx,W,H,t,cal,offX,offY){
     ctx.globalAlpha=0.85*b; ctx.drawImage(img,x-10,y-10,20,20);
     ctx.globalAlpha=b; ctx.fillStyle=FIREFLY.core;
     ctx.beginPath(); ctx.arc(x,y,1.3,0,7); ctx.fill();
+  }
+  ctx.restore();
+}
+/* ---------- daytime pollinators ----------
+   The fireflies' counterpart by day (0.9.180): on a spring or summer day, a few
+   bees and butterflies working the flowers, at most POLLEN.MAX (12) over the
+   whole garden, about one for every six plants in bloom. A bee hovers at a
+   flower, dips onto it and zigzags to the next of three or four close by; a
+   butterfly sits with its wings slowly opening and closing, then flaps a
+   looping way to another a little further off. Only plants that are in flower
+   now (bloomLevel past BLOOM_MIN, a bloom colour this season) and carry the
+   `pollinator` role, never a tree.
+   Like the fireflies they cost no frames of their own. The garden already
+   redraws at 30fps when idle (the wind); they are drawn into those frames,
+   timed off the frame clock so they fly at one speed at any frame rate, and
+   they are not in hasTransientGardenWork. A planner is a place to work, so
+   they keep out of the way: they fade out while a gesture, a placement's
+   pulse, an edit effect, fast-forward or a Skip is under way, and fade in
+   again after (pollenCalm); they thin out below ZOOM_HI and are gone below
+   ZOOM_LO, where they would be specks; never at night, in a photo, with less
+   motion, or off the live canvas (the portrait and the plan draw no render).
+   Seeded off the scene's records and chosen by a hash of each plant's own seed
+   (pollinatorField), so the same garden has the same visitors, they stay with
+   the garden as the camera moves, and a rebuilt scene of the same plants
+   (another day, an edit elsewhere) gives back the same visitors in the same
+   places: only a visitor whose flowers changed is new, and it fades in. */
+const POLLEN={MAX:12, PER_PLANTS:6, BLOOM_MIN:0.35, FADE_IN_MS:650, FADE_OUT_MS:220, BORN_MS:700,
+  // drawn larger than life, they are still specks zoomed out: a butterfly comes
+  // in from ZOOM_LO to ZOOM_HI, a bee, a third its size, from BEE_LO to BEE_HI
+  ZOOM_LO:0.36, ZOOM_HI:0.5, BEE_LO:0.55, BEE_HI:0.75, BEE_REACH:3.6, FLY_REACH:6.5, NEAR:8,
+  BUTTERFLY:{Spring:0.25, Summer:0.42},
+  WINGS:{Spring:['white','azure','sulphur','white'], Summer:['monarch','white','sulphur','swallowtail','monarch','white']}};
+let pollenField={scene:null, day:NaN, season:'', bugs:[], cands:0};
+let pollenCalm=0, pollenAt=-Infinity, pollenBorn=new Map();
+const POLLEN_P=[0,0], POLLEN_Q=[0,0];
+// a gesture or an edit is under way: the visitors keep out of it
+function pollinatorsBusy(){
+  return !!(gardenOpening || game.ffActive || skipPending()
+    || (typeof hasActiveGesture==='function' && hasActiveGesture())
+    || (game.fx&&game.fx.length) || editFxBusy());
+}
+// the plants a visitor may work, in a fixed order (a hash of each one's own seed)
+function pollinatorCandidates(season){
+  const out=[], bloom=new Map(), role=new Map();
+  for (const e of scene.ents){
+    if ((e.kind!==SCENE_K.PLANT && e.kind!==SCENE_K.BULB) || !e.hasBloom) continue;
+    const k=e.p.s;
+    let pol=role.get(k);
+    if (pol===undefined){ const P0=PLANTS[k]; pol=!!P0 && !isTreeDef(P0) && staticPlantRoles(k).includes('pollinator'); role.set(k,pol); }
+    if (!pol) continue;
+    let b=bloom.get(e.sv);
+    if (b===undefined){ b=bloomLevel(k,e.p.v); bloom.set(e.sv,b); }
+    if (b<POLLEN.BLOOM_MIN) continue;
+    let g=sceneEntGrowth(e); if (e.stunt) g*=STUNT_GROWTH;
+    if (g<0.3) continue;
+    const P=plantDef(k,e.p.v), top=(plantVisualH(P)||30)*g;
+    out.push({e, top, h:Math.imul((e.seed^0x5ee0b1)>>>0,0x9e3779b1)>>>0});
+  }
+  out.sort((a,b)=>a.h-b.h || a.e.seed-b.e.seed);
+  return out;
+}
+function pollinatorStop(c,rnd,butterfly){
+  const lift=c.top*(butterfly?0.82+rnd()*0.14:0.7+rnd()*0.24);
+  return {e:c.e, dx:(rnd()-0.5)*Math.min(TILE_W*0.55,c.top*0.4), lift:Math.max(6,lift)};
+}
+function pollinatorStopAt(s,out){ out[0]=s.e.px+s.dx; out[1]=s.e.py+TILE_H/2-s.lift; return out; }
+function pollinatorField(season){
+  const day=absDay(), F=pollenField;
+  if (F.scene===scene && F.day===day && F.season===season) return F.bugs;
+  const cands=pollinatorCandidates(season);
+  const n=cands.length ? Math.max(1,Math.min(POLLEN.MAX,Math.round(cands.length/POLLEN.PER_PLANTS))) : 0;
+  const bugs=[], born=new Map(), now=performance.now();
+  for (let i=0;i<n;i++){
+    const home=cands[i], rnd=mulberry((home.e.seed*31+0x1ab5)>>>0);
+    const butterfly=rnd()<(POLLEN.BUTTERFLY[season]||0.3);
+    const reach=(butterfly?POLLEN.FLY_REACH:POLLEN.BEE_REACH)*TILE_W;
+    // the flowers close by, nearest first; a few of them are this one's round
+    const near=[];
+    for (const c of cands){
+      if (c===home) continue;
+      const d=Math.hypot(c.e.px-home.e.px,(c.e.py-home.e.py)*2);
+      if (d<=reach) near.push([d,c]);
+    }
+    near.sort((a,b)=>a[0]-b[0]);
+    const pool=near.slice(0,POLLEN.NEAR).map(p=>p[1]);
+    const stops=[pollinatorStop(home,rnd,butterfly)], want=butterfly?2+(rnd()<0.5?1:0):3+(rnd()<0.5?1:0);
+    while (stops.length<want){
+      // a bee with no neighbour works the same plant from another side
+      const c=pool.length ? pool.splice(Math.floor(rnd()*pool.length),1)[0] : home;
+      stops.push(pollinatorStop(c,rnd,butterfly));
+    }
+    const dwell=[], travel=[], faces=[];
+    let cycle=0;
+    for (let j=0;j<stops.length;j++){
+      const a=pollinatorStopAt(stops[j],[0,0]), b=pollinatorStopAt(stops[(j+1)%stops.length],[0,0]);
+      const d=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      const D=butterfly ? 2.2+rnd()*3.4 : 1.1+rnd()*2.1;
+      const T=butterfly ? Math.min(3.4,1.1+d/80) : Math.min(1.5,0.38+d/150);
+      // which way it faces on the way to the next flower, and while it is there
+      dwell.push(D); travel.push(T); faces.push(b[0]-a[0]>=0?1:-1); cycle+=D+T;
+    }
+    const kind=butterfly ? (POLLEN.WINGS[season]||POLLEN.WINGS.Summer)[Math.floor(rnd()*(POLLEN.WINGS[season]||POLLEN.WINGS.Summer).length)]
+      : (rnd()<0.45?'bumble':'honey');
+    const sig=kind+'|'+stops.map(s=>s.e.seed+':'+s.e.kind).join(',');
+    born.set(sig, pollenBorn.has(sig) ? pollenBorn.get(sig) : (F.scene ? now : -Infinity));
+    bugs.push({kind, butterfly, stops, dwell, travel, faces, cycle, sig, off:rnd()*cycle,
+      ph:rnd()*6.283, ph2:rnd()*6.283, fx:1.6+rnd()*1.2, fy:2.1+rnd()*1.3, flap:4.2+rnd()*1.6,
+      rise:butterfly?14+rnd()*16:7+rnd()*9, zig:butterfly?5+rnd()*6:3+rnd()*4});
+  }
+  pollenBorn=born;
+  pollenField={scene, day, season, bugs, cands:cands.length};
+  return bugs;
+}
+/* Where a visitor is at `sec` (camera-free draw units), and what it is doing:
+   at a flower (state 0) or between two (1). A pure function of the clock, so a
+   dropped frame cannot lose one and it is where it should be after any gap. */
+function pollinatorAt(b,sec,out){
+  let tau=((sec+b.off)%b.cycle+b.cycle)%b.cycle;
+  const n=b.stops.length;
+  for (let j=0;j<n;j++){
+    const D=b.dwell[j], T=b.travel[j];
+    if (tau<D){
+      const u=tau/D, env=Math.sin(Math.PI*u);
+      pollinatorStopAt(b.stops[j],out); out.face=b.faces[(j+n-1)%n];
+      if (b.butterfly){
+        out[1]+=env*1.2; out.state=0; out.u=u;
+      } else {
+        // hover, then down onto the flower in the middle of the visit
+        out[0]+=env*(3.2*Math.sin(sec*b.fx*6.283+b.ph));
+        out[1]+=env*(2.2*Math.sin(sec*b.fy*6.283+b.ph2)+2.2*Math.max(0,Math.sin(Math.PI*(u*1.6-0.3))));
+        out.state=0; out.u=u;
+      }
+      return out;
+    }
+    tau-=D;
+    if (tau<T){
+      const u=tau/T, s=u*u*(3-2*u);
+      const a=pollinatorStopAt(b.stops[j],POLLEN_P), q=pollinatorStopAt(b.stops[(j+1)%n],POLLEN_Q);
+      const ax=a[0], ay=a[1], bx=q[0], by=q[1];
+      const mx=(ax+bx)/2, my=(ay+by)/2-b.rise, i1=1-s;
+      let x=i1*i1*ax+2*i1*s*mx+s*s*bx, y=i1*i1*ay+2*i1*s*my+s*s*by;
+      const dx=bx-ax, dy=by-ay, dl=Math.hypot(dx,dy)||1, w=Math.sin(Math.PI*u);
+      const z=b.butterfly ? w*Math.sin(u*6.283*1.5+b.ph) : w*Math.sin(u*6.283*2.5+b.ph);
+      x+=-dy/dl*b.zig*z; y+=dx/dl*b.zig*z*0.6;
+      if (b.butterfly) y-=w*3*Math.sin(u*6.283*3+b.ph2);
+      out[0]=x; out[1]=y; out.state=1; out.u=u; out.face=b.faces[j];
+      return out;
+    }
+    tau-=T;
+  }
+  pollinatorStopAt(b.stops[0],out); out.state=0; out.u=0; out.face=b.faces[0];
+  return out;
+}
+const POLLEN_AT=[0,0], POLLEN_AHEAD=[0,0];
+function drawPollinators(ctx,W,H,t,cal,offX,offY){
+  // the clock and the busy test first: both are cheap, and most frames stop here
+  const dt=t-pollenAt; pollenAt=t;
+  if (!cal || (cal.season!=='Spring' && cal.season!=='Summer') || game.layerVis.night || game.photo || ctx!==cx){ pollenCalm=0; return; }
+  const want=pollinatorsBusy() ? 0 : 1;
+  if (!(dt>=0 && dt<250)) pollenCalm=0;                    // back from elsewhere: come in again
+  else if (want>pollenCalm) pollenCalm=Math.min(1,pollenCalm+dt/POLLEN.FADE_IN_MS);
+  else if (want<pollenCalm) pollenCalm=Math.max(0,pollenCalm-dt/POLLEN.FADE_OUT_MS);
+  const ramp=(lo,hi)=>{ const u=(ZOOM-lo)/(hi-lo); return u<=0?0:u>=1?1:u*u*(3-2*u); };
+  const flyA=ramp(POLLEN.ZOOM_LO,POLLEN.ZOOM_HI), beeA=ramp(POLLEN.BEE_LO,POLLEN.BEE_HI);
+  if (pollenCalm<=0.001 || flyA<=0 || reducedMotion()) return;
+  /* While they are fading out of a gesture the scene may be rebuilt on every
+     frame (a planting drag); the field is not, the ones leaving are the old ones */
+  const bugs=(want===0 && pollenField.bugs.length) ? pollenField.bugs : pollinatorField(cal.season);
+  if (!bugs.length) return;
+  const sec=t/1000, now=performance.now();
+  ctx.save();
+  for (const b of bugs){
+    const p=pollinatorAt(b,sec,POLLEN_AT), x=p[0]+offX, y=p[1]+offY;
+    if (x<-16 || x>W+16 || y<-16 || y>H+16) continue;
+    const born=pollenBorn.get(b.sig), za=b.butterfly?flyA:beeA;
+    const ba=born>-Infinity ? Math.min(1,(now-born)/POLLEN.BORN_MS) : 1;
+    if (ba<=0 || za<=0) continue;
+    const face=p.face, st=p.state;
+    ctx.globalAlpha=pollenCalm*za*ba;
+    if (b.butterfly){
+      let vx=0, vy=0;
+      if (st===1){ const q=pollinatorAt(b,sec+0.06,POLLEN_AHEAD); vx=q[0]-p[0]; vy=q[1]-p[1]; }
+      // flapping in flight; at a flower the wings close over its back and
+      // open again, slowly, now and then all the way
+      const open=st===1 ? Math.abs(Math.cos(sec*b.flap*Math.PI+b.ph))
+        : 0.3+0.65*Math.pow(0.5+0.5*Math.sin(sec*0.9+b.ph2),1.6);
+      const tilt=Math.max(-0.35,Math.min(0.35,vx*0.06))+Math.max(-0.2,Math.min(0.2,vy*0.05));
+      drawPollinatorButterfly(ctx,x,y,b.kind,face,open,tilt);
+    } else {
+      drawPollinatorBee(ctx,x,y,b.kind,face,0.5+0.5*Math.sin(sec*71+b.ph));
+    }
   }
   ctx.restore();
 }

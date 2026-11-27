@@ -12,7 +12,8 @@
  * (spriteBitmapsSupported), so baking, retiring and emptying canvases, the
  * season-fade snapshot, the wash surfaces and what quitting to the menu hands
  * back are all exercised only here. This opens a garden, turns night on,
- * rotates, zooms, holds fast-forward, skips four seasons, plants shrubs and a
+ * rotates, zooms, looks at the bees and a pet's flick by day, holds
+ * fast-forward, skips four seasons, plants shrubs and a
  * row of perennials, undoes and redoes, quits to the menu, opens the garden
  * again and quits, and fails on a page error, an entry in the app's error log,
  * the crash panel, a clump shown without its own sprite at a reveal, or
@@ -120,6 +121,23 @@ async function session() {
   note('rotated four times');
   setUserZoom(1.4 / baseZoom); await sleep(900); setUserZoom(0.5 / baseZoom); await sleep(900);
   note('zoomed in and out');
+  /* By day, zoomed in over the flowers: bees and butterflies (drawPollinators),
+     and a pet flicking its tail, drawn live beside its cached sprite (petFlickPose). */
+  if (typeof drawPollinators === 'function') {
+    setUserZoom(1.4 / baseZoom); await sleep(800);
+    const W = VW / ZOOM, H = VH / ZOOM, pe = scene.ents.find(r => r.kind === SCENE_K.PET), b = pollenField.bugs[0];
+    const e = b ? b.stops[0].e : pe;
+    if (e) { cam.x = e.px; cam.y = e.py + H * 0.24 - H / 2; }
+    await sleep(1200);
+    const drawn = pollenField.bugs.length;
+    const pe2 = scene.ents.find(r => r.kind === SCENE_K.PET);
+    if (pe2) {
+      cam.x = pe2.px; cam.y = pe2.py + H * 0.24 - H / 2; await sleep(300);
+      const R = petFlickRhythm(pe2); R.off = ((R.per - (performance.now() + 300) % R.per) % R.per);
+      await sleep(1000);
+    }
+    note('visitors by day', { season: calClock().season, visitors: drawn, petFlicked: PET_FLICK.until > 0 });
+  }
   const d0 = absDay();
   game.ffActive = true; await sleep(8000); game.ffActive = false; await sleep(500);
   note('fast-forward held', { gardenDays: absDay() - d0 });

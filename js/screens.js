@@ -4211,16 +4211,22 @@ function paintMenuGardenArt(season){
     g.save(); g.translate(X+(cell[0]-cell[1])*hw*.235, Y-1+(cell[0]+cell[1]-2)*hh*.235); g.scale(.36,.36);
     drawPlant(g,0,0,k,1,season,tileSeed(cell[0]+3,cell[1]+8),0,undefined,(MENU_SCENES[season]||MENU_SCENES.Fall).bloom); g.restore(); });
 }
-function paintMenuLibraryArt(){
+/* `sway` (0.9.180) is the gust a hover or a press sends through the four
+   coneflowers (menuArtStep): each leans from its base and its stems bend, the
+   wave reaching each season a moment after the last. 0 is the still picture. */
+function paintMenuLibraryArt(sway){
   const c=$('menuArtLibrary'); if (!c || !c.getContext) return;
   const g=c.getContext('2d'), w=c.width, h=c.height, pw=w/2, ph=h/2, k='echinacea', P=plantDef(k);
   g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,w,h);
   SEASONS.forEach((s,i)=>{ const x=(i%2)*pw, y=((i/2)|0)*ph, A=AMBIENCE[s];
+    const sw=typeof sway==='function' ? sway(i) : 0;
     g.save(); g.beginPath(); g.rect(x,y,pw,ph); g.clip();
     const sky=g.createLinearGradient(0,y,0,y+ph); sky.addColorStop(0,A.sky[0]); sky.addColorStop(1,A.sky[1]); g.fillStyle=sky; g.fillRect(x,y,pw,ph);
     g.fillStyle=A.snow?'#e4e6e2':A.grass[1]; g.fillRect(x,y+ph*.86,pw,ph*.14);
     const sc=(ph*.76)/(plantArtTop(P)||80);
-    g.translate(x+pw/2,y+ph*.9); g.scale(sc,sc); drawPlant(g,0,0,k,1,s,4410,0,undefined,1); g.restore(); });
+    g.translate(x+pw/2,y+ph*.9); g.scale(sc,sc);
+    if (sw) g.transform(1,0,-sw*0.05,1,0,0);
+    drawPlant(g,0,0,k,1,s,4410,sw*1.4,undefined,1); g.restore(); });
   g.fillStyle='rgba(20,14,11,.55)'; g.fillRect(pw-1,0,2,h); g.fillRect(0,ph-1,w,2);
 }
 /* The daily entry is today's page of a desk calendar, its day read off the
@@ -4230,7 +4236,7 @@ function paintMenuLibraryArt(){
    of open water (a lily pad drawn to fit is a green smear).
    It is painted again whenever the menu is shown (refreshMenuCards), and only
    draws when the day, or the title face arriving, changes what it shows. */
-let menuDailyArtKey='';
+let menuDailyArtKey='', menuDailyArtState=null;
 function menuDailyArtPlant(ch){
   const season=ch&&ch.season;
   let best=null, top=-Infinity;
@@ -4254,35 +4260,140 @@ function paintMenuDailyArt(date=new Date()){
   menuDailyArtKey=memo;
   if (!ready && typeof fonts.load==='function')
     fonts.load(face).then(()=>{ if (menuDailyArtKey===memo) paintMenuDailyArt(date); },()=>{});
-  const g=c.getContext('2d'), w=c.width, h=c.height, pl=menuDailyArtPlant(dailyChallengeFor(date));
-  const A=AMBIENCE[pl.season]||AMBIENCE.Summer;
+  const pl=menuDailyArtPlant(dailyChallengeFor(date));
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(key), when=m?new Date(+m[1],+m[2]-1,+m[3]):date;
+  const day=String(when.getDate()), mon=when.toLocaleDateString(undefined,{month:'short'}).replace(/\.$/,'').toLocaleUpperCase();
+  const bw=37, bh=74;
+  // kept, so a hover's lift can draw the page again without redrawing the plant
+  menuDailyArtState={pl, day, mon, bw, bh, art:libCanvas(pl.s,pl.v,pl.season,bw,bh,2.6)};
+  drawMenuDailyPage(menuArtMotion.lift);
+}
+/* Today's page, `lift` 0..1 off the pad (0.9.180): it rises and turns a little
+   more, its shadow falls further, the page under it shows, and its lower
+   corner curls up. 0 is the still picture, call for call. */
+function drawMenuDailyPage(lift){
+  const c=$('menuArtDaily'), S=menuDailyArtState; if (!c || !c.getContext || !S) return;
+  const g=c.getContext('2d'), w=c.width, h=c.height, pl=S.pl, day=S.day, mon=S.mon;
+  const A=AMBIENCE[pl.season]||AMBIENCE.Summer, L=Math.max(0,Math.min(1,lift||0));
   g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,w,h);
   const sky=g.createLinearGradient(0,0,0,h); sky.addColorStop(0,A.sky[0]); sky.addColorStop(1,A.sky[1]); g.fillStyle=sky; g.fillRect(0,0,w,h);
   g.fillStyle=A.snow?'#e4e6e2':A.grass[1]; g.fillRect(0,h*.86,w,h*.14);
-  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(key), when=m?new Date(+m[1],+m[2]-1,+m[3]):date;
-  const day=String(when.getDate()), mon=when.toLocaleDateString(undefined,{month:'short'}).replace(/\.$/,'').toLocaleUpperCase();
   const fit=(txt,px,maxW)=>{ let s=px; g.font=`600 ${s}px Fraunces, Georgia, serif`;
     while (s>8 && g.measureText(txt).width>maxW){ s--; g.font=`600 ${s}px Fraunces, Georgia, serif`; } };
   const pw=w*.57, ph=h*.67, hd=ph*.27, x0=-pw/2, y0=-ph/2;
   g.save(); g.translate(w*.35,h*.5); g.rotate(-.07);
-  g.fillStyle='rgba(20,14,11,.28)'; g.fillRect(x0+3,y0+5,pw,ph);                       // its shadow
+  if (L){ g.fillStyle=`rgba(20,14,11,${.28-.08*L})`; g.fillRect(x0+3+L*3,y0+5+L*5,pw,ph); }   // its shadow, further off
+  else { g.fillStyle='rgba(20,14,11,.28)'; g.fillRect(x0+3,y0+5,pw,ph); }                  // its shadow
   g.fillStyle='#cfc4b0'; g.fillRect(x0+2,y0+ph,pw-1,5);                               // the pages under today's
+  if (L){
+    g.fillStyle='#efe8d8'; g.fillRect(x0,y0,pw,ph);                                    // tomorrow's, under it
+    g.fillStyle='#a9452e'; g.fillRect(x0,y0,pw,hd);
+    g.translate(0,-L*6); g.rotate(-L*.035);
+    // today's page, its lower right corner turned up
+    const cc=L*Math.min(pw,ph)*.24, rx=x0+pw, by=y0+ph;
+    g.save();
+    g.beginPath(); g.moveTo(x0,y0); g.lineTo(rx,y0); g.lineTo(rx,by-cc); g.lineTo(rx-cc,by); g.lineTo(x0,by); g.closePath(); g.clip();
+  }
   g.fillStyle='#fbf6ea'; g.fillRect(x0,y0,pw,ph);
   g.fillStyle='#b5482f'; g.fillRect(x0,y0,pw,hd);
   g.textAlign='center'; g.textBaseline='middle'; g.fillStyle='#fbf1df';
   fit(mon,Math.round(hd*.5),pw*.8); g.fillText(mon,0,y0+hd*.62);
   g.textBaseline='alphabetic'; g.fillStyle='#2b211b';
   fit(day,Math.round(ph*.56),pw*.86); g.fillText(day,0,y0+hd+(ph-hd)*.83);
+  if (L){
+    g.restore();
+    const cc=L*Math.min(pw,ph)*.24, rx=x0+pw, by=y0+ph;
+    // the back of the page, folded over along the cut
+    g.fillStyle='rgba(20,14,11,.18)';
+    g.beginPath(); g.moveTo(rx,by-cc); g.lineTo(rx-cc,by); g.lineTo(rx-cc*1.08,by-cc*1.08); g.closePath(); g.fill();
+    g.fillStyle='#e4d9c2';
+    g.beginPath(); g.moveTo(rx,by-cc); g.lineTo(rx-cc,by); g.lineTo(rx-cc,by-cc); g.closePath(); g.fill();
+  }
   for (const rx of [-pw*.25,pw*.25]){                                                    // the binding
     g.fillStyle='#4a1d13'; g.beginPath(); g.ellipse(rx,y0+hd*.3,3.4,2.6,0,0,6.3); g.fill();
     g.strokeStyle='#6d665c'; g.lineWidth=3.4; g.lineCap='round';
     g.beginPath(); g.ellipse(rx,y0+hd*.02,4.6,hd*.3,0,Math.PI/2,Math.PI*3/2); g.stroke();
   }
   g.restore();
-  const bw=37, bh=74, art=libCanvas(pl.s,pl.v,pl.season,bw,bh,2.6);                   // today's plant
-  g.drawImage(art,w*.79-bw,h*.95-(bh*2-10),bw*2,bh*2);
+  g.drawImage(S.art,w*.79-S.bw,h*.95-(S.bh*2-10),S.bw*2,S.bh*2);                      // today's plant
 }
 function paintMenuArt(){ paintMenuGardenArt(menuSeason); paintMenuLibraryArt(); paintMenuDailyArt(); }
+/* ---- the entries' pictures answer a hover or a press (0.9.180) ----
+   Pointing at an entry, pressing it or tabbing to it moves its picture: the
+   coneflowers sway in a gust that dies away (MENU_ART.SWAY_MS), today's
+   calendar page lifts off the pad and settles back when the pointer leaves
+   (LIFT_MS each way), and the stacked garden cards fan out, which is CSS
+   alone (.menu-art.stack, styles.css). A canvas is drawn again only while its
+   picture is moving, at most about 60 times a second (FRAME_MS), from frame();
+   at rest nothing is redrawn and menuArtMotion.active is false, one boolean a
+   frame. None with less motion, and a picture that is moving when its screen
+   goes away is put back at rest at once. */
+const MENU_ART={SWAY_MS:1150, LIFT_MS:190, FRAME_MS:15, SWAY_A:1.7, SWAY_HZ:1.7, SWAY_DECAY:0.34, SWAY_LAG:0.07};
+const menuArtMotion={active:false, swayT0:null, lift:0, liftTo:0, liftFrom:0, liftT0:0, drawnAt:-Infinity, frames:0};
+function menuArtSway(t){
+  const tau=(t-menuArtMotion.swayT0)/1000;
+  return i=>{ const s=tau-i*MENU_ART.SWAY_LAG; if (s<=0) return 0;
+    return MENU_ART.SWAY_A*Math.exp(-s/MENU_ART.SWAY_DECAY)*Math.sin(s*MENU_ART.SWAY_HZ*Math.PI*2); };
+}
+function startMenuSway(t=performance.now()){
+  if (reducedMotion() || !screenOpen('menuScreen')) return;
+  // a gust already blowing is not restarted by the pointer coming back in
+  if (menuArtMotion.swayT0!==null && t-menuArtMotion.swayT0<MENU_ART.SWAY_MS*0.5) return;
+  menuArtMotion.swayT0=t; menuArtMotion.active=true;
+}
+function setMenuLift(to,t=performance.now()){
+  const M=menuArtMotion;
+  if (to===M.liftTo) return;
+  if (reducedMotion() || !screenOpen('menuScreen')){
+    /* No animating where nobody can see it. A page left lifted at rest has no
+       step to put it back, so it is drawn back here: the click that opens the
+       daily screen is followed by this page's pointerleave or blur. */
+    const was=M.lift; M.liftTo=M.lift=M.liftFrom=0;
+    if (was) drawMenuDailyPage(0);
+    return;
+  }
+  M.liftFrom=M.lift; M.liftTo=to; M.liftT0=t; M.active=true;
+}
+function menuArtStep(t){
+  const M=menuArtMotion;
+  if (!screenOpen('menuScreen') || reducedMotion()){
+    // put back at rest: one still frame of each, and nothing after
+    const swayed=M.swayT0!==null, lifted=M.lift!==0;
+    M.swayT0=null; M.lift=M.liftTo=M.liftFrom=0; M.active=false;
+    if (swayed) paintMenuLibraryArt();
+    if (lifted) drawMenuDailyPage(0);
+    return;
+  }
+  if (t-M.drawnAt<MENU_ART.FRAME_MS) return;
+  M.drawnAt=t; M.frames++;
+  let busy=false;
+  if (M.swayT0!==null){
+    if (t-M.swayT0>=MENU_ART.SWAY_MS){ M.swayT0=null; paintMenuLibraryArt(); }
+    else { paintMenuLibraryArt(menuArtSway(t)); busy=true; }
+  }
+  if (M.lift!==M.liftTo){
+    const u=Math.min(1,(t-M.liftT0)/MENU_ART.LIFT_MS), e=u*u*(3-2*u);
+    M.lift=u>=1 ? M.liftTo : M.liftFrom+(M.liftTo-M.liftFrom)*e;
+    drawMenuDailyPage(M.lift);
+    if (M.lift!==M.liftTo) busy=true;
+  }
+  M.active=busy;
+}
+function wireMenuArtMotion(){
+  const lib=$('btnLibrary'), daily=$('btnDaily');
+  if (!lib || !daily || typeof lib.addEventListener!=='function') return;
+  const focusVisible=el=>{ try{ return el.matches(':focus-visible'); }catch(_){ return false; } };
+  lib.addEventListener('pointerenter',e=>{ if (e.pointerType!=='touch') startMenuSway(); });
+  lib.addEventListener('pointerdown',()=>startMenuSway());
+  lib.addEventListener('focus',()=>{ if (focusVisible(lib)) startMenuSway(); });
+  daily.addEventListener('pointerenter',e=>{ if (e.pointerType!=='touch') setMenuLift(1); });
+  daily.addEventListener('pointerdown',()=>setMenuLift(1));
+  for (const ev of ['pointerleave','pointercancel']) daily.addEventListener(ev,()=>setMenuLift(0));
+  daily.addEventListener('pointerup',e=>{ if (e.pointerType==='touch') setMenuLift(0); });
+  daily.addEventListener('focus',()=>{ if (focusVisible(daily)) setMenuLift(1); });
+  daily.addEventListener('blur',()=>setMenuLift(0));
+}
+wireMenuArtMotion();
 /* The Library and the guidebook are full-bleed plates over the menu canvas. A
    border kept moving behind them is paint nobody can see, and their 4px
    backdrop blur is recomposited for every frame of it. */
@@ -4544,6 +4655,7 @@ function hasTransientGardenWork(){
   return !!(gardenOpening || game.ffActive || hasActiveGesture()
     || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length)
     || editFxBusy()           // a sprout, an erase ghost, an undo flash or a refusal still drawing (EDIT_FX)
+    || petFlickBusy()         // a pet on screen flicking its tail or an ear, for its few hundred ms (PET_FLICK)
     || seasonFadeActive()     // a crossfade (season, a turn, the lights) needs live frames while it runs
     || viewTweenActive()      // and so does an eased Fit or zoom step, for its 240ms
     || skipPending()          // and a Skip being prepared lands sooner at full rate
@@ -5269,6 +5381,7 @@ function frame(t){
     }
   }
   snowFrame(t,rawGap);
+  if (menuArtMotion.active) menuArtStep(t);     // an entry's picture moving under a hover or a press
 }
 /* ---------- first run ----------
    A stranger's first path through this app was the questionnaire: zone, style,

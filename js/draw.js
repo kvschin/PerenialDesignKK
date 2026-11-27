@@ -15241,20 +15241,31 @@ function shade(col, amt){
    its resting pose. The old one took (t, walking) and breathed; a decoration
    that breathed would have to be added to hasTransientGardenWork, which keeps
    the whole garden repainting forever for a 0.7px bob. So the sine terms are
-   folded to their t=0 values and this draws one deterministic sprite. */
-function drawPet(ctx, x, y, p, scale){
+   folded to their t=0 values and this draws one deterministic sprite.
+   `pose` (0.9.180) is the one exception, and it is not time: an optional
+   {tail, ear} the garden passes for the few hundred ms of an occasional flick
+   (petFlickPose, renderer.js), drawn LIVE beside the cached rest sprite,
+   never through drawStructEnt. tail is -1..1 (which way the tip swings), ear
+   0..1 (how far the right ear turns). With no pose every call is the rest pose's. */
+function drawPet(ctx, x, y, p, scale, pose){
   const s=scale||1, C=petCoat(p&&p.coat), coat=C.c, dark=C.d;
   const species=petSpecies(p&&p.species).id, mark=petMark(p&&p.mark).id;
   const sock=petPaw(p&&p.paws).c;
+  const tw=pose&&pose.tail||0, ew=pose&&pose.ear||0;
   ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
   // shadow
   ctx.fillStyle='rgba(0,0,0,0.22)';
   ctx.beginPath(); ctx.ellipse(0,3,13,5,0,0,7); ctx.fill();
-  // tail — a cat's stands up, a dog's curls
+  // tail — a cat's stands up, a dog's curls. A flick swings the tip: a cat's
+  // sideways and down a little, a dog's in a wag
   ctx.strokeStyle=dark; ctx.lineWidth=4; ctx.lineCap='round';
   ctx.beginPath();
-  if (species==='cat'){ ctx.moveTo(8,-6); ctx.quadraticCurveTo(17,-10,15,-22); }
-  else { ctx.moveTo(9,-7); ctx.quadraticCurveTo(16,-12,13,-16); }
+  if (species==='cat'){ ctx.moveTo(8,-6);
+    if (tw) ctx.quadraticCurveTo(17+tw*1.6,-10,15+tw*6.5,-22+Math.abs(tw)*2.6);
+    else ctx.quadraticCurveTo(17,-10,15,-22); }
+  else { ctx.moveTo(9,-7);
+    if (tw) ctx.quadraticCurveTo(16+tw*1.4,-12,13+tw*5,-16-Math.abs(tw)*1.4);
+    else ctx.quadraticCurveTo(16,-12,13,-16); }
   ctx.stroke();
   // legs, drawn before the body so only the feet show below it. A sock is the
   // whole visible portion rather than a band: below the body there are barely
@@ -15277,13 +15288,19 @@ function drawPet(ctx, x, y, p, scale){
   ctx.fillStyle=coat;
   if (species==='cat'){
     ctx.beginPath(); ctx.moveTo(-7,-26); ctx.lineTo(-5,-34); ctx.lineTo(-1.5,-28); ctx.closePath(); ctx.fill();
+    // a twitch turns the right ear out about its base
+    if (ew){ ctx.save(); ctx.translate(4.2,-27); ctx.rotate(ew*0.55); ctx.translate(-4.2,27); }
     ctx.beginPath(); ctx.moveTo(7,-26); ctx.lineTo(5,-34); ctx.lineTo(1.5,-28); ctx.closePath(); ctx.fill();
+    if (ew) ctx.restore();
     ctx.fillStyle=dark;
     ctx.beginPath(); ctx.moveTo(-6,-27.5); ctx.lineTo(-5,-31.5); ctx.lineTo(-3,-28.5); ctx.closePath(); ctx.fill();
-  } else { // floppy dog ears
+  } else { // floppy dog ears; a twitch lifts the right one
     ctx.fillStyle=dark;
     ctx.beginPath(); ctx.ellipse(-8,-22,3.2,6,0.4,0,7); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(8,-22,3.2,6,-0.4,0,7); ctx.fill();
+    ctx.beginPath();
+    if (ew) ctx.ellipse(8+ew*0.9,-22-ew*2,3.2,6-ew*1.1,-0.4-ew*0.8,0,7);
+    else ctx.ellipse(8,-22,3.2,6,-0.4,0,7);
+    ctx.fill();
   }
   // face. The catchlight is load-bearing, not decoration: without it a dark
   // eye on an eye patch (or on the Ink coat) vanishes, and the patch reads as
@@ -15297,6 +15314,70 @@ function drawPet(ctx, x, y, p, scale){
   ctx.fillStyle='#19120f';
   if (species==='dog'){ ctx.beginPath(); ctx.ellipse(0,-19.5,2.2,1.7,0,0,7); ctx.fill(); }
   else { ctx.beginPath(); ctx.moveTo(-1.4,-20); ctx.lineTo(1.4,-20); ctx.lineTo(0,-18.6); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+
+/* ---------- pollinators: a bee and a butterfly, in a few shapes ----------
+   Painted by drawPollinators (renderer.js) over the planting on a spring or
+   summer day. Drawn larger than life, as the fireflies are: a real honeybee is
+   a draw unit and a half long at this scale. `face` is +1 flying right, -1
+   left; `wing` 0..1 is where a bee's wingbeat is, `open` 0..1 how far a
+   butterfly's wings are spread (0 closed over its back, 1 flat). A few fills
+   each, nothing cached: there are at most a dozen. */
+const POLLINATOR_KINDS={
+  honey:{len:4.4, w:2.3, body:'#c08a2e', band:'#2e1f0f', head:'#2e1f0f'},
+  bumble:{len:5.2, w:3.5, body:'#2a2119', band:'#e6c13c', head:'#1d1712', tail:'#efe6cf'},
+  monarch:{span:12.5, fore:'#e2741c', hind:'#d9681a', edge:'#24170e', dots:'#f6efe2'},
+  white:{span:9.5, fore:'#f3f0e4', hind:'#ebe7d6', edge:'#6f6c5e', tip:'#3c3a33'},
+  sulphur:{span:9.5, fore:'#f0d34a', hind:'#e9c83c', edge:'#8a6a1c'},
+  swallowtail:{span:13, fore:'#f1cf3e', hind:'#ecc535', edge:'#1d1912', stripe:true},
+  azure:{span:7.5, fore:'#9dbbe9', hind:'#8eafe2', edge:'#45598a'}
+};
+function drawPollinatorBee(ctx,x,y,k,face,wing){
+  const K=POLLINATOR_KINDS[k]||POLLINATOR_KINDS.honey, L=K.len, R=K.w/2;
+  ctx.save(); ctx.translate(x,y); ctx.scale(face<0?-1:1,1);
+  // the wingbeat is a blur: two pale lobes over the back, wider and fainter
+  // at the top of the stroke
+  const wr=1.5+wing*0.7;
+  ctx.fillStyle=`rgba(244,248,250,${0.62-wing*0.22})`;
+  ctx.beginPath(); ctx.ellipse(-L*0.08,-R-wr*0.55,wr,wr*0.62,-0.5,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(L*0.12,-R-wr*0.45,wr*0.85,wr*0.55,-0.25,0,7); ctx.fill();
+  ctx.fillStyle=K.body;
+  ctx.beginPath(); ctx.ellipse(0,0,L/2,R,0,0,7); ctx.fill();
+  ctx.fillStyle=K.band;
+  if (k==='bumble'){ ctx.beginPath(); ctx.ellipse(L*0.1,0,L*0.17,R*0.96,0,0,7); ctx.fill();
+    ctx.fillStyle=K.tail; ctx.beginPath(); ctx.ellipse(-L*0.4,0,L*0.12,R*0.62,0,0,7); ctx.fill(); }
+  else { ctx.fillRect(-L*0.22,-R*0.92,L*0.1,R*1.84); ctx.fillRect(-L*0.02,-R*0.98,L*0.1,R*1.96); }
+  ctx.fillStyle=K.head;
+  ctx.beginPath(); ctx.arc(L*0.48,-R*0.1,R*0.72,0,7); ctx.fill();
+  ctx.restore();
+}
+function drawPollinatorButterfly(ctx,x,y,k,face,open,tilt){
+  const K=POLLINATOR_KINDS[k]||POLLINATOR_KINDS.white, h=K.span/2;
+  const o=Math.max(0,Math.min(1,open)), sx=0.16+0.84*o;     // spread seen from above
+  ctx.save(); ctx.translate(x,y); ctx.rotate(tilt||0); ctx.scale(face<0?-1:1,1);
+  ctx.lineWidth=0.7; ctx.strokeStyle=K.edge;
+  for (const side of [-1,1]){
+    ctx.save(); ctx.scale(side*sx,1);
+    // hindwing under, forewing over: a lobe swept forward and one back
+    ctx.fillStyle=K.hind;
+    ctx.beginPath(); ctx.moveTo(0,0.4); ctx.quadraticCurveTo(h*0.85,h*0.15,h*0.58,h*0.62);
+    ctx.quadraticCurveTo(h*0.2,h*0.72,0,0.9); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=K.fore;
+    ctx.beginPath(); ctx.moveTo(0,-0.2); ctx.quadraticCurveTo(h*0.55,-h*0.95,h*1.02,-h*0.52);
+    ctx.quadraticCurveTo(h*0.9,h*0.05,0,0.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+    if (K.tip){ ctx.fillStyle=K.tip; ctx.beginPath(); ctx.ellipse(h*0.86,-h*0.5,h*0.16,h*0.12,0.5,0,7); ctx.fill(); }
+    if (K.stripe){ ctx.strokeStyle=K.edge; ctx.lineWidth=0.9;
+      ctx.beginPath(); ctx.moveTo(h*0.2,-h*0.35); ctx.lineTo(h*0.42,-h*0.05);
+      ctx.moveTo(h*0.45,-h*0.62); ctx.lineTo(h*0.66,-h*0.28); ctx.stroke();
+      ctx.lineWidth=0.7; }
+    if (K.dots){ ctx.fillStyle=K.dots; ctx.beginPath(); ctx.arc(h*0.9,-h*0.44,0.5,0,7); ctx.arc(h*0.5,h*0.55,0.45,0,7); ctx.fill(); }
+    ctx.restore();
+  }
+  ctx.strokeStyle='#1e1813'; ctx.lineWidth=1.1; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,-h*0.32); ctx.lineTo(0,h*0.42); ctx.stroke();
+  ctx.lineWidth=0.4;
+  ctx.beginPath(); ctx.moveTo(0,-h*0.32); ctx.lineTo(h*0.12,-h*0.62); ctx.moveTo(0,-h*0.32); ctx.lineTo(-h*0.12,-h*0.62); ctx.stroke();
   ctx.restore();
 }
 
