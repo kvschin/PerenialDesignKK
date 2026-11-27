@@ -217,7 +217,24 @@ brief's season (`paintMenuDailyArt`, `menuDailyArtPlant`: in flower, a forb or
 bulb, upright, never a tree or open-water plant). It is repainted from
 `refreshMenuCards` and draws only when the day has turned or Fraunces has
 arrived. It was a plan sheet of drift blobs, which read as a square of random
-circles. A
+circles. **Each picture answers a hover, a press or keyboard focus** (0.9.180;
+`MENU_ART`, `menuArtMotion`, `menuArtStep`, `startMenuSway`, `setMenuLift`,
+`drawMenuDailyPage`): the stacked garden cards fan out and the top one lifts
+(CSS alone, transforms on `.menu-art.stack`; hover only under `(hover:hover)`,
+since a touch screen's hover sticks after a tap), a gust runs through the four
+coneflowers and dies away (`paintMenuLibraryArt(sway)`, 1.15s, each season a
+moment after the last), and today's calendar page lifts off the pad, its corner
+curled up over tomorrow's, and settles when the pointer leaves
+(`drawMenuDailyPage(lift)`, 190ms each way; the plant's `libCanvas` is kept in
+`menuDailyArtState` so the page can be redrawn alone). A canvas is redrawn
+only while its picture moves, at most every `FRAME_MS` (15), from `frame()`
+behind one boolean (`menuArtMotion.active`); at rest, a lifted page held
+included, nothing is drawn. Measured: 64 redraws for a gust, 12 for a lift, 0
+while held; at 0 every painter is call for call the still picture (a test).
+None with less motion (the CSS is under `:root:not([data-motion="reduce"])`),
+and a picture moving when its screen goes away is put back at rest at once.
+`ff-accel-check.cjs --menu` has a hover phase: the title canvas stayed
+accelerated, the steps' median 0ms and p95 3ms in Firefox. A
 **key** (`#menuKey`) names the six plants that carry most of the border, each
 row opening the Plant Library at that plant (`openPlantLibraryAt`), beside four
 season dots that turn the border by hand (`setMenuSeason`; the choice is
@@ -454,7 +471,8 @@ See §13a.
   not an ImageBitmap, so baking, retiring and emptying canvases, the season-fade
   snapshot, the wash surfaces and what quitting hands back run only there; every
   other browser test is Chromium, and one tool is Firefox. It opens a garden,
-  turns night on, rotates, zooms, holds fast-forward, skips four seasons, plants,
+  turns night on, rotates, zooms, looks at the bees and a pet's flick by day
+  (§11j), holds fast-forward, skips four seasons, plants,
   undoes, erases a sweep (whose ghosts draw from the canvas sprites, §11h), quits
   to the menu and opens the garden again. It fails on a page error,
   an error-log entry, the crash panel, a clump without its own sprite at a
@@ -574,13 +592,19 @@ See §13a.
   `DEMOTED` line against the phases after it: on one 270-plant garden it names a
   single fast-forward frame in 0.9.73 and 0.9.74 alike, while every later phase holds
   ~160fps with a probe of 0ms, which is not a canvas that went to software for good.
+  It prints how many frames were over the line and in which phases, which is how
+  to tell a spike from a demotion: one run of 0.9.180 named a single `lights`
+  frame, and the next run, and the base build, stayed accelerated throughout.
+  A last `visitors` phase goes back to midsummer by day, zoomed in over the
+  flowers, with a pet's flick forced into it (§11j).
   **`--menu` asks the same of the title screen**, whose border is ~200 clump
   sprites blitted every frame onto a canvas of its own (§17). There the probe is
   the JS cost of a whole `menuRender` across all four seasons, and in Winter the
   cost of each draw of the falling snow layer (`snowStep`, 0.9.121); `--menu
   --canvases` bakes the sprites as canvases and must report DEMOTED, which is
   how to tell the probe still works. Run it on any change to how the border's
-  images are made or drawn.
+  images are made or drawn. Its last phase plays the entries' pictures' hover
+  motion (`menuArtStep`) eight times and reports what a step costs.
 - `node dev/ground-verify.cjs` is the gate on the ground bake's PARTIAL paths
   (§11): a pan re-bakes only the band that came into view and an edit only the
   viewport, so this asks whether either still draws the ground a full bake
@@ -4081,7 +4105,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     lights that plant's crown (`woodyCrownAt`: drawPlant's own height and width
     floors) and the trunk below it. A rebuilt scene re-aims, so moving or felling
     the tree moves the light with it. Unaimed, it washes a little way up behind it.
-    **Fireflies** flash over a SUMMER night's herbaceous planting (never a tree):
+    **Fireflies** flash over a SUMMER night's herbaceous planting (never a tree;
+    their daytime counterpart, bees and butterflies, is §11j):
     up to 64, seeded off the scene's plant records so they stay on the garden as
     the camera moves, each flashing a third of a second every few with a rising
     swoop, timed off the frame clock. They cost no frames of their own: the garden
@@ -4321,6 +4346,70 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     11.9ms (min; 12.1 vs 12.1 median) on the estate. (Against the LIVE functions
     the estate read 14.4 vs 13.7: those carry every scenario before them in the
     JIT; compile both arms the same way.)
+
+11j. **Signs of life by day** (0.9.180; `POLLEN`, `pollinatorField`,
+    `pollinatorAt`, `drawPollinators`, `PET_FLICK`/`petFlickPose`,
+    renderer.js; `drawPollinatorBee`/`drawPollinatorButterfly`, `drawPet`'s
+    `pose`, draw.js). By night the garden had its fireflies (§11g); by day only
+    the wind. Two small additions, held to the fireflies' bar: no frames of their
+    own.
+    *Pollinators.* On a spring or summer DAY, bees (honey and bumble) and
+    butterflies (monarch, cabbage white, sulphur, swallowtail, spring azure; the
+    spring list has no monarch or swallowtail) work the flowers: at most
+    `POLLEN.MAX` (12) over the whole garden, about one per `PER_PLANTS` (6) plants
+    in flower, and only over a plant that is in flower NOW (`bloomLevel` past
+    `BLOOM_MIN` 0.35, a bloom colour this season, the record's `hasBloom`) and
+    carries the `pollinator` role, never a tree. A bee hovers at a flower, dips
+    onto it and zigzags to the next of three or four close by (`BEE_REACH` 3.6
+    tiles); a butterfly sits opening and closing its wings, then flaps a looping
+    way to another a little further off (`FLY_REACH` 6.5). A visitor's place is a
+    pure function of the clock (`pollinatorAt`: dwell, then a quadratic arc with
+    a zigzag, round its flowers), so a dropped frame or a long gap cannot lose
+    one. They are drawn in render after the entity pass and before the season's
+    light, so the wash tints them with the garden; over the planting rather than
+    depth-sorted, as the fireflies are. **Chosen by a hash of each plant's own
+    seed, not a random draw down a list**: the homes are the first N candidates
+    in that order and each one's flowers are its nearest, so a rebuilt scene of
+    the same plants (another day, an edit elsewhere, `sceneApplyEdits`'s new
+    scene object) hands back the same visitors in the same places, and only a
+    visitor whose flowers changed is new (it fades in over `BORN_MS`). The field
+    is rebuilt only when the scene object or the day changes, and not while they
+    are fading out of a gesture, when a drag can rebuild the scene every frame.
+    **They keep out of a planner's way**: they fade out over `FADE_OUT_MS` (220)
+    while a gesture, a placement pulse (`game.fx`), an edit effect (§11h),
+    fast-forward, a Skip or an opening is under way (`pollinatorsBusy`) and back
+    in over `FADE_IN_MS` after; a butterfly comes in from `ZOOM_LO` to `ZOOM_HI`
+    (0.36-0.5) and a bee, a third its size, from `BEE_LO` to `BEE_HI` (0.55-0.75),
+    so at the demo garden's fitted 46% only a few faint butterflies show and the
+    bees are gone. Never at night, in a photo, with less motion, or off the live
+    canvas (the portrait and the plan sheet do not call render). **Not in
+    `hasTransientGardenWork`** (a test holds that): they draw in the 30fps idle
+    frames the wind already costs, and a fade asks for none either.
+    Measured in headless Chrome (1440x900, zoom 100%, render A/B with
+    `drawPollinators` stubbed out, two runs each): demo garden 0.1ms a frame for
+    the visitors, render median 0.9 against 0.8ms, the idle cadence 27.3-27.7fps
+    either way; woodland (1,266 plants) and estate (4,707) the same 0.1ms. The
+    field builds in 0.3ms on the demo, 0.5ms on the woodland and 1.7ms (3.4 at
+    worst) on the estate, once per scene or day.
+    *A pet's flick.* A pet is a still pose and has to be (§12a). Every 15-30s
+    (`PET_FLICK`, a rhythm per pet from its tile's seed, `petFlickRhythm`, so
+    two pets do not flick together) each pet ON SCREEN swishes its tail (a cat
+    once, 460ms; a dog wags three times, 620ms) or twitches its right ear
+    (300ms), which of the two decided per flick. **The rest pose stays the cached
+    sprite** (`SSPRITE`, key `T|`); the flick is drawn LIVE in `drawSceneEnt`'s
+    PET case by `drawPet(...,pose)`, never through `drawStructEnt`, which is what
+    "a structure that ever starts animating must leave drawStructEnt" asks. With
+    no pose `drawPet` is call for call the rest pose (a test). Full-rate frames
+    only while one plays: the idle cadence notices the start within a frame,
+    `PET_FLICK.until` is how long, and `petFlickBusy` is in
+    `hasTransientGardenWork`. Only a pet the entity pass draws, so only one on
+    screen; none with less motion, in a photo, or off the live canvas. Measured:
+    frames went to full rate across a 460ms flick and back to 28fps after.
+    Checked in Firefox (`ff-accel-check.cjs`'s `visitors` phase: accelerated for
+    all 5,797 frames on the demo garden, the same as the base build, and all
+    4,631 on the woodland test garden) and WebKit
+    (`webkit-check.cjs`'s "visitors by day": 12 visitors, a pet flick, nothing
+    thrown).
 
 12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
     `game.actX`/`actY` names — the last one a tap or the E key addressed),
@@ -4745,7 +4834,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     inside that reads as noise. `drawPet` (draw.js)
     is the recovered `drawCritter` with its animation **folded to the t=0
     resting pose**: a breathing pet would have to join `hasTransientGardenWork`,
-    which keeps the whole garden repainting forever for a 0.7px bob.
+    which keeps the whole garden repainting forever for a 0.7px bob. The one
+    exception is an occasional flick of the tail or an ear, a few hundred ms every
+    15-30s, drawn live beside the cached rest sprite (§11j).
     **A pet is the one placeable thing that claims nothing.** `canPlacePet`
     refuses only water, hardscape, the house/door and off-lot ground — it does
     NOT reserve its tile, so a cat may sit in the middle of a drift or under a
@@ -4762,12 +4853,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **registering the layer is free** — `snapshotState` (the per-pointerdown
     clone, the hot path) 115.0µs without it vs 115.5µs with it and zero pets,
     `buildScene` unchanged at 400µs, and 73 chars of save against a 2.4M budget.
-    What is NOT free is drawing them: a pet is deliberately **not
-    sprite-cached** the way plants are, so it redraws procedurally every frame
+    What was NOT free was drawing them: a pet redrew procedurally every frame
     at ~37µs (measured as a frame delta; 18µs for the draw calls alone, the
-    rest being its scene record, cull and `screenOf`). One or two pets cost
-    0.04ms/frame and 200 would cost 7.4ms — which tap-only puts out of casual
-    reach. If a reason ever appears to allow many, sprite-cache them first.
+    rest being its scene record, cull and `screenOf`), so 200 would have cost
+    7.4ms. A pet has since joined the structure cache (`SSPRITE`, key `T|`), so
+    at rest it is a blit like a fence; only a flick (§11j) draws procedurally.
     **Deliberately absent from the client-facing documents**: no line in
     `exportRows`, no symbol in `openPlan`/`buildPlanMap`, no dot in
     `drawWorldThumb`. That exclusion is a product rule, not an oversight — a

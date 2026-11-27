@@ -99,6 +99,21 @@ const DRIVER = `
        which re-bakes the whole planting; a layer shown or hidden crossfades. */
     await run('lens',8400,()=>fire(6,1400,()=>setPreviewMode(game.previewMode==='established'?'today':'established')));
     await run('layer',4200,()=>fire(6,700,()=>{ requestViewFade('layer'); setLayerVis('perennials',!layerShown('perennials')); refreshCanvasTools(); }));
+    /* By day, zoomed in over the flowers: the bees and butterflies are drawn
+       into these frames (drawPollinators), and a pet on screen flicks its tail
+       part way through (petFlickPose, drawn live beside its cached sprite). */
+    await run('visitors',7000,()=>{
+      // back to midsummer (the Skip above went on to fall), by day, zoomed in
+      game.layerVis.night=false; game.dayOffset+=YEAR_DAYS-((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS+24;
+      setUserZoom(1.4/baseZoom);
+      setTimeout(()=>{
+        const W=VW/ZOOM, H=VH/ZOOM, pe=scene.ents.find(r=>r.kind===SCENE_K.PET);
+        const b=typeof pollenField!=='undefined' ? pollenField.bugs[0] : null;   // so an older build runs the phase too
+        const e=b ? b.stops[0].e : pe; if (e){ cam.x=e.px; cam.y=e.py+H*0.24-H/2; }
+        const pe2=scene.ents.find(r=>r.kind===SCENE_K.PET);
+        if (pe2 && typeof petFlickRhythm==='function'){ const R=petFlickRhythm(pe2), now=performance.now(); R.off=((R.per-(now+2500)%R.per)%R.per); }
+      },900);
+    });
     await say({canvas:cnv.width+'x'+cnv.height, sprites:PSPRITE.active, bitmaps:typeof spriteBitmaps!=='undefined'&&spriteBitmaps,
       errors:(typeof errLog!=='undefined'?errLog:[]).map(e=>e.where+': '+e.msg), crashed:typeof crashed!=='undefined'&&crashed,
       frames:frames.map(f=>[Math.round(f.t),f.phase,+f.sky.toFixed(2)])});
@@ -132,8 +147,18 @@ const MENU_DRIVER = `
       setMenuSeason(s,false); phase='planting '+s; await up();
       phase=s; await sleep(3500);
     }
+    /* The entries' pictures answering a hover (menuArtStep): the coneflowers'
+       gust and the calendar page lifting and settling, each a few frames of a
+       small canvas of its own, over the border as it keeps drawing. */
+    const art=[], oA=window.menuArtStep;
+    if (typeof oA==='function'){
+      window.menuArtStep=function(){ const a=performance.now(); const r=oA.apply(this,arguments); art.push(+(performance.now()-a).toFixed(2)); return r; };
+      phase='hover entries';
+      for (let k=0;k<8;k++){ startMenuSway(); setMenuLift(k%2?0:1); await sleep(700); }
+      setMenuLift(0); await sleep(600);
+    }
     await say({canvas:mcnv.width+'x'+mcnv.height, sprites:menuBorder.sprites.length, mb:+(menuBorder.bytes/1048576).toFixed(1),
-      bitmaps:spriteBitmaps, frames, snow});
+      bitmaps:spriteBitmaps, frames, snow, art});
   }catch(e){ await say({error:String(e&&e.stack||e)}); }
 })();
 `;
@@ -157,6 +182,11 @@ function reportMenu(r) {
     console.log('  falling snow    ' + String(snow.length).padStart(6) + ' draws  median ' + ms[ms.length >> 1] + 'ms   p95 '
       + ms[Math.min(ms.length - 1, Math.floor(ms.length * .95))] + 'ms');
   } else console.log('  falling snow: none drawn (reduced motion, or no snow layer in this build)');
+  if (r.art && r.art.length){
+    const ms = r.art.slice().sort((a, b) => a - b);
+    console.log('  entry pictures  ' + String(r.art.length).padStart(6) + ' steps  median ' + ms[ms.length >> 1] + 'ms   p95 '
+      + ms[Math.min(ms.length - 1, Math.floor(ms.length * .95))] + 'ms');
+  }
   if (firstSoft >= 0) {
     console.log('\nDEMOTED: frame #' + firstSoft + ' (' + r.frames[firstSoft][1] + ') is the first of five running drawn on a software canvas.');
     process.exit(1);
@@ -210,6 +240,10 @@ server.listen(0, '127.0.0.1', async () => {
   const phases = [...new Set(r.frames.map(f => f[1]))];
   let firstSoft = -1;
   r.frames.forEach((f, i) => { if (firstSoft < 0 && f[2] > 1.5) firstSoft = i; });
+  // how many frames were over the line, and where: one spike reads apart from a canvas gone soft
+  const over = r.frames.filter(f => f[2] > 1.5);
+  if (over.length) console.log('frames over 1.5ms: ' + over.length + ' of ' + r.frames.length + ' -> '
+    + over.slice(0, 8).map(f => f[1] + ' ' + f[2] + 'ms').join(', '));
   for (const p of phases) {
     const fr = r.frames.filter(f => f[1] === p), sky = fr.map(f => f[2]).sort((a, b) => a - b);
     const span = fr.length > 1 ? fr[fr.length - 1][0] - fr[0][0] : 0;

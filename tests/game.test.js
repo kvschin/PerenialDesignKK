@@ -30876,3 +30876,245 @@ test('a garden opened from its card grows out of the card, and a failed open tak
   assert(!/style\.(left|top|width|height)\s*=/.test(grow.replace(/Object\.assign\(el\.style[^;]*;/g, '')), 'its size is set once at each target; it moves by transform');
   assert(/\.garden-grow\{position:fixed;z-index:61;pointer-events:none;/.test(motionCss()), 'over the opening cover, never in the pointer\'s way');
 });
+
+/* ---------- signs of life (0.9.180) ----------
+   Daytime pollinators, a pet's occasional flick and the title screen's pictures
+   answering a hover. Each is to cost no frames it does not need. */
+const lifeRec = log => new Proxy({}, { get:(o,p)=>p in o ? o[p]
+    : (p==='createLinearGradient'||p==='createRadialGradient') ? ()=>({addColorStop(){}})
+    : p==='measureText' ? t=>({width:String(t).length*6})
+    : (...a)=>{ log.push(String(p)+'('+a.map(x=>typeof x==='number'?Math.round(x*100)/100:x).join(',')+')'); },
+  set:(o,p,v)=>{ o[p]=v; log.push('set '+String(p)+'='+v); return true; } });
+
+test('a pet with no pose draws the rest pose, call for call; a flick moves only its tail or ear', () => {
+  for (const species of ['cat','dog']){
+    const p={species, coat:PET_COATS[0].id, t:1};
+    const draw=pose=>{ const log=[]; drawPet(lifeRec(log),10,20,p,1,pose); return log; };
+    const rest=draw(), zero=draw({tail:0,ear:0});
+    assertEqual(zero.join('|'), rest.join('|'), species+': a pose of nothing is the rest pose');
+    const tail=draw({tail:1}), ear=draw({ear:1});
+    assert(tail.join('|')!==rest.join('|') && ear.join('|')!==rest.join('|'), species+': a flick changes the drawing');
+    const diff=(a,b)=>a.filter((c,i)=>c!==b[i]).length;
+    assertEqual(tail.length, rest.length, species+': a tail flick draws the same shapes');
+    assert(diff(tail,rest)<=1, species+': a tail flick moves only the tail ('+diff(tail,rest)+' calls)');
+    // the ear: the calls before the ear and from the face on are the rest pose's
+    const face=log=>log.slice(log.findIndex(c=>c.startsWith('set fillStyle=#19120f')));
+    assertEqual(face(ear).join('|'), face(rest).join('|'), species+': an ear twitch leaves the face alone');
+    assertEqual(ear.slice(0,20).join('|'), rest.slice(0,20).join('|'), species+': and the body');
+  }
+  const params=String(drawPet).slice(0,String(drawPet).indexOf(')')).split('(')[1].split(',').map(s=>s.trim());
+  assert(params.indexOf('t')<0 && params.indexOf('sway')<0, 'drawPet still takes no clock: '+params);
+});
+
+test('a pet flicks every 15-30 seconds for a few hundred ms, and asks for frames only then', () => {
+  setup(21,21);
+  const pets=[[3,4],[9,12],[15,6]].map(([x,y])=>({kind:SCENE_K.PET, x, y, p:{species:x===9?'dog':'cat', coat:PET_COATS[0].id}}));
+  const starts=pets.map(()=>[]), was=pets.map(()=>false);
+  let on=0, total=0;
+  PET_FLICK.until=0;
+  for (let now=0; now<200000; now+=5){
+    pets.forEach((e,i)=>{
+      const pose=petFlickPose(e,now); total++;
+      if (pose){ on++; if (!was[i]) starts[i].push(now); assert(petFlickBusy(now), 'busy while a flick plays'); }
+      was[i]=!!pose;
+    });
+  }
+  assert(on/total<0.045, `at rest nearly all the time (${(on/total*100).toFixed(1)}% flicking)`);
+  starts.forEach((s,i)=>{
+    assert(s.length>=6, `pet ${i} flicked ${s.length} times in 200 s`);
+    for (let j=1;j<s.length;j++){ const gap=s[j]-s[j-1];
+      assert(gap>=15000-10 && gap<=30000+10, `pet ${i}: ${gap} ms between flicks`); }
+  });
+  assertEqual(new Set(starts.map(s=>s[0])).size, 3, 'two pets do not flick together');
+  // the flick ends, and so do the full-rate frames it asked for
+  const e=pets[0], t0=starts[0][1];
+  PET_FLICK.until=0; assert(petFlickPose(e,t0+40), 'a flick');
+  assert(petFlickBusy(t0+40) && !petFlickBusy(t0+700), 'frames are asked for while it plays, and not after');
+  assert(String(hasTransientGardenWork).includes('petFlickBusy()'), 'the loop reads it');
+  // less motion: none
+  const before=motionPref;
+  try { setMotionPref('reduce'); assertEqual(petFlickPose(e,t0+40), null, 'no flick with less motion'); }
+  finally { setMotionPref(before); }
+});
+
+test('a flicking pet is drawn live, beside the cached rest sprite', () => {
+  setup(21,21);
+  setTile('pets','9,9',{species:'cat', coat:PET_COATS[0].id, t:1}); buildScene(800,600);
+  const e=scene.ents.find(r=>r.kind===SCENE_K.PET);
+  const R=petFlickRhythm(e), flickAt=R.per*3-R.off+60, restAt=R.per*3-R.off+5000;
+  const was={pet:drawPet, cached:drawStructMaybeCached, now:EDIT_FX.now};
+  let posed=null, cached=0;
+  try {
+    drawPet=(ctx,x,y,p,s,pose)=>{ posed=pose||null; };
+    drawStructMaybeCached=()=>{ cached++; };
+    EDIT_FX.now=restAt; drawSceneEnt(e,800,600,'Summer',0,true);
+    assertEqual(cached,1,'at rest the pet is the cached sprite');
+    EDIT_FX.now=flickAt; drawSceneEnt(e,800,600,'Summer',0,true);
+    assert(posed && (posed.tail || posed.ear), 'in a flick it is drawn live, in its pose');
+    assertEqual(cached,1,'and not through the cache, which would freeze it');
+    posed=null; game.photo=true; drawSceneEnt(e,800,600,'Summer',0,true);
+    assertEqual(posed,null,'a photo has the rest pose'); assertEqual(cached,2,'from the cache');
+  } finally { drawPet=was.pet; drawStructMaybeCached=was.cached; EDIT_FX.now=was.now; game.photo=false; }
+  assert(!/pose/.test(String(drawStructEnt)), 'drawStructEnt never draws a pose');
+});
+
+function pollenGarden(n){
+  setup(21,21);
+  game.previewMode='established';
+  let day=-1;
+  for (let d=0; d<YEAR_DAYS && day<0; d++){ game.dayOffset=d; if (calClock().season==='Summer' && bloomLevel('echinacea')>0.8) day=d; }
+  assert(day>=0, 'a summer day with coneflowers in flower');
+  let k=0;
+  for (let x=2;x<19;x++) for (let y=2;y<19;y++){
+    if (k>=n) break;
+    setTile('plants',x+','+y,{s:(x+y)%3?'echinacea':'bigbluestem',d:-2000,t:1}); k++;
+  }
+  setTile('plants','1,1',{s:'redbud',d:-9000,t:1});
+  userZoom=1; calcZoom();
+  buildScene(800,600);
+  return day;
+}
+const pollenSpy = fn => {
+  const was={bee:drawPollinatorBee, fly:drawPollinatorButterfly};
+  const drawn=[];
+  drawPollinatorBee=(ctx,x,y,k)=>drawn.push(['bee',k,x,y]);
+  drawPollinatorButterfly=(ctx,x,y,k)=>drawn.push(['fly',k,x,y]);
+  try { return fn(drawn); } finally { drawPollinatorBee=was.bee; drawPollinatorButterfly=was.fly; }
+};
+// a second of idle frames at 30fps, from `t`
+const pollenRun = (t, frames=30) => { for (let i=0;i<frames;i++) drawPollinators(cx,800,600,t+i*33,calClock(),400-cam.x,144-cam.y); return t+frames*33; };
+
+test('pollinators visit flowers in bloom, at most a dozen, and come back the same', () => {
+  pollenGarden(240);
+  const bugs=pollinatorField('Summer');
+  assertEqual(bugs.length, POLLEN.MAX, 'a garden in full flower has the most there are');
+  for (const b of bugs) for (const s of b.stops)
+    assertEqual(s.e.p.s, 'echinacea', 'only a pollinator plant in flower: never the grass, never the tree');
+  assert(bugs.some(b=>b.butterfly) && bugs.some(b=>!b.butterfly), 'bees and butterflies');
+  const sigs=bugs.map(b=>b.sig).join(' ');
+  // a rebuilt scene of the same plants (another day, an edit elsewhere) gives the same visitors
+  game.sceneRev++; buildScene(800,600);
+  assertEqual(pollinatorField('Summer').map(b=>b.sig).join(' '), sigs, 'the same garden has the same visitors');
+  // where one is does not depend on the camera
+  const b=bugs[0], a=pollinatorAt(b,12.3,[0,0]).slice();
+  cam.x+=500; cam.y-=300;
+  const c=pollinatorAt(b,12.3,[0,0]);
+  assert(a[0]===c[0] && a[1]===c[1], 'a visitor stays with the garden as the camera moves');
+  cam.x-=500; cam.y+=300;
+  // a pure function of the clock: after any gap it is where it should be
+  assertEqual(pollinatorAt(b,99.9,[0,0]).join(), pollinatorAt(b,99.9+b.cycle,[0,0]).join(), 'one round of its flowers, and again');
+  // a small planting has one
+  pollenGarden(3);
+  assertEqual(pollinatorField('Summer').length, 1, 'two coneflowers in flower have a single visitor');
+});
+
+test('pollinators come in by day in spring and summer, and keep out of the way', () => {
+  pollenGarden(240);
+  pollenSpy(drawn => {
+    let t=pollenRun(100000);
+    assert(drawn.length>0, 'drawn on a calm summer day');
+    assert(!String(hasTransientGardenWork).includes('ollinat') && !hasTransientGardenWork(), 'and they ask for no frames of their own');
+    // an edit under way: they fade out within a quarter second, and stay out
+    game.fx=[{x:5,y:5,t0:performance.now()+60000}];
+    t=pollenRun(t,10); drawn.length=0; t=pollenRun(t,10);
+    assertEqual(drawn.length, 0, 'gone while an edit is under way');
+    game.fx=[];
+    drawn.length=0; t=pollenRun(t,30);
+    assert(drawn.length>0, 'and back after it');
+    // never at night, in a photo, with less motion, or zoomed right out
+    for (const [name,on,off] of [
+      ['at night', ()=>{ game.layerVis.night=true; }, ()=>{ game.layerVis.night=false; }],
+      ['in a photo', ()=>{ game.photo=true; }, ()=>{ game.photo=false; }],
+      ['with less motion', ()=>{ setMotionPref('reduce'); }, ()=>{ setMotionPref('auto'); }],
+      // a plot that needs it may zoom out past 40% (lowerZoomFloor), where they are specks
+      ['zoomed right out', ()=>{ lowerZoomFloor(0.2); userZoom=POLLEN.ZOOM_LO*0.9/baseZoom; calcZoom(); },
+        ()=>{ resetZoomFloor(); userZoom=1; calcZoom(); }],
+      // and the bees go first: at 50% a butterfly still shows, a bee does not
+      ['but a bee at 50%', ()=>{ userZoom=0.5/baseZoom; calcZoom(); drawn.length=0; },
+        ()=>{ userZoom=1; calcZoom(); }]]){
+      on(); try { drawn.length=0; t=pollenRun(t,10);
+        if (name==='but a bee at 50%') assert(drawn.length>0 && drawn.every(d=>d[0]==='fly'), 'only butterflies at 50%');
+        else assertEqual(drawn.length, 0, 'none '+name); }
+      finally { off(); }
+      t=pollenRun(t,30);
+    }
+    // nor in fall
+    for (let d=game.dayOffset; d<game.dayOffset+YEAR_DAYS; d++){ game.dayOffset=d; if (calClock().season==='Fall') break; }
+    game.sceneRev++; buildScene(800,600);
+    drawn.length=0; pollenRun(t,30);
+    assertEqual(drawn.length, 0, 'none in fall');
+  });
+});
+
+test('pollinators draw within the frames the garden already draws', () => {
+  const src=readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g,'');
+  const body=src.slice(src.indexOf('function render(t){'));
+  assert(/drawPollinators\(cx,W,H,t,cal,W\/2-cam\.x,H\*0\.24-cam\.y\);/.test(body), 'render draws them, off the frame clock');
+  const fn=src.slice(src.indexOf('function drawPollinators('));
+  assert(/game\.photo \|\| ctx!==cx/.test(fn.slice(0,600)), 'only on the live canvas, never in a photo');
+  assert(!/requestAnimationFrame/.test(fn.slice(0,fn.indexOf('\nfunction '))), 'and they ask for none');
+});
+
+test('the menu pictures move only while hovered, pressed or settling', () => {
+  setup(21,21); game.inGarden=false;
+  const ms=document.getElementById('menuScreen'); ms.classList.remove('hidden');
+  const was={lib:paintMenuLibraryArt, page:drawMenuDailyPage};
+  const calls={lib:[],page:[]};
+  try {
+    paintMenuLibraryArt=s=>calls.lib.push(s);
+    drawMenuDailyPage=l=>calls.page.push(l);
+    Object.assign(menuArtMotion,{active:false,swayT0:null,lift:0,liftTo:0,liftFrom:0,drawnAt:-Infinity});
+    // a gust through the coneflowers, dying away
+    startMenuSway(1000);
+    assert(menuArtMotion.active, 'a hover starts it');
+    menuArtStep(1000); menuArtStep(1005);
+    assertEqual(calls.lib.length, 1, 'at most one picture every FRAME_MS');
+    let t=1000; while (menuArtMotion.active && t<5000){ t+=16; menuArtStep(t); }
+    assert(!menuArtMotion.active && t<1000+MENU_ART.SWAY_MS+40, 'and it stops of its own accord');
+    assert(calls.lib.length<=MENU_ART.SWAY_MS/MENU_ART.FRAME_MS+2, `a few frames (${calls.lib.length})`);
+    assertEqual(calls.lib[calls.lib.length-1], undefined, 'the last is the still picture');
+    assert(typeof calls.lib[1]==='function' && calls.lib[1](0)!==0, 'the ones before it sway');
+    // today's page lifts, and holds without redrawing
+    setMenuLift(1,6000); t=6000;
+    while (menuArtMotion.active && t<8000){ t+=16; menuArtStep(t); }
+    assertEqual(menuArtMotion.lift, 1, 'lifted');
+    const n=calls.page.length; assert(n>0 && n<=MENU_ART.LIFT_MS/MENU_ART.FRAME_MS+2, `in a few frames (${n})`);
+    assertEqual(calls.page[n-1], 1, 'the last frame at the top');
+    setMenuLift(0,9000); t=9000;
+    while (menuArtMotion.active && t<11000){ t+=16; menuArtStep(t); }
+    assertEqual(menuArtMotion.lift, 0, 'and back down when the pointer leaves');
+    // the screen going away puts a moving picture back at rest at once
+    startMenuSway(20000); menuArtStep(20016); calls.lib.length=0;
+    ms.classList.add('hidden'); menuArtStep(20040);
+    assert(!menuArtMotion.active && calls.lib.length===1 && calls.lib[0]===undefined, 'a hidden menu is left still');
+    ms.classList.remove('hidden');
+    // a page lifted and at rest when its entry is clicked: the leave that follows puts it back
+    setMenuLift(1,40000); t=40000; while (menuArtMotion.active && t<42000){ t+=16; menuArtStep(t); }
+    assert(menuArtMotion.lift===1 && !menuArtMotion.active, 'lifted, and nothing stepping');
+    ms.classList.add('hidden'); calls.page.length=0; setMenuLift(0,43000);
+    assert(menuArtMotion.lift===0 && calls.page.length===1 && calls.page[0]===0, 'drawn back down at once, not left lifted for the next visit');
+    ms.classList.remove('hidden');
+    // less motion: nothing starts
+    const before=motionPref;
+    try { setMotionPref('reduce'); startMenuSway(30000); setMenuLift(1,30000);
+      assert(!menuArtMotion.active && menuArtMotion.lift===0, 'none with less motion'); }
+    finally { setMotionPref(before); }
+  } finally { paintMenuLibraryArt=was.lib; drawMenuDailyPage=was.page; menuArtMotion.active=false; }
+  assert(/if \(menuArtMotion\.active\) menuArtStep\(t\);/.test(String(frame)), 'the loop asks one boolean a frame');
+});
+
+test('at rest a menu picture is the still one, call for call', () => {
+  const c=document.getElementById('menuArtLibrary'), was=c.getContext;
+  const draw=s=>{ const log=[]; c.getContext=()=>lifeRec(log); try { paintMenuLibraryArt(s); } finally { c.getContext=was; } return log; };
+  assertEqual(draw(()=>0).join('|'), draw().join('|'), 'a gust of nothing is the still picture');
+  assert(draw(i=>1.2).join('|')!==draw().join('|'), 'a gust moves it');
+  const d=document.getElementById('menuArtDaily'), wd=d.getContext;
+  paintMenuDailyArt(new Date(2026,4,17));
+  const page=l=>{ const log=[]; d.getContext=()=>lifeRec(log); try { drawMenuDailyPage(l); } finally { d.getContext=wd; } return log; };
+  const rest=page(0), up=page(1);
+  assert(up.join('|')!==rest.join('|') && up.length>rest.length, 'a lifted page shows the one under it and its corner');
+  assert(!rest.some(c=>c.startsWith('clip(')), 'the still page is not clipped');
+  const css=readRepoFile('styles.css');
+  assert(/:root:not\(\[data-motion="reduce"\]\) #btnDesign:hover \.menu-art\.stack::before/.test(css), 'the garden stack fans out on a hover');
+  assert(/@media \(hover:hover\)\{\s*:root:not/.test(css), 'only where there is a hover, so a tap does not leave it fanned');
+});
