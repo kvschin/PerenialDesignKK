@@ -2032,6 +2032,8 @@ function updatePreviewToggle(){
 function setPreviewMode(mode){
   mode = mode==='established' ? 'established' : 'today';
   if (game.previewMode===mode){ updatePreviewToggle(); return; }
+  // the plants on screen grow (or shrink) to the new lens, read off them BEFORE it changes (LENS, renderer.js)
+  lensSwitch();
   game.previewMode=mode;
   game.dirty=true;
   updatePreviewToggle();

@@ -2590,7 +2590,8 @@ function makePlantSprite(key,gB,bK,season,seed,variant,detail,lB){
   c2.setTransform(s,0,0,s,halfW*s,top*s);
   const spriteDetail=Object.assign({},detail||{},{bloomFallback:true,spent:aB});
   drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,spriteDetail,lB>=0?lB:undefined); // still (sway 0), bucketed bloom and leaf-out
-  const entry={ cv:spriteBakeImage('plant',cv), ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4, pw, ph };
+  // h: the share of its mature height this sprite draws the plant at (a lens switch scales to it, LENS)
+  const entry={ cv:spriteBakeImage('plant',cv), ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4, pw, ph, h:plantHFactor(P,growth) };
   if (ATLAS.on && pw<=ATLAS.MAX && ph<=ATLAS.MAX){ entry.aq=true; ATLAS.fresh.push(entry); }
   return entry;
 }
@@ -2702,10 +2703,22 @@ function plantKeyNow(rec,key,variant,season,growth){
   rec._kg=gB; rec._kb=bB; rec._kl=lB;
   return (rec._kk=rec.kSlot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+rec.kTail);
 }
+/* drawPlant for drawPlantMaybeCached's live draws. While a plant grows to the
+   other lens (plantGrowT, LENS) it is drawn at its own growth under a scale
+   about its foot, never at a growth in between: drawPlant's stem counts and
+   random streams follow growth, so drawing the sizes in between would redraw
+   the plant's shape on every frame. */
+function drawPlantLive(ctx,bx,by,key,growth,season,seed,sway,variant,detail,leaf){
+  if (!plantGrowT){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,leaf); return; }
+  const k=plantGrowT/plantHFactor(plantDef(key,variant),growth);
+  ctx.save(); ctx.translate(bx,by); ctx.scale(k,k); ctx.translate(-bx,-by);
+  try{ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,leaf); }
+  finally{ ctx.restore(); }
+}
 function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites,rec){
   if (!useSprites || PSPRITE.off){
     if (rec) rec._pf=PSPRITE.frame;   // drawn live this frame: see the stand-in note below
-    drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,leafStageNow(plantDef(key,variant),season)); return; }
+    drawPlantLive(ctx,bx,by,key,growth,season,seed,sway,variant,detail,leafStageNow(plantDef(key,variant),season)); return; }
   // a caller with no record (or one from before this frame's scene) pays the old price
   if (!rec || rec.kSlot===undefined) { rec=rec||{}; bakePlantKeyParts(rec,key,variant,season,seed,detail); }
   const kk=plantKeyNow(rec,key,variant,season,growth), gB=rec._kg, bB=rec._kb, lB=rec._kl;
@@ -2768,7 +2781,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
       && (PSPRITE.rendered>=PSPRITE.BAKE_CAP || (!live && PSPRITE.bakeMs>=PSPRITE.BAKE_MS));
     if (spent && live){
       rec._pf=PSPRITE.frame; PSPRITE.waiting++;
-      drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,lB>=0?lB:undefined);
+      drawPlantLive(ctx,bx,by,key,growth,season,seed,sway,variant,detail,lB>=0?lB:undefined);
       return;
     }
     const standKey=spent ? (e ? kk : plantStandInKey(kk,slot)) : null;
@@ -2786,7 +2799,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
       if (ne){ if (e){ PSPRITE.bytes-=e.bytes; releasePlantEntry(e); } e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes;
         PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk); }
     }
-    if (!e){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,lB>=0?lB:undefined); return; }
+    if (!e){ drawPlantLive(ctx,bx,by,key,growth,season,seed,sway,variant,detail,lB>=0?lB:undefined); return; }
   }
   /* Retire whatever this clump was cached as before. Only now — if the bake
      above was refused for budget we are still holding the OLD sprite, and
@@ -2807,7 +2820,7 @@ function blitPlantSprite(ctx,e,bx,by,sway){
   // in the atlas the sprite is a cell of a shared page (atlasFrame); otherwise it is the whole image
   const c=e.cell, sw=c?e.pw:e.cv.width, sh=c?e.ph:e.cv.height;
   const dw=sw/e.s, dh=sh/e.s, lx=bx-e.ox, ly=by-e.oy;
-  if (!sway){ if (c) ctx.drawImage(e.cv,e.sx,e.sy,sw,sh,lx,ly,dw,dh); else ctx.drawImage(e.cv,lx,ly,dw,dh); return; }
+  if (!sway && !plantGrowT){ if (c) ctx.drawImage(e.cv,e.sx,e.sy,sw,sh,lx,ly,dw,dh); else ctx.drawImage(e.cv,lx,ly,dw,dh); return; }
   /* The wind: a shear about the plant's foot, x' = x + k(y-by). */
   const k=sway*0.05;
   if (plantBlitScale && ctx===cx){
@@ -2822,13 +2835,27 @@ function blitPlantSprite(ctx,e,bx,by,sway){
        where the multiply is not fused (it is on ARM), and everything drawn after
        a plant wants an axis-aligned matrix. */
     const s=plantBlitScale;
-    ctx.setTransform(s,0,s*k,s,-s*k*by,0);
+    if (!plantGrowT) ctx.setTransform(s,0,s*k,s,-s*k*by,0);
+    else {
+      /* A plant growing to the other lens (LENS): scaled by g about its foot as
+         well, folded into the same matrix rather than a save, a scale and a
+         restore around the blit, which measured 0.9us a plant, 4.8ms a frame
+         with every plant on the estate test garden growing. x' = s(bx + g(x-bx
+         + k(y-by))), y' = s(by + g(y-by)). With g=1 it is the matrix above. */
+      const g=plantGrowT/(e.h||plantGrowT), sg=s*g;
+      ctx.setTransform(sg,0,sg*k,sg,s*(bx*(1-g)-g*k*by),s*by*(1-g));
+    }
     if (c) ctx.drawImage(e.cv,e.sx,e.sy,sw,sh,lx,ly,dw,dh); else ctx.drawImage(e.cv,lx,ly,dw,dh);
     ctx.setTransform(s,0,0,s,0,0);
     return;
   }
-  // anywhere else the caller's transform is its own business: save and restore it
-  ctx.save(); ctx.translate(bx,by); ctx.transform(1,0,k,1,0,0); ctx.translate(-bx,-by);
+  // anywhere else the caller's transform is its own business: save and restore it.
+  // A plant growing to the other lens is scaled about its foot to the height it
+  // should show (plantGrowT), against the height THIS sprite was baked at: a
+  // stand-in comes out at the same size its own sprite would (LENS).
+  ctx.save(); ctx.translate(bx,by);
+  if (plantGrowT){ const g=plantGrowT/(e.h||plantGrowT); ctx.scale(g,g); }
+  ctx.transform(1,0,k,1,0,0); ctx.translate(-bx,-by);
   if (c) ctx.drawImage(e.cv,e.sx,e.sy,sw,sh,lx,ly,dw,dh); else ctx.drawImage(e.cv,lx,ly,dw,dh);
   ctx.restore();
 }
@@ -4756,20 +4783,28 @@ const EDIT_FX={
   SPROUT_MS:220, SPROUT_CAP:32, SPROUT_BURST:12, DRIFT_STAGGER_MS:35,
   LIFT_MS:180, LIFT_CAP:64, LIFT_GESTURE:40, LIFT_PROC_MS:2, MARK_MS:300,
   MARK_CAP:240, FLASH_MS:400, FLASH_CAP:240, REFUSE_MS:360,
+  SCHEME_FLASH_MS:600,   // a scheme switch's outline (switchScheme): longer, there is more to look at
+  FILL_STEP_MS:28, FILL_SPREAD_MS:420,   // a fill's wave: a ring of flood distance a step, the whole wave at most this
   sprouts:new Map(),   // plant record -> the moment it starts growing in
+  wait:new Map(),      // plant record -> the moment a fill's wave reaches it (fxSproutWave); hidden until then
   burst:0,             // sprouts begun since the last frame (a fill is one burst)
   lifts:[],            // {e: the scene record that was drawn, t0}
   gesture:null, gestureLifts:0,   // the erase gesture (its counts object) and the ghosts it made
   marks:[],            // red diamonds: {x,y,t0}
-  flash:null,          // {tiles:[[x,y]...], t0}
+  flash:null,          // {tiles:[[x,y]...], t0, ms}
   refuse:null,         // {x,y,t0}
   until:0,             // when the last effect ends
   now:0,               // this frame's clock (performance.now, the clock the effects were stamped on)
   proc:0,              // procedural ghost time spent this frame
 };
-let sproutLive=0;      // EDIT_FX.sprouts.size, read once per drawn plant
+/* How many plants an effect is acting on: sprouts, a fill's wave still on its
+   way, and the plants growing or shrinking to the other lens (LENS). It is the
+   one compare a plant pays in the entity pass when nothing is running. */
+let sproutLive=0;
+function plantFxCount(){ sproutLive=EDIT_FX.sprouts.size+EDIT_FX.wait.size+LENS.grow.size; }
 function editFxEnd(t){ if (t>EDIT_FX.until) EDIT_FX.until=t; }
-function editFxBusy(now=performance.now()){ return now<EDIT_FX.until; }
+// a lens switch waiting for its first frame (LENS.armed) is busy too: that frame is the one it starts on
+function editFxBusy(now=performance.now()){ return now<EDIT_FX.until || LENS.armed; }
 /* A new plant, from plantFx. `delay` is a drift's stagger (stampDrift). Past
    SPROUT_BURST in one frame (a fill places hundreds at once) the rest simply
    appear, and past SPROUT_CAP the oldest finishes early. */
@@ -4778,8 +4813,136 @@ function fxSprout(p,delay=0){
   const S=EDIT_FX.sprouts;
   if (S.size>=EDIT_FX.SPROUT_CAP && !S.has(p)) S.delete(S.keys().next().value);
   const t0=performance.now()+delay;
-  S.set(p,t0); sproutLive=S.size; EDIT_FX.burst++;
+  S.set(p,t0); plantFxCount(); EDIT_FX.burst++;
   editFxEnd(t0+EDIT_FX.SPROUT_MS);
+  return true;
+}
+/* A fill's plants (doFloodFill): each waits, not drawn, until the wave reaches
+   it at `delay` (its flood distance from the tap), then sprouts. The caps are a
+   sprout's own: the frame a plant is reached it starts through fxSprout, so at
+   most SPROUT_BURST begin in one frame and SPROUT_CAP grow at once (the oldest,
+   behind the front, finishing early); a plant reached when the frame's burst is
+   spent simply appears there. So the whole region comes in as one wave from the
+   tap, which a burst of twelve registered at once could not do: the twelve
+   nearest grew in while everything else stood there from the first frame. */
+function fxSproutWave(p,delay){
+  if (!p || reducedMotion()) return false;
+  if (!(delay>0)) return fxSprout(p,0);
+  const t=performance.now()+delay;
+  EDIT_FX.wait.set(p,t); plantFxCount();
+  editFxEnd(t+EDIT_FX.SPROUT_MS);
+  return true;
+}
+/* ---------- Today / Established: the plants grow to the other lens ----------
+   setPreviewMode switches every plant between its size today and its mature
+   size. That was a cut, and in a garden of young plants it was the whole
+   planting jumping at once, so nobody could follow which plant had become
+   which. Now the plants on screen grow (or shrink) to the new size over MS,
+   each by a scale about its foot, as a sprout is drawn. Never a crossfade: two
+   sizes of one plant laid over each other read as two plants.
+   What is drawn is the DESTINATION's: its own sprite key, and no bake at any
+   size in between. The scale is worked out against the height of whatever is
+   actually blitted (a sprite carries the height it was baked at, `h`), so a
+   clump still shown by a stand-in while its new sprite waits for bake time is
+   drawn at the same size its own sprite would be: the size moves smoothly
+   whichever picture is up, and only the drawing's detail changes when the new
+   sprite lands. Heights are drawPlant's own (plantHFactor), bucketed as a sprite
+   is baked when sprites are drawing, so the last frame is the plant exactly as
+   it is drawn afterwards.
+   Two steps. lensSwitch, before the mode changes, notes the height each plant
+   on screen is drawn at (from the frame on screen, so a plant still growing
+   from a switch a moment ago starts from where it is). lensBegin, on the first
+   frame in the new lens, compares those with the new scene and keeps the
+   plants whose size changed; past CAP, the nearest the middle of the screen,
+   and the rest are drawn at their new size at once. */
+const LENS={MS:500, CAP:Infinity, from:null, grow:new Map(), t0:0, armed:false};
+// the share of a plant's mature height drawPlant draws it at, at `g`
+function plantHFactor(P,g){ const f=isTreeDef(P)?0.12:0.25; return f+(1-f)*g; }
+function lensDrawnH(P,g,sprites){ return plantHFactor(P,sprites?gbucket(g,9)/8:g); }
+function lensEase(a){ return a<0.5 ? 4*a*a*a : 1-Math.pow(-2*a+2,3)/2; }
+/* The height a growing plant is drawn at now, as a share of its mature height;
+   0 for one not growing (drawn as it is), -1 for one with nothing to draw yet.
+   LENS.grow holds [start height, end height, whether that end was worked out
+   for sprites]: the end is lensBegin's, and asked again only if the governor
+   has switched the sprite cache on or off since. */
+function lensHeightOf(e,g,sprites,now=EDIT_FX.now){
+  const v=LENS.grow.get(e.p); if (v===undefined) return 0;
+  const a=(now-LENS.t0)/LENS.MS; if (a>=1) return 0;
+  const h0=v[0], hE=v[2]===sprites ? v[1] : lensDrawnH(plantDef(e.p.s,e.p.v),g,sprites);
+  const h=a<=0 ? h0 : h0+(hE-h0)*lensEase(a);
+  return h>1e-3 ? h : -1;
+}
+function lensSprites(){ return PSPRITE.active && !PSPRITE.off; }
+function lensOnScreen(e,offX,offY,W,H){
+  return !(e.ox1+offX<0 || e.ox0+offX>W || e.oy1+offY<0 || e.oy0+offY>H);
+}
+// called by setPreviewMode with the OLD lens still set
+function lensSwitch(){
+  LENS.from=null; LENS.armed=false;
+  if (reducedMotion() || !game.inGarden || game.photo || !scene || !scene.ents) return false;
+  const W=VW/ZOOM, H=VH/ZOOM, offX=W/2-cam.x, offY=H*0.24-cam.y, now=performance.now();
+  const spr=lensSprites(), from=new Map();
+  for (const e of scene.ents){
+    const k=e.kind; if (k!==SCENE_K.PLANT && k!==SCENE_K.BULB) continue;
+    if (!lensOnScreen(e,offX,offY,W,H)) continue;
+    let g=sceneEntGrowth(e), h;
+    if (k===SCENE_K.BULB && g<=0.02) h=0;     // underground: it will rise from nothing
+    else {
+      if (k===SCENE_K.PLANT && e.stunt) g*=STUNT_GROWTH;
+      const T=LENS.grow.size ? lensHeightOf(e,g,spr,now) : 0;
+      h=T>0 ? T : T<0 ? 0 : lensDrawnH(plantDef(e.p.s,e.p.v),g,spr);
+    }
+    from.set(e.p,h);
+  }
+  LENS.grow.clear(); plantFxCount();
+  if (!from.size) return false;
+  LENS.from=from; LENS.armed=true;   // editFxBusy: full-rate frames until lensBegin knows when it ends
+  return true;
+}
+function lensBegin(W,H,now){
+  LENS.armed=false;
+  const from=LENS.from; LENS.from=null; LENS.grow.clear();
+  if (!from || !scene || !scene.ents){ plantFxCount(); return; }
+  const offX=W/2-cam.x, offY=H*0.24-cam.y, spr=lensSprites(), cand=[];
+  for (const e of scene.ents){
+    const k=e.kind; if (k!==SCENE_K.PLANT && k!==SCENE_K.BULB) continue;
+    const h0=from.get(e.p); if (h0===undefined || !lensOnScreen(e,offX,offY,W,H)) continue;
+    let g=sceneEntGrowth(e);
+    if (k===SCENE_K.BULB){ if (g<=0.02) continue; }   // going underground: nothing of its own to shrink
+    else if (e.stunt) g*=STUNT_GROWTH;
+    const hE=lensDrawnH(plantDef(e.p.s,e.p.v),g,spr);
+    if (Math.abs(hE-h0)<=hE*0.01) continue;           // the same size in both: nothing to follow
+    const x=(e.px!==undefined ? e.px : (e.ox0+e.ox1)/2)+offX-W/2, y=(e.py!==undefined ? e.py : (e.oy0+e.oy1)/2)+offY-H/2;
+    cand.push([x*x+y*y,e.p,[h0,hE,spr]]);
+  }
+  if (cand.length>LENS.CAP){ cand.sort((a,b)=>a[0]-b[0]); cand.length=LENS.CAP; }
+  for (const c of cand) LENS.grow.set(c[1],c[2]);
+  LENS.t0=now; plantFxCount();
+  if (LENS.grow.size) editFxEnd(now+LENS.MS);
+}
+/* The height the plant being drawn should come out at, as a share of its mature
+   height (lensHeightOf); 0 when it is drawn at its own size. blitPlantSprite and
+   the procedural draws in drawPlantMaybeCached scale to it about the foot. */
+let plantGrowT=0;
+/* A plant an effect is acting on, from drawSceneEnt: a fill's plant the wave has
+   not reached, a sprout, a plant growing to the other lens. True when it drew it
+   (or kept it hidden); false to draw it as usual. */
+function drawPlantFx(ctx,e,bx,by,g,season,sway,detail,useSprites){
+  const p=e.p;
+  if (EDIT_FX.wait.size && EDIT_FX.wait.has(p)) return true;
+  const s=EDIT_FX.sprouts.size ? sproutScaleOf(p) : 1;
+  const T=LENS.grow.size ? lensHeightOf(e,g,useSprites && !PSPRITE.off) : 0;
+  if (s===1 && !T) return false;
+  if (s<=0 || T<0) return true;
+  /* A lens growth alone keeps the sheared-blit shortcut: blitPlantSprite folds
+     the scale into the matrix it sets. A sprout scales the context instead
+     (drawPlantSprouting), so it takes the blit's save path, with the lens
+     scale, if any, composed inside it. */
+  const was=plantGrowT; plantGrowT=T;
+  try{
+    if (s!==1) drawPlantSprouting(ctx,s,bx,by,p.s,g,season,e.seed,sway,p.v,detail,useSprites,e);
+    else drawPlantMaybeCached(ctx,bx,by,p.s,g,season,e.seed,sway,p.v,detail,useSprites,e);
+  } finally { plantGrowT=was; }
   return true;
 }
 // 0.6 -> 1.05 by 70% of the way, then settles to 1
@@ -4823,7 +4986,7 @@ function fxLiftPlant(layer,k,x,y,counts){
       && EDIT_FX.gestureLifts<EDIT_FX.LIFT_GESTURE && EDIT_FX.lifts.length<EDIT_FX.LIFT_CAP && !reducedMotion()){
     const t0=performance.now();
     EDIT_FX.gestureLifts++; EDIT_FX.lifts.push({e,t0});
-    EDIT_FX.sprouts.delete(e.p); sproutLive=EDIT_FX.sprouts.size;
+    EDIT_FX.sprouts.delete(e.p); EDIT_FX.wait.delete(e.p); LENS.grow.delete(e.p); plantFxCount();
     editFxEnd(t0+EDIT_FX.LIFT_MS);
     return true;
   }
@@ -4837,8 +5000,9 @@ function fxLiftMark(x,y){
   M.push({x,y,t0});
   editFxEnd(t0+EDIT_FX.MARK_MS);   // the longer of its two lives (a still one is LIFT_MS)
 }
-// what an undo or redo changed; nothing when it is more than FLASH_CAP tiles
-function fxFlashTiles(keys){
+/* What an undo or redo changed, or a replacement, or a scheme switch
+   (SCHEME_FLASH_MS); nothing when it is more than FLASH_CAP tiles. */
+function fxFlashTiles(keys,ms=EDIT_FX.FLASH_MS){
   const tiles=[];
   for (const k of keys){
     if (tiles.length>=EDIT_FX.FLASH_CAP) return false;
@@ -4847,7 +5011,7 @@ function fxFlashTiles(keys){
   }
   if (!tiles.length) return false;
   const t0=performance.now();
-  EDIT_FX.flash={tiles,t0}; editFxEnd(t0+EDIT_FX.FLASH_MS);
+  EDIT_FX.flash={tiles,t0,ms}; editFxEnd(t0+ms);
   return true;
 }
 function fxRefuse(x,y){
@@ -4858,18 +5022,26 @@ function fxRefuse(x,y){
 // drop what has ended; returns whether anything is left
 function editFxPrune(now){
   const S=EDIT_FX.sprouts;
-  if (S.size){ for (const [p,t0] of S) if (now-t0>=EDIT_FX.SPROUT_MS) S.delete(p); sproutLive=S.size; }
+  if (S.size){ for (const [p,t0] of S) if (now-t0>=EDIT_FX.SPROUT_MS) S.delete(p); }
+  // a fill's wave: whatever it has reached starts to sprout (within the burst)
+  const Wt=EDIT_FX.wait;
+  if (Wt.size) for (const [p,t] of Wt) if (t<=now){ Wt.delete(p); fxSprout(p,0); }
+  if (LENS.grow.size && now-LENS.t0>=LENS.MS) LENS.grow.clear();
+  if (sproutLive) plantFxCount();
   const L=EDIT_FX.lifts;
   if (L.length && now-L[0].t0>=EDIT_FX.LIFT_MS) EDIT_FX.lifts=L.filter(l=>now-l.t0<EDIT_FX.LIFT_MS);
   const M=EDIT_FX.marks, mMs=reducedMotion()?EDIT_FX.LIFT_MS:EDIT_FX.MARK_MS;
   if (M.length && now-M[0].t0>=mMs) EDIT_FX.marks=M.filter(m=>now-m.t0<mMs);
-  if (EDIT_FX.flash && now-EDIT_FX.flash.t0>=EDIT_FX.FLASH_MS) EDIT_FX.flash=null;
+  if (EDIT_FX.flash && now-EDIT_FX.flash.t0>=(EDIT_FX.flash.ms||EDIT_FX.FLASH_MS)) EDIT_FX.flash=null;
   if (EDIT_FX.refuse && now-EDIT_FX.refuse.t0>=EDIT_FX.REFUSE_MS) EDIT_FX.refuse=null;
   return !!(sproutLive || EDIT_FX.lifts.length || EDIT_FX.marks.length || EDIT_FX.flash || EDIT_FX.refuse);
 }
-// the frame's clock for the entity pass, and the end of the last frame's burst
-function editFxFrame(now){
+/* The frame's clock for the entity pass, and the end of the last frame's burst.
+   W and H (draw units) are for a lens switch's first frame, which looks at what
+   is on screen; nothing else here reads them. */
+function editFxFrame(now,W,H){
   EDIT_FX.now=now; EDIT_FX.burst=0; EDIT_FX.proc=0;
+  if (LENS.armed) lensBegin(W,H,now);
   if (sproutLive) editFxPrune(now);
 }
 // a tile's diamond, scaled `e` about its centre and moved `dx`, into the current path
@@ -4927,10 +5099,10 @@ function drawEditFx(ctx,W,H,season,sway,now){
       if (any){ ctx.strokeStyle=`rgba(${FX_LIFT_INK},${still?0.8:0.9*(1-(band+0.5)/4)})`; ctx.stroke(); }
     }
   }
-  // the tiles an undo or redo moved: one soft outline, held, then faded
+  // the tiles an undo, a redo, a replacement or a scheme switch moved: one soft outline, held, then faded
   const F=EDIT_FX.flash;
   if (F){
-    const a=Math.max(0,(now-F.t0)/EDIT_FX.FLASH_MS), f=a<0.35?1:1-(a-0.35)/0.65;
+    const a=Math.max(0,(now-F.t0)/(F.ms||EDIT_FX.FLASH_MS)), f=a<0.35?1:1-(a-0.35)/0.65;
     ctx.beginPath();
     for (const [x,y] of F.tiles) fxDiamondPath(ctx,x,y,W,H,0.92,0);
     ctx.strokeStyle=`rgba(${FX_FLASH_INK},${0.28*f})`; ctx.lineWidth=6; ctx.stroke();
@@ -5004,9 +5176,9 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===
       let sx, sy;
       if (e.px!==undefined){ sx=e.px+W/2-cam.x; sy=e.py+H*0.24-cam.y; }
       else { const s=plantScreenOf(e.x,e.y,e.p,W,H); sx=s[0]; sy=s[1]; }
-      // a bulb just placed grows in (fxSprout); every other one pays one compare
-      if (sproutLive && ctx===cx){ const s=sproutScaleOf(e.p);
-        if (s!==1){ drawPlantSprouting(ctx,s,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e); return 1; } }
+      // a bulb just placed grows in (fxSprout), a fill's waits for its wave, and one
+      // switching lens grows to the other (drawPlantFx); every other one pays one compare
+      if (sproutLive && ctx===cx && drawPlantFx(ctx,e,sx,sy+TILE_H/2,g,season,sway,undefined,useSprites)) return 1;
       drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e);
       return 1;
     }
@@ -5015,10 +5187,10 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===
       let sx, sy;
       if (e.px!==undefined){ sx=e.px+W/2-cam.x; sy=e.py+H*0.24-cam.y; }
       else { const s=plantScreenOf(e.x,e.y,e.p,W,H); sx=s[0]; sy=s[1]; }
-      // a plant just placed grows in (fxSprout); every other one pays one compare
-      const sp=(sproutLive && ctx===cx) ? sproutScaleOf(e.p) : 1;
-      if (sp!==1) drawPlantSprouting(ctx,sp,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
-      else drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
+      // a plant just placed grows in (fxSprout), a fill's waits for its wave, and one
+      // switching lens grows to the other (drawPlantFx); every other one pays one compare
+      if (!(sproutLive && ctx===cx && drawPlantFx(ctx,e,sx,sy+TILE_H/2,g,season,sway,e.detail,useSprites)))
+        drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
       if (AHEAD.season && useSprites && ctx===cx) aheadBakePlant(e);
       return 1;
     }
@@ -5128,7 +5300,8 @@ function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT
    while one is fading snapshots the blend that is on screen, so it never
    jumps, and the longer of the two runs on. */
 const SEASON_FADE_MS=1100;
-const VIEW_FADE_MS={season:SEASON_FADE_MS, rot:300, night:600};
+// layer: a layer shown or hidden from the Layers menu (buildLayerPopover)
+const VIEW_FADE_MS={season:SEASON_FADE_MS, rot:300, night:600, layer:250};
 /* `want` is a requested fade not yet taken; `ms` and `kind` describe the one
    running. The name stays seasonFade: the season was its first and longest use. */
 const seasonFade={cv:null, t0:0, active:false, last:null, suppressOnce:false,
@@ -5941,7 +6114,7 @@ function render(t){
      this scale back (plantBlitScale, blitPlantSprite). */
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
   plantBlitScale=DPR*ZOOM;
-  editFxFrame(performance.now());   // the clock a sprout reads (the one it was stamped on, not rAF's)
+  editFxFrame(performance.now(),W,H);   // the clock a sprout reads (the one it was stamped on, not rAF's)
   // the same boxes packed in one array (sceneBuildSteps); a scene from anywhere
   // else has none, and its records are read as before
   // (nor has a list a dev tool swapped in: the boxes belong to the array they were built for)

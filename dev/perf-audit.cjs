@@ -15,6 +15,9 @@
    Usage:
      node perf-audit.cjs --profile phone --engine chrome --out r.json
      node perf-audit.cjs --only view     (a turn of the view, a Fit, a zoom step, the lights)
+     node perf-audit.cjs --only compare --ab-old <old renderer.js>
+                                         (Today/Established, a layer, a scheme switch, a fill,
+                                          against an eased Fit; and an idle frame against the old build)
      --repo <dir> serves another checkout (an export of HEAD, for a before/after)
 */
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
@@ -196,19 +199,20 @@ function inPage(env) {
        one without eased changes takes the same calls instantly, which is the
        "before". `--only view` runs these alone. */
     const settle = ms => new Promise(r => setTimeout(r, ms));
-    async function liveEvent(name, prep, fire, reps, n) {
+    // warm: that many reps first, not recorded (a first event pays for what the page has not done yet)
+    async function liveEvent(name, prep, fire, reps, n, settleMs, warm) {
       const per = [];
-      for (let k = 0; k < reps; k++) {
+      for (let k = 0; k < reps + (warm || 0); k++) {
         prep(k);
-        await settle(900);                 // the crisp settles land, and a rotation's pre-bake (GROUND_IDLE_MS)
+        await settle(settleMs || 900);     // the crisp settles land, and a rotation's pre-bake (GROUND_IDLE_MS)
         for (let i = 0; i < 3; i++) await raf();
         dbg.on = true; dbgReset(); devReset(); dbg.fpsAt = 1e12; dbg.n = 0;
         const gaps = []; let prev = await raf();
         const a = performance.now(); fire(k); const fireMs = performance.now() - a;
         for (let i = 0; i < n; i++) { const t = await raf(); gaps.push(t - prev); prev = t; }
         const ev = snapEvents();
-        per.push({ fireMs: +fireMs.toFixed(2), gaps, drawn: dbg.n,
-          bakes: (ev.bake ? ev.bake.n : 0), bakeMax: ev.bake ? ev.bake.max : 0 });
+        if (k >= (warm || 0)) per.push({ fireMs: +fireMs.toFixed(2), gaps, drawn: dbg.n,
+          bakes: (ev.bake ? ev.bake.n : 0), bakeMax: ev.bake ? ev.bake.max : 0, sceneMax: ev.scene ? ev.scene.max : 0 });
         dbg.on = false; dbg.fpsAt = 0;
       }
       const all = per.flatMap(p => p.gaps), worst = per.map(p => Math.max(...p.gaps));
@@ -217,7 +221,7 @@ function inPage(env) {
         rafGapMs: st(all), worstGapPerEvent: worst.map(v => +v.toFixed(1)),
         over16: per.map(p => p.gaps.filter(g => g > 16.7).length),
         fireMs: per.map(p => p.fireMs), drawn: per.map(p => p.drawn),
-        fullBakes: per.map(p => p.bakes), bakeMaxMs: per.map(p => p.bakeMax)
+        fullBakes: per.map(p => p.bakes), bakeMaxMs: per.map(p => p.bakeMax), sceneMaxMs: per.map(p => p.sceneMax)
       };
       out[name] = res;
       return res;
@@ -236,6 +240,145 @@ function inPage(env) {
       if (typeof updateDayNightBtn === 'function') updateDayNightBtn();
     }
     if (env.only === 'view') { await viewScenarios(); return out; }
+
+    /* COMPARING: the lens switch, a layer, a scheme switch, a fill. `--only
+       compare` runs these against the eased Fit, which is the bar a lens
+       switch's frames are held to (LENS.CAP, renderer.js): the lens grows the
+       plants on screen, the "-cut" arms take the same change with that motion
+       off (no plant grows, a fill lands at once), so the difference is the
+       motion's own cost. A lens switch re-bakes every plant on screen whichever
+       arm, so each rep waits 2.5s for that to finish before the next. Then, with
+       the loop stopped, an in-page A/B of a frame with NOTHING running against
+       the previous build's entity-pass functions (`--ab-old <renderer.js>`),
+       interleaved, which is the check that the effects cost an idle frame
+       nothing. */
+    async function compareScenarios() {
+      const camA = { x: cam.x, y: cam.y }, zA = userZoom;
+      fitPlot();
+      out.compareView = { zoom: +ZOOM.toFixed(3), plants: Object.keys(game.plants).length };
+      await liveEvent('compare-fit', () => {
+        setUserZoom(2); const c = screenOfFlat(GW * 0.15, GH * 0.2, VW / ZOOM, VH / ZOOM);
+        cam.x += c[0] - VW / ZOOM / 2; cam.y += c[1] - VH / ZOOM * 0.24;
+      }, () => (document.getElementById('btnZoomFit') || {}).onclick(), 4, 45);
+      fitPlot();
+      const lens = k => setPreviewMode(game.previewMode === 'established' ? 'today' : 'established');
+      const cap0 = LENS.CAP;
+      await liveEvent('compare-lens-cut', () => { LENS.CAP = 0; }, lens, 4, 45, 2500, 2);
+      await liveEvent('compare-lens', () => { LENS.CAP = cap0; }, lens, 4, 45, 2500);
+      LENS.CAP = cap0;
+      // how many plants a switch here grows, and what lensBegin costs on its first frame
+      { const W = VW / ZOOM, H = VH / ZOOM; lensSwitch(); game.previewMode = game.previewMode === 'established' ? 'today' : 'established';
+        buildScene(W, H); const a = performance.now(); lensBegin(W, H, performance.now()); out.compareLensBeginMs = +(performance.now() - a).toFixed(2);
+        out.compareLensGrows = LENS.grow.size;
+        { const a = performance.now(); lensSwitch(); out.compareLensSwitchMs = +(performance.now() - a).toFixed(2); LENS.armed = false; LENS.from = null; } LENS.grow.clear(); plantFxCount(); game.previewMode = 'established'; }
+      const layerFlip = fade => () => { if (fade) requestViewFade('layer'); setLayerVis('perennials', !layerShown('perennials')); refreshCanvasTools(); };
+      await liveEvent('compare-layer-cut', () => { }, layerFlip(false), 4, 30, 1500, 2);
+      await liveEvent('compare-layer', () => { }, layerFlip(true), 4, 30, 1500);
+      setLayerVis('perennials', true);
+      // a second scheme, a copy with sixty plants swapped, then flick between them
+      try {
+        if (schemeCount() < 2){
+          createScheme(true);
+          const keys = Object.keys(game.plants).filter(k => !game.plants[k].removed).slice(0, 60);
+          for (const k of keys) setTile('plants', k, Object.assign({}, game.plants[k], { s: game.plants[k].s === 'bluestem' ? 'karl' : 'bluestem', v: null }));
+        }
+        let flashed = 0;
+        await liveEvent('compare-scheme', () => { }, () => { cycleScheme(1); flashed = EDIT_FX.flash ? EDIT_FX.flash.tiles.length : 0; }, 4, 45, 2500);
+        out['compare-scheme'].flashTiles = flashed;
+        { const was = {}; for (const k of SCHEME_LAYERS) was[k] = game[k];
+          const other = schemeList().find(s => s.id !== game.schemeActive), a = performance.now(), t = new Set();
+          for (const k of SCHEME_LAYERS) schemeDiffTiles(was[k], other[k], t, Infinity);
+          out.compareSchemeDiffMs = +(performance.now() - a).toFixed(2); out.compareSchemeDiffTiles = t.size; }
+      } catch (e) { out.notes.push('scheme: ' + e.message); }
+      // a fill: the largest open lawn region of a sampled few, filled and undone
+      try {
+        const seeds = [];
+        for (let i = 0; i < 400 && seeds.length < 60; i++){
+          const x = (Math.random() * GW) | 0, y = (Math.random() * GH) | 0;
+          if (onPlot(x, y) && !tileTerrain(x, y) && !game.plants[x + ',' + y] && !siteStructureAt(x, y)) seeds.push([x, y]);
+        }
+        const regionSize = (sx, sy) => { const seen = new Set([sx + ',' + sy]), q = [[sx, sy]];
+          for (let i = 0; i < q.length && q.length < 3000; i++){ const [x, y] = q[i];
+            for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+              if (seen.has(k) || !onPlot(nx, ny) || tileTerrain(nx, ny) || siteStructureAt(nx, ny) || elevationAt(nx, ny) !== elevationAt(sx, sy)) continue;
+              seen.add(k); q.push([nx, ny]); } }
+          return q.length; };
+        let best = null, bestN = 0;
+        for (const [x, y] of seeds){ const n = regionSize(x, y); if (n > bestN && n <= 2500){ best = [x, y]; bestN = n; } }
+        out.compareFillRegion = bestN;
+        if (best){
+          const tool0 = game.tool, fill0 = game.fillMode, sp0 = EDIT_FX.FILL_SPREAD_MS;
+          game.tool = 'bluestem'; game.toolVar = null; game.fillMode = true;
+          const fill = () => { doFloodFill(best[0], best[1]); };
+          const undoPrev = k => { if (k) doUndo(); };
+          await liveEvent('compare-fill-cut', k => { EDIT_FX.FILL_SPREAD_MS = 0; undoPrev(k); }, fill, 4, 45, 1500, 1);
+          doUndo();
+          await liveEvent('compare-fill', k => { EDIT_FX.FILL_SPREAD_MS = sp0; undoPrev(k); }, fill, 4, 45, 1500);
+          doUndo(); EDIT_FX.FILL_SPREAD_MS = sp0; game.tool = tool0; game.fillMode = fill0;
+        }
+      } catch (e) { out.notes.push('fill: ' + e.message); }
+      cam.x = camA.x; cam.y = camA.y; setUserZoom(zA);
+      // the idle A/B, loop stopped
+      try {
+        const res = await fetch('/__old.js');
+        if (!res.ok) { out.notes.push('idle A/B: no --ab-old given'); return; }
+        /* Both arms are fresh copies of the functions, compiled from source the
+           same way, so neither carries the other's history in the JIT (the live
+           functions have been through every scenario above, the old ones none). */
+        const texts = { old: await res.text(), now: await (await fetch('/js/renderer.js')).text() };
+        const fnSrc = (text, name) => {
+          const i = text.indexOf('\nfunction ' + name + '('); if (i < 0) throw new Error('no ' + name);
+          let d = 0, j = text.indexOf('{', i);
+          for (; j < text.length; j++){ const c = text[j]; if (c === '{') d++; else if (c === '}' && --d === 0) break; }
+          return text.slice(i + 1, j + 1);
+        };
+        const names = ['drawSceneEnt', 'drawPlantMaybeCached', 'blitPlantSprite', 'editFxFrame'];
+        const arms = { now: {}, old: {}, live: {} };
+        for (const n of names){ arms.live[n] = globalThis[n];
+          arms.now[n] = (0, eval)('(' + fnSrc(texts.now, n) + ')'); arms.old[n] = (0, eval)('(' + fnSrc(texts.old, n) + ')'); }
+        const use = a => { for (const n of names) globalThis[n] = arms[a][n]; };
+        crashed = true; await settle(300);
+        fitPlot(); for (let i = 0; i < 30; i++) render(performance.now());
+        const med = a => { const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+        /* The growth's own cost, with the bakes out of it: every plant on screen
+           held half way through a growth (its sprites are all baked by now), against
+           the same frames with nothing growing, interleaved. */
+        { const W = VW / ZOOM, H = VH / ZOOM, ms0 = LENS.MS, offX = W / 2 - cam.x, offY = H * 0.24 - cam.y, hold = new Map();
+          // each held at half its own drawn height, its end worked out as lensBegin does
+          for (const e of scene.ents) if ((e.kind === SCENE_K.PLANT || e.kind === SCENE_K.BULB) && lensOnScreen(e, offX, offY, W, H)){
+            const g = sceneEntGrowth(e) * (e.kind === SCENE_K.PLANT && e.stunt ? STUNT_GROWTH : 1);
+            const hE = lensDrawnH(plantDef(e.p.s, e.p.v), g, lensSprites());
+            hold.set(e.p, [hE * 0.5, hE, lensSprites()]);
+          }
+          const grow = on => { LENS.grow = on ? new Map(hold) : new Map(); LENS.t0 = performance.now() - 1e6; LENS.MS = 2e6; plantFxCount(); };
+          const runsG = { on: [], off: [] };
+          try {
+            for (let r = 0; r < 10; r++) for (const a of (r % 2 ? ['off', 'on'] : ['on', 'off'])){
+              grow(a === 'on'); const js = [];
+              for (let i = 0; i < 16; i++){ await raf(); const t0 = performance.now(); render(t0); js.push(performance.now() - t0); }
+              flush(); runsG[a].push(med(js));
+            }
+          } finally { LENS.MS = ms0; LENS.grow = new Map(); plantFxCount(); }
+          out.lensHeldAB = { plants: hold.size,
+            growingMs: { min: +Math.min(...runsG.on).toFixed(3), p50: +med(runsG.on).toFixed(3) },
+            stillMs: { min: +Math.min(...runsG.off).toFixed(3), p50: +med(runsG.off).toFixed(3) } };
+        }
+        const runs = { now: [], old: [] };
+        for (let r = 0; r < 16; r++){
+          for (const a of (r % 2 ? ['old', 'now'] : ['now', 'old'])){
+            use(a); const js = [];
+            for (let i = 0; i < 24; i++){ await raf(); const t0 = performance.now(); render(t0); js.push(performance.now() - t0); }
+            flush(); runs[a].push(med(js));
+          }
+        }
+        use('live');
+        out.idleAB = { idle: !sproutLive && !LENS.armed && !seasonFadeActive(),
+          nowMs: { min: +Math.min(...runs.now).toFixed(3), p50: +med(runs.now).toFixed(3) },
+          oldMs: { min: +Math.min(...runs.old).toFixed(3), p50: +med(runs.old).toFixed(3) } };
+        crashed = false;
+      } catch (e) { out.notes.push('idle A/B: ' + e.message); }
+    }
+    if (env.only === 'compare') { await compareScenarios(); return out; }
 
     // ============ LIVE half (app loop running) ============
     const cam0 = { x: cam.x, y: cam.y };
@@ -373,6 +516,12 @@ function server(driverBody) {
       let b = ''; req.on('data', d => b += d);
       req.on('end', () => { res.end('ok'); try { resolveResult(JSON.parse(b)); } catch (e) { resolveResult({ error: String(b).slice(0, 3000) }); } });
       return;
+    }
+    if (req.url === '/__old.js') {
+      const f = opt('ab-old', null);
+      if (!f || !fs.existsSync(f)) { res.writeHead(404); res.end(); return; }
+      res.setHeader('Content-Type', 'text/javascript'); res.setHeader('Cache-Control', 'no-store');
+      res.end(fs.readFileSync(f)); return;
     }
     if (req.url.startsWith('/__driver.js')) {
       res.setHeader('Content-Type', 'text/javascript'); res.setHeader('Cache-Control', 'no-store');

@@ -1076,20 +1076,32 @@ function doFloodFill(sx,sy){
      ignored height, so filling the lawn on top of a raised bed with soil flooded
      every lawn tile in the garden. A fill stops at a terrace's edge now, which
      is also what lets a terrace be refilled at a new height on its own. */
-  const region=[], seen=new Set([sx+','+sy]), q=[[sx,sy]];
-  while (q.length){
-    const [x,y]=q.shift(); region.push([x,y]);
+  // [x, y, flood distance from the tap]: the queue is breadth first, so the
+  // region comes out nearest first and the distance only ever rises
+  const region=[], seen=new Set([sx+','+sy]), q=[[sx,sy,0]];
+  for (let qi=0;qi<q.length;qi++){
+    const [x,y,d]=q[qi]; region.push(q[qi]);
     for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
       const nx=x+dx, ny=y+dy, key=nx+','+ny;
       if (!onPlot(nx,ny) || seen.has(key)) continue;
       if (siteStructureAt(nx,ny) || isDoor(nx,ny)) continue;
       if (groundMat(nx,ny)!==seed || elevationAt(nx,ny)!==lvl) continue;
-      seen.add(key); q.push([nx,ny]);
+      seen.add(key); q.push([nx,ny,d+1]);
     }
   }
   let placed=0; const tiles=[];
+  /* The plants come in as a wave from the tapped tile: each waits its flood
+     distance in steps (fxSproutWave, renderer.js), the drift's stagger idea, and
+     the whole wave is held to FILL_SPREAD_MS however far the region runs. */
+  const far=region.length ? region[region.length-1][2] : 0;
+  const step=reducedMotion() || !far ? 0 : Math.min(EDIT_FX.FILL_STEP_MS, EDIT_FX.FILL_SPREAD_MS/far);
   // a fill of shrubs spaces them, as a drag does (shrubAutoSpacing, commands.js)
-  withUndo(()=>withShrubAutoSpacing(()=>{ region.forEach(([x,y])=>{ if (applyToolAt(x,y)){ placed++; tiles.push([x,y]); } }); }));
+  plantFxWave=true;
+  try{
+    withUndo(()=>withShrubAutoSpacing(()=>{ region.forEach(([x,y,d])=>{
+      plantFxDelay=d*step;
+      if (applyToolAt(x,y)){ placed++; tiles.push([x,y]); } }); }));
+  } finally { plantFxDelay=0; plantFxWave=false; }
   if (placed){
     hapticFeedback('place');
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
@@ -1994,7 +2006,8 @@ function buildLayerPopover(){
     b.title=(on?'Hide ':'Show ')+label;
     const nm=document.createElement('span'); nm.className='layer-name'; nm.textContent=label;
     b.append(eyeIcon(on),nm);
-    b.onclick=ev=>{ ev.stopPropagation(); set(!on); refreshCanvasTools(); };
+    // the garden dissolves from how it looked to the layer shown or gone (requestViewFade)
+    b.onclick=ev=>{ ev.stopPropagation(); requestViewFade('layer'); set(!on); refreshCanvasTools(); };
     pop.appendChild(b);
   };
   const focusRow=(key,label)=>{
@@ -2027,6 +2040,7 @@ function buildLayerPopover(){
   const allName=document.createElement('span'); allName.className='layer-name'; allName.textContent='All';
   allRow.append(eyeIcon(allVisible()),allName);
   allRow.onclick=ev=>{ ev.stopPropagation();
+    if (!allVisible()) requestViewFade('layer');
     LAYER_DEFS.forEach(([key])=>{ setLayerVis(key,true,false); });
     persistLayerVis();
     refreshCanvasTools(); };
@@ -3576,6 +3590,8 @@ function applyPlantReplacement(){
   const from=plantDef(ctx.source.s,ctx.source.v), to=plantDef(ctx.target.s,ctx.target.v), result=replacePlantInstances(ctx,ctx.target);
   if (!result.changed){ toast(result.reason||'Those plants cannot be replaced there.','warn'); return; }
   closeOverlay('replacePlantScreen'); replacePlantContext=null;
+  // the tiles that changed, outlined as an undo outlines them (none past FLASH_CAP)
+  if (!reducedMotion()) fxFlashTiles(result.valid.map(item=>item.key));
   toast(`Replaced ${result.changed} ${from.name}${result.blocked.length?`; ${result.blocked.length} blocked`:''} with ${to.name}.`);
   renderSelectionActions();
 }
