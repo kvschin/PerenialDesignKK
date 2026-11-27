@@ -1408,23 +1408,25 @@ test('signature grass cultivars keep their real-world size hierarchy', () => {
     'Northwind should be taller than Heavy Metal, which should be taller than Shenandoah');
   assert(shenandoah.spread > northwind.spread && northwind.spread > heavyMetal.spread,
     'Shenandoah should be broader than Northwind, which should be broader than Heavy Metal');
-  const hm=rgb(PLANTS.switchgrass.cv.heavymetal.sea.Summer.fol);
-  assert(hm.g > hm.b && hm.b-hm.r >= 15,
-    `Heavy Metal should read as cool steel blue-green, not slate blue (${PLANTS.switchgrass.cv.heavymetal.sea.Summer.fol})`);
+  // The blue ones are blue (MBG: Heavy Metal "metallic-blue", Prairie Sky "powdery blue"; NVK: Prairie Sky
+  // "a more intense blue than Heavy Metal", Dallas Blues "steel-blue to green"), within the range the
+  // catalog's other blue grasses already sit in: blue fescue, blue oat grass, 'The Blues' (0.9.181).
+  const blueOf=v=>{ const c=rgb(PLANTS.switchgrass.cv[v].sea.Summer.fol); return c.b-c.g; };
+  assert(blueOf('heavymetal')>=5 && blueOf('heavymetal')<=28, `Heavy Metal reads metallic blue (${blueOf('heavymetal')})`);
+  assert(blueOf('prairiesky')>blueOf('heavymetal'), 'Prairie Sky is bluer than Heavy Metal');
+  assert(blueOf('prairiesky')<=28, 'and no bluer than blue fescue, or it reads cyan');
+  assert(blueOf('dallasblues')>=-6 && blueOf('dallasblues')<blueOf('heavymetal'), 'Dallas Blues is a grey blue-green, between');
   const hmFall=rgb(PLANTS.switchgrass.cv.heavymetal.sea.Fall.seed);
   const hmFallFol=rgb(PLANTS.switchgrass.cv.heavymetal.sea.Fall.fol);
   assert(hmFall.r+hmFall.g+hmFall.b < hmFallFol.r+hmFallFol.g+hmFallFol.b,
-    'Heavy Metal burgundy fruit stays darker than its amber fall foliage');
+    'Heavy Metal pink-tan seed reads darker than its golden fall leaves');
   assert(effective('switchgrass','cloudnine').h > northwind.h,
     'Cloud Nine should be the tallest curated switchgrass');
-  for (const v of ['northwind','heavymetal','prairiesky','dallasblues','cloudnine','purpletears']){
+  for (const v of ['northwind','cloudnine','purpletears','thundercloud']){
     const c=rgb(PLANTS.switchgrass.cv[v].sea.Summer.fol);
     assert(c.g > c.b && c.g > c.r && c.b-c.r <= 24,
       `${v} foliage should read green first with no more than a slight blue cast (${PLANTS.switchgrass.cv[v].sea.Summer.fol})`);
   }
-  const prairieSky=rgb(PLANTS.switchgrass.cv.prairiesky.sea.Summer.fol);
-  assert(prairieSky.g-prairieSky.b >= 12,
-    'Prairie Sky must stay visibly green at sprite scale instead of reading cyan');
   const shenandoahBloom=rgb(PLANTS.switchgrass.cv.shenandoah.sea.Summer.bloom);
   assert(shenandoahBloom.r > shenandoahBloom.g*1.7 && shenandoahBloom.r > shenandoahBloom.b*1.35,
     'Shenandoah panicles should read as wine red rather than pink');
@@ -1438,8 +1440,9 @@ test('signature grass cultivars keep their real-world size hierarchy', () => {
   const purpleTearsFall=PLANTS.switchgrass.cv.purpletears.sea.Fall;
   assert(purpleTearsFall.panicle && purpleTearsFall.panicle !== purpleTearsFall.seed,
     'Purple Tears needs a pale panicle scaffold distinct from its dark purple seed beads');
-  assert(PLANTS.switchgrass.cv.dallasblues.look.cloudDots > PLANTS.switchgrass.look.cloudDots,
-    'Dallas Blues needs its unusually full panicle cloud');
+  assert(PLANTS.switchgrass.cv.dallasblues.look.panW > PLANTS.switchgrass.look.panW &&
+    PLANTS.switchgrass.cv.dallasblues.look.panBranches > PLANTS.switchgrass.look.panBranches,
+    'Dallas Blues needs its unusually large panicles');
   for (const v of ['carousel','jazz','prairiemunchkin'])
     assert(PLANTS.bluestem.cv[v], `little bluestem needs ${v}`);
   assert(PLANTS.bigbluestem.cv.dancingwind, 'big bluestem needs Dancing Wind');

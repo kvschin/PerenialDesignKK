@@ -9121,6 +9121,69 @@ function drawFineFountain(ctx,col,n,reach,spread,droop,w,rx,rnd,sn){
   }
   stroke(false); ctx.lineJoin='miter'; _crX=_crY=0;
 }
+/* Switchgrass's leaves (`leafStyle:'culms'` on a cloud grass, 0.9.181). A fan of straight blades
+   from the ground drew it as a stiff column of spears with a ball on top. Switchgrass is a clump of
+   leafy stems: each tiller is a culm standing out of the crown, leaning out a little with its place
+   in the clump, with a long leaf leaving it at every node on alternate sides, held up at an angle
+   and bowing over at the tip, the top one carrying on up the culm, so the clump is a column or a
+   vase of leafy stems that the panicles rise out of. Tillers stand in the round, far half first and
+   darker. Every leaf is a tapered ribbon on one path per light, its red tips (a `folTip`) one more,
+   the culms one stroke, over a soft dark mass that closes the gaps between them. */
+const LC_MAX=320, _lcP=new Float64Array(LC_MAX*7), _lcB=new Uint8Array(LC_MAX);
+function drawLeafyCulms(ctx,L,S,H,rx,rnd,sway,a2,sn){
+  const fol=S.fol, F=H*(L.leafLen||0.65), fan=L.tillerFan===undefined?0.22:L.tillerFan, ga=ctx.globalAlpha;
+  const nodes=L.nodes||4, ang=L.leafAng||0.42, reach=L.leafReach||0.42, droop=L.leafDroop===undefined?0.3:L.leafDroop;
+  const hw=(L.leafW||1.4)*0.62, m=Math.min(L.tillers||18,Math.floor(LC_MAX/(nodes+1)));
+  // the mass under the leaves: a column, wider at the top of a vase
+  ctx.globalAlpha=ga*0.24; ctx.fillStyle=shade(fol,-32); ctx.beginPath();
+  ctx.ellipse(0,-F*0.42,rx*0.7+F*fan*0.4+F*reach*0.1,F*0.42,0,0,7); ctx.fill();
+  ctx.globalAlpha=ga;
+  let n=0;
+  const leaf=(x0,y0,cx,cy,x1,y1,w,b)=>{ if (n>=LC_MAX) return; const j=n*7;
+    _lcP[j]=x0; _lcP[j+1]=y0; _lcP[j+2]=cx; _lcP[j+3]=cy; _lcP[j+4]=x1; _lcP[j+5]=y1; _lcP[j+6]=w; _lcB[n]=b; n++; };
+  const paint=(far)=>{
+    ctx.strokeStyle=shade(fol,far?-34:-24); ctx.lineWidth=hw*0.7; ctx.lineCap='round'; ctx.beginPath();
+    for (let i=0;i<n;i++) if (_lcB[i]===3){ const j=i*7; ctx.moveTo(_lcP[j],_lcP[j+1]); ctx.quadraticCurveTo(_lcP[j+2],_lcP[j+3],_lcP[j+4],_lcP[j+5]); }
+    ctx.stroke();
+    for (let b=0;b<3;b++){ let any=false; ctx.beginPath();
+      for (let i=0;i<n;i++){ if (_lcB[i]!==b) continue; const j=i*7; any=true;
+        ribbonPath(ctx,_lcP[j],_lcP[j+1],_lcP[j+2],_lcP[j+3],_lcP[j+4],_lcP[j+5],BLADE_PROF,_lcP[j+6],0,0,true); }
+      if (any){ ctx.fillStyle=shade(fol,(b===0?-22:b===1?-6:14)-(far?10:0)); ctx.fill(); } }
+    if (S.folTip){ let any=false; ctx.beginPath();
+      for (let i=0;i<n;i++){ if (_lcB[i]>2) continue; const j=i*7; any=true;
+        ribbonPath(ctx,_lcP[j],_lcP[j+1],_lcP[j+2],_lcP[j+3],_lcP[j+4],_lcP[j+5],BLADE_TIP,_lcP[j+6],0,0,true); }
+      if (any){ ctx.fillStyle=shade(S.folTip,far?-12:-2); ctx.fill(); } }
+    n=0;
+  };
+  const half=m>>1;
+  for (let k=0;k<m;k++){
+    if (k===half) paint(true);
+    // the far half from the back out to the sides, the near half from the sides in to the front
+    const q=k<half?k/Math.max(1,half):(k-half)/Math.max(1,m-half), far=k<half;
+    const th=(far?Math.PI/2+((k&1)?1:-1)*q*Math.PI/2:Math.PI*1.5+((k&1)?1:-1)*(1-q)*Math.PI/2)+(rnd()-0.5)*0.5;
+    const cs=Math.cos(th), sz=-Math.sin(th), r0=Math.sqrt(0.25+0.75*rnd());
+    const bx=cs*rx*r0, by=sz*rx*0.5*r0;
+    const cl=F*(0.78+rnd()*0.3)*(1-0.12*Math.abs(cs)), lean=fan*(0.6+rnd()*0.6);
+    const tx=bx+cs*cl*lean+sway*cl*0.03, ty=by-cl+sz*cl*lean*0.5;
+    const ccx=bx+(tx-bx)*0.35, ccy=by+(ty-by)*0.55;
+    if (n<LC_MAX){ const j=n*7; _lcP[j]=bx; _lcP[j+1]=by; _lcP[j+2]=ccx; _lcP[j+3]=ccy; _lcP[j+4]=tx; _lcP[j+5]=ty; _lcP[j+6]=0; _lcB[n]=3; n++; }
+    const side0=rnd()<0.5?1:-1;
+    for (let s=0;s<=nodes;s++){
+      const top=s===nodes, t=top?0.82:0.14+0.6*(s+0.2+rnd()*0.6)/nodes;
+      const px=qBez(t,bx,ccx,tx), py=qBez(t,by,ccy,ty);
+      let dx=2*(1-t)*(ccx-bx)+2*t*(tx-ccx), dy=2*(1-t)*(ccy-by)+2*t*(ty-ccy); const dd=Math.hypot(dx,dy)||1; dx/=dd; dy/=dd;
+      // the side a leaf leaves on alternates up the culm; the top one carries on up it
+      const sd=((s&1)?-1:1)*side0, a=top?(rnd()-0.5)*0.2:sd*ang*(0.7+rnd()*0.6)+cs*0.25;
+      const ca=Math.cos(a), sa=Math.sin(a), ux=dx*ca-dy*sa, uy=dx*sa+dy*ca;
+      const ll=F*reach*(top?0.75:0.8+0.5*Math.sin(Math.PI*t))*(0.8+rnd()*0.4), dr=droop*(top?0.4:1)*(0.6+rnd()*0.8);
+      const ex=px+ux*ll, ey=py+uy*ll+ll*dr, kx=px+ux*ll*0.6, ky=py+uy*ll*0.6-ll*dr*0.15;
+      const lit=(ux*LIT.x+uy*LIT.y)*0.5+(t-0.5)*0.6+(far?-0.3:0.12)+(rnd()-0.5)*0.5;
+      leaf(px,py,kx,ky,ex,ey,hw*(0.75+rnd()*0.5)*(top?0.8:1),lit>0.3?2:lit<-0.2?0:1);
+      if (sn && !far && s===nodes-1 && (k&1)) sn.push([qBez(0.6,px,kx,ex),qBez(0.6,py,ky,ey)-1,2.2]);
+    }
+  }
+  paint(false); ctx.lineCap='round'; _crX=_crY=0;
+}
 /* Mexican feather grass as it grows (`habit:'ponytail'`, 0.9.174). The mop above drew it as a cup
    of stiff threads fanned from a point, cream all over, with sky between them: a shaving brush. The
    plant is a fountain of hair. Its threads rise TOGETHER out of a tight crown, as a ponytail does,
@@ -10143,6 +10206,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     if (L.leafStyle==='fountain'){
       if (S.fol) drawFineFountain(ctx,S.fol,n,H*(L.leafLen||0.6),L.leafSpread||1,L.leafDroop===undefined?0.7:L.leafDroop,
         L.leafW||0.7,crownRx,rnd,smokeLeafSnow);
+    } else if (L.leafStyle==='culms'){
+      if (S.fol) drawLeafyCulms(ctx,L,S,H,crownRx,rnd,sway,a2,smokeLeafSnow);
     } else
     for (let k=0;k<n;k++){ // arching or upright blades
       const i=a2?fanIdx(k,n):k;

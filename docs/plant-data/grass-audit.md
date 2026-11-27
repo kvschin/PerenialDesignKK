@@ -1045,6 +1045,14 @@ hold never gets there: the app's own loop held fast-forward to game day 510 at a
 now flushes without reading the garden canvas and refuses a run in which that canvas changes mode; its note in `CLAUDE.md`
 has the detail. The timed-out 3-year runs fit, since a slowed run needs far more than 240s. The one crash is unexplained.
 
+## Switchgrass (0.9.181)
+
+The lollipop above is gone: every switchgrass is a clump of leafy culms (`leafStyle:'culms'`) under the smoke cloud, and
+its sizes and colours were checked against MBG, NVK, this trial and the 'Purple Tears' patent (`grass-sources.json`,
+`switchgrass`). Heavy Metal and Prairie Sky are blue, as every source says; 'Northwind', 'Prairie Sky' and 'Cloud Nine'
+took new heights. `CLAUDE.md` has the detail. Not done: the switchgrasses the catalog lacks ('Cheyenne Sky', 'Hot Rod',
+Ruby Ribbons, 'Totem Pole', 'Warrior', 'Rehbraun').
+
 ## Proposed order
 
 1. **Fixes with no design question.** Shipped in 0.9.88.

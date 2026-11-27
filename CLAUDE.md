@@ -8821,6 +8821,26 @@ multiplies by the species' `h`), so a species drawn shorter takes its cultivars 
 'Eldorado' 17% narrower, 'Bronzeschleier' 28%), one drawn taller takes them wider (fountain grass's, 11-24%), and a
 cultivar drawn shorter over a fixed-size cloud widens that cloud. 25 choices took a wider `sideScale`, measured on real pixels in `dev/grass-review.html?check` and on the
 recorded geometry. The dev-only Classic renderer is not held: it draws 'Red October' and Slender Indiangrass 10-12% off.
+**Switchgrass as leafy stems under the smoke (0.9.181).** All eleven switchgrass choices drew a column of
+straight blades from the crown under the mist cloud's small dense ball, the lollipop the grass audit named. A switchgrass is
+a clump of leafy culms: each tiller stands out of the crown, leaning out a little with its place in the clump, with a long
+leaf at every node on alternate sides, held up and bowing at the tip, the top one carrying on up the culm. Cloud grasses
+gain `leafStyle:'culms'` (`drawLeafyCulms`, draw.js): `tillers` in the round, far half first and darker, `nodes`
+leaves each, `leafLen` the foliage's share of the drawn height, `tillerFan`, `leafAng`, `leafReach`, `leafDroop`,
+`leafW`; every leaf a tapered ribbon on one path per light, a `folTip` one more, the culms one stroke, over a soft dark
+mass. The panicles are the smoke cloud: about ten branches leaving the axis at `branchAng` 0.45-0.62, short wide
+spikelets (`spkLen` 0.8, `spkW` 0.85: switchgrass spikelets are plump and awnless), `panBase` from NVK's foliage and
+flower heights. `h` now equals `heightIn` on every choice, so a cultivar's width follows its spread. The audit
+(`grass-sources.json` `switchgrass`: MBG, NVK, Chicago Botanic Garden's trial, the 'Purple Tears' patent) changed
+'Northwind' to 60 in and 28, 'Prairie Sky' to 60 and 32, 'Cloud Nine' to 78; and colours where the sources disagreed
+with the record: Heavy Metal metallic blue-grey and Prairie Sky powder blue (MBG, NVK), Dallas Blues grey blue-green,
+Northwind's yellowish panicles, Cape Breeze's red ones, no red tips on Shenandoah or Rotstrahlbusch in spring. An
+August test held Heavy Metal and Prairie Sky "green first"; it now holds them blue, within the range the catalog's
+other blue grasses sit in (blue fescue +25 blue over green, blue oat grass +26, 'The Blues' +13), Prairie Sky bluer.
+Shenandoah drew a squat mound 1.34 times wider than tall at its 38 in spread and is narrowed to an upright clump.
+Every choice draws at 95-106% of its height and 60-87% of its spread (the catalog's grasses draw at 50-90%). Only the
+eleven switchgrass choices draw differently (1,767 hashed); sprites and 616 real-size pictures clean. Bakes: 1.05 to
+1.45 ms in flower and seed, 0.51 to 0.68 in spring.
 **Splitbeard bluestem's split beard and ruby muhly's smoke (0.9.180).** *Splitbeard bluestem* drew
 `fluffyRaceme`, a zigzag of tiny spikelets at each culm's tip, a row of beaded wires along the top of the
 clump. Its seed is pairs of silky white racemes on slender peduncles standing out of the spathes, each

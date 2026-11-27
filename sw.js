@@ -39,7 +39,7 @@
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.9.180';
+const VERSION = '0.9.181';
 const CACHE = 'seedhead-v' + VERSION;
 /* The app was Pocket Prairie until 0.9.173 and its caches were named for it.
    Activation retires those too, or every returning visitor would keep the last

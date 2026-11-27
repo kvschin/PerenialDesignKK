@@ -1,6 +1,6 @@
 {
   "reviewed": "2026-11-17",
-  "note": "The grass audit's missing species (docs/plant-data/grass-audit.md), in four batches: 'add-first', the twelve of the 'Add first' table, added in 0.9.91, 'europe', the ten of 'Europe and design grasses', added in 0.9.92, 'worth-adding', the twelve of 'Worth adding next', added in 0.9.130, and 'decided', giant miscanthus from 'Decide before adding', added with them. The cultivars list ends in batch 'cultivars' (0.9.131), the audit's 'Missing cultivars' table: seventeen choices on the species they belong to, with the Molinia subsp. caerulea selections on the species record, the tall subsp. arundinacea ones on 'Transparent', which draws them, and the two feather reed grass sports on 'Karl Foerster'. Each row is the record as written, its sources, and where the sources disagree, what was chosen and why. Hoffman's figures come from its catalog listing at https://hoffmannursery.com/plants, read through a browser because the site refuses a plain fetch. RHS hardiness ratings are the RHS's own scale (H4 is -10 to -5 C, H5 -15 to -10, H6 -20 to -15, H7 below -20) and are not USDA zones; a European nursery gives no USDA zone at all, so the zones in the European batch lean on US nurseries. Colours are authored throughout.",
+  "note": "The grass audit's missing species (docs/plant-data/grass-audit.md), in four batches: 'add-first', the twelve of the 'Add first' table, added in 0.9.91, 'europe', the ten of 'Europe and design grasses', added in 0.9.92, 'worth-adding', the twelve of 'Worth adding next', added in 0.9.130, and 'decided', giant miscanthus from 'Decide before adding', added with them. The cultivars list ends in batch 'cultivars' (0.9.131), the audit's 'Missing cultivars' table: seventeen choices on the species they belong to, with the Molinia subsp. caerulea selections on the species record, the tall subsp. arundinacea ones on 'Transparent', which draws them, and the two feather reed grass sports on 'Karl Foerster'. Each row is the record as written, its sources, and where the sources disagree, what was chosen and why. Hoffman's figures come from its catalog listing at https://hoffmannursery.com/plants, read through a browser because the site refuses a plain fetch. RHS hardiness ratings are the RHS's own scale (H4 is -10 to -5 C, H5 -15 to -10, H6 -20 to -15, H7 below -20) and are not USDA zones; a European nursery gives no USDA zone at all, so the zones in the European batch lean on US nurseries. Colours are authored throughout. The 'switchgrass' list (0.9.181) reviews every Panicum virgatum choice against MBG, NVK, Chicago Botanic Garden's trial and the 'Purple Tears' patent: sizes, colours and the drawing, when switchgrass was redrawn as leafy culms under the smoke cloud.",
   "plants": [
     {
       "suggestedKey": "bottlebrushgrass",
@@ -1957,6 +1957,193 @@
         "spread": "MBG 24 in (1-2 ft in its facts), Digging Dog 18-24 in, NVK 30-40 cm. 18 in.",
         "zones": "Hoffman and MBG 5-9, NVK 5, Digging Dog 5/6: the species' 5-9.",
         "look": "Digging Dog: about half the size of 'Hameln' and bigger than 'Little Bunny', with tawny plumes; NVK: creamy tan plumes, golden yellow in fall."
+      }
+    }
+  ],
+  "switchgrass": [
+    {
+      "ref": "switchgrass",
+      "proposed": {
+        "heightIn": 60,
+        "spread": 30
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=285211",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum"
+      ],
+      "estimates": {
+        "heightIn": "MBG 3-6 ft (3 ft of leaf, panicles to 6 ft), NVK 120-200 cm with 90-120 cm of leaf. 60 in, unchanged.",
+        "spread": "MBG 2-3 ft, NVK 75-100 cm. 30 in, unchanged.",
+        "look": "MBG: medium green leaves, yellow with orange tints in fall, tan-beige in winter; pink-tinged panicles turning beige. NVK: reddish-pink panicles changing to tan. Habit and leaves, all switchgrasses: a clump of leafy culms, each with a leaf at every node, held upright and bowing at the tip (MBG: 'stiff, columnar form'; NVK: 'flat leaf blades ... branching from upright stems'; the 'Purple Tears' patent: about 45 leaves on a flowering culm, 25 cm blades). Panicle: an open airy panicle above the leaves, about 10 lateral branches up to 15 cm with secondary branches, about 130 small awnless spikelets each 5 x 2 mm on 4 mm pedicels (the patent), 'pink-tinged ... like an airy cloud', beige in fall (MBG). Foliage-to-flower height from NVK's two figures sets leafLen and panBase."
+      }
+    },
+    {
+      "ref": "switchgrass|northwind",
+      "proposed": {
+        "heightIn": 60,
+        "spread": 28
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=254270",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Northwind",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf"
+      ],
+      "estimates": {
+        "heightIn": "MBG 4-5 ft, NVK 125-150 cm (125 of leaf), Chicago 75 in. 60 in (was 66).",
+        "spread": "MBG 2-2.5 ft, NVK 70-90 cm, Chicago 48 in with the flower spray. 28 in (was 30).",
+        "look": "MBG: olive-green to bluish-green, one of the best vertical forms, yellow-beige in fall; yellow flowers. Chicago: olive- and blue-green leaves, yellow fall, yellow flowers. NVK: gray-green, slender green panicles, golden-yellow fall. Its panicle was tan; it is a pale yellow-green now."
+      }
+    },
+    {
+      "ref": "switchgrass|heavymetal",
+      "proposed": {
+        "heightIn": 56,
+        "spread": 24
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251778",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Heavy-Metal",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf"
+      ],
+      "estimates": {
+        "heightIn": "MBG 4-5 ft (3 ft of leaf), NVK 120-150 cm, Chicago 58 in. 56 in, unchanged.",
+        "spread": "MBG 1-2 ft, NVK 50-80 cm, Chicago 56 in with the spray. 24 in, unchanged.",
+        "look": "MBG: metallic-blue leaves, yellow in fall, tan-beige in winter; pink-tinged panicles. Chicago: blue-gray leaves, yellow fall, pink flowers. NVK: intense metallic-blue, pinkish panicles, beige-brown for winter. Its summer green (#5b816f) was a teal; it is a metallic blue-grey now (#7896a0), and its fall seed a pink-tan rather than burgundy, which no source gives."
+      }
+    },
+    {
+      "ref": "switchgrass|shenandoah",
+      "proposed": {
+        "heightIn": 48,
+        "spread": 38
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=254228",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Shenandoah",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf"
+      ],
+      "estimates": {
+        "heightIn": "MBG 3-4 ft, NVK 100-125 cm, Chicago 52 in. 48 in, unchanged.",
+        "spread": "MBG 3-4 ft, NVK 60-90 cm, Chicago 38 in. 38 in, unchanged; the drawing is narrowed instead, since at that spread it drew a squat mound wider than it is tall.",
+        "look": "MBG: emerges bluish-green, burgundy-red by late June, a compact narrow erect clump, reddish-pink panicles. NVK: leaves arching slightly from upright stems, dark red from the tips down. Chicago: blue-green and purple leaves, burgundy fall, purple flowers. Spring no longer has red tips."
+      }
+    },
+    {
+      "ref": "switchgrass|prairiesky",
+      "proposed": {
+        "heightIn": 60,
+        "spread": 32
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251779",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Prairie-Sky",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf"
+      ],
+      "estimates": {
+        "heightIn": "MBG 4-6 ft ('grows to 6 ft'), NVK 150-175 cm, Chicago 54 in. 60 in (was 54).",
+        "spread": "MBG 2-3 ft, NVK 75-90 cm, Chicago 58 in with the spray. 32 in (was 36).",
+        "look": "MBG: powdery blue leaves, yellow in fall, then brown; 'taller and bluer' than Heavy Metal; dark red flowers. NVK: a more intense blue than Heavy Metal, dark red panicles, golden-yellow fall. Chicago: silvery blue-green, yellow fall, rosy and green flowers. Its summer green (#668a7b) is a powder blue now (#7f9eb4), as blue as the catalog's blue fescue and no bluer."
+      }
+    },
+    {
+      "ref": "switchgrass|dallasblues",
+      "proposed": {
+        "heightIn": 66,
+        "spread": 36
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=256233",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Dallas-Blues",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://patents.google.com/patent/USPP28518P2/en"
+      ],
+      "estimates": {
+        "heightIn": "MBG 4-6 ft (typically 5 ft), NVK 150-175 cm, Chicago 86 in. 66 in, unchanged.",
+        "spread": "MBG 2-3 ft, NVK 70-100 cm, Chicago 100 in with the spray. 36 in, unchanged.",
+        "look": "MBG: grayed blue-green leaves wider than most, unusually large panicles, rust-brown to warm tan in winter. NVK: steel-blue to green, leaves 2-4 cm wide, purple-pink panicles about 50 cm long, rust-brown fall. Chicago: blue-green, golden yellow fall, purple flowers. The 'Purple Tears' patent: Dallas Blues' spikes are larger and light yellow. Its summer green (#5b796b) was a dark green; it is a grey blue-green now (#7a9a9a)."
+      }
+    },
+    {
+      "ref": "switchgrass|cloudnine",
+      "proposed": {
+        "heightIn": 78,
+        "spread": 36
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251776",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Cloud-Nine",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf"
+      ],
+      "estimates": {
+        "heightIn": "MBG 5-7 ft, NVK 150-200 cm, Chicago 75 in. 78 in (was 84); 'Thundercloud' is the tallest here.",
+        "spread": "MBG 2-3 ft, NVK 80-100 cm, Chicago 50 in. 36 in, unchanged.",
+        "look": "MBG: golden yellow (its flower field). NVK: gray-green leaves, golden airy panicles, golden-yellow fall. Chicago: blue-green leaves, golden yellow fall, pink flowers. Summer leaves a grey blue-green, panicles a pinkish gold-tan."
+      }
+    },
+    {
+      "ref": "switchgrass|purpletears",
+      "proposed": {
+        "heightIn": 48,
+        "spread": 24
+      },
+      "sources": [
+        "https://patents.google.com/patent/USPP28518P2/en",
+        "https://www.rhs.org.uk/plants/519630/panicum-virgatum-purple-tears/details",
+        "https://plants.westonnurseries.com/12130019/Plant/29482/Purple_Tears_Switch_Grass"
+      ],
+      "estimates": {
+        "heightIn": "Patent up to 120 cm, RHS 1-1.5 m, Weston 3 ft of leaf and 4 ft in flower. 48 in, unchanged.",
+        "spread": "Patent 50 cm, Weston 24 in, RHS 1-1.5 m. 24 in, unchanged.",
+        "look": "Patent (USPP28518): found by the inventor at Hummelo in 2011, Shenandoah a likely parent; a low clump of foliage with tall flowering spikes held upright, spikes grey at the top, purple seed heads, leaves between RHS 147B and 137B. RHS: soft grey to mid-green leaves, purplish-red flowers, purple seedheads. Weston: light green leaves with hints of silvery blue, grey plumes, orange and red fall. The patent says Shenandoah differs in turning orange to red in late summer, so the fall leaves are a warm tan rather than red."
+      }
+    },
+    {
+      "ref": "switchgrass|rotstrahlbusch",
+      "proposed": {
+        "heightIn": 48,
+        "spread": 30
+      },
+      "sources": [
+        "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?taxonid=251781",
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Rotstrahlbusch",
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf"
+      ],
+      "estimates": {
+        "heightIn": "MBG 4-5 ft (3 ft of leaf), NVK 100-125 cm, Chicago 45 in. 48 in, unchanged.",
+        "spread": "MBG 2-3 ft, NVK 60-90 cm, Chicago 48 in. 30 in, unchanged.",
+        "look": "MBG: silver-green leaves reddening from midsummer, burgundy-red by fall, tan-beige in winter, upright. NVK: green leaves with hints of red, dark red from the tips in late summer, pinkish panicles. Chicago: green and purple, red fall, pink flowers. Spring no longer has red tips."
+      }
+    },
+    {
+      "ref": "switchgrass|thundercloud",
+      "proposed": {
+        "heightIn": 90,
+        "spread": 42
+      },
+      "sources": [
+        "https://www.chicagobotanic.org/sites/default/files/pdf/plantevaluation/no43_ornamental_grasses.pdf",
+        "https://www.diggingdog.com/plant/G-0601"
+      ],
+      "estimates": {
+        "heightIn": "90 in, unchanged (see the 'cultivars' entry).",
+        "spread": "42 in, unchanged.",
+        "look": "Chicago: green leaves, yellow fall, pink flowers, 96 in. Digging Dog: broad blue-green leaves, pinkish tan panicles. Colours kept; only its leaves and cloud were redrawn."
+      }
+    },
+    {
+      "ref": "switchgrass|capebreeze",
+      "proposed": {
+        "heightIn": 30,
+        "spread": 22
+      },
+      "sources": [
+        "https://www.nvknurseries.com/plant/Panicum-virgatum-Cape-Breeze",
+        "https://www.diggingdog.com/plant/G-0565"
+      ],
+      "estimates": {
+        "heightIn": "30 in, unchanged (see the 'cultivars' entry).",
+        "spread": "22 in, unchanged.",
+        "look": "NVK: green into fall under airy red panicles 30 cm long. Digging Dog: amber seed heads, green until November then buttery yellow. Its summer panicle was a brownish pink (#b98b7c); it is red now."
       }
     }
   ]

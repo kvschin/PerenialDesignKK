@@ -1820,7 +1820,8 @@ test('yellow flag draws as the iris it is', () => {
 test('fine grass clouds batch their florets without losing the panicle silhouette', () => {
   const before=ART2.on;ART2.on=true;
   // pink muhly (0.9.174), the lovegrasses and hairgrasses (0.9.176) left the mist cloud for the smoke, tested below
-  try {for(const [key,season] of [['switchgrass','Fall'],['giantsacaton','Summer'],['alkalisacaton','Summer']]){
+  // and switchgrass (0.9.181)
+  try {for(const [key,season] of [['giantsacaton','Summer'],['alkalisacaton','Summer']]){
     const L=PLANTS[key].look,style=L.panicle;
     const batched=JSON.parse(nativePerennialTrace(key,season));
     try {L.panicle=true;
@@ -2032,7 +2033,8 @@ test('the lovegrasses and hairgrasses flower as smoke, not spokes out to beads',
   const was=ART2.on;
   try { ART2.on=true;
     for (const [k,v,season] of [['lovegrass',null,'Summer'],['sandlovegrass',null,'Fall'],['elliottslovegrass',null,'Fall'],
-        ['tuftedhair',null,'Summer'],['tuftedhair','goldtau','Summer'],['tuftedhair','bronzeschleier','Fall'],['wavyhairgrass',null,'Summer']]){
+        ['tuftedhair',null,'Summer'],['tuftedhair','goldtau','Summer'],['tuftedhair','bronzeschleier','Fall'],['wavyhairgrass',null,'Summer'],
+        ['switchgrass',null,'Fall'],['switchgrass','northwind','Summer'],['switchgrass','dallasblues','Summer'],['switchgrass','purpletears','Fall']]){
       const D=plantDef(k,v), ref=k+(v?':'+v:'');
       assertEqual(D.look.cloudStyle,'smoke',ref+': draws the smoke cloud');
       const r=grassStrokes(k,v,season,101), starts=new Map();
@@ -2043,6 +2045,33 @@ test('the lovegrasses and hairgrasses flower as smoke, not spokes out to beads',
       const lines=r.filter(s=>s.kind==='stroke').reduce((n,s)=>n+s.pts.filter(p=>p[2]).length,0);
       assert(lines>=Math.round(D.look.stems)*40,`${ref}: ${lines} strokes of branch, hair and spikelet`);
     }
+  } finally { ART2.on=was; }
+});
+test('switchgrass is a clump of leafy stems, not a fan of blades from the ground', () => {
+  // It drew a column of straight blades from the crown under a ball of dots. Each tiller is a culm with a
+  // leaf at every node, so most leaves leave the plant well above the ground, on both sides of their stem.
+  const was=ART2.on;
+  const bases=(k,v,season,seed)=>{ const out=[]; let first=null, tx=0, ty=0;
+    const ctx=new Proxy({},{get(o,p){ if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        if(p==='translate')return (a,b)=>{ tx+=a; ty+=b; };
+        return (...a)=>{ if(p==='moveTo') out.push([a[0]+tx,a[1]+ty]); }; },
+      set(o,p,val){o[p]=val;return true;}});
+    drawPlant(ctx,0,0,k,1,season,seed,0,v||null,1); return out; };
+  try { ART2.on=true;
+    for (const v of [null,...Object.keys(PLANTS.switchgrass.cv)]){
+      const D=plantDef('switchgrass',v), H=plantVisualH(D), ref='switchgrass'+(v?':'+v:'');
+      assertEqual(D.look.leafStyle,'culms',ref+': draws leafy culms');
+      assertEqual(D.look.cloudStyle,'smoke',ref+': under the smoke cloud');
+      for (const seed of [7,4410]){
+        const pts=bases('switchgrass',v,'Spring',seed), up=pts.filter(p=>p[1]<-H*0.15).length;
+        assert(pts.length>=D.look.tillers*3,`${ref} seed ${seed}: ${pts.length} paths for ${D.look.tillers} tillers`);
+        assert(up>pts.length*0.6,`${ref} seed ${seed}: ${up} of ${pts.length} leaves start up a stem`);
+      }
+    }
+    // a switchgrass in spring is its leaves: the cloud stands only in flower and seed
+    const top=season=>Math.min(...bases('switchgrass',null,season,7).map(p=>p[1]));
+    assert(top('Spring')>top('Fall')*0.85,`no panicles in spring: ${top('Spring').toFixed(1)} against ${top('Fall').toFixed(1)} in seed`);
   } finally { ART2.on=was; }
 });
 /* fcPush/fcDraw and thrPush/thrStroke batch into module scratch that resets
