@@ -2463,6 +2463,49 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     12ms, the first pan after an edit 99 -> 8ms and 56 -> 11ms. The demo garden in
     Chrome: tap 70 -> 13ms, paint 45 -> 99fps, first pan 74 -> 8ms. Most edits repaint
     8-30% of the canvas. A full bake itself is unchanged.
+    **An edit retraces only the regions it touched** (0.9.185; `layerLog`/
+    `layerLogSince`, world.js; `retraceChangedRegions`, `traceAllRegions`,
+    `traceRegionFrom`, `exposedSkirtTiles`, `terrainRingRows`, renderer.js). The
+    repaint above was bounded and the TRACE behind it was not: every edit rebuilt
+    every tile's lookups, flooded and outlined every region, and tried every skirt
+    against the region over it, so the cost of one bed tile followed the size of
+    the garden. Found on a 229x123 recreation of a published design (18,900 terrain
+    tiles, 16,000 plants; not in the repo), where a stamp was 176-183ms. A region
+    can only change if an edited tile is in it or touches it, corners included: it
+    floods by 8-connection, an edge is classified by the tile across it, and a
+    pinch, a saddle and a skirt's mitre read the four tiles round a corner. So the
+    per-tile lookups and each tile's owner are kept (`terrainLoopCache.st`), and the
+    regions owning an edited tile or a neighbour of one are traced again by the
+    same code; every other region is the object it was. Four rules, each with a
+    test that fails without it. **A flood starts where a full trace would start
+    it**, at the region's first tile in the map's own key order (`info[k].i`), since
+    `traceOutlines` follows the order the tiles were flooded in and the simplifier
+    follows that. **Equals are ordered by that same place** (`ord`), which is what
+    the old stable sort did by accident. **A skirt under a retraced region is
+    worked out again** although its own region was not (`s.all` keeps the tiles the
+    band crosses; `s.tiles` is what shows). **Anything that is not a terrain record
+    is a full trace**: the grade, a house or footprint, the lot, another map, more
+    than `TRACE_EDIT_MAX` (400) tiles at once, or `terrainLoopCache.sig=null`.
+    **`layerLog(layer)` is how a cache learns WHICH tiles changed**: one pass over
+    the map per edit comparing each record with the one it saw last, by identity,
+    the invariant `locatedGroundDiff` already rests on. A reader keeps a mark and
+    takes the keys noted since; a new map object is a new `epoch`, and a reader on
+    another epoch rebuilds. The terrain log also counts what three whole-map scans
+    were asking per edit: `water` moves when a tile's water changes (`waterSetSig`
+    is that number now, where it was a string of every water tile), and `nPool`/
+    `nCross` let `poolOutlines` and `crossingRegions` answer "none" without looking.
+    `innerTerrainGrid` reworks the 3x3 round each edited tile into a new grid, and a
+    region's outline pieces are kept on it (`pc`). The ring test behind a skirt's
+    exposure sorts its edges into the tile rows they cross (`terrainRowsHit`): it
+    was 30% of an edit, tried against every edge of a path network a garden long.
+    Same answers: a test makes 260 random edits (stamps, lifts, edging, undo and
+    redo, the grade) and holds regions and pieces to a full trace's, and
+    `dev/ground-verify.cjs --soft` prints the same table, line for line, on the old
+    build and the new. Measured in headed Chrome at 164Hz, before -> after. That
+    garden: a bed tap's worst frame 214 -> 44ms, its undo 247 -> 47ms, a 24-tile bed
+    drag 17 -> 139fps. The estate test garden: tap 76 -> 37ms, drag 122 -> 152fps with
+    no frame over 33ms where there were ten. What is left of an edit there is the
+    log's pass (2.5ms at 19,000 tiles) and the repaint itself.
     **A partial bake must bound its tile LOOP, not just its raster.** A clip
     saves the pixels and not the path setup, and a thin band's tile bbox is a
     wide diagonal parallelogram — on a small plot, very nearly every tile. On
@@ -11098,6 +11141,13 @@ heavy for three frames to engage.
   plants/bulbs/fences and the rest are still swapped wholesale on purpose,
   because `sceneStale` and `ensureShadeMap` detect a restore BY that identity
   change and would go blind to an undo without it.
+  **A layer the undo never wrote keeps its map** (0.9.185; `sameLayerRecords`):
+  a snapshot is a shallow copy, so such a layer holds the very records the garden
+  does, and swapping it for its copy told the scene, the shade map and the tree
+  and shrub indexes that something had moved. `applySnapshot` also bumped
+  `sceneRev` whatever it undid, so undoing one bed tile rebuilt the scene list:
+  53ms on a garden of 16,000 plants. It is bumped now only when a layer the scene
+  holds moved, the grade included, since a terrace lifts what stands on it.
   Result on that garden: undoing a planting went **120ms + a 226ms frame** to
   **2ms + 27ms, with no bake at all**. Undoing a terrain edit still bakes at once
   — an isolated edit is a `newBurst`, exactly like painting one tile.

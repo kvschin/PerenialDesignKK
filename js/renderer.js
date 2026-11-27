@@ -316,27 +316,56 @@ function regionLevelAt(x,y){ return isSoftTile(x,y) ? 0 : (elevationAt(x,y)||0);
    not the sky behind the canvas.
    The tile ring round the plot is never inner: its outer edge has no neighbour to
    be covered by. Rides terrainRev like elevationGrid, which an elevation edit also
-   raises, with the lot shape and the map identity alongside. */
+   raises, with the lot shape and the map identity alongside.
+   An edit to the terrain alone changes it only round the tiles it wrote (0.9.185):
+   those are read off the terrain log (layerLog, world.js) and the 3x3 round each is
+   worked out again, into a NEW grid, as a rebuild hands back. Anything else — the
+   grade, the lot, another map, more tiles than INNER_EDIT_MAX — rebuilds it. */
+const INNER_EDIT_MAX=600;
 let innerTerrainCache={rev:-1, plot:-1, ref:null, gw:-1, gh:-1, g:null};
 function innerTerrainGrid(){
   const c=innerTerrainCache, src=game.terrain;
   if (c.rev===game.terrainRev && c.plot===game.plotRev && c.ref===src && c.gw===GW && c.gh===GH) return c.g;
-  const laid=new Uint8Array(GW*GH), g=new Uint8Array(GW*GH), E=elevationGrid();
-  let level=E.g;
-  if (E.anySoft){ level=Int8Array.from(E.g); for (let i=0;i<level.length;i++) if (E.soft[i]) level[i]=0; }
-  for (const k in src){ const t=src[k];
-    if (!t || t.removed || !smoothableTerrain(t.k)) continue;
-    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-    if (x>=0 && y>=0 && x<GW && y<GH && onPlot(x,y)) laid[y*GW+x]=1;
-  }
+  const E=elevationGrid(), L=layerLog('terrain'), EL=layerLog('elevation');
+  const eg=E.g, soft=E.anySoft?E.soft:null, lv=i=>(soft && soft[i]) ? 0 : eg[i];
   const ring=[-GW-1,-GW,-GW+1,-1,1,GW-1,GW,GW+1];
-  for (let y=1;y<GH-1;y++) for (let x=1;x<GW-1;x++){
-    const i=y*GW+x; if (!laid[i]) continue;
-    let inner=1;
-    for (let d=0;d<8;d++){ const n=i+ring[d]; if (!laid[n] || level[n]!==level[i]){ inner=0; break; } }
-    g[i]=inner;
+  const same=c.g && c.laid && c.plot===game.plotRev && c.ref===src && c.gw===GW && c.gh===GH
+    && c.elev && c.elev.epoch===EL.epoch && c.elev.seq===EL.seq;
+  const changed=same ? layerLogSince(L,c.mark) : null;
+  let laid, g;
+  if (changed && changed.length<=INNER_EDIT_MAX){
+    laid=c.laid; g=c.g.slice();
+    const at=[];
+    for (const k of changed){
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+      if (!(x>=0 && y>=0 && x<GW && y<GH)) continue;
+      const t=src[k];
+      laid[y*GW+x]=(t && !t.removed && smoothableTerrain(t.k) && onPlot(x,y)) ? 1 : 0;
+      at.push(x,y);
+    }
+    for (let a=0;a<at.length;a+=2) for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
+      const x=at[a]+dx, y=at[a+1]+dy;
+      if (x<1 || y<1 || x>=GW-1 || y>=GH-1) continue;
+      const i=y*GW+x; let inner=laid[i];
+      if (inner){ const h=lv(i); for (let d=0;d<8;d++){ const n=i+ring[d]; if (!laid[n] || lv(n)!==h){ inner=0; break; } } }
+      g[i]=inner;
+    }
+  } else {
+    laid=new Uint8Array(GW*GH); g=new Uint8Array(GW*GH);
+    for (const k in src){ const t=src[k];
+      if (!t || t.removed || !smoothableTerrain(t.k)) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+      if (x>=0 && y>=0 && x<GW && y<GH && onPlot(x,y)) laid[y*GW+x]=1;
+    }
+    for (let y=1;y<GH-1;y++) for (let x=1;x<GW-1;x++){
+      const i=y*GW+x; if (!laid[i]) continue;
+      let inner=1; const h=lv(i);
+      for (let d=0;d<8;d++){ const n=i+ring[d]; if (!laid[n] || lv(n)!==h){ inner=0; break; } }
+      g[i]=inner;
+    }
   }
-  innerTerrainCache={rev:game.terrainRev, plot:game.plotRev, ref:src, gw:GW, gh:GH, g};
+  innerTerrainCache={rev:game.terrainRev, plot:game.plotRev, ref:src, gw:GW, gh:GH, g, laid,
+    mark:layerLogMark(L), elev:layerLogMark(EL)};
   return g;
 }
 /* One tile of ground. Extracted from paintGround's inner loop so the damage
@@ -488,6 +517,8 @@ let poolOutlineCache={key:'', ref:null, loops:[]};
 function poolOutlines(){
   const key=game.terrainRev+'|'+GW+'x'+GH;
   if (poolOutlineCache.key===key && poolOutlineCache.ref===game.terrain) return poolOutlineCache.loops;
+  // no formal pool anywhere, which is nearly every garden: nothing to trace
+  if (!layerLog('terrain').nPool) return (poolOutlineCache={key, ref:game.terrain, loops:[]}).loops;
   const loops=[], seen=new Set();
   const isPool=(x,y)=>{ const t=terrainAt(x,y); return !!(t && t.k==='water' && waterStyle(t.c).crisp); };
   for (const k in game.terrain||{}){
@@ -692,11 +723,14 @@ const TRACE_Q=256;             // outline points compare at 1/256 tile, as text
    start and a change anywhere moves all of them. */
 function tracePiecesOf(regions){
   const keys=new Map(), boxes=[];
+  /* A region's pieces are kept on it (0.9.185: `pc`, with the edging they were
+     named under), since a retrace leaves most regions exactly as they were and
+     naming a piece is string-building: 9 ms an edit on a 19,000-tile garden. */
+  let own=null;
   const add=(key,pts)=>{
-    if (keys.has(key)) return;
     let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
     for (const p of pts){ if (p[0]<x0) x0=p[0]; if (p[0]>x1) x1=p[0]; if (p[1]<y0) y0=p[1]; if (p[1]>y1) y1=p[1]; }
-    keys.set(key,boxes.length); boxes.push(x0,y0,x1,y1);
+    own.keys.push(key); own.boxes.push(x0,y0,x1,y1);
   };
   const pointKey=p=>Math.round(p[0]*TRACE_Q)+','+Math.round(p[1]*TRACE_Q);
   const heading=(from,to)=>{ const dx=to[0]-from[0], dy=to[1]-from[1], l=Math.hypot(dx,dy)||1;
@@ -720,16 +754,26 @@ function tracePiecesOf(regions){
   };
   for (const r of regions){
     const head=r.kind+'|'+(r.c||'')+'|'+r.elev+'|', edging=regionEdging(r), edged=edgingStyle(edging).w;
-    for (const loop of r.loops) for (const arc of (loop.closed?[loop]:loop.arcs)){
-      const tag=head+(arc.hard?'h':'s')+(arc.covered?'c':'');
-      if (edged && !arc.hard && !arc.covered) add(tag+'|'+edging+'|'+arc.pts.map(pointKey).join(';'),arc.pts);
-      else addLine(tag,arc.pts,!!loop.closed,!arc.hard,arc.fillet);
+    if (r.pc && r.pc.edging===edging) own=r.pc;
+    else {
+      own=r.pc={edging, keys:[], boxes:[]};
+      for (const loop of r.loops) for (const arc of (loop.closed?[loop]:loop.arcs)){
+        const tag=head+(arc.hard?'h':'s')+(arc.covered?'c':'');
+        if (edged && !arc.hard && !arc.covered) add(tag+'|'+edging+'|'+arc.pts.map(pointKey).join(';'),arc.pts);
+        else addLine(tag,arc.pts,!!loop.closed,!arc.hard,arc.fillet);
+      }
+      if (r.skirts) for (const s of r.skirts){
+        for (const ring of s.rings) addLine(head+'skirt',ring,true,false);
+        // the coverer's tiles that show this band's grain, read off the coverer's curve
+        for (const k of s.tiles){ const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+          add(head+'skirttile|'+k,[[x,y],[x+1,y+1]]); }
+      }
     }
-    if (r.skirts) for (const s of r.skirts){
-      for (const ring of s.rings) addLine(head+'skirt',ring,true,false);
-      // the coverer's tiles that show this band's grain, read off the coverer's curve
-      for (const k of s.tiles){ const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-        add(head+'skirttile|'+k,[[x,y],[x+1,y+1]]); }
+    // the first piece of a name stands for it, whichever region it came from
+    for (let i=0;i<own.keys.length;i++){
+      if (keys.has(own.keys[i])) continue;
+      keys.set(own.keys[i],boxes.length);
+      boxes.push(own.boxes[i*4],own.boxes[i*4+1],own.boxes[i*4+2],own.boxes[i*4+3]);
     }
   }
   return {keys,boxes};
@@ -738,11 +782,12 @@ function terrainTracePieces(){
   const regions=buildTerrainRegions();     // first, so edging is read against the state this trace is of
   return terrainLoopCache.pieces||(terrainLoopCache.pieces=tracePiecesOf(regions));
 }
+/* Whether the water is where it was: the terrain log counts every change to a
+   tile's water (layerLog, world.js). It was a string of every water tile, built
+   by reading every tile of the garden, twice an edit. */
 function waterSetSig(){
-  let s='';
-  for (const k in game.terrain){ const t=game.terrain[k];
-    if (t && !t.removed && t.k==='water') s+=k+':'+(t.c||'')+';'; }
-  return s;
+  const L=layerLog('terrain');
+  return L.epoch+':'+L.water;
 }
 const organicGroundOn=()=>layerShown('landscape') && game.edgeStyle==='organic';
 // the canvas now shows the ground as it stands; the next edit is measured from here
@@ -1195,32 +1240,50 @@ function terrainRingsOf(drawLoops){
       cur=[x,y]; } });
   return rings;
 }
-function terrainRingsHit(rings, x, y){
-  let inside=false;
+/* Is a point inside those rings (even-odd)? The edges are sorted into the tile
+   ROWS they cross (0.9.185), so a point is tried against the outline where it
+   passes that row and not against all of it: an edge that does not span y cannot
+   change the answer. Tried against every edge of every ring, as it was, this
+   test was 30% of an edit on a garden whose path network has thousands of edges
+   and a few dozen in any one row. A test holds it to the plain loop's answers. */
+function terrainRingRows(rings){
+  const rows=new Map();
   for (const r of rings) for (let i=0, j=r.length-1; i<r.length; j=i++){
     const xi=r[i][0], yi=r[i][1], xj=r[j][0], yj=r[j][1];
+    if (yi===yj) continue;
+    const lo=Math.floor(Math.min(yi,yj)), hi=Math.floor(Math.max(yi,yj));
+    for (let y=lo;y<=hi;y++){ let b=rows.get(y); if (!b) rows.set(y,b=[]); b.push(xi,yi,xj,yj); }
+  }
+  return rows;
+}
+function terrainRowsHit(rows, x, y){
+  const b=rows.get(Math.floor(y)); if (!b) return false;
+  let inside=false;
+  for (let i=0;i<b.length;i+=4){
+    const xi=b[i], yi=b[i+1], xj=b[i+2], yj=b[i+3];
     if ((yi>y)!==(yj>y) && x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
   }
   return inside;
 }
-function exposeSkirtTiles(regions){
-  const owner={}, sil=new Map(), id=p=>p;
-  for (const r of regions) for (const k of r.tiles) owner[k]=r;
-  const silOf=r=>{ let s=sil.get(r);
-    if (!s){ s=terrainRingsOf(ctx=>{ for (const loop of r.loops) terrainLoopPath(ctx,loop,id); }); sil.set(r,s); }
-    return s; };
-  for (const r of regions) if (r.skirts) for (const s of r.skirts){
-    const band=terrainRingsOf(ctx=>terrainSkirtPath(ctx,s,id));
-    s.tiles=s.tiles.filter(k=>{
-      const cover=owner[k]; if (!cover) return true;
-      const ci=k.indexOf(','), tx=+k.slice(0,ci), ty=+k.slice(ci+1), c=silOf(cover);
-      for (let i=0;i<6;i++) for (let j=0;j<6;j++){
-        const px=tx+(i+0.5)/6, py=ty+(j+0.5)/6;
-        if (terrainRingsHit(band,px,py) && !terrainRingsHit(c,px,py)) return true;
-      }
-      return false;
-    });
-  }
+const TRACE_FLAT=p=>p;
+// a region's silhouette as row buckets, made once for as long as the region stands
+function regionSilhouette(r){
+  return r.sil || (r.sil=terrainRingRows(terrainRingsOf(ctx=>{ for (const loop of r.loops) terrainLoopPath(ctx,loop,TRACE_FLAT); })));
+}
+/* The tiles of one skirt that show some of its band. `s.all` is every tile the
+   band crosses, kept so the answer can be worked out again when the region over
+   it is retraced and this one is not. `owner` is tile -> region. */
+function exposedSkirtTiles(s,owner){
+  const band=terrainRingRows(terrainRingsOf(ctx=>terrainSkirtPath(ctx,s,TRACE_FLAT)));
+  return s.all.filter(k=>{
+    const cover=owner.get(k); if (!cover) return true;
+    const ci=k.indexOf(','), tx=+k.slice(0,ci), ty=+k.slice(ci+1), c=regionSilhouette(cover);
+    for (let i=0;i<6;i++) for (let j=0;j<6;j++){
+      const px=tx+(i+0.5)/6, py=ty+(j+0.5)/6;
+      if (terrainRowsHit(band,px,py) && !terrainRowsHit(c,px,py)) return true;
+    }
+    return false;
+  });
 }
 // One skirt onto a fresh ctx path; fill and clip it 'evenodd' (a ring has two).
 function terrainSkirtPath(ctx, s, proj){
@@ -1681,81 +1744,175 @@ function tilesInPaintOrder(keys){
   return [...keys].map(k=>{ const ci=k.indexOf(','); return [+k.slice(ci+1),+k.slice(0,ci),k]; })
     .sort((a,b)=>(a[0]-b[0])||(a[1]-b[1])).map(a=>a[2]);
 }
+/* ---- the trace, and retracing only what an edit touched (0.9.185) ----
+
+   A trace used to start again from nothing on every edit: every tile's lookups,
+   every region flooded and outlined, every skirt tried against the region over
+   it. On a 19,000-tile garden that was 130 ms for one bed tile, which made a bed
+   drag 17 frames a second (the estate test garden: 30 ms a stamp).
+
+   A region can only change if an edited tile is IN it or TOUCHES it (corners
+   count). Its tiles flood by 8-connection; an edge is classified by the tile
+   across it; a pinch, a saddle and a skirt's mitre read the four tiles round a
+   corner; nothing reads further. So the per-tile lookups and each tile's owner
+   are kept between traces (`st`), the terrain log names the tiles written since
+   (layerLog, world.js), and the regions owning those tiles or a neighbour of them
+   are traced again, by the same code, from the same starting tiles a full trace
+   would start them from: a region's outline depends on the order its tiles were
+   flooded in, which is the map's own key order. Every other region is the object
+   it was. One more thing reaches across regions: a skirt's exposed tiles are read
+   off the silhouette of the region OVER it, so a skirt under a retraced region is
+   worked out again (exposedSkirtTiles).
+
+   Anything that is not a terrain record sends it back to a full trace: the grade
+   (regionLevelAt, raised beds), a house or footprint (isLawnTile), the lot, the
+   plot size, another map, or more than TRACE_EDIT_MAX tiles at once. A test
+   makes several hundred random edits and holds the result to a full trace's. */
+const TRACE_EDIT_MAX=400;
+function terrainTraceEnv(){
+  let s=GW+'x'+GH+'|'+game.plotRev+'|';
+  for (const h of game.houses||[]) s+=h.x+','+h.y+','+h.w+','+h.h+';';
+  s+='|';
+  for (const b of game.buildings||[]) s+=JSON.stringify(b&&b.vertices)+';';
+  return s;
+}
+function traceTileAttrs(st,k,o){
+  const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+  st.solid[k]=true;
+  if (o.k==='water' && waterStyle(o.c).crisp) st.crispAt[k]=true; else if (st.crispAt[k]) delete st.crispAt[k];
+  st.rankAt[k]=terrainRank(o.k);
+  st.elevAt[k]=regionLevelAt(x,y);
+  st.keyOf[k]=o.k+'|'+(o.c||'')+'|'+st.elevAt[k];
+}
+/* One region, flooded from `k`. With `pool` (a retrace), a flood that reaches a
+   tile outside it has found a region nobody marked: null, and the caller traces
+   everything. */
+function traceRegionFrom(st,k,seen,pool,info){
+  const solid=st.solid, keyOf=st.keyOf, rankAt=st.rankAt, elevAt=st.elevAt, crispAt=st.crispAt;
+  const key=keyOf[k], stack=[k], set=new Set();
+  seen[k]=true;
+  while (stack.length){
+    const cur=stack.pop(); set.add(cur);
+    const ci=cur.indexOf(','), cx2=+cur.slice(0,ci), cy2=+cur.slice(ci+1);
+    // 8-connectivity: tiles of one material touching only at a corner join
+    // one region; the pinch handling in terrainLoopArcs makes the lobes
+    // actually meet at that corner instead of both rounding away from it
+    for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
+      const nk=`${cx2+dx},${cy2+dy}`;
+      if (seen[nk] || keyOf[nk]!==key) continue;
+      if (pool && !pool.has(nk)) return null;
+      seen[nk]=true; stack.push(nk);
+    }
+  }
+  const o=game.terrain[k];
+  const rank=terrainRank(o.k), elev=elevAt[k], raised=raisedBedInfo(set,elev);
+  const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid,rank,rankAt,elev,elevAt,!!raised,crispAt,!!crispAt[k]));
+  const useCount={};
+  for (const es of unit) for (const e of es){
+    const vk=e.a.join(','); useCount[vk]=(useCount[vk]||0)+1; }
+  // saddle: at this corner, two solid tiles meet only diagonally across
+  // grass — pin it in BOTH regions so their curves connect at the point
+  const sTile=(tx,ty)=>!!solid[tx+','+ty];
+  const saddle=(x,y)=>{
+    const nw=sTile(x-1,y-1), ne=sTile(x,y-1), sw=sTile(x-1,y), se=sTile(x,y);
+    return (nw&&se&&!ne&&!sw)||(ne&&sw&&!nw&&!se);
+  };
+  const coveredAt=(tx,ty)=>{ const kk=tx+','+ty; return !!solid[kk] && rankAt[kk]>rank && elevAt[kk]===elev; };
+  const skirts=[];
+  for (const es of unit){ const sk=terrainSkirts(es,coveredAt); if (sk) skirts.push(...sk); }
+  for (const sk of skirts) sk.all=sk.tiles;
+  // a raised bed's corners round by a tile at most, so a rectangle keeps its
+  // straight walls (built walls are straight) and a curved bed still curves
+  const fillet=raised ? Math.min(terrainFillet(o.k),RAISED_BED_FILLET) : terrainFillet(o.k);
+  let soft=false; for (const t of set){ const ci=t.indexOf(','); if (isSoftTile(+t.slice(0,ci),+t.slice(ci+1))){ soft=true; break; } }
+  return { kind:o.k, c:o.c, rank, elev, soft, tiles:set, paintTiles:tilesInPaintOrder(set),
+    first:k, ord:info[k] ? info[k].i : 0,
+    loops:unit.map(es=>{ const L=terrainLoopArcs(es,useCount,saddle,fillet);
+      /* Which hand the outside is on as the loop is walked: the sign of
+         direction x outward normal, the same for every edge of a traced loop,
+         and the arcs keep the trace's order. A raised bed's wall uses it to
+         know which way each stretch of its curve faces. */
+      const e=es[0]; L.side=Math.sign((e.b[0]-e.a[0])*e.n[1]-(e.b[1]-e.a[1])*e.n[0])||1;
+      return L; }),
+    skirts:skirts.length?skirts:null, raised };
+}
+function traceAllRegions(force){
+  const L=layerLog('terrain',force), E=layerLog('elevation',force), info=L.info;
+  const st={solid:{}, keyOf:{}, rankAt:{}, elevAt:{}, crispAt:{}, owner:new Map(),
+    env:terrainTraceEnv(), elev:layerLogMark(E), mark:layerLogMark(L)};
+  for (const k in game.terrain){ const o=game.terrain[k];
+    if (!o || o.removed) continue;
+    traceTileAttrs(st,k,o);
+  }
+  const seen={}, regions=[];
+  for (const k in st.keyOf){
+    if (seen[k]) continue;
+    const r=traceRegionFrom(st,k,seen,null,info);
+    regions.push(r);
+    for (const t of r.tiles) st.owner.set(t,r);
+  }
+  for (const r of regions) if (r.skirts) for (const sk of r.skirts) sk.tiles=tilesInPaintOrder(exposedSkirtTiles(sk,st.owner));
+  return {regions, st};
+}
+// the regions after the edits since the last trace, or null when only a full trace will do
+function retraceChangedRegions(c){
+  const st=c.st;
+  if (!st || c.sig===null || c.terrainRef!==game.terrain || c.elevRef!==game.elevation) return null;
+  if (st.env!==terrainTraceEnv()) return null;
+  const E=layerLog('elevation');
+  if (E.epoch!==st.elev.epoch || E.seq!==st.elev.seq) return null;
+  const L=layerLog('terrain'), noted=layerLogSince(L,st.mark);
+  if (!noted || noted.length>TRACE_EDIT_MAX) return null;
+  st.mark=layerLogMark(L);
+  if (!noted.length) return {regions:c.regions, st};
+  const T=game.terrain, info=L.info, owner=st.owner, changed=new Set(noted), dirty=new Set();
+  for (const k of changed){
+    const o=T[k];
+    if (o && !o.removed) traceTileAttrs(st,k,o);
+    else { delete st.solid[k]; delete st.rankAt[k]; delete st.elevAt[k]; delete st.keyOf[k]; if (st.crispAt[k]) delete st.crispAt[k]; }
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){ const g=owner.get((x+dx)+','+(y+dy)); if (g) dirty.add(g); }
+  }
+  const pool=new Set(), touched=new Set();
+  for (const r of dirty) for (const k of r.tiles){ owner.delete(k); touched.add(k); if (info[k]) pool.add(k); }
+  for (const k of changed) if (info[k]) pool.add(k);
+  const order=[...pool].sort((a,b)=>info[a].i-info[b].i), seen={}, fresh=new Set();
+  for (const k of order){
+    if (seen[k]) continue;
+    const r=traceRegionFrom(st,k,seen,pool,info);
+    if (!r) return null;
+    fresh.add(r);
+  }
+  for (const r of fresh) for (const k of r.tiles){ owner.set(k,r); touched.add(k); }
+  const regions=c.regions.filter(r=>!dirty.has(r));
+  // a region left alone starts where it did; its place among its peers is that tile's place in the map now
+  for (const r of regions){ const t=info[r.first]; if (!t) return null; r.ord=t.i; }
+  for (const r of fresh) regions.push(r);
+  for (const r of regions) if (r.skirts) for (const sk of r.skirts){
+    const mine=fresh.has(r);
+    if (!mine && !sk.all.some(k=>touched.has(k))) continue;
+    sk.tiles=tilesInPaintOrder(exposedSkirtTiles(sk,owner));
+    if (!mine) r.pc=null;               // its pieces name the tiles its skirts show
+  }
+  return {regions, st};
+}
 function buildTerrainRegions(){
   const sig=terrainRegionKey();
   if (terrainLoopCache.sig===sig && terrainLoopCache.terrainRef===game.terrain &&
       terrainLoopCache.elevRef===game.elevation) return terrainLoopCache.regions;
   const tTrace=dnow();   // cache miss only: this is the per-EDIT trace, not per-frame
-  const solid={};  // every live terrain tile, any material — the hardness lookup
-  const keyOf={};  // "x,y" -> kind|colour|elev (regions split at all three)
-  const rankAt={}; // "x,y" -> TERRAIN_RANK: which of two materials is laid on top
-  const elevAt={}; // "x,y" -> level, so a skirt only runs under a coverer at its own height
-  const crispAt={}; // "x,y" -> a formal pool: square, and squared against
-  for (const k in game.terrain){ const o=game.terrain[k];
-    if (!o || o.removed) continue;
-    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-    solid[k]=true;
-    if (o.k==='water' && waterStyle(o.c).crisp) crispAt[k]=true;
-    rankAt[k]=terrainRank(o.k);
-    elevAt[k]=regionLevelAt(x,y);
-    keyOf[k]=o.k+'|'+(o.c||'')+'|'+elevAt[k];
-  }
-  const seen={}, regions=[];
-  for (const k in keyOf){
-    if (seen[k]) continue;
-    const key=keyOf[k], stack=[k], set=new Set();
-    seen[k]=true;
-    while (stack.length){
-      const cur=stack.pop(); set.add(cur);
-      const ci=cur.indexOf(','), cx2=+cur.slice(0,ci), cy2=+cur.slice(ci+1);
-      // 8-connectivity: tiles of one material touching only at a corner join
-      // one region; the pinch handling in terrainLoopArcs makes the lobes
-      // actually meet at that corner instead of both rounding away from it
-      for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
-        const nk=`${cx2+dx},${cy2+dy}`;
-        if (seen[nk] || keyOf[nk]!==key) continue;
-        seen[nk]=true; stack.push(nk);
-      }
-    }
-    const o=game.terrain[k];
-    const rank=terrainRank(o.k), elev=elevAt[k], raised=raisedBedInfo(set,elev);
-    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid,rank,rankAt,elev,elevAt,!!raised,crispAt,!!crispAt[k]));
-    const useCount={};
-    for (const es of unit) for (const e of es){
-      const vk=e.a.join(','); useCount[vk]=(useCount[vk]||0)+1; }
-    // saddle: at this corner, two solid tiles meet only diagonally across
-    // grass — pin it in BOTH regions so their curves connect at the point
-    const sTile=(tx,ty)=>!!solid[tx+','+ty];
-    const saddle=(x,y)=>{
-      const nw=sTile(x-1,y-1), ne=sTile(x,y-1), sw=sTile(x-1,y), se=sTile(x,y);
-      return (nw&&se&&!ne&&!sw)||(ne&&sw&&!nw&&!se);
-    };
-    const coveredAt=(tx,ty)=>{ const kk=tx+','+ty; return !!solid[kk] && rankAt[kk]>rank && elevAt[kk]===elev; };
-    const skirts=[];
-    for (const es of unit){ const s=terrainSkirts(es,coveredAt); if (s) skirts.push(...s); }
-    // a raised bed's corners round by a tile at most, so a rectangle keeps its
-    // straight walls (built walls are straight) and a curved bed still curves
-    const fillet=raised ? Math.min(terrainFillet(o.k),RAISED_BED_FILLET) : terrainFillet(o.k);
-    let soft=false; for (const t of set){ const ci=t.indexOf(','); if (isSoftTile(+t.slice(0,ci),+t.slice(ci+1))){ soft=true; break; } }
-    regions.push({ kind:o.k, c:o.c, rank, elev, soft, tiles:set, paintTiles:tilesInPaintOrder(set),
-      loops:unit.map(es=>{ const L=terrainLoopArcs(es,useCount,saddle,fillet);
-        /* Which hand the outside is on as the loop is walked: the sign of
-           direction x outward normal, the same for every edge of a traced loop,
-           and the arcs keep the trace's order. A raised bed's wall uses it to
-           know which way each stretch of its curve faces. */
-        const e=es[0]; L.side=Math.sign((e.b[0]-e.a[0])*e.n[1]-(e.b[1]-e.a[1])*e.n[0])||1;
-        return L; }),
-      skirts:skirts.length?skirts:null, raised });
-  }
+  const was=terrainLoopCache;
+  const got=retraceChangedRegions(was) || traceAllRegions(was.sig===null);
+  const regions=got.regions;
   // Elevation first — higher terraces paint over lower edges — then rank, so a
   // path lands on the bed it runs through rather than the other way round. The
-  // soft-edge classification above assumes exactly this order.
-  regions.sort((a,b)=>(a.elev-b.elev)||(a.rank-b.rank));
-  exposeSkirtTiles(regions);
-  for (const r of regions) if (r.skirts) for (const s of r.skirts) s.tiles=tilesInPaintOrder(s.tiles);
+  // soft-edge classification above assumes exactly this order. Among equals, the
+  // order their first tiles stand in the map, which is the order a trace finds them.
+  if (regions!==was.regions) regions.sort((a,b)=>(a.elev-b.elev)||(a.rank-b.rank)||(a.ord-b.ord));
   const raisedTiles=new Set();
   for (const r of regions) if (r.raised) for (const t of r.tiles) raisedTiles.add(t);
-  terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions, raisedTiles};
+  terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions, raisedTiles, st:got.st,
+    pieces:regions===was.regions ? was.pieces : null};
   dev('trace',tTrace);
   return regions;
 }

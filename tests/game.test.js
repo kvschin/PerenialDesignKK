@@ -25318,6 +25318,239 @@ test('a piece that went and a piece that came both grow the box', () => {
   groundBaked.pieces = was;
 });
 
+/* ---- an edit retraces only what it touched (0.9.185) ---- */
+// a trace as plain data, flood order and all, to compare one with another
+const traceShape = regions => JSON.stringify(regions.map(r => ({
+  kind: r.kind, c: r.c, rank: r.rank, elev: r.elev, soft: r.soft, raised: r.raised, first: r.first, ord: r.ord,
+  tiles: [...r.tiles], paintTiles: r.paintTiles, loops: r.loops.map(l => Object.assign({ side: l.side }, l)),
+  skirts: r.skirts && r.skirts.map(s => ({ rings: s.rings, tiles: s.tiles, all: s.all })), edging: regionEdging(r)
+})));
+const piecesShape = regions => { const p = tracePiecesOf(regions); return JSON.stringify([[...p.keys], p.boxes]); };
+// the trace a garden opening now would make, leaving the kept one as it stands
+const fullTraceShape = () => {
+  const kept = terrainLoopCache;
+  terrainLoopCache = { sig: null, terrainRef: null, elevRef: null, regions: [] };
+  const regions = buildTerrainRegions(), out = [traceShape(regions), piecesShape(regions), regions];
+  terrainLoopCache = kept;
+  return out;
+};
+const traceGarden = () => {
+  editFixture(44);
+  layBlock(4, 4, 18, 14, 'bed', 'soil');  layBlock(22, 5, 36, 16, 'bed', 'mulch');
+  layBlock(6, 20, 20, 34, 'bed', 'gravel'); layBlock(26, 22, 38, 36, 'lawn', 'meadow');
+  layBlock(2, 16, 40, 18, 'path', 'gravel');                    // a walk between the beds
+  for (let i = 0; i < 12; i++) layBlock(8 + i, 4 + i, 9 + i, 4 + i, 'path', 'brick');   // a path stepping through a bed
+  layBlock(20, 2, 21, 30, 'path', 'gravel');                    // and one across the walk
+  layBlock(28, 26, 33, 30, 'water', 'pond');
+  layBlock(10, 24, 13, 27, 'water', 'formal');
+  layBlock(30, 8, 32, 10, 'bed', 'soil', { e: 'steel' });       // a bed inside a bed, edged
+};
+
+test('the terrain log names the tiles an edit wrote', () => {
+  editFixture(20);
+  layBlock(3, 3, 6, 6, 'bed', 'soil');
+  let L = layerLog('terrain'), mark = layerLogMark(L);
+  assertEqual(L.live, 16, 'every live tile is known');
+  assertEqual(Object.keys(game.terrain).map(k => L.info[k].i).join(), [...Array(16).keys()].join(), 'in the order the map holds them');
+  assertEqual(layerLogSince(L, mark).length, 0, 'nothing written, nothing noted');
+  setTile('terrain', '10,10', { k: 'path', c: 'gravel', t: 2 });
+  setTile('terrain', '3,3', { k: 'bed', c: 'soil', t: 3 });       // the same thing again is still a write
+  clearTile('terrain', '6,6');
+  L = layerLog('terrain');
+  assertEqual(layerLogSince(L, mark).slice().sort().join(' '), '10,10 3,3 6,6', 'a new tile, a rewritten one and a lifted one');
+  assertEqual(L.live, 16, 'one came and one went');
+  assert(!L.info['6,6'] && L.info['10,10'].r === game.terrain['10,10'], 'and the log holds the records that stand');
+  // a key that leaves the map altogether, which is how an undo restores open lawn
+  mark = layerLogMark(L);
+  delete game.terrain['10,10']; game.terrainRev++;
+  L = layerLog('terrain');
+  assertEqual(layerLogSince(L, mark).join(), '10,10', 'a key deleted outright is noted');
+  // what the whole-map scans used to ask
+  const w0 = L.water;
+  setTile('terrain', '4,4', { k: 'bed', c: 'mulch', t: 4 });
+  assertEqual(layerLog('terrain').water, w0, 'a bed is not water');
+  setTile('terrain', '12,12', { k: 'water', c: 'pond', t: 5 });
+  assert(layerLog('terrain').water > w0 && layerLog('terrain').nPool === 0, 'a pond is water and not a formal pool');
+  const w1 = layerLog('terrain').water;
+  setTile('terrain', '12,12', { k: 'water', c: 'formal', x: 'plank', t: 6 });
+  L = layerLog('terrain');
+  assert(L.water > w1 && L.nPool === 1 && L.nCross === 1, 'its style changed, and it is a pool with a crossing on it');
+  clearTile('terrain', '12,12');
+  L = layerLog('terrain');
+  assert(L.nPool === 0 && L.nCross === 0, 'and then it is gone');
+  // another map is another epoch, and a reader from the old one is told nothing
+  mark = layerLogMark(L);
+  game.terrain = Object.assign({}, game.terrain); game.terrainRev++;
+  assertEqual(layerLogSince(layerLog('terrain'), mark), null, 'a swapped map cannot be compared');
+});
+
+test('the row test answers as the plain point-in-outline test does', () => {
+  const plain = (rings, x, y) => { let inside = false;
+    for (const r of rings) for (let i = 0, j = r.length - 1; i < r.length; j = i++){
+      const xi = r[i][0], yi = r[i][1], xj = r[j][0], yj = r[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside; }
+    return inside; };
+  const rnd = mulberry(4411);
+  let hits = 0;
+  for (let n = 0; n < 40; n++){
+    const rings = [];
+    for (let q = 0; q < 1 + (n % 3); q++){
+      const cx = 4 + rnd() * 12, cy = 4 + rnd() * 12, pts = [], m = 5 + Math.floor(rnd() * 14);
+      for (let i = 0; i < m; i++){ const a = i / m * Math.PI * 2, rr = 1 + rnd() * 5; pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); }
+      if (n % 4 === 0) pts.forEach(p => { p[0] = Math.round(p[0]); p[1] = Math.round(p[1]); });   // on the lattice, as hard edges are
+      rings.push(pts);
+    }
+    const rows = terrainRingRows(rings);
+    for (let i = 0; i < 200; i++){
+      const x = rnd() * 20, y = (i % 5 === 0) ? Math.floor(rnd() * 20) : rnd() * 20;     // whole rows too
+      const want = plain(rings, x, y);
+      if (want) hits++;
+      assertEqual(terrainRowsHit(rows, x, y), want, `rings ${n}, point ${x},${y}`);
+    }
+  }
+  assert(hits > 800, 'the points fall inside and out: ' + hits);
+});
+
+test('an edit retraces the regions it touches and keeps the rest', () => {
+  traceGarden();
+  const before = buildTerrainRegions();
+  assert(before.length >= 9, 'the fixture has many regions: ' + before.length);
+  // one bed tile, well away from everything but the first bed
+  setTile('terrain', '4,3', { k: 'bed', c: 'soil', t: 9 });
+  const after = buildTerrainRegions();
+  const same = after.filter(r => before.includes(r)).length;
+  assert(same >= after.length - 2, `all but the bed it joined are the regions they were: ${same} of ${after.length}`);
+  assert(!after.some(r => r.kind === 'bed' && r.c === 'soil' && r.tiles.has('4,3') && before.includes(r)), 'and that bed is traced again');
+  const [full] = fullTraceShape();
+  assertEqual(traceShape(after), full, 'which is what a full trace makes of it');
+});
+
+test('a retrace after any run of edits is the trace a full one makes', () => {
+  traceGarden();
+  buildTerrainRegions();
+  const rnd = mulberry(90210), pick = a => a[Math.floor(rnd() * a.length)];
+  const mats = [['bed', 'soil'], ['bed', 'mulch'], ['bed', 'gravel'], ['path', 'gravel'], ['path', 'brick'], ['water', 'pond'],
+    ['water', 'formal'], ['lawn', 'meadow'], ['lawn', 'clover']];
+  let kept = 0, checks = 0;
+  const check = what => {
+    const was = terrainLoopCache.regions, regions = buildTerrainRegions();
+    if (regions.some(r => was.includes(r))) kept++;
+    const [full, pieces] = fullTraceShape();
+    assertEqual(traceShape(regions), full, what + ': the regions');
+    assertEqual(piecesShape(regions), pieces, what + ': the pieces an edit is measured by');
+    checks++;
+  };
+  for (let n = 0; n < 260; n++){
+    const x = 1 + Math.floor(rnd() * 42), y = 1 + Math.floor(rnd() * 42), roll = rnd();
+    if (roll < 0.5){                                             // a stamp: one tile or a small disc
+      const [k, c] = pick(mats), size = pick([1, 1, 2, 3]);
+      withUndo(() => { for (const [dx, dy] of brushOffsets(size)){ const tx = x + dx, ty = y + dy;
+        if (tx > 0 && ty > 0 && tx < 43 && ty < 43) setTile('terrain', tx + ',' + ty, { k, c, t: n }); } });
+      check(`#${n} ${k} ${c} x${size} at ${x},${y}`);
+    } else if (roll < 0.72){                                     // lift what is there
+      const live = Object.keys(game.terrain).filter(k => !game.terrain[k].removed);
+      if (!live.length) continue;
+      const k = pick(live);
+      withUndo(() => clearTile('terrain', k));
+      check(`#${n} lift ${k}`);
+    } else if (roll < 0.8){                                      // edging rides the record
+      const live = Object.keys(game.terrain).filter(k => !game.terrain[k].removed && game.terrain[k].k === 'bed');
+      if (!live.length) continue;
+      const k = pick(live), t = game.terrain[k];
+      setTile('terrain', k, Object.assign({}, t, { e: t.e ? undefined : 'steel', t: n }));
+      check(`#${n} edging at ${k}`);
+    } else if (roll < 0.9){                                      // undo restores in place, deleting keys it had not got
+      if (!undoStack.length) continue;
+      doUndo(); check(`#${n} undo`);
+      if (rnd() < 0.5){ doRedo(); check(`#${n} redo`); }
+    } else if (roll < 0.95){                                     // the grade is not a terrain record: a full trace
+      setTile('elevation', x + ',' + y, { h: 1, w: 'stone', t: n });
+      check(`#${n} raise ${x},${y}`);
+    } else {                                                     // several stamps before anything looks
+      for (let i = 0; i < 5; i++){ const [k, c] = pick(mats);
+        setTile('terrain', (1 + Math.floor(rnd() * 42)) + ',' + (1 + Math.floor(rnd() * 42)), { k, c, t: n }); }
+      check(`#${n} five at once`);
+    }
+  }
+  assert(checks > 200, 'edits checked: ' + checks);
+  assert(kept > checks * 0.6, `most of them kept regions they did not touch: ${kept} of ${checks}`);
+});
+
+test('a house or a footprint by a bed sends the trace back to the start', () => {
+  traceGarden();
+  const before = buildTerrainRegions();
+  game.houses = [{ x: 3, y: 15, w: 2, h: 1, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] }];
+  markGroundChanged({ terrain: true });
+  const after = buildTerrainRegions();
+  assert(!after.some(r => before.includes(r)), 'no region is carried past a wall that was not there');
+  assertEqual(traceShape(after), fullTraceShape()[0], 'and the trace is the full one');
+  // more tiles at once than a retrace is worth
+  for (let i = 0; i < TRACE_EDIT_MAX + 20; i++) setTile('terrain', (i % 40 + 2) + ',' + (38 + Math.floor(i / 40) % 4), { k: 'bed', c: 'soil', t: i });
+  assertEqual(traceShape(buildTerrainRegions()), fullTraceShape()[0], 'a flood of edits is a full trace too');
+});
+
+test('the inner-tile grid after an edit is the grid a rebuild makes', () => {
+  traceGarden();
+  innerTerrainGrid();
+  const rnd = mulberry(77), fresh = () => { const kept = innerTerrainCache; innerTerrainCache = { rev: -1, plot: -1, ref: null, gw: -1, gh: -1, g: null };
+    const g = Array.from(innerTerrainGrid()).join(''); innerTerrainCache = kept; return g; };
+  for (let n = 0; n < 120; n++){
+    const k = (1 + Math.floor(rnd() * 42)) + ',' + (1 + Math.floor(rnd() * 42));
+    if (rnd() < 0.3) clearTile('terrain', k);
+    else setTile('terrain', k, { k: rnd() < 0.5 ? 'bed' : rnd() < 0.5 ? 'path' : 'water', c: rnd() < 0.5 ? 'soil' : 'gravel', t: n });
+    if (n % 17 === 0) setTile('elevation', k, { h: 1, t: n });
+    assertEqual(Array.from(innerTerrainGrid()).join(''), fresh(), `after edit ${n} at ${k}`);
+  }
+  assert(innerTerrainCache.laid, 'the grid is kept for the next edit');
+});
+
+test('whether the water moved is asked of the log, and pools and decks only where there are some', () => {
+  editFixture(24);
+  layBlock(3, 3, 9, 9, 'bed', 'soil');
+  const w0 = waterSetSig();
+  setTile('terrain', '12,12', { k: 'bed', c: 'mulch', t: 2 });
+  clearTile('terrain', '3,3');
+  assertEqual(waterSetSig(), w0, 'beds coming and going leave the water where it was');
+  assertEqual(poolOutlines().length, 0, 'no pool to outline');
+  assertEqual(crossingRegions().list.length, 0, 'and no deck');
+  setTile('terrain', '14,14', { k: 'water', c: 'pond', t: 3 });
+  const w1 = waterSetSig();
+  assert(w1 !== w0, 'a pond moves it');
+  setTile('terrain', '14,14', { k: 'water', c: 'lake', t: 4 });
+  assert(waterSetSig() !== w1, 'and so does another kind of water on the same tile');
+  layBlock(16, 4, 19, 7, 'water', 'formal');
+  assertEqual(poolOutlines().length, 1, 'a formal pool is found the moment there is one');
+  setTile('terrain', '17,5', { k: 'water', c: 'formal', x: 'plank', t: 5 });
+  assertEqual(crossingRegions().list.length, 1, 'and a deck on it');
+  clearTile('terrain', '17,5');
+  assertEqual(crossingRegions().list.length, 0, 'and its going');
+});
+
+test('undoing a ground edit leaves the planting and the scene alone', () => {
+  editFixture(24);
+  layBlock(3, 3, 9, 9, 'bed', 'soil');
+  game.tool = 'echinacea'; game.toolVar = null;
+  withUndo(() => { for (let x = 4; x <= 8; x++) placePlantAt(x, 5); });
+  const plants = game.plants, bulbs = game.bulbs, fences = game.fences;
+  withUndo(() => setTile('terrain', '15,15', { k: 'path', c: 'gravel', t: 2 }));
+  const rev = game.sceneRev;
+  doUndo();
+  assert(!game.terrain['15,15'], 'the path tile is gone');
+  assert(game.plants === plants && game.bulbs === bulbs && game.fences === fences, 'the layers it never wrote are the maps they were');
+  assertEqual(game.sceneRev, rev, 'and the scene list is not rebuilt for it');
+  doRedo();
+  assert(game.terrain['15,15'] && game.plants === plants && game.sceneRev === rev, 'nor for the redo');
+  // a planting undo still moves both
+  doUndo(); doUndo();
+  assert(game.plants !== plants && game.sceneRev !== rev, 'undoing the planting swaps its map and rebuilds the scene');
+  assertEqual(Object.keys(game.plants).filter(k => !game.plants[k].removed).length, 0, 'and the plants are gone');
+  // and so does the grade, which lifts whatever stands on it
+  withUndo(() => setTile('elevation', '6,6', { h: 1, t: 3 }));
+  const rev2 = game.sceneRev;
+  doUndo();
+  assert(game.sceneRev !== rev2, 'an undone terrace rebuilds the scene');
+});
+
 test('a skirt is part of what an edit can move', () => {
   editFixture();
   layBlock(8, 8, 24, 24, 'bed', 'mulch');

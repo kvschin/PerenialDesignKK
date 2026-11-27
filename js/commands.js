@@ -3794,6 +3794,15 @@ function restoreLayerInPlace(dst,src){
   for (const k in src) dst[k]=src[k];
   return dst;
 }
+/* Two keyed layers holding the very same records under the same keys. A snapshot
+   is a shallow copy, so a layer the undone action never wrote is exactly this. */
+function sameLayerRecords(a,b){
+  if (a===b) return true;
+  let n=0;
+  for (const k in b){ if (!(k in a) || a[k]!==b[k]) return false; n++; }
+  for (const k in a) n--;
+  return n===0;
+}
 function applySnapshot(s){ // restore every layer + refresh UI
   resetSelectionState();
   hidePlantCard();   // the plant it described may be exactly what this undoes
@@ -3814,16 +3823,24 @@ function applySnapshot(s){ // restore every layer + refresh UI
   const before={terrain:Object.assign({},game.terrain), elevation:Object.assign({},game.elevation),
     houses:game.houses, buildings:game.buildings};
   const GROUND_MAPS={terrain:1, elevation:1};
+  /* Whether anything the SCENE holds moved (0.9.185). Every layer but the terrain
+     is in the scene list, and an undo used to swap each of them for the
+     snapshot's copy and rebuild the list whatever it undid: 53 ms on a garden of
+     16,000 plants, for undoing one bed tile. A layer whose records are all the
+     ones it had (sameLayerRecords) keeps its map, so nothing keyed on that map
+     rebuilds either: the scene, the shade map, the tree and shrub indexes. */
+  let sceneMoved=!sameLayerRecords(game.elevation,s.elevation||{});   // a terrace lifts what stands on it
   for (const L of GAME_LAYERS){
     const src=s[L.k]||(L.array?[]:{});
     if (!L.array && GROUND_MAPS[L.k] && game[L.k]) restoreLayerInPlace(game[L.k],src);
-    else game[L.k]=src;
+    else if (!L.array && game[L.k] && sameLayerRecords(game[L.k],src)) continue;
+    else { game[L.k]=src; if (!L.array) sceneMoved=true; }
   }
   /* The structure arrays keep their identity too when nothing in them moved,
      for the same reason — and when something DID move they are swapped and
      applySnapshotGround forces the full bake that a footprint change needs. */
-  if (JSON.stringify(before.houses)===JSON.stringify(game.houses)) game.houses=before.houses;
-  if (JSON.stringify(before.buildings)===JSON.stringify(game.buildings)) game.buildings=before.buildings;
+  if (JSON.stringify(before.houses)===JSON.stringify(game.houses)) game.houses=before.houses; else sceneMoved=true;
+  if (JSON.stringify(before.buildings)===JSON.stringify(game.buildings)) game.buildings=before.buildings; else sceneMoved=true;
   /* Returned so a test can read the decision. It cannot be read off
      groundDamage afterwards: the very next bake consumes the set, and in the
      test sandbox the rAF stub runs that frame inside buildToolTray below. */
@@ -3832,7 +3849,7 @@ function applySnapshot(s){ // restore every layer + refresh UI
   /* The scene list holds every layer this just replaced. sceneStale's map
      identity check catches it today, but pots and seats are not in that check,
      so say it outright rather than relying on the layers that happen to be. */
-  game.sceneRev++;
+  if (sceneMoved) game.sceneRev++;
   updateUndoBtn();
   buildToolTray();
   return groundResult;

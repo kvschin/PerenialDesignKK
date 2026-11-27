@@ -133,6 +133,75 @@ function wetBedAt(x,y){
   const t=game.terrain && game.terrain[`${x},${y}`];
   return !!(t && !t.removed && t.k==='bed' && bedStyle(t.c).wet);
 }
+/* ---------- what an edit changed in a ground layer (0.9.185) ----------
+   Everything derived from the terrain is kept on terrainRev, which says THAT the
+   ground moved and nothing about where. So one bed tile retraced every region in
+   the garden, rebuilt the inner-tile grid and re-read every tile for water, pools
+   and decks: 176 ms a stamp on a 19,000-tile garden, where the stamp itself is one
+   tile. A layer's LOG says which tiles changed, by RECORD IDENTITY, the invariant
+   undo already rests on (locatedGroundDiff, commands.js): every writer builds a
+   fresh record, so a tile nobody wrote is the same object as last time. One pass
+   over the map per edit (about a millisecond at that size), and each cache that
+   reads it takes only the keys noted since it last looked (layerLogSince).
+
+   `info[k]` is {r: the live record, i: its place in the map's own key order},
+   which is the order a trace floods its regions in. `epoch` moves when the log
+   starts again (another map object), and a reader on another epoch, or one the
+   capped journal has left behind, rebuilds in full. The terrain log also counts
+   what three whole-map scans were asking: `water` moves when a tile's water
+   changes (waterSetSig), `nPool` and `nCross` are how many formal-pool tiles and
+   crossing tiles there are, so a garden with none never looks for them.
+   Both ground layers ride terrainRev (LAYER_CACHES: `trace`). */
+const LAYER_LOG_CAP=4096;
+const LAYER_LOG_NONE=Object.freeze([]);
+const layerLogs=Object.create(null);
+function layerLog(layer,force){
+  const T=game[layer];
+  let L=layerLogs[layer];
+  if (!L) L=layerLogs[layer]={layer, ref:null, rev:-1, info:null, live:0, epoch:0, seq:0, base:0, keys:[],
+    water:0, nPool:0, nCross:0};
+  if (L.ref===T && L.rev===game.terrainRev && L.info && !force) return L;
+  const terr=layer==='terrain';
+  const note=(k,was,now)=>{
+    L.keys.push(k); L.seq++;
+    if (!terr) return;
+    const a=!!was && was.k==='water', b=!!now && now.k==='water';
+    if (!a && !b) return;
+    if ((a?(was.c||''):null)!==(b?(now.c||''):null)) L.water++;
+    if (a){ if (waterStyle(was.c).crisp) L.nPool--; if (was.x) L.nCross--; }
+    if (b){ if (waterStyle(now.c).crisp) L.nPool++; if (now.x) L.nCross++; }
+  };
+  if (L.ref!==T || !L.info){                 // another map (a load, a new garden): start again
+    L.ref=T; L.info=Object.create(null); L.live=0; L.epoch++; L.keys=[]; L.base=L.seq;
+    L.water++; L.nPool=0; L.nCross=0;
+    let i=0;
+    for (const k in T||{}){ const r=T[k]; if (!r || r.removed) continue;
+      L.info[k]={r, i:i++}; L.live++;
+      if (terr && r.k==='water'){ if (waterStyle(r.c).crisp) L.nPool++; if (r.x) L.nCross++; } }
+    L.rev=game.terrainRev;
+    return L;
+  }
+  if (L.keys.length>LAYER_LOG_CAP){ L.keys=[]; L.base=L.seq; }
+  const info=L.info, had=L.live; let i=0, seen=0;
+  for (const k in T){
+    const r=T[k], t=info[k];
+    if (!r || r.removed){ if (t){ seen++; delete info[k]; L.live--; note(k,t.r,null); } continue; }
+    if (!t){ info[k]={r, i:i++}; L.live++; note(k,null,r); continue; }
+    seen++;
+    if (t.r!==r){ note(k,t.r,r); t.r=r; }
+    t.i=i++;
+  }
+  // a key that left the map altogether, which is how an undo restores "nothing here"
+  if (seen!==had) for (const k in info) if (!(k in T)){ const t=info[k]; delete info[k]; L.live--; note(k,t.r,null); }
+  L.rev=game.terrainRev;
+  return L;
+}
+// the keys a log has noted since `mark` ({epoch, seq}), or null when that cannot be said
+function layerLogSince(L,mark){
+  if (!mark || mark.epoch!==L.epoch || mark.seq<L.base || mark.seq>L.seq) return null;
+  return mark.seq===L.seq ? LAYER_LOG_NONE : L.keys.slice(mark.seq-L.base);
+}
+function layerLogMark(L){ return {epoch:L.epoch, seq:L.seq}; }
 /* Each DECK (tiles of one crossing kind, 4-connected) and which world axis it
    SPANS: the long way of its bounding box, or where that is square, the way its
    ends meet land. Kept on terrainRev, which every terrain edit moves. */
@@ -140,6 +209,8 @@ let crossingRegionCache={key:'', ref:null, at:new Map(), list:[]};
 function crossingRegions(){
   const key=game.terrainRev+'|'+GW+'x'+GH;
   if (crossingRegionCache.key===key && crossingRegionCache.ref===game.terrain) return crossingRegionCache;
+  // no crossing anywhere, which is nearly every garden: nothing to look for
+  if (!layerLog('terrain').nCross) return (crossingRegionCache={key, ref:game.terrain, at:new Map(), list:[]});
   const at=new Map(), list=[], seen=new Set();
   for (const k in game.terrain||{}){
     if (seen.has(k)) continue;
