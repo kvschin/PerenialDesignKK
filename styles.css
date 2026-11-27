@@ -380,7 +380,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .menu-art.stack::before{transform:rotate(-7deg) translate(-3px,1px);background:#cbb38d}
 .menu-art.stack::after{transform:rotate(5deg) translate(3px,0);background:#dcc9a6}
 /* Pointing at, pressing or tabbing to Your gardens fans the stack out and lifts
-   the top card (0.9.180); the other two pictures move on their canvases
+   the top card (0.9.183); the other two pictures move on their canvases
    (menuArtStep). Transform only, so it is the compositor's. A touch screen's
    hover sticks after a tap, so hover counts only where there is one, and with
    less motion nothing moves at all. */

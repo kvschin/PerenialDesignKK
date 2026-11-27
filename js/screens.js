@@ -4295,7 +4295,7 @@ function paintMenuGardenArt(season){
     g.save(); g.translate(X+(cell[0]-cell[1])*hw*.235, Y-1+(cell[0]+cell[1]-2)*hh*.235); g.scale(.36,.36);
     drawPlant(g,0,0,k,1,season,tileSeed(cell[0]+3,cell[1]+8),0,undefined,(MENU_SCENES[season]||MENU_SCENES.Fall).bloom); g.restore(); });
 }
-/* `sway` (0.9.180) is the gust a hover or a press sends through the four
+/* `sway` (0.9.183) is the gust a hover or a press sends through the four
    coneflowers (menuArtStep): each leans from its base and its stems bend, the
    wave reaching each season a moment after the last. 0 is the still picture. */
 function paintMenuLibraryArt(sway){
@@ -4352,7 +4352,7 @@ function paintMenuDailyArt(date=new Date()){
   menuDailyArtState={pl, day, mon, bw, bh, art:libCanvas(pl.s,pl.v,pl.season,bw,bh,2.6)};
   drawMenuDailyPage(menuArtMotion.lift);
 }
-/* Today's page, `lift` 0..1 off the pad (0.9.180): it rises and turns a little
+/* Today's page, `lift` 0..1 off the pad (0.9.183): it rises and turns a little
    more, its shadow falls further, the page under it shows, and its lower
    corner curls up. 0 is the still picture, call for call. */
 function drawMenuDailyPage(lift){
@@ -4402,7 +4402,7 @@ function drawMenuDailyPage(lift){
   g.drawImage(S.art,w*.79-S.bw,h*.95-(S.bh*2-10),S.bw*2,S.bh*2);                      // today's plant
 }
 function paintMenuArt(){ paintMenuGardenArt(menuSeason); paintMenuLibraryArt(); paintMenuDailyArt(); }
-/* ---- the entries' pictures answer a hover or a press (0.9.180) ----
+/* ---- the entries' pictures answer a hover or a press (0.9.183) ----
    Pointing at an entry, pressing it or tabbing to it moves its picture: the
    coneflowers sway in a gust that dies away (MENU_ART.SWAY_MS), today's
    calendar page lifts off the pad and settles back when the pointer leaves

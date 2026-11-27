@@ -30877,7 +30877,7 @@ test('a garden opened from its card grows out of the card, and a failed open tak
   assert(/\.garden-grow\{position:fixed;z-index:61;pointer-events:none;/.test(motionCss()), 'over the opening cover, never in the pointer\'s way');
 });
 
-/* ---------- signs of life (0.9.180) ----------
+/* ---------- signs of life (0.9.183) ----------
    Daytime pollinators, a pet's occasional flick and the title screen's pictures
    answering a hover. Each is to cost no frames it does not need. */
 const lifeRec = log => new Proxy({}, { get:(o,p)=>p in o ? o[p]

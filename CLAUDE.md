@@ -217,7 +217,7 @@ brief's season (`paintMenuDailyArt`, `menuDailyArtPlant`: in flower, a forb or
 bulb, upright, never a tree or open-water plant). It is repainted from
 `refreshMenuCards` and draws only when the day has turned or Fraunces has
 arrived. It was a plan sheet of drift blobs, which read as a square of random
-circles. **Each picture answers a hover, a press or keyboard focus** (0.9.180;
+circles. **Each picture answers a hover, a press or keyboard focus** (0.9.183;
 `MENU_ART`, `menuArtMotion`, `menuArtStep`, `startMenuSway`, `setMenuLift`,
 `drawMenuDailyPage`): the stacked garden cards fan out and the top one lifts
 (CSS alone, transforms on `.menu-art.stack`; hover only under `(hover:hover)`,
@@ -593,7 +593,7 @@ See §13a.
   single fast-forward frame in 0.9.73 and 0.9.74 alike, while every later phase holds
   ~160fps with a probe of 0ms, which is not a canvas that went to software for good.
   It prints how many frames were over the line and in which phases, which is how
-  to tell a spike from a demotion: one run of 0.9.180 named a single `lights`
+  to tell a spike from a demotion: one run of 0.9.183 named a single `lights`
   frame, and the next run, and the base build, stayed accelerated throughout.
   A last `visitors` phase goes back to midsummer by day, zoomed in over the
   flowers, with a pet's flick forced into it (§11j).
@@ -4160,7 +4160,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sprouts, 40 ghosts, 240 diamonds, a 240-tile flash) a demo frame is 4.4ms
     against 3.3, for at most 400ms. Live, the idle cadence stays 28-30fps before
     and after an effect.
-    **What a bulk edit or a comparison changed** (0.9.180). *A fill comes in as a
+    **What a bulk edit or a comparison changed** (0.9.183). *A fill comes in as a
     wave* (`fxSproutWave`, `plantFxWave`, `EDIT_FX.wait`, `FILL_STEP_MS` 28,
     `FILL_SPREAD_MS` 420): `doFloodFill`'s breadth-first walk carries each tile's
     flood distance, and every plant it places waits, not drawn, until that many
@@ -4285,7 +4285,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     rotate, lights and Fit phases now and fails on an app error: Firefox stayed
     accelerated for all 5,467 frames. `dev/ground-verify.cjs` passes and
     `dev/webkit-check.cjs` (which rotates and toggles night) is clean.
-    **Today / Established grows the plants** (0.9.180; `LENS`, `lensSwitch`/
+    **Today / Established grows the plants** (0.9.183; `LENS`, `lensSwitch`/
     `lensBegin`/`lensHeightOf`, `plantHFactor`, `lensDrawnH`, `plantGrowT`,
     `drawPlantLive`, renderer.js). The lens was a cut, and in a garden of young
     plants that was the whole planting jumping at once, so nobody could follow
@@ -4347,7 +4347,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the estate read 14.4 vs 13.7: those carry every scenario before them in the
     JIT; compile both arms the same way.)
 
-11j. **Signs of life by day** (0.9.180; `POLLEN`, `pollinatorField`,
+11j. **Signs of life by day** (0.9.183; `POLLEN`, `pollinatorField`,
     `pollinatorAt`, `drawPollinators`, `PET_FLICK`/`petFlickPose`,
     renderer.js; `drawPollinatorBee`/`drawPollinatorButterfly`, `drawPet`'s
     `pose`, draw.js). By night the garden had its fireflies (§11g); by day only
@@ -10652,8 +10652,8 @@ heavy for three frames to engage.
   `.hidden:not(.motion-out)`. The other helpers are `afterMotion`,
   `motionOnce` and `motionOutStop`; exits ease on `--ease-exit`, since on the
   entrance curves an exit was mostly gone in its first third.
-  **The places you move between now move too** (the navigation pass, after
-  0.9.179). `--motion-view` (260ms) is the token for going somewhere: longer
+  **The places you move between now move too** (0.9.183,
+  the navigation pass). `--motion-view` (260ms) is the token for going somewhere: longer
   than a panel, because the eye has to follow something across the screen.
   *The Plant Library and the guidebook on SHEET* change view as a DIRECTION
   (`viewSlide`/`viewSlideStop`, ui.js): deeper comes in from the right while

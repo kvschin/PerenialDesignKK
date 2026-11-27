@@ -5139,7 +5139,7 @@ function sceneEntGrowth(e){
    A pet is a still pose, and has to be (§12a): one that breathed would keep the
    whole garden repainting forever. But a cat that never moves an ear reads as a
    cushion, so every 15-30 seconds (PET_FLICK) each pet on screen flicks its
-   tail or twitches an ear for a few hundred ms (0.9.180). Its own seed sets its
+   tail or twitches an ear for a few hundred ms (0.9.183). Its own seed sets its
    rhythm, so two pets do not flick together, and which of the two it does
    changes from one flick to the next.
    The rest pose stays the cached sprite; the flick is drawn LIVE, by drawPet's
@@ -6434,7 +6434,7 @@ function drawFireflies(ctx,W,H,t,cal,offX,offY){
   ctx.restore();
 }
 /* ---------- daytime pollinators ----------
-   The fireflies' counterpart by day (0.9.180): on a spring or summer day, a few
+   The fireflies' counterpart by day (0.9.183): on a spring or summer day, a few
    bees and butterflies working the flowers, at most POLLEN.MAX (12) over the
    whole garden, about one for every six plants in bloom. A bee hovers at a
    flower, dips onto it and zigzags to the next of three or four close by; a

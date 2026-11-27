@@ -15278,7 +15278,7 @@ function shade(col, amt){
    that breathed would have to be added to hasTransientGardenWork, which keeps
    the whole garden repainting forever for a 0.7px bob. So the sine terms are
    folded to their t=0 values and this draws one deterministic sprite.
-   `pose` (0.9.180) is the one exception, and it is not time: an optional
+   `pose` (0.9.183) is the one exception, and it is not time: an optional
    {tail, ear} the garden passes for the few hundred ms of an occasional flick
    (petFlickPose, renderer.js), drawn LIVE beside the cached rest sprite,
    never through drawStructEnt. tail is -1..1 (which way the tip swings), ear
