@@ -30647,8 +30647,15 @@ test('a scheme switch outlines the tiles whose planting differs, for 600ms, and 
   resetEditFxForTest();
   switchScheme(a);
   assertEqual(EDIT_FX.flash, null, 'past FLASH_CAP, no outline');
-  withMotion('reduce', () => { resetEditFxForTest(); setTile('plants', '15,15', { s: 'karl', d: 0, t: 9 }); switchScheme(b.id); });
-  assertEqual(EDIT_FX.flash, null, 'nor with motion reduced');
+  // with motion reduced it still shows, held still, as the undo flash does: an outline moves nothing
+  withMotion('reduce', () => {
+    setup(21, 21); resetEditFxForTest();
+    setTile('plants', '5,5', { s: 'bluestem', d: 0, t: 1 });
+    const c = game.schemeActive; createScheme(true);
+    setTile('plants', '5,5', { s: 'karl', d: 0, t: 2 });
+    resetEditFxForTest(); switchScheme(c);
+    assertEqual(EDIT_FX.flash && EDIT_FX.flash.tiles.map(t => t.join(',')).join(' '), '5,5', 'with motion reduced the outline still shows');
+  });
   resetEditFxForTest();
 }));
 
@@ -30711,7 +30718,7 @@ test('a replacement outlines the plants it changed, as an undo does', () => with
   assertEqual(EDIT_FX.flash.ms, EDIT_FX.FLASH_MS, 'for an undo\'s 400ms');
   withMotion('reduce', () => {
     resetEditFxForTest(); game.plants['5,5'] = { s: 'bluestem', d: 0, t: 1 }; go();
-    assertEqual(EDIT_FX.flash, null, 'not with motion reduced');
+    assert(EDIT_FX.flash && EDIT_FX.flash.tiles.some(t => t.join(',') === '5,5'), 'with motion reduced too, held still, as an undo is');
   });
   resetEditFxForTest(); replacePlantContext = null;
 }));

@@ -3904,7 +3904,8 @@ function historyFlash(was,schemeBefore){
    SCHEME_FLASH_MS. "Differs" is the species and cultivar on the tile, or one
    scheme having a plant there and the other not: a copied scheme holds copies
    of every record, so identity would call every tile changed. Past FLASH_CAP
-   tiles there is nothing local to point at, as for an undo. */
+   tiles there is nothing local to point at, as for an undo. It shows under
+   reduced motion too, held still, as the undo flash does: it moves nothing. */
 function samePlanting(a,b){
   return recGone(a) ? recGone(b) : !recGone(b) && a.s===b.s && (a.v||null)===(b.v||null);
 }
@@ -3916,7 +3917,6 @@ function schemeDiffTiles(prev,next,out,cap){
   return true;
 }
 function schemeFlash(was){
-  if (reducedMotion()) return false;
   const cap=EDIT_FX.FLASH_CAP, tiles=new Set();
   for (const k of SCHEME_LAYERS) if (!schemeDiffTiles(was[k],game[k],tiles,cap)) return false;
   return fxFlashTiles(tiles,EDIT_FX.SCHEME_FLASH_MS);

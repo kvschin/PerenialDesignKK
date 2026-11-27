@@ -3610,8 +3610,8 @@ function applyPlantReplacement(){
   const from=plantDef(ctx.source.s,ctx.source.v), to=plantDef(ctx.target.s,ctx.target.v), result=replacePlantInstances(ctx,ctx.target);
   if (!result.changed){ toast(result.reason||'Those plants cannot be replaced there.','warn'); return; }
   closeOverlay('replacePlantScreen'); replacePlantContext=null;
-  // the tiles that changed, outlined as an undo outlines them (none past FLASH_CAP)
-  if (!reducedMotion()) fxFlashTiles(result.valid.map(item=>item.key));
+  // the tiles that changed, outlined as an undo outlines them (none past FLASH_CAP), reduced motion too
+  fxFlashTiles(result.valid.map(item=>item.key));
   toast(`Replaced ${result.changed} ${from.name}${result.blocked.length?`; ${result.blocked.length} blocked`:''} with ${to.name}.`);
   renderSelectionActions();
 }

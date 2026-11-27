@@ -4179,8 +4179,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     switch is never a crossfade: two palettes blended show colours neither scheme
     has, which is why a Skip lands in one frame. *A replacement outlines the tiles
     it changed* (`applyPlantReplacement`, tray.js), with the undo flash.
-    `fxFlashTiles` takes a duration (`flash.ms`). These three are off under reduced
-    motion, unlike the undo flash, which still shows there held still.
+    `fxFlashTiles` takes a duration (`flash.ms`). Under reduced motion the wave is
+    off and the fill lands at once; the two outlines still show, held still, as
+    the undo flash does (0.9.184), since an outline says what changed and moves nothing.
     `sproutLive` is now the count of every plant an effect acts on (`plantFxCount`:
     sprouts, a wave's waits and a lens growth, §11i), still the one compare an
     idle plant pays in the entity pass, and `drawPlantFx` is the dispatch behind
