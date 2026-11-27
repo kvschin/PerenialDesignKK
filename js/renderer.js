@@ -5450,6 +5450,68 @@ function gardenPortraitBounds(){
    accelerated one); the whole portrait with the wash in software too: 0 of 20.
    A software canvas is also simply the right one here: it is drawn once and read
    back at once (JPEG cover, share card). Cost measured the same either way. */
+/* ---- small plants in a portrait share a few pictures (0.9.186) ----
+   A portrait draws every plant procedurally, on a software canvas, and fits the
+   whole garden: on a big garden each plant is a few pixels tall and its whole
+   recipe is run to colour them. Save & quit took 5.5 s on a garden of 16,000
+   plants, 4.9 s of it here (0.3 ms a plant), for a cover 420 px wide.
+
+   A plant drawn under PX pixels tall is drawn ONCE per look, on a software canvas
+   of its own, and every clump of that species, cultivar and growth is that
+   picture set down in its place. It is the real drawing, so the season, the
+   bloom, the seedheads and the snow are right; what is given up is each clump's
+   own shape, at a size where that is a pixel or two. LOOKS pictures a kind,
+   chosen by the clump's seed, keep a drift from reading as one stamp.
+   Two sizes, because they fail differently (measured against a render four times
+   the size, shrunk):
+   - under CRISP pixels the picture is drawn at SS times the portrait's scale and
+     shrunk as it is set down. That is nearer the truth than drawing the plant
+     itself that small, where strokes thinner than a pixel alias (mean error 2.3
+     against 3.1 on that garden; at 1x it was 4.7, at 2x 2.7, at 4x 2.3 again).
+   - from CRISP up it is drawn at the portrait's own scale and set down on whole
+     pixels, with no resampling: shrunk, a plant that size went soft, which showed
+     on the demo garden's cover.
+   A plant joined to its neighbours or its frame (`detail`: a hedge, a grove, a
+   climber) is always its own drawing. Still software canvases with nothing
+   accelerated drawn into them, so a portrait is the same from one call to the
+   next (the note on the portrait canvas, CLAUDE.md §16). */
+const PORTRAIT_SMALL={PX:10, CRISP:5, SS:3, LOOKS:4, on:true};
+function portraitSmallPlant(ctx,e,W,H,season,scale,kept){
+  if (!PORTRAIT_SMALL.on || e.detail) return false;
+  const P=plantDef(e.p.s,e.p.v); if (!P) return false;
+  let g=sceneEntGrowth(e);
+  if (e.kind===SCENE_K.BULB){ if (g<=0.02) return true; }      // underground: nothing to draw
+  else if (e.stunt) g*=STUNT_GROWTH;
+  const gB=Math.max(1,Math.min(8,Math.round(g*8)));
+  const tall=plantVisualH(P)*(0.25+0.75*gB/8)*scale;           // plantDrawBox's own height
+  if (tall>=PORTRAIT_SMALL.PX) return false;
+  const key=e.p.s+'|'+(e.p.v||'')+'|'+gB+'|'+((e.seed>>>0)%PORTRAIT_SMALL.LOOKS);
+  let t=kept.get(key);
+  if (t===undefined){
+    t=null;
+    const crisp=tall>=PORTRAIT_SMALL.CRISP, s=scale*(crisp?1:PORTRAIT_SMALL.SS);
+    const box=plantDrawBox(P,e.p.s,gB/8);
+    // the plant's foot on a whole pixel of its picture, so a crisp one lands on whole pixels of the portrait
+    const ox=Math.ceil(box.halfW*s), oy=Math.ceil(box.top*s);
+    const pw=ox+Math.max(1,Math.ceil(box.halfW*s)), ph=oy+Math.max(1,Math.ceil(box.bot*s));
+    const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
+    const c2=cv.getContext('2d',{willReadFrequently:true});
+    if (c2){
+      c2.setTransform(s,0,0,s,ox,oy);
+      drawPlantMaybeCached(c2,0,0,e.p.s,gB/8,season,e.seed,0,e.p.v,undefined,false);
+      t={cv, crisp, ox, oy, s, w:pw/s, h:ph/s};
+    }
+    kept.set(key,t);
+  }
+  if (!t) return false;
+  let sx, sy;
+  if (e.px!==undefined){ sx=e.px+W/2-cam.x; sy=e.py+H*0.24-cam.y; }
+  else { const a=plantScreenOf(e.x,e.y,e.p,W,H); sx=a[0]; sy=a[1]; }
+  sy+=TILE_H/2;
+  if (t.crisp) ctx.drawImage(t.cv,(Math.round(sx*scale)-t.ox)/scale,(Math.round(sy*scale)-t.oy)/scale,t.w,t.h);
+  else ctx.drawImage(t.cv,sx-t.ox/t.s,sy-t.oy/t.s,t.w,t.h);
+  return true;
+}
 function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT_HEIGHT,atDay=null){
   const cv=document.createElement('canvas');
   cv.width=width; cv.height=height;
@@ -5479,7 +5541,12 @@ function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT
       const [sx,sy]=screenOf(x,y,W,H);
       tileDiamond(ctx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
     }
-    for (const e of scene.ents) drawSceneEnt(e,W,H,season,0,false,ctx);
+    const small=new Map();
+    for (const e of scene.ents){
+      if ((e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB) && portraitSmallPlant(ctx,e,W,H,season,scale,small)) continue;
+      drawSceneEnt(e,W,H,season,0,false,ctx);
+    }
+    for (const t of small.values()) if (t) t.cv.width=t.cv.height=0;   // hand the pixels back now (WebKit keeps a dropped canvas)
     applySeasonLighting(ctx,W,H,amb,season,true);
     return cv;
   } finally {

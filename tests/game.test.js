@@ -13775,6 +13775,72 @@ test('a garden portrait is drawn in software, its season wash included, so its p
   assert(washGrad===gradBefore&&washSurf===surfBefore,"and the live canvas's wash caches are left alone");
 });
 
+/* ---- small plants in a portrait share a few pictures (0.9.186) ---- */
+// a portrait, with what it drew: how many plants were set down from a shared picture, each call
+// to drawPlant, and every canvas it asked for
+const watchedPortrait = () => {
+  const make = document.createElement, small = portraitSmallPlant, draw = drawPlant, seen = { shared: 0, drawn: [], canvases: [] };
+  try {
+    document.createElement = function(tag){
+      const el = make.apply(this, arguments);
+      if (String(tag).toLowerCase() === 'canvas'){
+        const plain = el.getContext, rec = { el, opts: null };
+        seen.canvases.push(rec);
+        el.getContext = function(type, opts){ rec.opts = opts || null; return plain.apply(this, arguments); };
+      }
+      return el;
+    };
+    portraitSmallPlant = function(){ const r = small.apply(this, arguments); if (r) seen.shared++; return r; };
+    drawPlant = function(ctx, x, y, key){ seen.drawn.push(key); return draw.apply(this, arguments); };
+    renderGardenPortrait();
+  } finally { document.createElement = make; portraitSmallPlant = small; drawPlant = draw; }
+  return seen;
+};
+const plantGrid = (key, x0, y0, n, step) => {
+  game.tool = key; game.toolVar = null; let placed = 0;
+  for (let i = 0; i < n; i++) if (placePlantAt(x0 + (i % 12) * step, y0 + Math.floor(i / 12) * step) === 'plant') placed++;
+  return placed;
+};
+
+test('a portrait of a big garden draws each kind of small plant a few times, not every plant', () => {
+  setup(120, 120); game.pausedAt = Date.now(); game.previewMode = 'established';
+  const grass = PLANT_KEYS.find(k => PLANTS[k].type === 'grass' && !PLANTS[k].hidden && plantFits(k));
+  const n = plantGrid('echinacea', 6, 6, 96, 3) + plantGrid(grass, 50, 8, 96, 3);
+  assert(n >= 180, 'the fixture is planted: ' + n);
+  const seen = watchedPortrait();
+  assertEqual(seen.shared, n, 'every plant is set down from a shared picture');
+  assert(seen.drawn.length <= 2 * PORTRAIT_SMALL.LOOKS, `and the two kinds are drawn a look at a time: ${seen.drawn.length} draws for ${n} plants`);
+  assert(seen.drawn.includes('echinacea') && seen.drawn.includes(grass), 'each from its own real drawing');
+  assert(seen.canvases.length > 1 && seen.canvases.every(c => c.opts && c.opts.willReadFrequently === true),
+    'on software canvases, like the portrait itself: an accelerated one is not the same twice');
+  assert(seen.canvases.slice(1).every(c => c.el.width === 0 && c.el.height === 0), 'which are handed back when the portrait is done');
+  // the same garden again asks for the same work: nothing is carried from one portrait to the next
+  assertEqual(watchedPortrait().drawn.length, seen.drawn.length, 'a second portrait draws as many');
+});
+
+test('in a small garden a portrait still draws every plant as itself', () => {
+  setup(16, 16); game.pausedAt = Date.now(); game.previewMode = 'established';
+  const n = plantGrid('echinacea', 3, 3, 12, 1);
+  assert(n >= 10, 'planted: ' + n);
+  const seen = watchedPortrait();
+  assertEqual(seen.shared, 0, 'no plant is small enough to share a picture');
+  assertEqual(seen.drawn.filter(k => k === 'echinacea').length, n, 'each is drawn once, with its own seed');
+  assertEqual(seen.canvases.length, 1, 'and the portrait makes no canvas but its own');
+});
+
+test('a plant joined to its neighbours keeps its own drawing in a portrait, however small', () => {
+  setup(120, 120); game.pausedAt = Date.now(); game.previewMode = 'established';
+  game.tool = 'boxwoodsquare'; game.toolVar = null;
+  let hedge = 0; for (let x = 20; x < 26; x++) if (placePlantAt(x, 20) === 'plant') hedge++;
+  assert(hedge >= 5, 'a run of hedge: ' + hedge);
+  const n = plantGrid('echinacea', 40, 40, 24, 3);
+  buildScene(0, 0);
+  assert(scene.ents.some(e => e.p && e.p.s === 'boxwoodsquare' && e.detail), 'the hedge tiles know their neighbours');
+  const seen = watchedPortrait();
+  assertEqual(seen.drawn.filter(k => k === 'boxwoodsquare').length, hedge, 'each hedge tile is drawn for where it stands in the run');
+  assertEqual(seen.shared, n, 'while the coneflowers share');
+});
+
 test('sharing formats fit the complete garden and keep image text within the card',()=>{
   setup();game.pausedAt=Date.now();const c=dailyChallengeFor(),render=renderGardenPortrait;
   const requested=[];

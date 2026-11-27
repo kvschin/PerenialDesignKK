@@ -7970,7 +7970,30 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     draws sub-pixel florets a shade lighter than the GPU did (mean 2.3/255 over
     the cover); the direct wash is byte-identical to the baked one. A cover
     measured ~110ms draw plus encode, down from ~170ms, since the old path also
-    paid a GPU readback. A test pins all three requests. Capture costs no work
+    paid a GPU readback. A test pins all three requests.
+    **Small plants in a portrait share a few pictures** (0.9.186;
+    `portraitSmallPlant`, `PORTRAIT_SMALL`). The portrait fits the whole garden and
+    drew every plant's full recipe, so its cost followed the plant count while each
+    plant shrank: on a garden of 16,000 plants a plant is 3 px tall, and Save &
+    quit blocked for 5.5 s, 4.9 s of it here. A plant under `PX` (10) pixels tall is
+    now drawn once per look on a software canvas of its own, and every clump of
+    that species, cultivar and growth is that picture set down in its place. It is
+    the real drawing (season, bloom, seedheads, snow), and what is given up is the
+    clump's own shape at a size where that is a pixel or two; `LOOKS` (4) pictures a
+    kind, chosen by seed, keep a drift from reading as one stamp. Under `CRISP`
+    (5) px the picture is drawn at `SS` (3) times the scale and shrunk as it is set
+    down, which is nearer a careful render than drawing the plant that small was
+    (mean error against a 4x render shrunk: 2.3 against 3.1; 1x gave 4.7, 2x 2.7);
+    from 5 px it is drawn at the portrait's scale and set on whole pixels, since
+    shrunk a plant that size went soft, which showed on the demo garden's cover. A
+    plant joined to its neighbours or frame (`detail`) is always its own drawing.
+    The pictures are software canvases too, emptied when the portrait is done.
+    Cover capture, before -> after: that garden 5,425 -> 695ms, the estate test
+    garden 2,385 -> 583, arboretum 1,238 -> 383, woodland 647 -> 233, demo 155 -> 94;
+    Save & quit in headed Chrome 5.5 -> 0.8 s and 2.3 -> 0.6 s. What is left on the
+    big one is the ground (0.43 s: every tile's grain at 2 px a tile) and the scene
+    build. The daily share cards draw through the same function; their sites are
+    small, so their plants are over the size and drawn as before. Capture costs no work
     in the animation loop or autosave. The optional save field `portrait:{v:1,day,image}` is bounded to
     120,000 characters and accepts JPEG data URLs only. A revision/day/scheme
     key invalidates an old cover on subsequent autosaves; loads and new gardens
