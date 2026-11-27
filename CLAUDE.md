@@ -2820,6 +2820,56 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     with the atlas off and forced on.
     Firefox stays accelerated on both kinds of garden (`ff-accel-check`: 4,034
     frames on 11/23, 2,338 on the shrub border).
+    **Small plants share a few looks** (0.9.187; `SHARE`, `sharedPlantRec`,
+    `plantBigOf`, `shareSeed`, `setShareScale`, `clumpSpriteSlot`). Every clump has
+    a sprite of its own, which is what makes a drift read as plants. Zoomed far out
+    that is wasted twice: a clump is a dozen pixels, and a garden seen whole is
+    every clump at once. Found on a 16,000-plant recreation of a published design:
+    the fitted view baked 16,245 sprites before it could open (9.4 s), went soft
+    for 7.6 s after a zoom out while they were all baked again, and in Firefox put
+    16,000 new bitmaps through the canvas in its first frames, which demoted it for
+    good (7-9 fps). A clump whose whole sprite would be at most `SHARE.PX` (24)
+    device pixels on its longer side (`rec.big`, from `plantDrawBox` at full
+    growth) now draws from a LOOK its kind shares: one of `LOOKS` (4) sprites per
+    species, cultivar, season and growth bucket, picked by the clump's seed and
+    baked from a seed that belongs to the look (`shareSeed`), so the picture is the
+    same whichever clump asks first. **Nothing else in the cache changed, because
+    the clump is handed the look's RECORD in place of its own** and everything
+    downstream reads a record: the key (`plantKeyNow`), the slot and its
+    retirement, the stand-ins, the look-ahead (`aheadBakePlant`), the ring
+    (`prebakePlant`), the opening pass and a prepared Skip. Since the sibling index
+    is keyed on a key without its first field, a look and a clump of one kind
+    stand in for each other as two clumps do. Four rules, each with a test that
+    fails without it. *The growth bucket is in a look's slot*
+    (`~<look>g<bucket>|species|cultivar|season`): clumps planted on different days
+    share a species and not a size, and two in one slot would retire each other's
+    sprite every frame, the reason a clump's slot carries its seed. *A clump
+    joined to its neighbours or its frame (`detail`) never shares*, nor does
+    anything while `game.photo` is set. *Which plants share follows a zoom OUT at
+    once and a zoom IN when the gesture settles* (`SHARE.scale`, set in
+    `pspriteFrame`): going out, a look is a few bakes, and the plants a zoom out
+    brings on screen are the ones that used to be baked one each; coming in, a
+    clump going back to its own sprite is a bake a clump, which waits like every
+    other re-bake. A garden being opened is not a gesture. *A look found once in a
+    frame is one blit for the rest of its clumps* (`_ff`/`_fe`): its key cannot
+    move inside a frame. At most `STILL` (14) px a look stands still, since the
+    wind's shear moves the top of a plant that size by under half a pixel and its
+    two matrix sets were half that frame's script. Anything that asks which sprite
+    a clump holds goes through `clumpSpriteSlot` (the reveal check in
+    `dev/webkit-check.cjs`) or `sharedPlantRec` (`tests/browser-skips.cjs`); the
+    erase lift follows `e._sh`. Tests' `setup()` resets the zoom to 100%, because
+    which plants share follows it.
+    Measured in headed Chrome at 164Hz, before -> after. That garden: click to
+    reveal 9.4 -> 2.9 s; sprites at the fitted view 16,245 (17.7MB) -> 426 (0.4MB);
+    the fitted view 18.5 -> 25.7fps standing still, 51 -> 32ms of script a frame;
+    sharp after a wheel zoom out in 7.6 -> 1.2 s. The estate test garden: reveal
+    2.9 -> 2.2 s, fitted pan 54 -> 60fps, 45% and 100% unchanged (151 and 164fps).
+    The demo garden draws no shared look at any zoom it reaches. Firefox 161 on
+    that garden: demoted on frame 11 -> accelerated for all 2,618 frames, pans
+    7.7 -> 44fps. On screen the two are not told apart at the fitted view or at
+    14% (the largest a shared plant gets). What is left of the fitted frame is
+    16,000 `drawImage` calls, 69% of it: fewer calls, not cheaper ones, is the
+    next step.
     **Opening a garden prepares its first picture before revealing it**
     (`beginGardenOpen` / `prepareGardenOpen`, renderer.js). A cold cache has no
     picture of each clump to reuse: borrowing siblings made plants change shape

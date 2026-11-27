@@ -2505,6 +2505,11 @@ function pspriteFrame(){                        // once per render: age the cach
   closeRetiredSprites();                        // last frame's, which nothing can draw now
   atlasFrame();                                 // last frame's small bakes move into the shared pages
   PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.bakeMs=0; PSPRITE.waiting=0; PSPRITE.scale=pspriteScale();
+  /* The scale small plants are judged at (SHARE). Zooming OUT it follows at once:
+     more plants become small, and a look their kind shares is a few bakes. Zooming
+     IN it waits for the gesture to end, like every other re-bake: a clump going
+     back to its own picture is a bake a clump. An opening is not a gesture. */
+  if (spriteZoomSettled || gardenOpening || !(SHARE.scale>0) || PSPRITE.scale<SHARE.scale) setShareScale(PSPRITE.scale);
   // Evict only sprites NOT drawn last frame (off-screen), oldest first, down to
   // budget — never the visible set. This is what stops the cache thrashing and
   // flickering when the working set is large (e.g. a dense garden on retina):
@@ -2767,6 +2772,7 @@ function bakePlantKeyParts(rec,key,variant,season,seed,detail){
   rec.kTail='|'+(detail?JSON.stringify(detail):'');
   rec._kg=-1; rec._kk='';   // the whole key drawPlantMaybeCached keeps is built from these
   rec.sv=key+'|'+(variant||'');
+  rec.big=plantBigOf(rec.sv,key,variant);   // the longer side of its sprite, full grown (SHARE)
   rec.hasBloom=!!bloomAppearanceFor(plantDef(key,variant),season);
   // whether "after the bloom" can change what this plant shows this season (world.js)
   rec.seedAfter=bloomAfterMatters(plantDef(key,variant),season);
@@ -2836,6 +2842,77 @@ function leafStageForFrame(sv,key,variant,season){
   if (v===undefined){ v=leafStageNow(plantDef(key,variant),season); leafMemo.set(sv,v); }
   return v;
 }
+/* ---- small plants share a few looks (0.9.187) ----
+   Every clump has a picture of its own, which is what makes a drift read as
+   plants and not as a stamp. Zoomed far out that is wasted twice over: a clump is
+   a dozen pixels and nobody can tell one coneflower from the next, and a garden
+   seen whole is every clump at once. On a garden of 16,000 plants the fitted view
+   baked 16,245 pictures before it could open (9.4 s), blitted each with its own
+   wind shear on every frame (51 ms of script, 18 fps, standing still), went soft
+   for seconds after any zoom while they were all baked again, and in Firefox put
+   16,000 new bitmaps through the canvas in its first frames, which demoted it.
+
+   A clump whose whole sprite would be at most SHARE.PX device pixels on its longer
+   side draws from a LOOK its kind shares: one of LOOKS pictures per species,
+   cultivar, season and growth bucket, picked by the clump's seed. It is the same
+   sprite the cache makes for any clump, baked from a seed that belongs to the look.
+   Nothing else in the cache changes, because the clump is given the look's RECORD
+   in place of its own (sharedPlantRec) and everything downstream, the key, the
+   slot, the stand-ins, the look-ahead, the ring, reads a record: the look's slot
+   holds one sprite and retires its old bloom bucket as a clump's does, and since
+   the sibling index is keyed on a key without its first field, a look and a clump
+   of one kind stand in for each other as two clumps do.
+   - The growth bucket is IN a look's slot. Clumps planted on different days share
+     a species and not a size, and two of them in one slot would retire each
+     other's sprite on every frame (the reason a clump's slot carries its seed).
+   - A clump joined to its neighbours or its frame (`detail`) is never shared, nor
+     is anything in a photo.
+   - At most STILL pixels a look stands still: the wind's shear moves the top of a
+     plant that size by under half a pixel, and the two matrix sets round every
+     blit were half of that frame.
+   - Which is which follows SHARE.scale, not the live zoom (pspriteFrame). */
+const SHARE={PX:24, STILL:14, LOOKS:4, on:true, scale:0, maxBig:0, stillBig:0, recs:new Map(), big:new Map()};
+// the two limits as sizes in draw units at this scale, so a clump pays one compare
+function setShareScale(sc){ SHARE.scale=sc; SHARE.maxBig=sc>0?SHARE.PX/sc:0; SHARE.stillBig=sc>0?SHARE.STILL/sc:0; }
+function plantBigOf(sv,key,variant){
+  let b=SHARE.big.get(sv);
+  if (b===undefined){
+    const P=plantDef(key,variant), box=P ? plantDrawBox(P,key,1) : null;
+    b=box ? Math.max(box.halfW*2,box.top+box.bot) : Infinity;
+    SHARE.big.set(sv,b);
+  }
+  return b;
+}
+function shareSeed(sv,look){                   // a seed that belongs to the look: FNV-1a of its kind, then the look
+  let h=2166136261;
+  for (let i=0;i<sv.length;i++){ h^=sv.charCodeAt(i); h=Math.imul(h,16777619); }
+  return ((h^Math.imul(look+1,2654435761))>>>0)%2147483647;
+}
+/* The record whose sprite this clump draws: its own, or the look its kind shares
+   at this size. `rec` has been through bakePlantKeyParts. */
+function sharedPlantRec(rec,growth,detail,seed){
+  if (!(SHARE.scale>0)) setShareScale(pspriteScale());       // before any frame has set it: the zoom as it stands
+  if (!(rec.big<=SHARE.maxBig) || !SHARE.on || detail || game.photo){ if (rec._sh) rec._sh=null; return rec; }
+  const gB=gbucket(growth,9);
+  if (rec._shg===gB && rec._sh) return rec._sh;
+  const look=((seed===undefined?rec.seed:seed)>>>0)%SHARE.LOOKS;
+  // the clump's own slot is seed|species|cultivar|season; the look's swaps the seed for itself
+  const id='~'+look+'g'+gB+rec.kSlot.slice(rec.kSlot.indexOf('|'));
+  let p=SHARE.recs.get(id);
+  if (!p){
+    p={kSlot:id, kTail:'|', sv:rec.sv, big:rec.big, hasBloom:rec.hasBloom, seedAfter:rec.seedAfter, leafOut:rec.leafOut,
+      seed:shareSeed(rec.sv,look), shared:true, _kg:-1, _kk:''};
+    SHARE.recs.set(id,p);
+  }
+  rec._sh=p; rec._shg=gB;
+  return p;
+}
+function forgetSharedLooks(){ SHARE.recs.clear(); SHARE.big.clear(); SHARE.scale=0; }
+// the slot a clump's sprite is kept in right now, its own or its kind's look: for tools and tests
+function clumpSpriteSlot(e){
+  let g=sceneEntGrowth(e); if (e.kind!==SCENE_K.BULB && e.stunt) g*=STUNT_GROWTH;
+  return sharedPlantRec(e,g,e.kind===SCENE_K.PLANT?e.detail:undefined,e.seed).kSlot;
+}
 /* The key a clump's sprite is cached under NOW, left on its record with the three
    buckets it was built from (`_kg` growth, `_kb` bloom plus after-bloom, `_kl`
    leaf stage or -1). One definition, for the frame that draws the clump and for
@@ -2878,6 +2955,15 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
     drawPlantLive(ctx,bx,by,key,growth,season,seed,sway,variant,detail,leafStageNow(plantDef(key,variant),season)); return; }
   // a caller with no record (or one from before this frame's scene) pays the old price
   if (!rec || rec.kSlot===undefined) { rec=rec||{}; bakePlantKeyParts(rec,key,variant,season,seed,detail); }
+  // a clump this small draws from a look its kind shares (SHARE): from here on `rec` is the look's
+  const own=rec; rec=sharedPlantRec(own,growth,detail,seed);
+  if (rec!==own){
+    if (own.big<=SHARE.stillBig) sway=0;
+    // found once this frame already: a look's key cannot move inside a frame (its growth bucket is in its name,
+    // and bloom and leaf stage are one answer a species a frame), so the rest of its clumps are one blit each
+    if (rec._ff===PSPRITE.frame){ blitPlantSprite(ctx,rec._fe,bx,by,sway); return; }
+    seed=rec.seed;
+  }
   const kk=plantKeyNow(rec,key,variant,season,growth), gB=rec._kg, bB=rec._kb, lB=rec._kl;
   /* This clump's own SLOT — what identifies the plant rather than the moment.
 
@@ -2970,6 +3056,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   if (PSPRITE.map.has(kk)) PSPRITE.map.delete(kk);   // LRU: re-insert at the end
   e.used=PSPRITE.frame; e.slot=slot; e.pre=false;   // slot carried so eviction can clear the index
   PSPRITE.map.set(kk,e);
+  if (rec.shared){ rec._fe=e; rec._ff=PSPRITE.frame; }
   blitPlantSprite(ctx,e,bx,by,sway);
 }
 function blitPlantSprite(ctx,e,bx,by,sway){
@@ -3097,13 +3184,15 @@ function aheadBakePlant(e,prepared=false){
   // the bloom part of the key as the coming season will ask for it (plantBloomKey)
   const gB=gbucket(g,9), bB0=bloomAppearanceFor(Pn,next)?gbucket(bl,4):0, lB=lv===undefined?-1:lv;
   const bB=bB0+4*bloomAfterBucket(bB0,af);
+  // a small clump will ask for its kind's look at that growth, not for a picture of its own (SHARE)
+  const own=e; e=sharedPlantRec(own,g,own.detail,own.seed);
   const cut=e.kSlot.lastIndexOf('|'), slot=e.kSlot.slice(0,cut+1)+next;
   const kk=slot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+e.kTail;
   const have=PSPRITE.map.get(kk);
   if (have && (!prepared || preparedSpriteScale(have,pspriteScale()))){
-    have.used=Math.max(have.used||0,PSPRITE.frame+AHEAD.LEASE); e.aheadFor=AHEAD.epoch; return;
+    have.used=Math.max(have.used||0,PSPRITE.frame+AHEAD.LEASE); own.aheadFor=AHEAD.epoch; return;
   }
-  const ne=makePlantSprite(e.p.s,gB,bB,next,e.seed,e.p.v,e.detail,lB);
+  const ne=makePlantSprite(own.p.s,gB,bB,next,e.seed,own.p.v,e===own?own.detail:undefined,lB);
   AHEAD.ms+=performance.now()-t0;
   if (!ne){ AHEAD.short++; return; }
   if (have) retirePlantSprite(kk,have);
@@ -3113,7 +3202,7 @@ function aheadBakePlant(e,prepared=false){
   ne.used=PSPRITE.frame+AHEAD.LEASE; ne.slot=slot;
   PSPRITE.map.set(kk,ne); PSPRITE.slot.set(slot,kk); PSPRITE.bytes+=ne.bytes;
   PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk);
-  e.aheadFor=AHEAD.epoch;
+  own.aheadFor=AHEAD.epoch;
 }
 function aheadBakeStruct(e,W,H,lit,prepared=false){
   const next=AHEAD.season;
@@ -3299,6 +3388,7 @@ function releasePlantEntry(e){
 function releaseGardenSurfaces(){
   for (const [k,e] of [...PSPRITE.map]) retirePlantSprite(k,e);
   PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0; PSPRITE.waiting=0;
+  forgetSharedLooks();
   for (const e of SSPRITE.map.values()) retireSpriteImage(e.cv);
   SSPRITE.map.clear(); SSPRITE.bytes=0;
   ATLAS.fresh.length=0; atlasSweep();
@@ -3456,17 +3546,19 @@ function prebakePlant(e,season){
   let g=sceneEntGrowth(e);
   if (e.kind===SCENE_K.BULB){ if (g<=0.02){ e._pb=PREBAKE.gen; return 0; } }   // underground
   else if (e.stunt) g*=STUNT_GROWTH;
-  const kk=plantKeyNow(e,e.p.s,e.p.v,season,g), have=PSPRITE.map.get(kk);
+  // a small clump is its kind's look (SHARE): `r` is the record the frame will draw it from
+  const detail=e.kind===SCENE_K.PLANT?e.detail:undefined, r=sharedPlantRec(e,g,detail,e.seed);
+  const kk=plantKeyNow(r,e.p.s,e.p.v,season,g), have=PSPRITE.map.get(kk);
   if (have){
     const hs=have.want!==undefined?have.want:have.s;
     const stale=Math.abs(hs-PSPRITE.scale)>PSPRITE.scale*0.12 && !(have.capped && PSPRITE.scale>have.s);
     if (!stale || !spriteZoomSettled){ if (!stale) e._pb=PREBAKE.gen; return 0; }
   }
-  const ne=makePlantSprite(e.p.s,e._kg,e._kb,season,e.seed,e.p.v,e.kind===SCENE_K.PLANT?e.detail:undefined,e._kl);
+  const ne=makePlantSprite(e.p.s,r._kg,r._kb,season,r.seed,e.p.v,r===e?detail:undefined,r._kl);
   if (!ne){ e._pb=PREBAKE.gen; return 0; }
   if (have){ PSPRITE.bytes-=have.bytes; releasePlantEntry(have); }
   // whatever this clump was cached as before is an old bucket: dead
-  const slot=e.kSlot, was=PSPRITE.slot.get(slot);
+  const slot=r.kSlot, was=PSPRITE.slot.get(slot);
   if (was!==undefined && was!==kk){ const d=PSPRITE.map.get(was); if (d) retirePlantSprite(was,d); }
   ne.used=PSPRITE.frame; ne.slot=slot; ne.pre=true;   // baked ahead and not yet drawn
   PSPRITE.map.set(kk,ne); PSPRITE.slot.set(slot,kk); PSPRITE.bytes+=ne.bytes;
@@ -5228,7 +5320,7 @@ function drawEditFx(ctx,W,H,season,sway,now){
     ctx.save();
     ctx.globalAlpha=(1-a*a)*0.95;   // held most of the way, then gone: (1-a)^2 was faint by a third
     ctx.translate(sx,by-lift); ctx.scale(s,s); ctx.translate(-sx,-by);
-    const sp=e._kk!==undefined ? PSPRITE.map.get(e._kk) : null;
+    const kr=e._sh||e, sp=kr._kk!==undefined ? PSPRITE.map.get(kr._kk) : null;   // its own sprite, or its kind's look
     if (sp && sp.cv && sp.cv.width){ sp.used=PSPRITE.frame; blitPlantSprite(ctx,sp,sx,by,sway); }
     else if (EDIT_FX.proc<EDIT_FX.LIFT_PROC_MS){
       const t0=performance.now();

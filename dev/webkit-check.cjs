@@ -101,7 +101,7 @@ async function session() {
     for (const e of scene.ents) {
       if (e.kSlot === undefined || e.ox1 + ox < 0 || e.ox0 + ox > W || e.oy1 + oy < 0 || e.oy0 + oy > H) continue;
       if (e.kind === SCENE_K.BULB && sceneEntGrowth(e) <= 0.02) continue;
-      if (!PSPRITE.slot.has(e.kSlot)) n++;
+      if (!PSPRITE.slot.has(clumpSpriteSlot(e))) n++;
     }
     return n;
   };

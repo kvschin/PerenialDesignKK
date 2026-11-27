@@ -66,8 +66,9 @@ async function exercise(scenario){
   let wanted=null, stale=0, draws=0, doneCalls=0;
   const draw=drawPlantMaybeCached, blit=blitPlantSprite, request=requestSkipTo;
   drawPlantMaybeCached=function(ctx,bx,by,key,growth,season,seed,sway,v,detail,use,rec){
-    wanted=rec.kSlot+'|'+gbucket(growth,9)+'|'+plantBloomKey(rec,bloomLevel(key,v),bloomAfterNow(plantDef(key,v),season))+
-      (rec.leafOut?'|L'+leafStageForFrame(rec.sv,key,v,season):'')+rec.kTail;
+    const sr=sharedPlantRec(rec,growth,detail,seed);   // a small clump is drawn from its kind's look
+    wanted=sr.kSlot+'|'+gbucket(growth,9)+'|'+plantBloomKey(rec,bloomLevel(key,v),bloomAfterNow(plantDef(key,v),season))+
+      (rec.leafOut?'|L'+leafStageForFrame(rec.sv,key,v,season):'')+sr.kTail;
     draws++; try{return draw.apply(this,arguments);}finally{wanted=null;}
   };
   blitPlantSprite=function(ctx,e){if(wanted&&PSPRITE.map.get(wanted)!==e)stale++;return blit.apply(this,arguments);};

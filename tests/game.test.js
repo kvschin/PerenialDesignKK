@@ -28,6 +28,8 @@ function setup(gw, gh){
   game.startHere = null; game.savedView = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
   cancelPendingSkip();    // a Skip still preparing, or the time menu's prewarm, from someone else's test
+  // 100% zoom, whatever the last test left: which plants draw from a shared look follows the zoom (SHARE)
+  ZOOM = 1; baseZoom = 1; userZoom = 1; forgetSharedLooks(); setShareScale(1);
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.matrix = false; game.freePlanting = false;
   game.previewMode = 'today'; game.edgeStyle = 'organic';
   game.lastBrushTool = null; game.lastBrushVar = null;
@@ -19539,6 +19541,143 @@ test('a plant retires its own superseded sprite', () => {
   assert(PSPRITE.bytes > 0, 'the byte count still tracks the sprite it holds');
 });
 
+/* ---- small plants share a few looks (0.9.187) ---- */
+// run fn with the cache empty and plants judged at `scale` (0.07 is a big garden seen whole), and put it all back
+const withShareScale = (scale, fn) => {
+  const was = SHARE.scale, on = SHARE.on, off = PSPRITE.off, photo = game.photo, cold = PSPRITE.cold;
+  const wipe = () => { PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0; forgetSharedLooks(); };
+  // cold, as behind the opening cover: every bake is done, none waits for a later frame's allowance
+  wipe(); PSPRITE.off = false; PSPRITE.cold = true; SHARE.on = true; game.photo = false; setShareScale(scale);
+  try { return fn(document.createElement('canvas').getContext('2d')); }
+  finally { wipe(); setShareScale(was); SHARE.on = on; PSPRITE.off = off; PSPRITE.cold = cold; game.photo = photo; }
+};
+const countingBakes = fn => { const make = makePlantSprite; let n = 0;
+  makePlantSprite = function(){ n++; return make.apply(this, arguments); };
+  try { fn(); } finally { makePlantSprite = make; }
+  return n; };
+
+test('zoomed far out, the clumps of one kind draw from a few looks they share', () => {
+  setup(20, 20);
+  withShareScale(0.07, ctx => {
+    const draw = () => { for (let seed = 100; seed < 140; seed++) drawPlantMaybeCached(ctx, seed, 0, 'echinacea', 1, 'Summer', seed, 0.6, null, undefined, true); };
+    const make = makePlantSprite, seeds = [];
+    makePlantSprite = function(key, gB, bK, season, seed){ seeds.push(seed); return make.apply(this, arguments); };
+    try { draw(); } finally { makePlantSprite = make; }
+    assertEqual(seeds.length, SHARE.LOOKS, 'forty clumps are baked as the looks they share, not one each');
+    assertEqual(seeds.slice().sort().join(), [0, 1, 2, 3].map(l => shareSeed('echinacea|', l)).sort().join(),
+      'each from the seed that belongs to the look, not from whichever clump asked first');
+    assertEqual(PSPRITE.map.size, SHARE.LOOKS, 'and that is all the cache holds');
+    assert([...PSPRITE.slot.keys()].every(k => k[0] === '~'), 'each in a slot of its look');
+    assertEqual(countingBakes(draw), 0, 'drawing them again bakes nothing');
+    // and once a look has been found in a frame, the rest of its clumps are one blit each
+    const keyNow = plantKeyNow; let keys = 0;
+    plantKeyNow = function(){ keys++; return keyNow.apply(this, arguments); };
+    try { PSPRITE.frame++; draw(); } finally { plantKeyNow = keyNow; }
+    assertEqual(keys, SHARE.LOOKS, 'forty clumps, four key lookups');
+    // another kind has looks of its own
+    drawPlantMaybeCached(ctx, 0, 0, 'bluestem', 1, 'Summer', 100, 0, null, undefined, true);
+    assertEqual(PSPRITE.map.size, SHARE.LOOKS + 1, 'a look belongs to one species');
+  });
+  // close up, every clump is itself
+  withShareScale(1, ctx => {
+    for (let seed = 100; seed < 106; seed++) drawPlantMaybeCached(ctx, 0, 0, 'echinacea', 1, 'Summer', seed, 0, null, undefined, true);
+    assertEqual(PSPRITE.map.size, 6, 'six clumps, six sprites');
+    assert([...PSPRITE.slot.keys()].every(k => k[0] !== '~'), 'each in its own slot');
+  });
+});
+
+test('a look is named for its kind, its growth and the clump seed that picks it', () => {
+  setup(20, 20);
+  withShareScale(0.07, () => {
+    const rec = {}; bakePlantKeyParts(rec, 'echinacea', null, 'Summer', 12345, undefined);
+    assert(rec.big > 20 && rec.big < 4000, 'a record knows how big its kind draws: ' + rec.big);
+    const look = 12345 % SHARE.LOOKS, p = sharedPlantRec(rec, 1, undefined, 12345);
+    assert(p !== rec && p.shared, 'small enough to share');
+    assertEqual(p.kSlot, '~' + look + 'g8|echinacea||Summer', 'the slot swaps the seed for the look and its growth bucket');
+    assertEqual(sharedPlantRec(rec, 0.5, undefined, 12345).kSlot, '~' + look + 'g4|echinacea||Summer', 'a half-grown clump is another look');
+    const twin = {}; bakePlantKeyParts(twin, 'echinacea', null, 'Summer', 12345 + SHARE.LOOKS, undefined);
+    assert(sharedPlantRec(twin, 1, undefined, 12345 + SHARE.LOOKS) === sharedPlantRec(rec, 1, undefined, 12345), 'two clumps picking one look get one record');
+    const other = {}; bakePlantKeyParts(other, 'echinacea', null, 'Summer', 12346, undefined);
+    const q = sharedPlantRec(other, 1, undefined, 12346);
+    assert(q !== p && q.seed !== p.seed, 'the next seed picks the next look, drawn from a seed of its own');
+    assertEqual(p.seed, shareSeed('echinacea|', look), 'which is the same seed in every garden');
+    // what never shares
+    assert(sharedPlantRec(rec, 1, { hedge: 1 }, 12345) === rec, 'a clump joined to its neighbours is always its own drawing');
+    game.photo = true; assert(sharedPlantRec(rec, 1, undefined, 12345) === rec, 'and so is everything in a kept frame'); game.photo = false;
+    SHARE.on = false; assert(sharedPlantRec(rec, 1, undefined, 12345) === rec, 'and with sharing off'); SHARE.on = true;
+    setShareScale(1);
+    assert(sharedPlantRec(rec, 1, undefined, 12345) === rec && !rec._sh, 'close up it is itself again, and no longer points at a look');
+    const tree = {}; bakePlantKeyParts(tree, PLANT_KEYS.find(k => PLANTS[k].type === 'tree'), null, 'Summer', 5, undefined);
+    setShareScale(0.07);
+    assert(tree.big > rec.big, 'a tree draws bigger than a coneflower');
+    setShareScale(SHARE.PX / ((rec.big + tree.big) / 2));
+    assert(sharedPlantRec(rec, 1, undefined, 12345) !== rec && sharedPlantRec(tree, 1, undefined, 5) === tree, 'so at one zoom the perennial shares while the tree is still itself');
+  });
+});
+
+test('clumps of one look at different growths do not retire each other', () => {
+  setup(20, 20);
+  withShareScale(0.07, ctx => {
+    const bakes = countingBakes(() => {
+      for (let i = 0; i < 6; i++){
+        drawPlantMaybeCached(ctx, 0, 0, 'echinacea', 0.5, 'Summer', 400, 0, null, undefined, true);    // planted lately
+        drawPlantMaybeCached(ctx, 9, 0, 'echinacea', 1, 'Summer', 404, 0, null, undefined, true);      // established
+      }
+    });
+    assertEqual(bakes, 2, 'two sizes of one look are two sprites, each baked once');
+    assertEqual(PSPRITE.map.size, 2, 'and both are still held');
+  });
+});
+
+test('which plants share follows a zoom out at once and a zoom in when it settles', () => {
+  setup(20, 20);
+  const z = ZOOM, settled = spriteZoomSettled, opening = gardenOpening, scale = SHARE.scale;
+  try {
+    gardenOpening = null;
+    ZOOM = 1; spriteZoomSettled = true; pspriteFrame();
+    assertEqual(SHARE.scale, pspriteScale(), 'at rest it is the zoom');
+    assertEqual(SHARE.maxBig, SHARE.PX / SHARE.scale, 'kept as a size in draw units');
+    ZOOM = 0.4; spriteZoomSettled = false; pspriteFrame();
+    assertEqual(SHARE.scale, pspriteScale(), 'zooming out, more plants are small the moment they are');
+    ZOOM = 0.9; pspriteFrame();
+    assert(SHARE.scale < pspriteScale(), 'zooming in, nothing goes back to its own picture mid-gesture');
+    spriteZoomSettled = true; pspriteFrame();
+    assertEqual(SHARE.scale, pspriteScale(), 'until the gesture ends');
+    ZOOM = 0.2; spriteZoomSettled = false; pspriteFrame();
+    ZOOM = 0.6; gardenOpening = { ready: false }; pspriteFrame();
+    assertEqual(SHARE.scale, pspriteScale(), 'and a garden being opened is not a gesture');
+  } finally { ZOOM = z; spriteZoomSettled = settled; gardenOpening = opening; setShareScale(scale); }
+});
+
+test('the look-ahead, the ring and the lift all find a small clump in its look', () => {
+  setup(20, 20); game.pausedAt = Date.now(); game.previewMode = 'established';
+  game.tool = 'echinacea'; game.toolVar = null; placePlantAt(8, 8);
+  withShareScale(0.07, ctx => {
+    buildScene(0, 0);
+    const e = scene.ents.find(r => r.p && r.p.s === 'echinacea');
+    assert(e && e.big !== undefined, 'a scene record knows how big its kind draws');
+    assert(clumpSpriteSlot(e)[0] === '~', 'the slot it is kept in is its look\'s');
+    // the frame
+    drawPlantMaybeCached(ctx, 0, 0, 'echinacea', sceneEntGrowth(e), 'Summer', e.seed, 0, null, e.detail, true, e);
+    assert(e._sh && PSPRITE.map.has(e._sh._kk), 'drawn, the clump points at the look it was drawn from: what the erase lift blits');
+    assert(!PSPRITE.slot.has(e.kSlot), 'and holds no sprite of its own');
+    // the ring, baking ahead of the camera
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0;
+    assertEqual(prebakePlant(e, 'Summer'), 1, 'the ring bakes it');
+    assert(PSPRITE.slot.has(clumpSpriteSlot(e)) && !PSPRITE.slot.has(e.kSlot), 'as its look');
+    // the look-ahead, for the season coming
+    const A = { season: AHEAD.season, at: AHEAD.at, ms: AHEAD.ms, budget: AHEAD.budget, short: AHEAD.short, epoch: AHEAD.epoch };
+    try {
+      AHEAD.season = 'Fall'; AHEAD.at = game.elapsedMs; AHEAD.ms = 0; AHEAD.budget = 1e9; AHEAD.epoch++;
+      aheadBakePlant(e);
+      const fall = [...PSPRITE.slot.keys()].filter(k => k.endsWith('|Fall'));
+      assertEqual(fall.length, 1, 'one Fall sprite is baked ahead');
+      assert(fall[0][0] === '~', 'and it is the look, which is what the Fall frame will ask for');
+      assertEqual(e.aheadFor, AHEAD.epoch, 'the clump is marked done');
+    } finally { Object.assign(AHEAD, A); }
+  });
+});
+
 test('a clump keeps one sprite per season, because comparing seasons is the point', () => {
   setup(20, 20);
   const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
@@ -20287,7 +20426,7 @@ test('clumps just off screen are baked ahead of the camera, within the frame\'s 
     // and the pictures are the ones the frame asks for: pan them into view
     const before=PSPRITE.map.size;
     cam.x+=W*0.4; PSPRITE.active=true; render(9100);
-    const missing=onScreen().filter(e=>!PSPRITE.slot.has(e.kSlot)).length;
+    const missing=onScreen().filter(e=>!PSPRITE.slot.has(clumpSpriteSlot(e))).length;
     assertEqual(missing, 0, 'every clump the pan brought in had its sprite waiting or baked it at once');
     // not while time runs: every bucket is moving and the bake would be dead on arrival
     PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0; PREBAKE.gen++;
