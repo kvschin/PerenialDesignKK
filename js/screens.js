@@ -1471,7 +1471,7 @@ function worldCard(w){
   const info=document.createElement('span'); info.className='world-info';
   const nm=document.createElement('button'); nm.type='button'; nm.className='wname world-open';
   nm.textContent=w.name||'My garden';
-  nm.onclick=()=>enterWorld(w.id);
+  nm.onclick=()=>openWorldFromCard(row,w.id);
   const meta=document.createElement('span'); meta.className='meta';
   /* 1.5 was feet-per-tile written as a literal in three places (here and
      twice on the plan sheet). It reads TILE_IN now, so the card cannot start
@@ -1504,6 +1504,90 @@ function worldCard(w){
   queueWorldPicture({row, thumb, id:w.id, gen:worldPicGen,
     onBlob: sum ? null : s=>{ const m=worldRowSummary(s); if (m) fillWorldCardDetails(row,details,m); }});
   return row;
+}
+/* ---------- opening a garden from its card ----------
+   The card's picture GROWS into the canvas: a copy of it, laid at the size it
+   will end at (the picture fitted to the window, 4:3 like the card) and moved
+   back by a transform onto the card, then let go of. It stands over everything
+   (the opening cover is z-index 60) and takes no pointer, so the garden is
+   read and opened under it exactly as before. Once it has landed AND the
+   garden has opened under it, it fades, handing over to the "Opening garden"
+   cover, or to the garden itself where that was quicker than the grow
+   (finishGardenOpen(true) fades the cover under it). A garden that opens
+   before the picture lands sends it on to the clear canvas the garden was
+   just fitted to (usableCanvasRect), so as it fades its plot lies roughly
+   over the real one rather than beside it. A garden that fails to load
+   takes it away at once. Transform and opacity only, over the title
+   border's canvas and then the still cover; reduced motion opens as before. */
+const GROW={MS:300, FADE_MS:200};
+let gardenGrow=null;
+async function openWorldFromCard(row,id){
+  const g=growFromCard(row && row.querySelector ? row.querySelector('.world-thumb') : null);
+  let ok=false;
+  try{ ok=await enterWorld(id); }
+  finally{ if (g){ if (ok) growHandOver(g); else growDrop(g); } }
+  return ok;
+}
+function growFromCard(thumb){
+  if (gardenGrow) growDrop(gardenGrow);
+  if (!thumb || !thumb.getBoundingClientRect || reducedMotion() || !hasLayout()) return null;
+  const r=thumb.getBoundingClientRect(), W=innerWidth, H=innerHeight;
+  if (!r.width || !r.height || !W || !H) return null;
+  const el=document.createElement('canvas');
+  el.width=thumb.naturalWidth||thumb.width||280; el.height=thumb.naturalHeight||thumb.height||210;
+  const c=el.getContext && el.getContext('2d'); if (!c) return null;
+  c.fillStyle='#241a16'; c.fillRect(0,0,el.width,el.height);   // .world-thumb's own plate, under a map not yet drawn
+  try{ c.drawImage(thumb,0,0,el.width,el.height); }catch(e){}
+  const aspect=r.width/r.height;
+  let w=W, h=W/aspect; if (h>H){ h=H; w=H*aspect; }
+  const x=(W-w)/2, y=(H-h)/2, k=r.width/w;
+  el.className='garden-grow'; el.setAttribute('aria-hidden','true');
+  Object.assign(el.style,{left:x+'px', top:y+'px', width:w+'px', height:h+'px',
+    transform:`translate(${(r.left-x).toFixed(1)}px,${(r.top-y).toFixed(1)}px) scale(${k.toFixed(4)})`});
+  document.body.appendChild(el);
+  el.getBoundingClientRect();             // the start, committed before the transition is set
+  el.style.transition=`transform ${GROW.MS}ms var(--ease-emphasized)`;
+  el.style.transform='';
+  const g={el, landed:false, handed:false, fading:false, timer:0, t0:performance.now()};
+  g.timer=setTimeout(()=>{ g.landed=true; if (g.handed) growFade(g); },GROW.MS);
+  gardenGrow=g;
+  return g;
+}
+function growHandOver(g){
+  if (!g || g.handed) return; g.handed=true;
+  if (g.landed) growFade(g); else growRetarget(g);
+}
+/* Where the garden now is on screen: the framing rect fitPlot used, in the
+   window's coordinates. The picture keeps its 4:3 and is fitted inside it. */
+function growRetarget(g){
+  if (typeof usableCanvasRect!=='function' || typeof canvasViewportRect!=='function') return;
+  const u=usableCanvasRect(), f=canvasViewportRect(), el=g.el;
+  const W=u.right-u.left, H=u.bottom-u.top; if (!(W>40 && H>40)) return;
+  const now=el.getBoundingClientRect(), aspect=el.width/el.height;
+  let w=W, h=W/aspect; if (h>H){ h=H; w=H*aspect; }
+  const x=f.left+u.left+(W-w)/2, y=f.top+u.top+(H-h)/2;
+  el.style.transition='none';
+  Object.assign(el.style,{left:x+'px', top:y+'px', width:w+'px', height:h+'px',
+    transform:`translate(${(now.left-x).toFixed(1)}px,${(now.top-y).toFixed(1)}px) scale(${(now.width/w).toFixed(4)})`});
+  el.getBoundingClientRect();
+  const rest=Math.max(140,GROW.MS-(performance.now()-g.t0));
+  el.style.transition=`transform ${Math.round(rest)}ms var(--ease-emphasized)`;
+  el.style.transform='';
+  clearTimeout(g.timer);
+  g.timer=setTimeout(()=>{ g.landed=true; growFade(g); },rest);
+}
+function growFade(g){
+  if (g.fading) return; g.fading=true;
+  clearTimeout(g.timer);
+  g.el.style.transition=`opacity ${GROW.FADE_MS}ms var(--ease-standard)`;
+  g.el.style.opacity='0';
+  g.timer=setTimeout(()=>growDrop(g),GROW.FADE_MS+40);
+}
+function growDrop(g){
+  if (!g) return;
+  clearTimeout(g.timer);
+  if (g.el && g.el.parentNode) g.el.remove();
+  if (gardenGrow===g) gardenGrow=null;
 }
 function fillWorldCardDetails(row,details,sum){
   details.textContent=`${sum.plants} plant${sum.plants===1?'':'s'} · ${sum.season}`;
