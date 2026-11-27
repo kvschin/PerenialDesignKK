@@ -667,11 +667,15 @@ function tourClearTarget(){
    (.season-box::after is the hold-to-fast-forward sweep), and keeping it apart
    is also what lets the pulse animate transform/opacity on its own compositor
    layer instead of repainting chrome over the garden every frame. */
-function tourPlaceHalo(anchor){
-  if (!anchor || !anchor.getBoundingClientRect) return null;
-  const r=anchor.getBoundingClientRect();
-  if (!r.width && !r.height) return null;      // headless, or mid-rebuild
-  const halo=document.createElement('div');
+/* The halo is KEPT from step to step (and from one re-pin to the next), so it
+   can travel to the next control with the callout (tourGlide) and its pulse
+   runs on rather than starting over at every render. */
+function tourPlaceHalo(anchor,hold){
+  const prev=document.getElementById('tourHalo');
+  const r=anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null;
+  if (!r || (!r.width && !r.height)){ if (prev) prev.remove(); return null; }   // headless, or mid-rebuild
+  const from=tourGlideFrom(prev);
+  const halo=prev||document.createElement('div');
   halo.id='tourHalo';
   halo.setAttribute('aria-hidden','true');
   const pad=5;
@@ -683,9 +687,76 @@ function tourPlaceHalo(anchor){
      capsule (the zoom pill) does not draw a rectangle around it. */
   const cs=typeof getComputedStyle==='function' ? getComputedStyle(anchor) : null;
   const br=cs && cs.borderRadius;
-  if (br && br!=='0px' && br!=='') halo.style.borderRadius=`calc(${br.split(' ')[0]} + ${pad}px)`;
-  document.body.appendChild(halo);
+  halo.style.borderRadius=(br && br!=='0px' && br!=='') ? `calc(${br.split(' ')[0]} + ${pad}px)` : '';
+  if (!prev) document.body.appendChild(halo);
+  tourGlide(halo,from,true,hold);
   return halo;
+}
+/* The callout and its halo GO to the next step's control instead of jumping
+   there: a FLIP on transform. Each is laid out at its new place, put back by a
+   transform to where it was on screen, and the transform is let go of over
+   --motion-view. Where it was: at rest, its own left/top (and size), which is
+   no layout read, since tourRender runs on every rail refresh while the tour
+   is up; in flight, read off the screen (getBoundingClientRect includes the
+   transform), so a re-pin while it is still going (tourRepin, two frames and
+   240ms on; the sheet's FLIP moving the control under it) carries on from
+   where it has got to rather than jumping back. A render that lands it where
+   it is already heading changes nothing, so the glide is not restarted by the
+   re-pins that find the layout settled. Starting one costs a style flush and
+   no layout: where it is going is the style just written.
+
+   `hold`: a step that drives the library to another state places the callout
+   against a sheet still on its way (applySheetState's FLIP), and the re-pin
+   then moves it again, so gliding to each place in turn sent it down and back
+   up. While the sheet travels (TOUR_HOLD_MS) the callout and halo are held
+   where they are on screen, by the same transform, and glide once it has
+   landed (tourHoldTimer renders again, whatever tourRepin is doing).
+
+   The halo also takes the old control's SIZE back (scale, about its centre),
+   and lets go of it with the move. The scale is held to a quarter and four
+   times, wider than any two controls the tour rings (the season box is under
+   three rail buttons): a tighter clamp drew a held ring at the wrong size, and
+   a ring scaled that far is thick at the start of a glide only. Transform only: the
+   halo sits over the garden canvas, and its size changing as a width would be
+   a repaint of chrome over it on every frame. */
+const TOUR_HOLD_MS=220;
+let tourHoldUntil=0, tourHoldTimer=0;
+function tourStyleBox(el){
+  const st=el.style, l=parseFloat(st.left), t=parseFloat(st.top);
+  return Number.isFinite(l) && Number.isFinite(t)
+    ? {left:l, top:t, width:parseFloat(st.width)||0, height:parseFloat(st.height)||0} : null;
+}
+function tourGlideFrom(el){
+  if (!el || !el.isConnected || !el.style) return null;
+  if (!(el._glideUntil>performance.now())){ const b=tourStyleBox(el); if (b) return b; }
+  if (!el.getBoundingClientRect) return null;
+  const r=el.getBoundingClientRect();
+  return (r.width || r.height) ? {left:r.left, top:r.top, width:r.width, height:r.height} : null;
+}
+function tourGlide(el,from,morph,hold){
+  if (!el || !el.style) return;
+  const st=el.style, at=[st.left,st.top,st.width,st.height].join('|');
+  if (el._glideAt===at) return;               // already there, or on its way there
+  el._glideAt=hold ? null : at;               // held: the render that lets go has to move it
+  st.transition='none'; st.transform='';
+  el._glideUntil=0;                           // at rest where its style says, until a glide or a hold starts
+  const to=from && !reducedMotion() ? tourStyleBox(el) : null;
+  if (!to) return;
+  let dx=from.left-to.left, dy=from.top-to.top, sx=1, sy=1;
+  if (morph){
+    if (!(to.width>0 && to.height>0 && from.width>0 && from.height>0)) return;
+    const k=v=>Math.max(0.25,Math.min(4,v));
+    sx=k(from.width/to.width); sy=k(from.height/to.height);
+    dx=(from.left+from.width/2)-(to.left+to.width/2);
+    dy=(from.top+from.height/2)-(to.top+to.height/2);
+  }
+  if (Math.abs(dx)<1 && Math.abs(dy)<1 && Math.abs(sx-1)<0.02 && Math.abs(sy-1)<0.02) return;
+  st.transform=`translate(${dx.toFixed(1)}px,${dy.toFixed(1)}px)`+(morph?` scale(${sx.toFixed(3)},${sy.toFixed(3)})`:'');
+  if (hold){ el._glideUntil=Infinity; return; }   // stays where it was, read off the screen next time
+  if (typeof getComputedStyle==='function') getComputedStyle(el).transform;   // the start, committed (a style flush)
+  st.transition='transform var(--motion-view) var(--ease-emphasized)';
+  st.transform='';
+  el._glideUntil=performance.now()+VIEW_SLIDE_MS+40;
 }
 /* First VISIBLE candidate wins. visibleEl() is the same display check
    syncTopTools uses to decide whether the top bar or the compact View Tools
@@ -771,7 +842,12 @@ function tourRender(){
        FLIP), so the rect a few lines below is mid-flight — the halo landed on
        where the Drift chip was passing through rather than where it came to
        rest. Re-pin once it settles. */
-    if (drove) tourRepin();
+    if (drove){
+      tourRepin();
+      tourHoldUntil=performance.now()+TOUR_HOLD_MS;
+      clearTimeout(tourHoldTimer);
+      tourHoldTimer=setTimeout(()=>{ tourHoldUntil=0; if (tourRunning()) tourRender(); },TOUR_HOLD_MS+20);
+    }
   }
   let anchor=tourAnchorEl(step);
   /* A step that can put its own control on screen gets one chance to, and only
@@ -798,6 +874,7 @@ function tourRender(){
   if (!anchor){ if (old) old.remove(); tourClearTarget(); return; }
 
   const prog=tourProgress();
+  const from=tourGlideFrom(old);    // where the callout is on screen now, mid-glide or not
   const pop=old||document.createElement('div');
   pop.id='tourPop';
   pop.className='tour-pop';
@@ -824,11 +901,18 @@ function tourRender(){
   foot.append(skip,next);
   pop.append(head,body,foot);
 
-  tourClearTarget();
+  const prevTarget=document.querySelector('.'+TOUR_TARGET_CLASS);
+  if (prevTarget && prevTarget!==anchor) prevTarget.classList.remove(TOUR_TARGET_CLASS);
   anchor.classList.add(TOUR_TARGET_CLASS);
-  tourPlaceHalo(anchor);
-  if (typeof anchorPopover==='function') anchorPopover(pop,anchor);
+  const hold=performance.now()<tourHoldUntil;
+  tourPlaceHalo(anchor,hold);
+  /* `keep`: the callout is not appended again, which would drop a glide in
+     flight. It was appended at every render, which kept it last in the body and
+     so above the other z-index:40 popovers; 41 keeps it there without that. */
+  if (typeof anchorPopover==='function') anchorPopover(pop,anchor,true);
   else if (!pop.isConnected) document.body.appendChild(pop);
+  if (pop.style) pop.style.zIndex='41';
+  tourGlide(pop,from,false,hold);
 }
 
 /* The three per-device preference buttons that used to live in the garden menu
@@ -2220,6 +2304,49 @@ function motionOut(el,ms=MOTION_EXIT_MS){
   if (!el || !el.classList || !el.setAttribute || reducedMotion()) return;
   el.classList.add('motion-out'); el.setAttribute('inert','');
   el._outStop=afterMotion(el,ms,()=>{ el._outStop=null; motionOutStop(el); });
+}
+/* A change of view on a phone's reading surface, given a DIRECTION: the Plant
+   Library's categories -> list -> plant, and the guidebook's list -> tool.
+   Forward, the new view comes in from the right while the one it replaces goes
+   off to the left; back is the reverse, so Back reads as the way you came. Both
+   move and they are never seen together: the old one is gone in the first
+   third and the new one fades in after it (the shared-axis idea), so two lists
+   never read through each other.
+
+   The view being left is already hidden as far as the app knows (its
+   [data-libview] / [data-guideview] selector says display:none, and every
+   question asked of it answers as before). .view-leaving only keeps it PAINTED,
+   laid over the body (position:absolute) so the new view takes its place in
+   flow at once, inert and click-through, for the length of the slide. Nothing
+   waits on it: the new view is measured the moment it is shown, which the
+   guidebook's canvas depends on (syncGuideView before renderGuideDetail).
+
+   No layout (the sandbox) or reduced motion swaps the two as before.
+   `onLeft` runs once the old view has gone, and NOT if the slide is stopped
+   early (the same view coming back in, a tier crossing): whoever stops it is
+   about to rebuild that view anyway. */
+const VIEW_SLIDE_MS=260;
+function viewSlideStop(el){
+  if (!el || !el.classList) return;
+  if (el._slideStop){ el._slideStop(); el._slideStop=null; }
+  el.classList.remove('view-in','view-back-in','view-leaving','view-back-out');
+  if (el._slideInert){ el._slideInert=false; if (el.removeAttribute) el.removeAttribute('inert'); }
+}
+function viewSlide(incoming,outgoing,back,onLeft){
+  viewSlideStop(incoming); viewSlideStop(outgoing);
+  if (!incoming || incoming===outgoing || reducedMotion() || !hasLayout()) return false;
+  incoming.classList.add(back?'view-back-in':'view-in');
+  incoming._slideStop=afterMotion(incoming,VIEW_SLIDE_MS+80,()=>{
+    incoming._slideStop=null; incoming.classList.remove('view-in','view-back-in'); });
+  if (!outgoing) return true;
+  outgoing.classList.add('view-leaving');
+  if (back) outgoing.classList.add('view-back-out');
+  if (outgoing.setAttribute && !(outgoing.hasAttribute && outgoing.hasAttribute('inert'))){
+    outgoing.setAttribute('inert',''); outgoing._slideInert=true;
+  }
+  outgoing._slideStop=afterMotion(outgoing,VIEW_SLIDE_MS+80,()=>{
+    outgoing._slideStop=null; viewSlideStop(outgoing); if (onLeft) onLeft(); });
+  return true;
 }
 function openOverlay(id,focusSelector){
   const el=$(id); if (!el) return null;

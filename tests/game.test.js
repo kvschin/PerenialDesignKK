@@ -24574,7 +24574,7 @@ test('the guidebook shows the pane before it draws into it', () => {
   const src = readRepoFile('js/guide.js');
   for (const fn of ['function openGuide', 'function selectGuideEntry']) {
     const body = src.slice(src.indexOf(fn), src.indexOf('}', src.indexOf('startGuideLoop();', src.indexOf(fn))));
-    const sync = body.indexOf('syncGuideView()');
+    const sync = body.indexOf('syncGuideView(');   // (true) where it is a navigation that slides
     const draw = body.indexOf('renderGuideDetail()');
     assert(sync > -1 && draw > -1, fn + ' does both');
     assert(sync < draw, fn + ' shows the pane before drawing into it');
@@ -24638,7 +24638,7 @@ test('the keyboard keeps its place when the guidebook list is rebuilt', () => {
   /* Captured BEFORE syncGuideView, which can hide the list — a browser blurs an
      element the moment it becomes display:none, so asking afterwards always
      answers "no" and the restore never runs. */
-  assert(sel.indexOf('hadFocus') < sel.indexOf('syncGuideView()'),
+  assert(sel.indexOf('hadFocus') < sel.indexOf('syncGuideView('),
     'whether focus was in the list is read before the list can be hidden');
   /* And only then. A mouse user pressing a row must not have focus yanked. */
   assert(/if \(hadFocus\) guideRestoreFocus\(\)/.test(sel),
@@ -26818,7 +26818,7 @@ test('a garden row is not a button, and opens and acts through two separate butt
   const open = info.children[0], more = row.children.find(c => c.className === 'world-more');
   assertEqual(open.tagName, 'BUTTON', 'the name is the Open button');
   assertEqual(open.type, 'button', 'Open is a plain button');
-  assert(String(open.onclick).includes('enterWorld'), 'Open opens the garden');
+  assert(/enterWorld|openWorldFromCard/.test(String(open.onclick)), 'Open opens the garden');
   assert(/world-open/.test(open.className), 'Open carries the stretched-target class');
   assert(open.getAttribute('aria-describedby').includes('world-meta-u04row'), 'the size and date describe Open');
   assertEqual(more.tagName, 'BUTTON', 'Actions is a button');
@@ -30741,4 +30741,138 @@ test('a layer shown or hidden from the Layers menu crossfades for 250ms', () => 
     assertEqual(seasonFade.want, null, 'and with motion reduced it is a cut');
     setLayerVis('bulbs', true, false); setLayerVis('shade', false, false);
   });
+});
+
+/* ---------- chrome motion on the reading and navigation surfaces ---------- */
+const motionCss = () => readRepoFile('styles.css');
+const keyframesOf = (css, name) => {
+  const at = css.indexOf('@keyframes ' + name + '{');
+  assert(at >= 0, 'keyframes ' + name + ' exist');
+  let depth = 0, i = css.indexOf('{', at);
+  for (let j = i; j < css.length; j++){ if (css[j] === '{') depth++; else if (css[j] === '}' && --depth === 0) return css.slice(i, j + 1); }
+  return '';
+};
+const onlyTransformOpacity = (body, name) => {
+  const props = [...body.matchAll(/([a-z-]+)\s*:/g)].map(m => m[1]);
+  assert(props.length > 0, name + ' animates something');
+  props.forEach(p => assert(p === 'transform' || p === 'opacity', `${name} animates ${p}: transform and opacity only`));
+};
+test('a reading surface moves between its views in the direction it went', () => {
+  const css = motionCss();
+  /* Every rule that hides a view on SHEET spares the one LEAVING, or it would
+     vanish the moment its data attribute moved and there would be nothing to
+     slide out. */
+  const hides = [...css.matchAll(/#(?:libraryScreen\[data-libview|guideScreen\[data-guideview)="[a-z]+"\] \.(?:library|guide)-(?:cats|list|detail)[^,{]*/g)].map(m => m[0]);
+  assertEqual(hides.length, 8, 'six Library hide rules and two guidebook ones');
+  hides.forEach(h => assert(h.endsWith(':not(.view-leaving)'), h + ' spares a leaving view'));
+  ['viewInFwd', 'viewInBack', 'viewOutFwd', 'viewOutBack', 'viewFadeIn', 'viewFadeOut']
+    .forEach(n => onlyTransformOpacity(keyframesOf(css, n), n));
+  assert(/\.library-body,\.guide-body\{position:relative;overflow:hidden;overflow:clip\}/.test(css), 'both bodies clip, so a view off its place never scrolls the screen sideways');
+
+  const realLayout = hasLayout, beforeMotion = motionPref, a = document.createElement('div'), b = document.createElement('div');
+  try {
+    assertEqual(viewSlide(a, b, false), false, 'no layout (this sandbox): the views swap as before');
+    assert(!a.classList.contains('view-in') && !b.classList.contains('view-leaving'), 'and nothing is marked');
+    // eslint-disable-next-line no-global-assign
+    hasLayout = () => true;
+    assertEqual(viewSlide(a, b, false), true, 'with layout, a forward change slides');
+    assert(a.classList.contains('view-in') && b.classList.contains('view-leaving') && !b.classList.contains('view-back-out'),
+      'the new view comes in from the right and the old one goes off to the left');
+    assert(b.hasAttribute('inert') && !a.hasAttribute('inert'), 'the view going is inert, the one coming is not');
+    viewSlide(b, a, true);
+    assert(b.classList.contains('view-back-in') && !b.classList.contains('view-leaving') && !b.hasAttribute('inert'),
+      'Back: the same view coming in again is stopped going first, and comes in from the left');
+    assert(a.classList.contains('view-leaving') && a.classList.contains('view-back-out') && !a.classList.contains('view-in'),
+      'and the view it replaces goes off to the right');
+    viewSlideStop(a); viewSlideStop(b);
+    assert(!a.hasAttribute('inert') && !a.className && !b.className, 'stopping a slide takes every mark off');
+    setMotionPref('reduce');
+    assertEqual(viewSlide(a, b, false), false, 'reduced motion swaps them as before');
+    assert(!a.className && !b.className, 'without a mark');
+  } finally {
+    // eslint-disable-next-line no-global-assign
+    hasLayout = realLayout; setMotionPref(beforeMotion);
+  }
+  /* The callers that NAVIGATE ask for the slide; opening, a tier crossing and a
+     search refreshing the list it is already on do not. */
+  const lib = readRepoFile('js/library.js');
+  ["setLibView('list',true);\r\n  const list=$('libraryList'); if (list) list.scrollTop=0;", "b.onclick=()=>showLibraryDetail(k,true);",
+    "setLibView(libListMode==='none'?'cats':'list',true)"].forEach(s => assert(lib.replace(/\r\n/g, '\n').includes(s.replace(/\r\n/g, '\n')), s));
+  const guide = readRepoFile('js/guide.js');
+  assert(/guideView='list'; syncGuideView\(true\); stopGuideLoop\(\);/.test(guide), 'the guidebook\'s Back slides');
+  const sel = guide.slice(guide.indexOf('function selectGuideEntry'), guide.indexOf('function guideRestoreFocus'));
+  assert(sel.indexOf('syncGuideView(true)') > 0 && sel.indexOf('syncGuideView(true)') < sel.indexOf('renderGuideDetail()'),
+    'and a row slides, still showing the tool before it is drawn');
+});
+test('leaving a Library list empties it once it has gone, unless something filled it again', () => {
+  setup(21, 21);
+  const list = document.getElementById('libraryList');
+  libView = 'list'; libListMode = 'sections'; list.children.push(document.createElement('div'));
+  libraryLeaveList();
+  assertEqual(libView, 'cats', 'it goes to the categories');
+  assertEqual(list.children.length, 0, 'with nothing sliding (no layout here) the list is emptied at once, as before');
+  const src = readRepoFile('js/library.js');
+  assert(src.includes("if (!setLibView('cats',true,()=>{ if (libListMode==='none') clearLibraryList(); })) clearLibraryList();"),
+    'once it has slid away, it is emptied only if no category or search has built it again meanwhile');
+});
+test('the tour\'s callout and halo travel to the next step rather than jumping', () => {
+  const ui = readRepoFile('js/ui.js').replace(/\r\n/g, '\n');
+  const render = ui.slice(ui.indexOf('function tourRender(){'), ui.indexOf('\n}\n', ui.indexOf('function tourRender(){')));
+  assert(render.includes('anchorPopover(pop,anchor,true)'), 'the callout is kept in place in the document, which a glide in flight needs');
+  assert(render.includes('tourGlide(pop,from,false,hold)') && render.indexOf('const from=tourGlideFrom(old)') < render.indexOf('anchorPopover(pop'),
+    'where it was is read before it is moved');
+  assert(/if \(drove\)\{[\s\S]*?tourHoldUntil=performance\.now\(\)\+TOUR_HOLD_MS;[\s\S]*?tourHoldTimer=setTimeout\(/.test(render),
+    'a step that drives the sheet holds the two still, and its own timer lets them go');
+  assert(!/tourClearTarget\(\);\s*anchor\.classList\.add/.test(render), 'the halo is not thrown away between steps');
+  const glide = ui.slice(ui.indexOf('function tourGlide('), ui.indexOf('\n}\n', ui.indexOf('function tourGlide(')));
+  assert(/st\.transition='transform var\(--motion-view\)/.test(glide) && !/left|top/.test(glide.split('st.transition=')[2] || ''),
+    'it moves by transform alone');
+  assert(glide.includes("if (el._glideAt===at) return;"), 'a re-pin that lands where it is already heading leaves the glide alone');
+  const tray = readRepoFile('js/tray.js');
+  assert(tray.includes("if (!keep || pop.parentNode!==document.body) document.body.appendChild(pop);"), 'anchorPopover keeps a pop when asked to');
+});
+test('changing plan sheets crossfades them, and print still gives each its own page', () => {
+  const css = motionCss();
+  assert(css.includes('.plan-wrap canvas[hidden]:not(.sheet-leaving){display:none}'), 'a sheet fading off another stays painted');
+  onlyTransformOpacity(keyframesOf(css, 'sheetFade'), 'sheetFade');
+  const print = css.slice(css.indexOf('@media print{'));
+  assert(print.includes('#planScreen .plan-wrap canvas.sheet-leaving{position:static!important;animation:none!important;opacity:1!important}'),
+    'printed mid-fade, it goes back in its own place, whole');
+  assert(print.indexOf('canvas.sheet-leaving') < print.indexOf('canvas.has-sheet ~ canvas.has-sheet'), 'and the page breaks are untouched');
+  const io = readRepoFile('js/io.js');
+  const set = io.slice(io.indexOf('function setPlanSheet'), io.indexOf('function syncPlanSheets'));
+  assert(set.indexOf('syncPlanSheets()') < set.indexOf('planSheetCrossfade('), 'the state moves first; the fade only paints');
+});
+test('the bloom calendar draws its bars in, January to December and down the rows, once', () => {
+  for (let m = 2; m <= 12; m++) assert(bloomDrawDelay(0, m) > bloomDrawDelay(0, m - 1), 'later months start later');
+  assert(bloomDrawDelay(3, 1) > bloomDrawDelay(2, 1), 'lower rows start later');
+  assertEqual(bloomDrawDelay(500, 1), bloomDrawDelay(BLOOM_DRAW.ROWS, 1), 'but a long garden does not keep its last rows waiting');
+  assert(bloomDrawDelay(BLOOM_DRAW.ROWS, 12) < 700, 'the whole table is drawn inside a second');
+  const row = { name: 'A', months: [5, 6], colors: {}, color: '#c0a' };
+  assert(/--bd:\d+ms/.test(bloomMonthCellHtml(row, 6, 2)), 'each bar carries its own delay');
+  const css = motionCss();
+  onlyTransformOpacity(keyframesOf(css, 'bloomDraw'), 'bloomDraw');
+  const dot = css.slice(css.indexOf('.bloom-dot{'), css.indexOf('}', css.indexOf('.bloom-dot{')));
+  assert(/animation:bloomDraw [^;}]*var\(--bd,0ms\) backwards/.test(dot) && !/infinite/.test(dot), 'once, from its delay');
+  assert(css.includes('[data-motion="reduce"] .bloom-dot{animation:none}'), 'and not at all under reduced motion, where the delay would leave bars blank');
+});
+test('a confirm fades out like the other dialogs, and stops being the open confirm at once', () => {
+  const tray = readRepoFile('js/tray.js').replace(/\r\n/g, '\n');
+  const fn = tray.slice(tray.indexOf('function closeConfirmPop('), tray.indexOf('\n}\n', tray.indexOf('function closeConfirmPop(')));
+  assert(fn.indexOf("closeOverlay('confirmPop')") < fn.indexOf("scr.removeAttribute('id')"), 'closed through the overlay path first, which needs the id');
+  assert(fn.indexOf("scr.removeAttribute('id')") < fn.indexOf('afterMotion('), 'then gives up the id before its exit, so a second confirm can take it');
+  assert(/\['confirmPopTitle','promptPopField'\]/.test(fn), 'and the ids inside it');
+  assertEqual((tray.match(/const close=\(\)=>closeConfirmPop\(scr\);/g) || []).length, 2, 'showConfirm and showPrompt both close that way');
+  const input = readRepoFile('js/input.js');
+  assert(input.includes("if (e.key==='Escape') closeConfirmPop(confirmPop);"), 'and so does Escape');
+});
+test('a garden opened from its card grows out of the card, and a failed open takes it away', () => {
+  const src = readRepoFile('js/screens.js').replace(/\r\n/g, '\n');
+  assert(src.includes('nm.onclick=()=>openWorldFromCard(row,w.id);'), 'the card opens through the grow');
+  const open = src.slice(src.indexOf('async function openWorldFromCard'), src.indexOf('function growFromCard'));
+  assert(/finally\{ if \(g\)\{ if \(ok\) growHandOver\(g\); else growDrop\(g\); \} \}/.test(open), 'handed over on success, dropped on failure');
+  const grow = src.slice(src.indexOf('function growFromCard'), src.indexOf('function fillWorldCardDetails'));
+  assert(grow.includes('reducedMotion()') && grow.includes('hasLayout()'), 'not under reduced motion, nor without layout');
+  assert(!/style\.(left|top|width|height)\s*=/.test(grow.replace(/Object\.assign\(el\.style[^;]*;/g, '')), 'its size is set once at each target; it moves by transform');
+  assert(/\.garden-grow\{position:fixed;z-index:61;pointer-events:none;/.test(motionCss()), 'over the opening cover, never in the pointer\'s way');
 });

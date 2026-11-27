@@ -202,10 +202,37 @@ function libraryHay(key){
 function libraryMatches(key,q){ return !q || libraryHay(key).includes(q); }
 function libraryQuery(){ const s=$('librarySearch'); return ((s&&s.value)||'').toLowerCase().trim(); }
 
-function setLibView(v){
+/* `slide` marks a NAVIGATION (a card, a row, Back, a search starting or
+   clearing), which on a phone moves the views in the direction it went
+   (viewSlide, ui.js): deeper comes in from the right, Back goes off to it.
+   Every other caller (opening, a tier crossing, the search refreshing the list
+   it is already on) swaps them as before. Returns whether a slide started. */
+const LIB_VIEW_PANE={cats:'libraryCats', list:'libraryList', detail:'libraryDetail'};
+const LIB_VIEW_RANK={cats:0, list:1, detail:2};
+function libStopSlides(){ for (const v in LIB_VIEW_PANE) viewSlideStop($(LIB_VIEW_PANE[v])); }
+function setLibView(v,slide,onLeft){
+  const was=libView;
   libView=v;
   const s=$('libraryScreen'); if (s) s.dataset.libview=v;
+  let slid=false;
+  if (was!==v){
+    /* one change of view at a time: a third pane still going from the last one
+       is put away before this one starts */
+    for (const k in LIB_VIEW_PANE) if (k!==v && k!==was) viewSlideStop($(LIB_VIEW_PANE[k]));
+    if (slide && s && !s.classList.contains('hidden') && mobileSheetUi())
+      slid=viewSlide($(LIB_VIEW_PANE[v]),$(LIB_VIEW_PANE[was]),LIB_VIEW_RANK[v]<LIB_VIEW_RANK[was],onLeft);
+    else libStopSlides();
+  }
   renderLibraryHead();
+  return slid;
+}
+/* Leaving a list for the categories. The list goes off to the right with its
+   rows still on it, and is emptied once it has gone; anything that builds it
+   again in the meantime (a category, a search) empties it first anyway, which
+   is why the emptying asks whether the list is still meant to be empty. */
+function libraryLeaveList(){
+  libListMode='none'; libListCat=null;
+  if (!setLibView('cats',true,()=>{ if (libListMode==='none') clearLibraryList(); })) clearLibraryList();
 }
 /* The header says where the reader is. On a wide screen that is always the
    library, and the line under the title counts what a search has found. On a
@@ -242,13 +269,12 @@ function libraryBack(){
      is close. Keeping the tier check here means Escape, the header chevron and
      the card's trailing link all agree without each restating it. */
   if (!mobileSheetUi()){ show('menuScreen'); return; }
-  if (libView==='detail'){ setLibView(libListMode==='none'?'cats':'list'); return; }
+  if (libView==='detail'){ setLibView(libListMode==='none'?'cats':'list',true); return; }
   if (libView==='list'){
     const s=$('librarySearch'); if (s) s.value='';
-    libCat=null; libListMode='none'; libListCat=null; libMatches=null;
-    clearLibraryList();
+    libCat=null; libMatches=null;
     libraryEmptyState(false,'');
-    setLibView('cats');
+    libraryLeaveList();
     return;
   }
   show('menuScreen');
@@ -336,7 +362,7 @@ function openLibraryCategory(id){
   const s=$('librarySearch'); if (s) s.value='';
   buildLibraryList(id);
   libraryEmptyState(false,'');
-  setLibView('list');
+  setLibView('list',true);
   const list=$('libraryList'); if (list) list.scrollTop=0;
 }
 /* What a row says under the name: how tall, how much sun, how wet. They are the
@@ -361,7 +387,7 @@ function libItemButton(k,showCat){
     const cat=libraryCatFor(k);
     if (cat){ const c=document.createElement('small'); c.className='li-cat'; c.textContent=cat.label; b.append(c); }
   }
-  b.onclick=()=>showLibraryDetail(k);
+  b.onclick=()=>showLibraryDetail(k,true);
   return b;
 }
 /* catId null builds every section — the DOCK accordion, behaving exactly as it
@@ -467,6 +493,7 @@ function openLibrary(){
     search.placeholder=`Search ${libTotal} plants…`;
   }
   show('libraryScreen');
+  libStopSlides();          // a view still going from the last visit
   libTierSheet=mobileSheetUi();
   if (libTierSheet){
     buildLibraryCats();     // the dock has no category view, so it draws none of their pictures
@@ -499,6 +526,7 @@ function syncLibraryTier(){
     return;
   }
   libTierSheet=sheet;
+  libStopSlides();
   if (sheet){
     buildLibraryCats();
     if (libCat){ buildLibraryList(libCat); setLibView('list'); }
@@ -515,13 +543,13 @@ function syncLibraryTier(){
     applyLibrarySearch();
   }
 }
-function showLibraryDetail(key){
+function showLibraryDetail(key,slide){
   libSel=key;
   document.querySelectorAll('.lib-item').forEach(el=>el.classList.toggle('sel',el.dataset.k===key));
   const sheet=mobileSheetUi();
   /* Set the view BEFORE measuring: in the list view .library-detail is
      display:none and reports a clientWidth of 0. */
-  if (sheet) setLibView('detail');
+  if (sheet) setLibView('detail',slide);
   const P=PLANTS[key], d=$('libraryDetail');
   const seasons=['Spring','Summer','Fall','Winter'];
   const tile=librarySeasonTile(d), wide=libraryDetailWide(d);
@@ -614,18 +642,14 @@ function applyLibrarySearchSheet(q){
   if (q){
     const n=buildLibraryResults(q);
     libraryEmptyState(!n,q);
-    if (libView!=='detail') setLibView('list');
+    if (libView!=='detail') setLibView('list',true);
     const list=$('libraryList'); if (list) list.scrollTop=0;
     return;
   }
   libraryEmptyState(false,'');
   libMatches=null;
   if (libCat){ buildLibraryList(libCat); setLibView('list'); }
-  else {
-    libListMode='none'; libListCat=null;
-    clearLibraryList();
-    setLibView('cats');
-  }
+  else libraryLeaveList();
 }
 function applyLibrarySearchDock(q){
   let total=0;

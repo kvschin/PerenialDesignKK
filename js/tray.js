@@ -1450,8 +1450,11 @@ function popButton(label,kind,sel,fn,title,extra){
   b.onclick=ev=>{ ev.stopPropagation(); fn&&fn(); };
   return b;
 }
-function anchorPopover(pop,anchor){
-  document.body.appendChild(pop);
+/* keep: a pop already on the page stays where it is in the document rather than
+   being appended again. Moving an element in the DOM restarts its animations and
+   drops its transitions, which the tour's callout cannot afford mid-glide. */
+function anchorPopover(pop,anchor,keep){
+  if (!keep || pop.parentNode!==document.body) document.body.appendChild(pop);
   const r=anchor.getBoundingClientRect(), w=pop.offsetWidth||170, h=pop.offsetHeight||160;
   const safe=typeof usableCanvasRect==='function' ? usableCanvasRect() : {left:8,top:8,right:innerWidth-8,bottom:innerHeight-8};
   let left=Math.min(Math.round(r.left),safe.right-w);
@@ -1665,6 +1668,23 @@ function positionSelectionActions(){
   el.style.left=spot.x+'px';
   el.style.top=spot.y+'px';
 }
+/* A confirm or a prompt LEAVES as the other dialogs do (closeOverlay's motionOut)
+   and is taken out of the page once it has gone. It gives up its id the moment
+   it closes, and its title's and field's with it, so the app's one question about
+   it, "is a confirm open?" (getElementById('confirmPop'), input.js), answers no
+   at once: Escape, the focus trap and the next keypress reach what is under it,
+   and a confirm opened while this one is still fading (an OK that asks a second
+   question) takes the ids for itself and stands over it. Reduced motion removes
+   it at once, as before. */
+function closeConfirmPop(scr){
+  if (!scr) return;
+  if (scr.id==='confirmPop') closeOverlay('confirmPop');
+  ['confirmPopTitle','promptPopField'].forEach(id=>{
+    const n=scr.querySelector && scr.querySelector('#'+id); if (n && n.removeAttribute) n.removeAttribute('id'); });
+  scr.removeAttribute('id'); scr.removeAttribute('aria-labelledby');
+  if (scr.classList.contains('motion-out')) afterMotion(scr,MOTION_EXIT_MS+80,()=>scr.remove());
+  else scr.remove();
+}
 /* a small themed yes/no modal, built on the fly (matches the .screen panels).
    Returns nothing; calls onOk only if the user confirms. */
 /* cancelLabel/onCancel are optional and default to the old behaviour ("Cancel",
@@ -1684,7 +1704,7 @@ function showConfirm(title, body, okLabel, onOk, cancelLabel, onCancel){
   scr.querySelector('p').textContent=body||'';
   scr.querySelector('[data-x]').textContent=cancelLabel||'Cancel';
   scr.querySelector('[data-ok]').textContent=okLabel||'OK';
-  const close=()=>{ closeOverlay('confirmPop'); scr.remove(); };
+  const close=()=>closeConfirmPop(scr);
   const cancel=()=>{ close(); onCancel&&onCancel(); };
   scr.querySelector('[data-x]').onclick=cancel;
   scr.querySelector('[data-ok]').onclick=()=>{ close(); onOk&&onOk(); };
@@ -1710,7 +1730,7 @@ function showPrompt(title, body, value, okLabel, onOk){
   const field=scr.querySelector('#promptPopField');
   field.value=value==null?'':String(value);
   scr.querySelector('[data-ok]').textContent=okLabel||'Save';
-  const close=()=>{ closeOverlay('confirmPop'); scr.remove(); };
+  const close=()=>closeConfirmPop(scr);
   const ok=()=>{ const v=field.value; close(); onOk&&onOk(v); };
   scr.querySelector('[data-x]').onclick=close;
   scr.querySelector('[data-ok]').onclick=ok;

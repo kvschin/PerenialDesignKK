@@ -55,7 +55,7 @@ addEventListener('keydown',e=>{
      this line never ran on those routes, and focus was not trapped. */
   const confirmPop=document.getElementById('confirmPop');
   if (confirmPop){
-    if (e.key==='Escape'){ closeOverlay('confirmPop'); confirmPop.remove(); }
+    if (e.key==='Escape') closeConfirmPop(confirmPop);
     else trapOverlayFocus(confirmPop,e);
     return;
   }

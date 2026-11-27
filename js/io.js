@@ -1904,13 +1904,22 @@ function bloomRows(){
       color:planColor(def),months,colors,first:months[0]};
   }).filter(Boolean).sort((a,b)=>a.first-b.first || a.name.localeCompare(b.name));
 }
-function bloomMonthCellHtml(row,month){
+/* The bars DRAW IN when the calendar opens, January to December along each
+   row and a row at a time down the table, once: each dot grows from its left
+   end after a delay of a month's step and a row's (--bd), the rows' share
+   capped so a long garden does not keep the last rows waiting. Transform and
+   opacity on the dot alone; the table is laid out once and does not move. */
+const BLOOM_DRAW={MONTH_MS:26, ROW_MS:24, ROWS:10};
+function bloomDrawDelay(rowIdx,month){
+  return (month-1)*BLOOM_DRAW.MONTH_MS + Math.min(rowIdx,BLOOM_DRAW.ROWS)*BLOOM_DRAW.ROW_MS;
+}
+function bloomMonthCellHtml(row,month,rowIdx){
   const seasonClass=bloomMonthSeasonClass(month);
   if (!row.months.includes(month)) return `<div class="bloom-cell ${seasonClass}"></div>`;
   const label=CAL_MONTH_LABELS[month-1];
   const color=row.colors[month]||row.color;
   return `<div class="bloom-cell ${seasonClass} active" title="${htmlEscape(row.name)} blooms in ${label}">
-    <span class="bloom-dot" style="background:${color}"></span></div>`;
+    <span class="bloom-dot" style="background:${color};--bd:${bloomDrawDelay(rowIdx||0,month)}ms"></span></div>`;
 }
 function openBloomCalendar(){
   const rows=bloomRows(), body=$('bloomBody');
@@ -1920,8 +1929,8 @@ function openBloomCalendar(){
     body.innerHTML='<p class="note">Nothing blooming is planted yet. Add flowering perennials or bulbs, then come back for the calendar.</p>';
   } else {
     const head=`<div class="bloom-head">Species</div>${CAL_MONTHS.map(m=>`<div class="bloom-head month">${CAL_MONTH_LABELS[m-1]}</div>`).join('')}`;
-    const lines=rows.map(r=>{
-      const cells=CAL_MONTHS.map(m=>bloomMonthCellHtml(r,m)).join('');
+    const lines=rows.map((r,i)=>{
+      const cells=CAL_MONTHS.map(m=>bloomMonthCellHtml(r,m,i)).join('');
       return `<div class="bloom-name"><b>${htmlEscape(r.name)}</b><small>${htmlEscape(r.latin)}</small><em>${r.count} planted</em></div>${cells}`;
     }).join('');
     body.innerHTML=`<div class="bloom-wrap"><div class="bloom-grid">${head}${lines}</div></div>
@@ -2712,8 +2721,28 @@ function layerRefIds(layer){
 // which sheet is on screen; the other is built and hidden, so it still prints
 function setPlanSheet(id){
   if (game.planSheet===id) return;
+  const was=$(planSheetCanvasId(activePlanSheet().id));
   game.planSheet=id;
   syncPlanSheets();
+  planSheetCrossfade(was,$(planSheetCanvasId(activePlanSheet().id)));
+}
+/* Changing sheets CROSSFADES them. Every sheet of a set is drawn to one paper,
+   one scale and one origin (planSetGeometry), so the sheet being left can lie
+   exactly over the one coming in and fade off it: the ground stays where it
+   is and only the planting changes, which is the bulb plan shown as what it
+   is, an overlay of the same site. The canvas going is already [hidden] (the
+   app and print both treat it as gone); .sheet-leaving only keeps it painted,
+   laid over the new one at the top of the wrap's scroll, until its fade ends.
+   Print puts it back in its place (styles.css), so a sheet printed mid-fade
+   is still a page of its own. */
+function planSheetCrossfade(from,to){
+  document.querySelectorAll('.plan-wrap canvas.sheet-leaving').forEach(c=>{
+    if (c._sheetStop){ c._sheetStop(); c._sheetStop=null; }
+    c.classList.remove('sheet-leaving');
+  });
+  if (!from || !to || from===to || reducedMotion() || !hasLayout()) return;
+  from.classList.add('sheet-leaving');
+  from._sheetStop=afterMotion(from,VIEW_SLIDE_MS+120,()=>{ from._sheetStop=null; from.classList.remove('sheet-leaving'); });
 }
 function syncPlanSheets(){
   const sheets=planSheets(), active=activePlanSheet(), many=sheets.length>1;

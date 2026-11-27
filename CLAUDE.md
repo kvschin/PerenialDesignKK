@@ -10561,8 +10561,69 @@ heavy for three frames to engage.
   own `animationend` or the timeout, so the global rule is
   `.hidden:not(.motion-out)`. The other helpers are `afterMotion`,
   `motionOnce` and `motionOutStop`; exits ease on `--ease-exit`, since on the
-  entrance curves an exit was mostly gone in its first third. `#confirmPop`
-  is removed from the page outright and still has no exit.
+  entrance curves an exit was mostly gone in its first third.
+  **The places you move between now move too** (the navigation pass, after
+  0.9.179). `--motion-view` (260ms) is the token for going somewhere: longer
+  than a panel, because the eye has to follow something across the screen.
+  *The Plant Library and the guidebook on SHEET* change view as a DIRECTION
+  (`viewSlide`/`viewSlideStop`, ui.js): deeper comes in from the right while
+  the view it replaces goes off to the left, Back the reverse. Both move 48px
+  and are barely ever seen together (the old one is gone in the first 28%,
+  the new one fades in from 18%), so two lists never read through each other.
+  The view being left is hidden as far as the app knows; `.view-leaving` keeps
+  it painted, `position:absolute` over the body so the new view takes its
+  place in flow at once, inert and click-through. So every `[data-libview]`/
+  `[data-guideview]` hide rule carries `:not(.view-leaving)`, and both bodies
+  clip (`overflow:clip`), or a view 48px off its place would scroll the screen
+  sideways. Only a NAVIGATION slides: `setLibView(v,true)`,
+  `showLibraryDetail(k,true)` and `syncGuideView(true)` say so; opening, a
+  tier crossing and a search refreshing the list it is already on swap the
+  views as before. A list being left for the categories keeps its rows while
+  it goes and is emptied once it has gone (`libraryLeaveList`), unless a
+  category or a search built it again meanwhile. Nothing waits on the slide:
+  the guidebook still shows the tool before `renderGuideDetail` draws into it,
+  and focus still follows the reader. *The tour's callout and halo* GLIDE to
+  the next step's control (`tourGlide`, a FLIP on transform): where it was
+  (its own left/top at rest, so a `tourRender` on every rail refresh reads no
+  layout; the screen while a glide is in flight), laid out at its new place,
+  transformed back, let go. The halo is kept from step to step and takes the
+  old control's size back too (a scale held to a quarter and four times). A
+  re-pin that lands where it is already heading changes nothing, so
+  `tourRepin`'s two frames and 240ms do not restart it; one that lands
+  somewhere new carries on from where it has got to. A step that drives the
+  library to another state HOLDS both where they are for `TOUR_HOLD_MS`
+  (220) and then glides once: placed against a sheet still on its way, the
+  callout went down and came back up. `anchorPopover(pop,anchor,true)` keeps the callout
+  in place in the document (appending it again drops a transition in flight),
+  and z-index 41 keeps it over the other popovers, which re-appending used to
+  do. *Plan sheets crossfade* (`planSheetCrossfade`, io.js): every sheet of a
+  set is one paper, so the sheet being left lies exactly over the new one
+  (`.sheet-leaving`) and fades off it: the ground stays and only the planting
+  changes, the bulb plan shown as an overlay of the same site. Print puts a
+  sheet still fading back in its own place, so each sheet is still a page.
+  *The bloom calendar's bars draw in* when it opens, a month and a row after
+  the last (`bloomDrawDelay`, `--bd`, rows capped at ten), once per opening;
+  reduced motion has them `animation:none`, because the reduce rule keeps a
+  delay. *A confirm or prompt leaves* like the other dialogs
+  (`closeConfirmPop`, tray.js, which Escape uses too): it gives up its id, and
+  its title's and field's, the moment it closes, so "is a confirm open?"
+  (`getElementById('confirmPop')`) answers no at once and a second confirm
+  opened from the first one's OK takes the ids and stands over it while the
+  first fades; it is removed once its fade ends. *A garden opened from its
+  card grows out of it* (`openWorldFromCard`, `growFromCard`, screens.js): a
+  copy of the card's picture, fitted to the window and transformed back onto
+  the card, let go of over 300ms, at z-index 61 over the opening cover and
+  never in the pointer's way. Once it has landed and the garden is open under
+  it, it fades (200ms), handing over to the cover, or to the garden itself
+  where that was quicker; a garden that opens before the picture lands sends
+  it on to the clear canvas it was fitted to (`growRetarget`,
+  `usableCanvasRect`), so the two plots roughly coincide as it fades. A failed
+  open drops it. All of it is transform and opacity, finite and plain CSS
+  (the glides and the grow are inline transitions), and none of it runs under
+  reduced motion or without layout (the sandbox). Checked in Chrome at
+  390x844 and 1366x820 by pausing every animation (`document.getAnimations()`)
+  and stepping `currentTime`; an exit's cleanup timeout runs on real time, so
+  a frame sheet has to stretch `afterMotion` while it captures.
 - **Settings is ONE surface with two doors** (`#settingsScreen`,
   `settingsSections`/`renderSettings`/`openSettings` in screens.js): the gear
   at the top-right of the main menu, and a single **Settings** row in the garden

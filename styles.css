@@ -99,6 +99,10 @@
   --motion-control:110ms;
   --motion-menu:160ms;
   --motion-panel:200ms;
+  /* moving between PLACES (a reading surface's views, the tour's callout
+     going to its next step, one plan sheet giving way to another): longer
+     than a panel, because the eye has to follow something across the screen */
+  --motion-view:260ms;
   --ease-standard:cubic-bezier(.2,.7,.2,1);
   --ease-emphasized:cubic-bezier(.2,.8,.2,1);
   /* exits accelerate away: the decelerating curves above are for arriving,
@@ -866,12 +870,12 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
 
   /* Three views of one screen. data-libview is read ONLY here, so DOCK cannot
      reach a state that hides one of its panes. */
-  #libraryScreen[data-libview="cats"] .library-list,
-  #libraryScreen[data-libview="cats"] .library-detail,
-  #libraryScreen[data-libview="list"] .library-cats,
-  #libraryScreen[data-libview="list"] .library-detail,
-  #libraryScreen[data-libview="detail"] .library-cats,
-  #libraryScreen[data-libview="detail"] .library-list{display:none}
+  #libraryScreen[data-libview="cats"] .library-list:not(.view-leaving),
+  #libraryScreen[data-libview="cats"] .library-detail:not(.view-leaving),
+  #libraryScreen[data-libview="list"] .library-cats:not(.view-leaving),
+  #libraryScreen[data-libview="list"] .library-detail:not(.view-leaving),
+  #libraryScreen[data-libview="detail"] .library-cats:not(.view-leaving),
+  #libraryScreen[data-libview="detail"] .library-list:not(.view-leaving){display:none}
   #libraryScreen[data-libview="detail"] #librarySearch{display:none}
   /* reading a plant: the header only says which one, on one line; the card
      below carries its name at full size */
@@ -998,9 +1002,36 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
   .guide-title{font-size:22px}
   .guide-stage canvas{aspect-ratio:4/3;max-height:min(42vh,320px)}
   .guide-detail-back{display:block}
-  #guideScreen[data-guideview="list"] .guide-detail,
-  #guideScreen[data-guideview="detail"] .guide-list{display:none}
+  #guideScreen[data-guideview="list"] .guide-detail:not(.view-leaving),
+  #guideScreen[data-guideview="detail"] .guide-list:not(.view-leaving){display:none}
+
+  /* A change of view moves in the direction it went (viewSlide, ui.js): deeper
+     comes in from the right, Back goes off to the right. Both bodies clip, so a
+     view 48px off its place never makes the screen scroll sideways (overflow:
+     clip, where there is one, is not a scroller either, so nothing can scroll
+     it to a focused element). The view being left is laid over the body, so
+     the new one takes its place in flow at once; it is inert and click-through
+     while it goes. Transform and opacity only, on panes that are already
+     their own layers (will-change:scroll-position). */
+  .library-body,.guide-body{position:relative;overflow:hidden;overflow:clip}
+  #libraryScreen .view-in,#guideScreen .view-in{
+    animation:viewInFwd var(--motion-view) var(--ease-emphasized) both,viewFadeIn var(--motion-view) linear both}
+  #libraryScreen .view-back-in,#guideScreen .view-back-in{
+    animation:viewInBack var(--motion-view) var(--ease-emphasized) both,viewFadeIn var(--motion-view) linear both}
+  #libraryScreen .view-leaving,#guideScreen .view-leaving{position:absolute;inset:0;z-index:1;pointer-events:none;
+    animation:viewOutFwd var(--motion-view) var(--ease-standard) both,viewFadeOut var(--motion-view) linear both}
+  #libraryScreen .view-leaving.view-back-out,#guideScreen .view-leaving.view-back-out{
+    animation:viewOutBack var(--motion-view) var(--ease-standard) both,viewFadeOut var(--motion-view) linear both}
 }
+/* The old view is gone in the first quarter and the new one fades in after
+   it, so the two are barely ever seen together; both slide the whole way, the
+   old one on a decelerating curve so it is seen to move before it fades. */
+@keyframes viewInFwd{from{transform:translateX(48px)}to{transform:none}}
+@keyframes viewInBack{from{transform:translateX(-48px)}to{transform:none}}
+@keyframes viewOutFwd{to{transform:translateX(-48px)}}
+@keyframes viewOutBack{to{transform:translateX(48px)}}
+@keyframes viewFadeIn{0%,18%{opacity:0}to{opacity:1}}
+@keyframes viewFadeOut{0%{opacity:1}28%,to{opacity:0}}
 /* Touch sizing follows the POINTER, not the width: a tablet in landscape is
    DOCK and still a finger. Put layout in the tier query and targets here. */
 @media (pointer:coarse){
@@ -2339,7 +2370,15 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .bloom-cell.fall{background:rgba(190,120,72,.035)}
 .bloom-cell.winter{background:rgba(170,185,190,.035)}
 .bloom-dot{display:block;width:22px;height:12px;border-radius:var(--radius-pill);
-  box-shadow:0 1px 0 rgba(255,255,255,.28) inset,0 3px 10px rgba(0,0,0,.22)}
+  box-shadow:0 1px 0 rgba(255,255,255,.28) inset,0 3px 10px rgba(0,0,0,.22);
+  /* drawn in from its left end, a month and a row after the last (--bd,
+     bloomDrawDelay in io.js), once each time the calendar is built */
+  transform-origin:0 50%;
+  animation:bloomDraw var(--motion-panel) var(--ease-emphasized) var(--bd,0ms) backwards}
+@keyframes bloomDraw{from{opacity:0;transform:scaleX(.12)}to{opacity:1;transform:none}}
+/* the reduce rule shortens an animation and keeps its DELAY, which here would
+   leave every bar blank for up to half a second */
+[data-motion="reduce"] .bloom-dot{animation:none}
 .bloom-cell.active{background:rgba(var(--ink-rgb),.08)}
 @media (max-width:520px){
   .bloom-grid{min-width:900px;grid-template-columns:150px repeat(12,56px)}
@@ -2352,7 +2391,14 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 /* `display:block` on the id would beat the `hidden` attribute's UA rule, so the
    off-screen sheet has to be hidden explicitly or both canvases stack. */
 .plan-wrap canvas{display:block;width:100%;height:auto}
-.plan-wrap canvas[hidden]{display:none}
+.plan-wrap canvas[hidden]:not(.sheet-leaving){display:none}
+/* The sheet being left, fading off the one coming in (planSheetCrossfade,
+   io.js). Both are one paper, so laid at the top of the scroll it covers the
+   new sheet exactly. Opacity only, on a dialog the garden does not draw under. */
+.plan-wrap{position:relative}
+.plan-wrap canvas.sheet-leaving{position:absolute;top:0;left:0;pointer-events:none;
+  animation:sheetFade var(--motion-view) linear both}
+@keyframes sheetFade{to{opacity:0}}
 /* `.seg` is display:inline-flex, which beats the UA rule for [hidden] the same
    way the canvas rule above does — a bulb-less garden would keep the toggle. */
 .plan-sheets{margin-bottom:10px}
@@ -2390,6 +2436,8 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
      PLAN_DPI units to the inch. Falls back to 100% if it is ever missing. */
   #planScreen .plan-wrap canvas.has-sheet{display:block!important;
     width:var(--plan-in,100%)!important;max-width:none!important;height:auto}
+  /* a sheet still fading off another goes back in its own place, whole */
+  #planScreen .plan-wrap canvas.sheet-leaving{position:static!important;animation:none!important;opacity:1!important}
   /* The break goes BEFORE every sheet but the first, which is the one form of
      this that cannot emit a trailing blank page. `break-after` on all of them
      plus a `:last-of-type` exception looks equivalent and is not: of-type
@@ -3121,6 +3169,11 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
 body.garden-opening-active #gameCanvas{visibility:hidden}
 /* finishGardenOpen(true): the finished garden comes up through the cover. */
 .garden-opening.leaving{opacity:0;pointer-events:none;transition:opacity .25s var(--ease-standard)}
+/* A garden's card picture growing into the canvas as it opens (growFromCard,
+   screens.js): over the cover, under nothing, and never in the pointer's way.
+   Its size is where it ends; a transform starts it on the card. */
+.garden-grow{position:fixed;z-index:61;pointer-events:none;transform-origin:0 0;
+  border-radius:var(--radius-panel);box-shadow:var(--shadow-dialog)}
 .canvas-stage #gameCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;pointer-events:auto}
 .library-placing{display:none}
 /* Ghost that flies the docked library down into its launcher on close.

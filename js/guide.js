@@ -3367,13 +3367,24 @@ function closeGuide(){
 }
 /* SHEET walks back through the views; DOCK has nowhere to go but out. */
 function guideBack(){
-  if (guideSheetUi() && guideView==='detail'){ guideView='list'; syncGuideView(); stopGuideLoop(); return; }
+  if (guideSheetUi() && guideView==='detail'){ guideView='list'; syncGuideView(true); stopGuideLoop(); return; }
   closeGuide();
 }
-function syncGuideView(){
+/* `slide` marks a navigation (a row, Back): on a phone the tool comes in from
+   the right and Back sends it off to the right (viewSlide, ui.js), the Plant
+   Library's rule. Opening, a resize and a tier crossing swap the views as
+   before. It changes nothing about the order this runs in: the new view is
+   shown, and so measurable, before renderGuideDetail draws into it. */
+const GUIDE_VIEW_PANE={list:'guideList', detail:'guideDetail'};
+function syncGuideView(slide){
   const el=$('guideScreen'); if (!el) return;
-  const sheet=guideSheetUi();
-  el.setAttribute('data-guideview',sheet?guideView:'detail');
+  const sheet=guideSheetUi(), v=sheet?guideView:'detail';
+  const was=el.getAttribute('data-guideview');
+  el.setAttribute('data-guideview',v);
+  if (was!==v){
+    const to=$(GUIDE_VIEW_PANE[v]), from=GUIDE_VIEW_PANE[was] ? $(GUIDE_VIEW_PANE[was]) : null;
+    if (!(slide && sheet && from && guideOpen() && viewSlide(to,from,v==='list'))){ viewSlideStop(to); viewSlideStop(from); }
+  }
   renderGuideHead();
 }
 /* What the header says, and where its one back control goes. Pure, so it can be
@@ -3420,7 +3431,7 @@ function selectGuideEntry(id){
   const hadFocus=!!(list && document.activeElement && list.contains(document.activeElement));
   /* Before the draw, for the reason openGuide gives: on SHEET the detail pane
      is hidden until this runs, and a canvas measured while hidden is 0x0. */
-  syncGuideView();
+  syncGuideView(true);
   buildGuideList();          // the selected row moves
   renderGuideDetail();
   if (hadFocus) guideRestoreFocus();
