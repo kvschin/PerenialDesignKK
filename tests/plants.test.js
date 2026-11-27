@@ -150,7 +150,7 @@ test('the evergreen audit\'s Tier 3: the trees that waited for the renderer', ()
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
   assertEqual(PLANT_KEYS.length,924,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),843,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),849,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -360,6 +360,40 @@ test("the grass passes of 0.9.130 added 13 base records and 2 cultivars, and say
   assertEqual(members('miscanthus'),'giantmiscanthus,miscanthus','miscanthus: Chinese silvergrass and the giant hybrid');
   assertEqual(PLANTS.northernseaoats.name,'Northern Sea Oats','the old records keep their names');
   assertEqual(PLANTS.miscanthus.name,'Miscanthus','and Chinese silvergrass keeps its card name');
+});
+
+// The six popular switchgrasses the catalog lacked (0.9.182), each with its sources and reasoning in
+// grass-sources.json, list 'switchgrass', batch 'switchgrass-added'.
+test('the six missing switchgrasses are in, as reviewed, with their sources', () => {
+  const doc=JSON.parse(readRepoFile('docs/plant-data/grass-sources.json'));
+  const rows=doc.switchgrass.filter(r=>r.batch==='switchgrass-added');
+  assertEqual(rows.map(r=>r.ref).sort().join(),
+    ['cheyennesky','hotrod','rehbraun','rubyribbons','totempole','warrior'].map(v=>'switchgrass|'+v).join(),'the six');
+  const rgb=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));
+  for(const row of rows){
+    const v=row.ref.split('|')[1], C=PLANTS.switchgrass.cv[v], D=Object.assign({},PLANTS.switchgrass,C);
+    assert(C,row.ref+': cultivar exists');
+    assertEqual(D.heightIn,row.proposed.heightIn,row.ref+': reviewed height');
+    assertEqual(D.spread,row.proposed.spread,row.ref+': reviewed spread');
+    assertEqual(D.zones.join(),row.proposed.zones.join(),row.ref+': reviewed zones');
+    assertEqual(D.bloomMonths.join(),row.proposed.bloomMonths.join(),row.ref+': reviewed bloom');
+    assert(Object.hasOwn(C,'heightIn')&&C.h===C.heightIn,row.ref+': states its own height, and is drawn to it');
+    assert(C.note&&C.note.length>40,row.ref+': says what makes it different');
+    assert(row.sources.length>=3&&row.sources.every(u=>/^https:\/\//.test(u)),row.ref+': read against three sources or more');
+    for(const s of ['Spring','Summer','Fall','Winter']) assert(C.sea[s]&&C.sea[s].fol,row.ref+': its own '+s+' leaves');
+  }
+  // a trade name is the name, the registered cultivar its synonym
+  assertEqual(PLANTS.switchgrass.cv.rubyribbons.name,'Ruby Ribbons','Ruby Ribbons is a trade name');
+  assert(PLANTS.switchgrass.cv.rubyribbons.synonyms.includes("Panicum virgatum 'RR1'"),"and 'RR1' is the cultivar");
+  // the red ones are red when the sources say so: Hot Rod all summer, the others by fall
+  const red=c=>{ const [r,g,b]=rgb(c); return r>g+30 && r>b; };
+  assert(red(PLANTS.switchgrass.cv.hotrod.sea.Summer.fol),'Hot Rod is maroon all summer');
+  for(const v of ['cheyennesky','rubyribbons']) assert(red(PLANTS.switchgrass.cv[v].sea.Fall.fol),v+' is wine-red by fall');
+  // Totem Pole is the steel-blue column, and keeps its colour into fall
+  const tp=PLANTS.switchgrass.cv.totempole, [r,g,b]=rgb(tp.sea.Summer.fol);
+  assert(b>=g && b>r,'Totem Pole is steel blue');
+  assert(tp.spread/tp.heightIn<0.45,'and the narrowest for its height');
+  const tf=rgb(tp.sea.Fall.fol); assert(tf[1]>=tf[0],'and still blue-green in fall, not gold');
 });
 
 // The grass audit's "Missing cultivars" (0.9.131): seventeen choices, each on the record of the

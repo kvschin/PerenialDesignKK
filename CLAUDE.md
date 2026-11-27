@@ -8821,6 +8821,14 @@ multiplies by the species' `h`), so a species drawn shorter takes its cultivars 
 'Eldorado' 17% narrower, 'Bronzeschleier' 28%), one drawn taller takes them wider (fountain grass's, 11-24%), and a
 cultivar drawn shorter over a fixed-size cloud widens that cloud. 25 choices took a wider `sideScale`, measured on real pixels in `dev/grass-review.html?check` and on the
 recorded geometry. The dev-only Classic renderer is not held: it draws 'Red October' and Slender Indiangrass 10-12% off.
+**Six more switchgrasses (0.9.182)**, the popular ones the catalog lacked, each on the new drawing with no
+new code: 'Cheyenne Sky' (the most compact, wine-red from the tips), 'Hot Rod' (maroon from late spring, before any
+other), Ruby Ribbons (a trade name, 'RR1' its synonym), 'Totem Pole' (a six-foot steel-blue column that keeps its
+colour into fall), 'Warrior' (tall and arching, reddish brown, then creamed honey) and 'Rehbraun' (deer brown).
+Sources and reasoning in `grass-sources.json` `switchgrass`, batch 'switchgrass-added' (MBG, NVK, Walters, Chicago,
+Digging Dog, Proven Winners, and the 'Hot Rod' and 'Totem Pole' patents for exact sizes and RHS colours); a test holds
+each to its reviewed size, zones and bloom and to three sources. Heights 99-103%, widths 67-86% of spread; existing
+plants draw call for call as before (1,767 hashed, 6 new).
 **Switchgrass as leafy stems under the smoke (0.9.181).** All eleven switchgrass choices drew a column of
 straight blades from the crown under the mist cloud's small dense ball, the lollipop the grass audit named. A switchgrass is
 a clump of leafy culms: each tiller stands out of the crown, leaning out a little with its place in the clump, with a long

@@ -1050,8 +1050,8 @@ has the detail. The timed-out 3-year runs fit, since a slowed run needs far more
 The lollipop above is gone: every switchgrass is a clump of leafy culms (`leafStyle:'culms'`) under the smoke cloud, and
 its sizes and colours were checked against MBG, NVK, this trial and the 'Purple Tears' patent (`grass-sources.json`,
 `switchgrass`). Heavy Metal and Prairie Sky are blue, as every source says; 'Northwind', 'Prairie Sky' and 'Cloud Nine'
-took new heights. `CLAUDE.md` has the detail. Not done: the switchgrasses the catalog lacks ('Cheyenne Sky', 'Hot Rod',
-Ruby Ribbons, 'Totem Pole', 'Warrior', 'Rehbraun').
+took new heights. `CLAUDE.md` has the detail. The six popular switchgrasses the catalog lacked ('Cheyenne Sky', 'Hot Rod',
+Ruby Ribbons, 'Totem Pole', 'Warrior', 'Rehbraun') followed in 0.9.182, batch 'switchgrass-added'.
 
 ## Proposed order
 
