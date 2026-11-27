@@ -611,7 +611,10 @@ See §13a.
 - `node dev/perf-audit.cjs --profile phone --engine chrome` drives the real app
   at a real viewport and reports where a frame goes (`--garden
   dev/test-gardens/woodland.prairie.json` takes any garden file in the repo; the
-  shrub border outruns its 420s timeout at the phone profile). Two halves, deliberately:
+  shrub border outruns its 420s timeout at the phone profile). `--only view` runs the
+  view changes alone (§11i) and `--only compare --ab-old <renderer.js>` the comparison
+  controls against an eased Fit, plus an idle-frame A/B against an older build's
+  entity-pass functions (§11i, the lens note). Two halves, deliberately:
   **live**, where the app's own rAF loop draws and the probe only supplies input
   (camera, zoom ticks, brush stamps) — the honest end-to-end number, since it
   includes `shouldRenderGarden`, `updateHUD`, the compositor and the
@@ -4098,8 +4101,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     SETS the matrix for a sheared blit, which would discard the scale, so
     `plantBlitScale` is lifted for that one draw and the blit takes its
     save/restore path. Every other plant pays one compare (`sproutLive`). At most
-    `SPROUT_BURST` (12) start in one frame (a fill: the first, nearest the tap)
-    and `SPROUT_CAP` (32) run at once, the oldest finishing early. A drift
+    `SPROUT_BURST` (12) start in one frame (a fill's wave, below, starts its plants
+    through the same cap) and `SPROUT_CAP` (32) run at once, the oldest finishing early. A drift
     staggers its plants `DRIFT_STAGGER_MS` (35) apart (`plantFxDelay`, set round
     each placement in `stampDrift`), and a plant whose turn has not come is not
     drawn. *Lift* (`fxLiftPlant`, in `eraseBrush`): an erased plant or bulb
@@ -4132,6 +4135,37 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sprouts, 40 ghosts, 240 diamonds, a 240-tile flash) a demo frame is 4.4ms
     against 3.3, for at most 400ms. Live, the idle cadence stays 28-30fps before
     and after an effect.
+    **What a bulk edit or a comparison changed** (0.9.180). *A fill comes in as a
+    wave* (`fxSproutWave`, `plantFxWave`, `EDIT_FX.wait`, `FILL_STEP_MS` 28,
+    `FILL_SPREAD_MS` 420): `doFloodFill`'s breadth-first walk carries each tile's
+    flood distance, and every plant it places waits, not drawn, until that many
+    steps have passed (the whole wave held to 420ms however far the region runs),
+    then sprouts through `fxSprout`, so the caps are a sprout's own: at most
+    `SPROUT_BURST` begin in one frame and `SPROUT_CAP` grow at once, the oldest,
+    behind the front, finishing early; a plant reached when the frame's burst is
+    spent simply appears. `editFxPrune` starts what the wave has reached. Registered
+    at once, a fill's sprouts were the twelve nearest the tap growing in while
+    everything else stood there from the first frame. The planting pulses ride the
+    same delays. *A scheme switch outlines what differs* (`schemeFlash`,
+    `schemeDiffTiles`, `samePlanting`, commands.js; `SCHEME_FLASH_MS` 600): the tiles
+    whose plant or bulb is another species or cultivar, or there in one scheme and
+    not the other, compared by CONTENT, since a copied scheme holds a copy of every
+    record and identity would call every tile changed; none past `FLASH_CAP`. A
+    switch is never a crossfade: two palettes blended show colours neither scheme
+    has, which is why a Skip lands in one frame. *A replacement outlines the tiles
+    it changed* (`applyPlantReplacement`, tray.js), with the undo flash.
+    `fxFlashTiles` takes a duration (`flash.ms`). These three are off under reduced
+    motion, unlike the undo flash, which still shows there held still.
+    `sproutLive` is now the count of every plant an effect acts on (`plantFxCount`:
+    sprouts, a wave's waits and a lens growth, §11i), still the one compare an
+    idle plant pays in the entity pass, and `drawPlantFx` is the dispatch behind
+    it (a wave's plant hidden, a sprout, a growth, or a sprout inside a growth).
+    Measured with `node dev/perf-audit.cjs --only compare` (Chrome, 164Hz,
+    1440x900; a "-cut" arm takes the same change with the motion off): on the
+    demo garden a 255-tile fill's frames are 6.2ms worst either way, a scheme switch
+    flashing 60 tiles 6.2-6.3ms; on the estate test garden a 2,173-tile fill is a
+    ~210ms frame for the placing itself in both arms and the wave adds nothing, and
+    the scheme diff over two 4,707-plant schemes is 1.4ms in the click.
 
 11i. **View transitions** (0.9.179; `viewTween`, `startViewTween`/`stepViewTween`/
     `cancelViewTween`/`finishViewTween`, `zoomStep`, `fitPlotTarget`,
@@ -4226,6 +4260,67 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     rotate, lights and Fit phases now and fails on an app error: Firefox stayed
     accelerated for all 5,467 frames. `dev/ground-verify.cjs` passes and
     `dev/webkit-check.cjs` (which rotates and toggles night) is clean.
+    **Today / Established grows the plants** (0.9.180; `LENS`, `lensSwitch`/
+    `lensBegin`/`lensHeightOf`, `plantHFactor`, `lensDrawnH`, `plantGrowT`,
+    `drawPlantLive`, renderer.js). The lens was a cut, and in a garden of young
+    plants that was the whole planting jumping at once, so nobody could follow
+    which plant had become which. Now the plants on screen grow from their size
+    today to their mature size over `LENS.MS` (500, ease-in-out), or shrink back,
+    each by a SCALE about its foot as a sprout is drawn. Never a crossfade: two
+    sizes of one plant laid over each other read as two plants. Four rules.
+    *What is drawn is the destination's*: its own sprite key at its own growth, and
+    nothing baked at any size in between (drawing a growth in between would also
+    redraw the plant's SHAPE every frame, since drawPlant's stem counts and random
+    streams follow growth; `drawPlantLive` scales the procedural draw the same way).
+    *The scale is against the picture actually blitted*: a sprite carries the
+    height it was baked at (`entry.h`, `plantHFactor`, drawPlant's own 0.12/0.25
+    floors), so a clump still shown by a stand-in while its new sprite waits for
+    bake time (and a switch re-bakes every plant on screen: Today and Established
+    are one sprite SLOT, so the old size is retired) comes out at the same size its
+    own sprite would; the size moves smoothly whichever picture is up and only the
+    detail changes when the new sprite lands. Heights are bucketed as a sprite is
+    baked while sprites draw, so the last frame is exactly what is drawn after.
+    *It is two steps*: `lensSwitch`, from `setPreviewMode` before the mode changes,
+    notes the height each plant on screen is drawn at (from what is on screen, so a
+    plant still growing from a switch a moment ago starts where it is); `lensBegin`,
+    on the new lens's first frame (`editFxFrame`, which now takes W and H), keeps
+    the plants whose height changed by more than 1% with their start and end
+    heights (`LENS.grow`, p -> [h0, hE, sprites]), so an established planting in
+    summer is mostly left alone. A bulb under ground in one lens comes up from
+    nothing; one going under ground is a cut (there is nothing of its own to draw).
+    `LENS.armed` counts in `editFxBusy` until that first frame. *The growth folds
+    into the sheared blit's own matrix*: `blitPlantSprite` sets
+    `s·(bx + g(x-bx + k(y-by))), s·(by + g(y-by))` in its one `setTransform` rather
+    than the save/scale/restore a sprout uses, and the end height is `lensBegin`'s,
+    asked again only if the sprite governor has flipped since; those two took the
+    growth's own cost from 0.9us a plant to 0.13us.
+    `LENS.CAP` is there to cap the plants that grow, nearest the middle of the
+    screen first, the rest cutting to their new size; it is `Infinity`, because
+    measured nothing needed it (below). Off under reduced motion.
+    *A layer shown or hidden crossfades* (`VIEW_FADE_MS.layer` 250): every row of
+    the Layers menu that shows or hides something, overlays and the site photo
+    included, calls `requestViewFade('layer')` before it changes the layer; "All"
+    only when something was hidden.
+    **Measured** with `node dev/perf-audit.cjs --only compare --ab-old <old
+    renderer.js>` (Chrome, 164Hz, 1440x900, the eased Fit from 200% on a corner as
+    the bar; a "-cut" arm is the same change with the growth off; one warm event
+    discarded). Demo garden (323 plants, 45 grow): worst frame a switch 6-12ms
+    with growth, 6-7ms without, against the Fit's 18-24ms. Estate test garden
+    (4,707 plants, 4,615 grow at the fitted view): median 24.3ms and p95 30.4ms in
+    both arms, worst 67ms against 67-79, under the Fit's 30 / 73 / 103-133ms;
+    those frames are the re-bake of every plant, which the cut arm pays too. Held
+    mid-growth with every sprite baked (5,231 records on screen), a frame's script
+    is 13.5ms against 12.8 still; with save/scale/restore round each blit it was
+    17.8 against 13.0. `lensSwitch` is 1.7ms in the click and `lensBegin` 2.0ms on
+    the first frame. A layer toggle's frames are the same with and without the
+    fade (re-showing the perennials is an 85-127ms frame on the demo garden in both
+    arms, a cost of the toggle itself, not looked into). With NOTHING running, an
+    in-page A/B of render() against the previous build's `drawSceneEnt`,
+    `drawPlantMaybeCached`, `blitPlantSprite` and `editFxFrame`, both compiled
+    fresh from source and interleaved: 0.8 vs 0.8ms on the demo garden, 12.0 vs
+    11.9ms (min; 12.1 vs 12.1 median) on the estate. (Against the LIVE functions
+    the estate read 14.4 vs 13.7: those carry every scenario before them in the
+    JIT; compile both arms the same way.)
 
 12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
     `game.actX`/`actY` names — the last one a tap or the E key addressed),

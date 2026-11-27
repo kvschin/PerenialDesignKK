@@ -37,6 +37,8 @@
    Runs the garden (default demo-garden.json) through open, pan, fast-forward,
    a season Skip, pan, night pan, then the view changes (turns of the view and
    the lights, which crossfade through a full-screen snapshot, and eased Fits),
+   the Today/Established lens (every plant re-baked, and grown under a scale)
+   and a layer toggled (a crossfade),
    and prints fps and the probe per phase. Exits 1 if the canvas was demoted,
    naming the frame it happened on, or if the app logged an error. Needs Firefox;
    PP_FIREFOX_PATH points elsewhere. Throwaway profile, service worker disabled
@@ -92,6 +94,11 @@ const DRIVER = `
     await run('rotate',5600,()=>fire(6,900,()=>rotateView(1)));
     await run('lights',6600,()=>fire(6,1100,()=>document.getElementById('btnDayNight').onclick()));
     await run('fit',5000,()=>fire(4,1200,k=>{ if(k%2){ setUserZoom(2); } else document.getElementById('btnZoomFit').onclick(); }));
+    /* The comparison controls: Today/Established grows every plant on screen to
+       its other size, blitted from the new lens's sprites under a scale (LENS),
+       which re-bakes the whole planting; a layer shown or hidden crossfades. */
+    await run('lens',8400,()=>fire(6,1400,()=>setPreviewMode(game.previewMode==='established'?'today':'established')));
+    await run('layer',4200,()=>fire(6,700,()=>{ requestViewFade('layer'); setLayerVis('perennials',!layerShown('perennials')); refreshCanvasTools(); }));
     await say({canvas:cnv.width+'x'+cnv.height, sprites:PSPRITE.active, bitmaps:typeof spriteBitmaps!=='undefined'&&spriteBitmaps,
       errors:(typeof errLog!=='undefined'?errLog:[]).map(e=>e.where+': '+e.msg), crashed:typeof crashed!=='undefined'&&crashed,
       frames:frames.map(f=>[Math.round(f.t),f.phase,+f.sky.toFixed(2)])});

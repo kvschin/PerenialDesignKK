@@ -13,7 +13,9 @@
  * season-fade snapshot, the wash surfaces and what quitting to the menu hands
  * back are all exercised only here. This opens a garden, turns night on,
  * rotates, zooms, holds fast-forward, skips four seasons, plants shrubs and a
- * row of perennials, undoes and redoes, quits to the menu, opens the garden
+ * row of perennials, undoes and redoes, erases a sweep, switches Today and
+ * Established, hides and shows a layer, switches planting schemes, fills a
+ * region, quits to the menu, opens the garden
  * again and quits, and fails on a page error, an entry in the app's error log,
  * the crash panel, a clump shown without its own sprite at a reveal, or
  * anything the garden still holds at the menu.
@@ -175,6 +177,32 @@ async function session() {
   note('erased', { plants: swept.plants, bulbs: swept.bulbs });
   doUndo(); await sleep(400);
   note('erase undone');
+  /* The comparison controls: Today/Established grows the plants on screen to
+     their other size, blitted from the new lens's sprites under a scale (LENS);
+     a layer crossfades; a scheme switch outlines what differs; a fill comes in
+     as a wave and must reach every plant. */
+  const lensFlip = () => setPreviewMode(game.previewMode === 'established' ? 'today' : 'established');
+  lensFlip(); await raf(); await raf();
+  const grew = LENS.grow.size; await sleep(900);
+  lensFlip(); await sleep(900);
+  note('lens there and back', { grew });
+  for (const v of [false, true]) { requestViewFade('layer'); setLayerVis('perennials', v); refreshCanvasTools(); await sleep(400); }
+  note('perennials off, on');
+  const sch = createScheme(true);
+  let flashed = 0;
+  if (sch) {
+    for (const k of Object.keys(game.plants).filter(live).slice(0, 30)) setTile('plants', k, Object.assign({}, game.plants[k], { s: forb, v: null }));
+    cycleScheme(1); flashed = EDIT_FX.flash ? EDIT_FX.flash.tiles.length : 0; await sleep(800);
+    cycleScheme(1); await sleep(400);
+  }
+  note('scheme switched', { flashed });
+  setTool(forb, null); game.fillMode = true;
+  const [fx, fy] = free[free.length >> 1];
+  doFloodFill(fx, fy);
+  const waiting = EDIT_FX.wait.size; await sleep(1200);
+  note('filled', { waiting });
+  if (EDIT_FX.wait.size) problems.push('fill: the wave never reached ' + EDIT_FX.wait.size + ' plants');
+  game.fillMode = false; doUndo(); await sleep(400);
   const gid = game.worldId;
   quitToMenu(); await sleep(2500);
   const held = { sprites: PSPRITE.map.size, structures: SSPRITE.map.size, atlasPages: ATLAS.pages.length, ground: !!groundCanvas, spare: !!groundSpare, wash: washSurf.key };

@@ -485,10 +485,14 @@ function treePlacedMessage(def,x,y,k){
 /* A drift lays its cluster a beat apart (stampDrift sets this around each
    placement), so it scatters in rather than landing at once. */
 let plantFxDelay=0;
+/* A fill sets this around its placements: each plant then waits for the wave
+   (fxSproutWave) rather than registering its sprout at once. */
+let plantFxWave=false;
 const PLANT_FX_CAP=400;   // pulses at once: a fill can place a few thousand in one call
 function plantFx(x,y,p){ const o=plantOffset(p);
   if (game.fx.length<PLANT_FX_CAP) game.fx.push({x,y,ox:o.ox,oy:o.oy,t0:performance.now()+plantFxDelay});
-  fxSprout(p,plantFxDelay);   // the plant grows in from its foot (renderer.js, EDIT_FX)
+  // the plant grows in from its foot (renderer.js, EDIT_FX)
+  if (plantFxWave) fxSproutWave(p,plantFxDelay); else fxSprout(p,plantFxDelay);
   coachNotePlanting();
   /* Counted here rather than per gesture, so the number is plants and not taps.
      This runs once per placed TILE — a fat drag is dozens inside one frame — so
@@ -3892,6 +3896,31 @@ function historyFlash(was,schemeBefore){
   for (const k in was) if (!historyDiffKeys(was[k],game[k],tiles,cap)) return false;
   return fxFlashTiles(tiles);
 }
+/* ---------- what a scheme switch changed ----------
+   Comparing two schemes is flicking between them, and in a big garden the
+   eye cannot find what is different. A crossfade would answer with colours
+   neither scheme has (the Skip's reason, §11), so the switch is a cut and the
+   tiles whose plant or bulb differs are outlined, with the undo flash, for
+   SCHEME_FLASH_MS. "Differs" is the species and cultivar on the tile, or one
+   scheme having a plant there and the other not: a copied scheme holds copies
+   of every record, so identity would call every tile changed. Past FLASH_CAP
+   tiles there is nothing local to point at, as for an undo. */
+function samePlanting(a,b){
+  return recGone(a) ? recGone(b) : !recGone(b) && a.s===b.s && (a.v||null)===(b.v||null);
+}
+function schemeDiffTiles(prev,next,out,cap){
+  prev=prev||{}; next=next||{};
+  if (prev===next) return true;
+  for (const k in next) if (!samePlanting(prev[k],next[k])){ if (out.size>=cap) return false; out.add(k); }
+  for (const k in prev) if (!(k in next) && !recGone(prev[k])){ if (out.size>=cap) return false; out.add(k); }
+  return true;
+}
+function schemeFlash(was){
+  if (reducedMotion()) return false;
+  const cap=EDIT_FX.FLASH_CAP, tiles=new Set();
+  for (const k of SCHEME_LAYERS) if (!schemeDiffTiles(was[k],game[k],tiles,cap)) return false;
+  return fxFlashTiles(tiles,EDIT_FX.SCHEME_FLASH_MS);
+}
 /* ---------- scheme commands (switching is navigation, not an edit) ----------
    A switch does not push an undo snapshot: it is the same class of action as
    rotating the view or changing season. Undo still crosses schemes safely via
@@ -3899,7 +3928,10 @@ function historyFlash(was,schemeBefore){
 function switchScheme(id){
   if (!schemeById(id) || id===game.schemeActive) return false;
   resetSelectionState(); hidePlantCard();   // the selection and the card own the outgoing scheme's plants
+  const was={};
+  for (const k of SCHEME_LAYERS) was[k]=game[k];
   if (!activateScheme(id)) return false;
+  schemeFlash(was);
   buildToolTray(); refreshCanvasTools(); updateHUD();
   toast(`Now showing "${activeSchemeName()}".`);
   if (game.inGarden&&hasStorage) saveSolo(true);

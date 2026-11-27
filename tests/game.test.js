@@ -30012,7 +30012,8 @@ test('while a bloom fades, a stem that has finished carries seed, not a bud', ()
 
 /* ---------- edit feedback at the tile (EDIT_FX, renderer.js) ---------- */
 function resetEditFxForTest(){
-  EDIT_FX.sprouts.clear(); sproutLive = 0; EDIT_FX.burst = 0; EDIT_FX.lifts = []; EDIT_FX.marks = [];
+  EDIT_FX.sprouts.clear(); EDIT_FX.wait.clear(); LENS.grow.clear(); LENS.from = null; LENS.armed = false;
+  sproutLive = 0; EDIT_FX.burst = 0; EDIT_FX.lifts = []; EDIT_FX.marks = [];
   EDIT_FX.flash = null; EDIT_FX.refuse = null; EDIT_FX.until = 0; EDIT_FX.gesture = null; EDIT_FX.gestureLifts = 0;
   game.fx = [];
 }
@@ -30461,5 +30462,283 @@ test('an eased Fit zooming out bakes the ground once, at where it is going', () 
     assert(/k>GROUND_ZOOM_IN_MAX && !viewTweenGroundHeld\(groundZoom,groundCamX,groundCamY\)/.test(src), 'the magnification trigger');
     assert(/const ahead=zoomStale && !game\.photo \? viewTweenGroundTarget\(\) : null;/.test(src), 'and the full bake, never for a photo');
     assert(/finally \{ if \(ahead\)\{ ZOOM=z0; cam\.x=cx0; cam\.y=cy0; \} \}/.test(src), 'which borrows the zoom and camera and puts them back');
+  });
+});
+
+/* ---------- comparing: the lens, a scheme switch, a fill's wave, a replacement, a layer ---------- */
+function lensCase(fn){
+  setup(21, 21); resetEditFxForTest();
+  const oldVW = VW, oldVH = VH;
+  try {
+    VW = 1200; VH = 800; resetZoomFloor(); userZoom = 1; calcZoom();
+    game.pausedAt = Date.now(); game.dayOffset = 2 * DAYS_PER_SEASON + 4;   // early Fall, every established perennial full grown; the clock held
+    return withMotion('full', fn);
+  } finally { VW = oldVW; VH = oldVH; calcZoom(); resetEditFxForTest(); game.previewMode = 'today'; plantGrowT = 0; }
+}
+// the switch as setPreviewMode makes it, and the first frame after it
+function lensFlip(mode){
+  const W = VW / ZOOM, H = VH / ZOOM;
+  const armed = lensSwitch();
+  game.previewMode = mode;
+  buildScene(W, H);
+  const now = performance.now();
+  editFxFrame(now, W, H);
+  return { armed, now, W, H };
+}
+
+test('a lens switch grows the plants on screen to the other size, drawn with the new lens\'s own sprite and nothing baked in between', () => lensCase(() => {
+  game.plants['10,10'] = { s: 'bluestem', d: absDay(), t: 1 };                 // planted today: small in Today
+  game.plants['11,10'] = { s: 'bluestem', d: absDay() - 3 * YEAR_DAYS, t: 2 }; // long established: full size in both
+  snapCam(); buildScene(VW / ZOOM, VH / ZOOM);
+  const g0 = sceneEntGrowth(scene.index.plants.get('10,10'));
+  assert(g0 < 0.5, 'the young plant is small today: ' + g0);
+  assertEqual(sceneEntGrowth(scene.index.plants.get('11,10')), 1, 'the old one is full grown');
+  const W = VW / ZOOM, H = VH / ZOOM;
+  assert(lensSwitch() && LENS.armed && editFxBusy(), 'the switch notes what is on screen and asks for frames');
+  game.previewMode = 'established'; buildScene(W, H);
+  const now = performance.now(); editFxFrame(now, W, H);
+  assert(!LENS.armed, 'its first frame starts it');
+  const pYoung = game.plants['10,10'], pOld = game.plants['11,10'], P = plantDef('bluestem', null);
+  assert(LENS.grow.has(pYoung), 'the young plant grows');
+  assert(!LENS.grow.has(pOld), 'the established one, the same size in both, is left alone');
+  assertEqual(sproutLive, 1, 'one plant for the entity pass to look at');
+  assert(Math.abs(LENS.grow.get(pYoung)[0] - plantHFactor(P, g0)) < 1e-9, 'it starts at the height it was drawn at');
+  // drawn through the ordinary call at its NEW growth, with the scale beside it
+  const rec = scene.index.plants.get('10,10'), seen = [], was = globalThis.drawPlantMaybeCached;
+  globalThis.drawPlantMaybeCached = function(ctx, bx, by, key, growth, season, seed, sway, variant, detail, useSprites, r){
+    seen.push({ growth, T: plantGrowT, pbs: plantBlitScale, kk: plantKeyNow(r, key, variant, season, growth) }); };
+  plantBlitScale = 2;
+  try {
+    for (const a of [0, 0.25, 0.5, 0.75, 1.01]){ EDIT_FX.now = now + a * LENS.MS; drawSceneEnt(rec, W, H, 'Summer', 0.3, true); }
+  } finally { globalThis.drawPlantMaybeCached = was; plantBlitScale = 0; }
+  assertEqual(seen.length, 5, 'drawn on every frame');
+  assert(seen.every(s => s.growth === 1), 'always at the destination growth: no size in between is ever asked for');
+  assert(seen.every(s => s.kk === seen[0].kk), 'so always under one sprite key, the new lens\'s own');
+  assert(Math.abs(seen[0].T - plantHFactor(P, g0)) < 1e-9, 'at the start it is the height it was');
+  assert(seen[0].T < seen[1].T && seen[1].T < seen[2].T && seen[2].T < seen[3].T && seen[3].T < 1,
+    'and grows on the way: ' + seen.map(s => s.T.toFixed(3)).join(' '));
+  assertEqual(seen[4].T, 0, 'then it is drawn at its own size');
+  assert(seen.every(s => s.pbs === 2), 'the sheared-blit shortcut stays on: the scale goes into the matrix it sets');
+  assertEqual(plantGrowT, 0, 'nothing is left scaled for the next plant');
+  // it ends, and the entity pass is back to one compare
+  editFxFrame(now + LENS.MS + 1, W, H);
+  assertEqual(LENS.grow.size, 0, 'the growth ends'); assertEqual(sproutLive, 0, 'with nothing left to look at');
+  assert(!editFxBusy(now + LENS.MS + 1), 'and no reason left for full-rate frames');
+  // back to Today: it shrinks from mature to its size today
+  lensFlip('today');
+  assert(Math.abs(LENS.grow.get(pYoung)[0] - 1) < 1e-9, 'it shrinks back from its mature height');
+  // the per-plant gate is still the one compare
+  const src = String(drawSceneEnt);
+  assertEqual((src.match(/sproutLive && ctx===cx && drawPlantFx\(/g) || []).length, 2, 'both plant cases ask drawPlantFx only behind sproutLive');
+  assert(/lensSwitch\(\);\s*game\.previewMode=mode;/.test(String(setPreviewMode)), 'setPreviewMode notes the old sizes before it changes the lens');
+}));
+
+test('a lens switch mid-growth starts from where the plant is, and a bulb comes up from nothing', () => lensCase(() => {
+  game.plants['10,10'] = { s: 'bluestem', d: absDay(), t: 1 };
+  snapCam(); buildScene(VW / ZOOM, VH / ZOOM);
+  const { W, H } = lensFlip('established');
+  const p = game.plants['10,10'], rec = scene.index.plants.get('10,10');
+  LENS.t0 = performance.now() - LENS.MS / 2;              // half way there
+  const mid = lensHeightOf(rec, 1, false, performance.now());
+  assert(mid > LENS.grow.get(p)[0] && mid < 1, 'half way between: ' + mid);
+  lensSwitch();
+  assert(Math.abs(LENS.from.get(p) - mid) < 0.02, 'switching back starts from the height on screen, not from mature');
+  // a bulb under ground today has nothing to draw there: in the other lens it comes up from nothing
+  resetEditFxForTest();
+  const bulb = Object.keys(PLANTS).find(k => PLANTS[k].type === 'bulb' && !PLANTS[k].bulbSeason);   // a spring bulb
+  game.previewMode = 'today';
+  game.bulbs['12,12'] = { s: bulb, d: absDay() - YEAR_DAYS, t: 3 };
+  buildScene(W, H);
+  assert(sceneEntGrowth(scene.index.bulbs.get('12,12')) <= 0.02, 'under ground in summer');
+  lensFlip('established');
+  const bp = game.bulbs['12,12'];
+  if (LENS.grow.has(bp)){
+    assertEqual(LENS.grow.get(bp)[0], 0, 'it comes up from nothing');
+    assertEqual(lensHeightOf(scene.index.bulbs.get('12,12'), 1, false, LENS.t0), -1, 'and draws nothing at the start');
+  }
+  // with motion reduced the lens is a cut
+  resetEditFxForTest(); game.previewMode = 'today'; buildScene(W, H);
+  withMotion('reduce', () => { assert(!lensSwitch(), 'no growth with motion reduced'); });
+  assert(!LENS.armed && !LENS.grow.size, 'nothing armed');
+}));
+
+test('past its cap a lens switch grows the plants nearest the middle of the screen, and the rest change at once', () => lensCase(() => {
+  for (const x of [7, 9, 10, 11, 13]) game.plants[x + ',10'] = { s: 'bluestem', d: absDay(), t: x };
+  snapCam(); buildScene(VW / ZOOM, VH / ZOOM);
+  const cap = LENS.CAP; LENS.CAP = 2;
+  let W, H;
+  try { ({ W, H } = lensFlip('established')); } finally { LENS.CAP = cap; }
+  assertEqual(LENS.grow.size, 2, 'two of five grow');
+  const offX = W / 2 - cam.x, offY = H * 0.24 - cam.y;
+  const d = k => { const r = scene.index.plants.get(k), x = r.px + offX - W / 2, y = r.py + offY - H / 2; return x * x + y * y; };
+  const keys = Object.keys(game.plants).sort((a, b) => d(a) - d(b));
+  assert(LENS.grow.has(game.plants[keys[0]]) && LENS.grow.has(game.plants[keys[1]]), 'the two nearest the middle');
+  assert(!LENS.grow.has(game.plants[keys[4]]), 'the farthest is drawn at its new size from the first frame');
+}));
+
+test('a growing plant is scaled against the sprite actually drawn, so a stand-in comes out the same size', () => {
+  const calls = [];
+  const ctx = { save(){}, restore(){}, translate(){}, transform(){}, scale(a){ calls.push(a); }, drawImage(){}, setTransform(){} };
+  const own = { cv:{ width:10, height:10 }, s:1, ox:0, oy:0, h:0.8 }, stand = { cv:{ width:10, height:10 }, s:1, ox:0, oy:0, h:0.4 };
+  const pbs = plantBlitScale; plantBlitScale = 0; plantGrowT = 0.6;
+  try { blitPlantSprite(ctx, own, 0, 0, 0.3); blitPlantSprite(ctx, stand, 0, 0, 0.3); blitPlantSprite(ctx, own, 0, 0, 0); }
+  finally { plantGrowT = 0; plantBlitScale = pbs; }
+  assert(Math.abs(calls[0] - 0.75) < 1e-9 && Math.abs(calls[1] - 1.5) < 1e-9, 'to 0.6 of mature from a sprite baked at 0.8, and from a stand-in at 0.4');
+  assert(Math.abs(calls[2] - 0.75) < 1e-9, 'with no wind as well');
+  calls.length = 0; blitPlantSprite(ctx, own, 0, 0, 0.3); blitPlantSprite(ctx, own, 0, 0, 0);
+  assertEqual(calls.length, 0, 'an ordinary blit is not scaled');
+  // in the entity pass the scale goes into the one matrix the sheared blit sets
+  const mats = [], cx2 = cx, real = cx.setTransform;
+  cx.setTransform = function(...m){ mats.push(m); };
+  const s = 2, bx = 100, by = 50, sway = 0.4, k = sway * 0.05, map = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+  try {
+    plantBlitScale = s;
+    plantGrowT = 0.6; blitPlantSprite(cx2, own, bx, by, sway);
+    plantGrowT = 0; blitPlantSprite(cx2, own, bx, by, sway);
+  } finally { plantGrowT = 0; plantBlitScale = pbs; cx.setTransform = real; }
+  const g = 0.6 / own.h, [x, y] = [110, 40], want = [s * (bx + g * ((x - bx) + k * (y - by))), s * (by + g * (y - by))];
+  const got = map(mats[0], x, y);
+  assert(Math.abs(got[0] - want[0]) < 1e-9 && Math.abs(got[1] - want[1]) < 1e-9, 'scaled about the foot, then sheared: ' + got + ' vs ' + want);
+  assertEqual(JSON.stringify(mats[1]), JSON.stringify([s, 0, 0, s, 0, 0]), 'then the plain scale back');
+  assertEqual(JSON.stringify(mats[2]), JSON.stringify([s, 0, s * k, s, -s * k * by, 0]), 'and with nothing growing, the matrix it always set');
+  assertEqual(mats.length, 4, 'three context calls a plant either way');
+  // a live draw is at the plant's own growth, scaled
+  const P = plantDef('bluestem', null), seen = [], wasD = globalThis.drawPlant;
+  globalThis.drawPlant = function(c, bx, by, key, growth){ seen.push(growth); };
+  plantGrowT = 0.5;
+  try { drawPlantLive(ctx, 0, 0, 'bluestem', 1, 'Summer', 1, 0, null, undefined, undefined); }
+  finally { plantGrowT = 0; globalThis.drawPlant = wasD; }
+  assertEqual(seen[0], 1, 'drawn at its own growth, never one in between');
+  assert(Math.abs(calls[0] - 0.5 / plantHFactor(P, 1)) < 1e-9, 'under a scale to the height asked');
+  // a sprite carries the height it was baked at
+  const sprite = makePlantSprite('bluestem', 4, 0, 'Summer', 12345, null, null);
+  assert(sprite && Math.abs(sprite.h - plantHFactor(P, 0.5)) < 1e-9, 'a sprite baked at half growth says so');
+  assert(Math.abs(plantHFactor(plantDef('whiteoak', null), 0) - 0.12) < 1e-9 && plantHFactor(P, 0) === 0.25, 'and the heights are drawPlant\'s own floors');
+});
+
+test('a scheme switch outlines the tiles whose planting differs, for 600ms, and never crossfades', () => withMotion('full', () => {
+  setup(21, 21); resetEditFxForTest(); resetSeasonFade();
+  setTile('plants', '5,5', { s: 'bluestem', d: 0, t: 1 });
+  setTile('plants', '6,5', { s: 'bluestem', d: 0, t: 1 });
+  setTile('bulbs', '7,7', { s: 'alliumGlobemaster', d: 0, t: 1 });
+  const a = game.schemeActive, b = createScheme(true);   // a copy: every record a copy of the first
+  resetEditFxForTest();
+  switchScheme(a);
+  assertEqual(EDIT_FX.flash, null, 'two schemes alike outline nothing, though every record is a different object');
+  switchScheme(b.id);
+  setTile('plants', '6,5', { s: 'karl', d: 0, t: 3 });       // another plant
+  setTile('plants', '9,9', { s: 'karl', d: 0, t: 4 });       // a new one
+  clearTile('bulbs', '7,7');                                  // a bulb gone
+  resetEditFxForTest();
+  switchScheme(a);
+  assert(EDIT_FX.flash, 'what differs is outlined');
+  assertEqual(EDIT_FX.flash.tiles.map(t => t.join(',')).sort().join(' '), '6,5 7,7 9,9', 'exactly the three tiles');
+  assertEqual(EDIT_FX.flash.ms, EDIT_FX.SCHEME_FLASH_MS, 'for the scheme\'s 600ms');
+  assert(!seasonFade.want && !seasonFade.active, 'and the switch is a cut: no crossfade');
+  const t0 = EDIT_FX.flash.t0;
+  assert(editFxBusy(t0 + EDIT_FX.SCHEME_FLASH_MS - 5) && !editFxBusy(t0 + EDIT_FX.SCHEME_FLASH_MS + 5), 'full-rate frames for as long as it shows');
+  editFxPrune(t0 + EDIT_FX.FLASH_MS + 50);
+  assert(EDIT_FX.flash, 'still up past an undo flash\'s 400ms');
+  editFxPrune(t0 + EDIT_FX.SCHEME_FLASH_MS + 1);
+  assertEqual(EDIT_FX.flash, null, 'and gone at 600');
+  // too much to point at: nothing
+  switchScheme(b.id);
+  for (let y = 0; y < 20; y++) for (let x = 0; x < 14; x++) setTile('plants', x + ',' + y, { s: 'karl', d: 0, t: 9 });
+  resetEditFxForTest();
+  switchScheme(a);
+  assertEqual(EDIT_FX.flash, null, 'past FLASH_CAP, no outline');
+  withMotion('reduce', () => { resetEditFxForTest(); setTile('plants', '15,15', { s: 'karl', d: 0, t: 9 }); switchScheme(b.id); });
+  assertEqual(EDIT_FX.flash, null, 'nor with motion reduced');
+  resetEditFxForTest();
+}));
+
+test('a fill comes in as a wave from the tapped tile, a ring a step, within the sprout caps', () => withMotion('full', () => {
+  setup(21, 21); resetEditFxForTest();
+  game.tool = 'bluestem'; game.toolVar = null; game.fillMode = true;
+  const t0 = performance.now();
+  saidBy(() => doFloodFill(10, 10));
+  const placed = live(game.plants).length;
+  assert(placed > 100, 'the lawn filled: ' + placed);
+  assertEqual(EDIT_FX.sprouts.size, 1, 'the tapped tile sprouts at once');
+  assertEqual(EDIT_FX.wait.size, placed - 1, 'and every other plant waits for the wave');
+  assertEqual(sproutLive, placed, 'the entity pass looks at each');
+  assertEqual(plantFxDelay, 0, 'the delay does not outlive the fill'); assert(!plantFxWave, 'nor the wave');
+  const at = k => EDIT_FX.wait.get(game.plants[k]);
+  assert(at('11,10') < at('13,10') && at('13,10') < at('16,10'), 'nearer is sooner');
+  assert(Math.abs(at('11,10') - at('10,11')) < 3, 'one ring, one moment');
+  const last = Math.max(...EDIT_FX.wait.values());
+  assert(last - t0 <= EDIT_FX.FILL_SPREAD_MS + 60, 'the whole wave inside its spread: ' + Math.round(last - t0));
+  const pulses = game.fx.map(f => f.t0).sort((a, b) => a - b);
+  assert(pulses[pulses.length - 1] - pulses[0] > EDIT_FX.FILL_SPREAD_MS / 2, 'the planting pulses ride the same wave');
+  // a plant the wave has not reached is not drawn
+  buildScene(800, 600);
+  const rec = scene.index.plants.get('16,10'), seen = [], was = globalThis.drawPlantMaybeCached;
+  globalThis.drawPlantMaybeCached = function(){ seen.push(1); };
+  try { EDIT_FX.now = t0; drawSceneEnt(rec, 800, 600, 'Summer', 0, true); } finally { globalThis.drawPlantMaybeCached = was; }
+  assertEqual(seen.length, 0, 'not drawn before the wave reaches it');
+  // frame by frame: never more than a burst begun in one frame, never more than the cap growing
+  let maxBegun = 0, maxLive = 0, begun = 0;
+  for (let t = t0; t <= last + EDIT_FX.SPROUT_MS + 50; t += 16){
+    editFxFrame(t);
+    maxBegun = Math.max(maxBegun, EDIT_FX.burst); begun += EDIT_FX.burst; maxLive = Math.max(maxLive, EDIT_FX.sprouts.size);
+  }
+  assert(maxBegun <= EDIT_FX.SPROUT_BURST && maxBegun > 1, 'at most a burst begin in a frame: ' + maxBegun);
+  assert(maxLive <= EDIT_FX.SPROUT_CAP, 'at most the cap at once: ' + maxLive);
+  assert(begun > 3 * EDIT_FX.SPROUT_BURST, 'and far more than one burst sprout in all, across the whole fill: ' + begun);
+  assertEqual(EDIT_FX.wait.size, 0, 'the wave reaches everything'); assertEqual(sproutLive, 0, 'and ends');
+  // with motion reduced the fill lands at once
+  withMotion('reduce', () => {
+    setup(21, 21); resetEditFxForTest();
+    game.tool = 'bluestem'; game.toolVar = null; game.fillMode = true;
+    saidBy(() => doFloodFill(10, 10));
+    assertEqual(EDIT_FX.wait.size + EDIT_FX.sprouts.size, 0, 'nothing waits, nothing scales');
+    const ps = game.fx.map(f => f.t0);
+    assert(Math.max(...ps) - Math.min(...ps) < 60, 'the pulses all at once');
+  });
+  resetEditFxForTest(); game.fillMode = false;
+}));
+
+test('a replacement outlines the plants it changed, as an undo does', () => withMotion('full', () => {
+  setup(21, 21); resetEditFxForTest();
+  game.plants['5,5'] = { s: 'bluestem', d: 0, t: 1 }; game.plants['6,5'] = { s: 'bluestem', d: 0, t: 2 };
+  game.plants['9,9'] = { s: 'karl', d: 0, t: 3 };
+  const go = () => { replacePlantContext = { source:{ s:'bluestem', v:null }, key:'5,5', scope:'garden', target:{ s:'switchgrass', v:null }, choosingSource:false };
+    saidBy(() => applyPlantReplacement()); };
+  go();
+  assertEqual(game.plants['5,5'].s, 'switchgrass', 'replaced');
+  assert(EDIT_FX.flash, 'outlined');
+  assertEqual(EDIT_FX.flash.tiles.map(t => t.join(',')).sort().join(' '), '5,5 6,5', 'the two it changed and not the one it left');
+  assertEqual(EDIT_FX.flash.ms, EDIT_FX.FLASH_MS, 'for an undo\'s 400ms');
+  withMotion('reduce', () => {
+    resetEditFxForTest(); game.plants['5,5'] = { s: 'bluestem', d: 0, t: 1 }; go();
+    assertEqual(EDIT_FX.flash, null, 'not with motion reduced');
+  });
+  resetEditFxForTest(); replacePlantContext = null;
+}));
+
+test('a layer shown or hidden from the Layers menu crossfades for 250ms', () => {
+  viewMotionCase(() => {
+    const row = (pop, key) => pop.children.find(b => b.dataset && b.dataset.layerRow === key);
+    assertEqual(VIEW_FADE_MS.layer, 250, 'a quarter second');
+    row(buildLayerPopover(), LAYER_LABELS.bulbs).onclick({ stopPropagation(){} });
+    assert(!layerShown('bulbs'), 'the layer is hidden');
+    assertEqual(seasonFade.want, 'layer', 'and the next frame dissolves from this one');
+    maybeStartSeasonFade(1000, calClock().season);
+    assert(seasonFade.active && seasonFade.ms === VIEW_FADE_MS.layer, 'taken at the top of that frame');
+    drawSeasonFade(1000 + VIEW_FADE_MS.layer + 1);
+    assert(!seasonFadeActive(), 'and gone a quarter second on');
+    resetSeasonFade();
+    row(buildLayerPopover(), 'Shade Overlay').onclick({ stopPropagation(){} });
+    assertEqual(seasonFade.want, 'layer', 'an overlay row too');
+    resetSeasonFade();
+    row(buildLayerPopover(), 'All').onclick({ stopPropagation(){} });
+    assertEqual(seasonFade.want, 'layer', 'All, bringing the hidden layer back');
+    resetSeasonFade();
+    row(buildLayerPopover(), 'All').onclick({ stopPropagation(){} });
+    assertEqual(seasonFade.want, null, 'All with every layer already showing changes nothing, so fades nothing');
+    setMotionPref('reduce');
+    row(buildLayerPopover(), LAYER_LABELS.bulbs).onclick({ stopPropagation(){} });
+    assertEqual(seasonFade.want, null, 'and with motion reduced it is a cut');
+    setLayerVis('bulbs', true, false); setLayerVis('shade', false, false);
   });
 });
