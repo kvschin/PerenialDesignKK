@@ -3401,6 +3401,7 @@ function releaseGardenSurfaces(){
   NIGHT_MAP.cv=null; NIGHT_MAP.g=null; NIGHT_MAP.key=''; NIGHT_MAP.scene=null;
   seasonFade.active=false; seasonFade.want=null; dropSeasonFadeCanvas();
   releaseWashSurfaces();
+  farLayerDrop();
   PREBAKE.gen++;
 }
 // cells whose sprite is no longer in the cache (a tool that cleared the map without retiring)
@@ -6148,6 +6149,133 @@ function drawShadeWash(ctx,W,H,shadeMap){
     tileDiamond(ctx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
   }
 }
+/* ---- the planting, kept as one picture where a frame of it is dear (0.9.188) ----
+   The entity pass draws every clump on screen, every frame. With shared looks
+   (SHARE) a clump is one drawImage and nothing else, and on a garden of 16,000
+   plants seen whole that is still 32 ms of a frame, 69% of it inside drawImage:
+   25 fps standing still, for a picture that is not changing.
+
+   So where the pass has measured dear (HI_MS, for HOT_N frames running), nothing
+   in it is moving, and the WHOLE planting is small enough on screen to keep
+   (MAX_PX), it is drawn once into a canvas of its own, through the same
+   drawSceneEnt, in the same order, from the same sprites, and a frame is one
+   blit of that. It is the ground bake's idea one layer up, and simpler: the
+   picture holds everything, so the camera only says where to put it. A pan never
+   bakes, and a zoom gesture stretches the picture it has until the gesture ends.
+   - It is the picture of ONE scene object at one season, rotation, lighting and
+     garden instant (`base`), sharp at one zoom (`zoom`). Any edit makes a new
+     scene, and it is baked again. While the clock runs it is baked STEPS times a
+     garden day, which at fast-forward is eight times a second.
+   - The wind stands still in it. That is the price, and why it waits for the
+     pass to cost HI_MS: where the frame rate is already fine the plants go on
+     moving. It lets go when a bake with no sprite work in it comes in under
+     LO_MS, and it is not kept at all once the planting is too big on screen to
+     hold, where the pass has only part of it to draw, or while more than
+     MAX_OWN clumps have sprites of their own (farOwnSprites).
+   - The pass runs as before, with no picture: while a plant sprouts, lifts or
+     grows between lenses (sproutLive), while the coming season is baked ahead,
+     behind the opening cover, in a photo, and with the House tool's ghost up.
+   - Baked from stand-ins (PSPRITE.waiting), it is baked again next frame.
+   Measured on that garden, headed Chrome at 164Hz: the fitted view 25 -> 164fps
+   standing still and 23 -> 163fps panning, 32 -> 0.3ms of script a frame. */
+const FAR={on:true, HI_MS:14, LO_MS:6, HOT_N:3, STEPS:4, MAX_PX:4e6, MAX_SIDE:8192, MAX_STRETCH:2.5, MAX_OWN:600,
+  hot:false, n:0, cv:null, g:null, scene:null, base:'', zoom:'', s:0, x0:0, y0:0, again:false, bakes:0, blits:0};
+// everything in the scene, as one box with the camera taken out (the cull boxes' own space)
+/* Kept on the scene for the list it was worked out from: an edit in place hands on a
+   COPY of the scene object with a new list (sceneApplyEdits), and the copy would carry
+   the old answer with it. */
+function farSceneBox(){
+  const sents=scene.ents;
+  if (scene.boxFor===sents) return scene.box;
+  const sb=scene.bounds && scene.boundsFor===sents ? scene.bounds : null;
+  let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
+  for (let i=0;i<sents.length;i++){
+    let a, b, c, d;
+    if (sb){ const j=i*4; a=sb[j]; b=sb[j+1]; c=sb[j+2]; d=sb[j+3]; }
+    else { const e=sents[i]; a=e.ox0; b=e.ox1; c=e.oy0; d=e.oy1; }
+    if (a<x0) x0=a; if (b>x1) x1=b; if (c<y0) y0=c; if (d>y1) y1=d;
+  }
+  scene.boxFor=sents;
+  return (scene.box=x1>x0 && y1>y0 ? [x0,y0,x1,y1] : null);
+}
+function farLayerBase(season){
+  const at=gardenClockStamp();
+  const clock=at===at ? at : 'r'+Math.floor(elapsedGameMs()/DAY_MS*FAR.STEPS);
+  return season+'|'+game.rot+'|'+DPR+'|'+(game.layerVis.night?1:0)+'|'+clock;
+}
+function farLayerZoom(){ return ZOOM+'|'+SHARE.scale+'|'+PSPRITE.scale; }
+// nothing in the pass is moving, so a picture of it would be this frame's planting
+function farLayerMay(useSprites,ahead){
+  return FAR.on && useSprites && !PSPRITE.off && !game.photo && !sproutLive && !ahead && !gardenOpening;
+}
+/* How many clumps would be drawn from a sprite of their OWN at this zoom (SHARE).
+   The picture is of the whole planting, off screen as well as on, so each of
+   those is a bake before it is whole; with thousands of them it was seven seconds
+   of baking after a zoom out, where the pass bakes only what is on screen. */
+function farOwnSprites(){
+  const sents=scene.ents, lim=SHARE.maxBig; let n=0;
+  if (scene.ownFor===sents && scene.ownAt===lim) return scene.own;
+  for (let i=0;i<sents.length;i++){ const e=sents[i]; if (e.big!==undefined && (e.detail || !(e.big<=lim))) n++; }
+  scene.ownFor=sents; scene.ownAt=lim; return (scene.own=n);
+}
+// the whole planting at this zoom is small enough to keep, and nearly all of it is shared looks
+function farLayerFits(){
+  const b=farSceneBox(); if (!b) return false;
+  const s=DPR*ZOOM, w=(b[2]-b[0])*s+2, h=(b[3]-b[1])*s+2;
+  return w<=FAR.MAX_SIDE && h<=FAR.MAX_SIDE && w*h<=FAR.MAX_PX && farOwnSprites()<=FAR.MAX_OWN;
+}
+// a pass that ran: is the planting dear enough to keep as a picture?
+function farLayerNote(may,ms){
+  if (!may) return;
+  if (ms>=FAR.HI_MS){ if (++FAR.n>=FAR.HOT_N) FAR.hot=true; }
+  else FAR.n=0;
+}
+function farLayerRelease(){                    // the pixels, not the decision
+  if (FAR.cv){ try{ FAR.cv.width=0; FAR.cv.height=0; }catch(_){ } }
+  FAR.cv=null; FAR.g=null; FAR.scene=null; FAR.base=''; FAR.zoom=''; FAR.again=false;
+}
+function farLayerDrop(){ farLayerRelease(); FAR.hot=false; FAR.n=0; }
+function farLayerBake(W,H,season){
+  const b=farSceneBox(), s=DPR*ZOOM;
+  const cw=Math.ceil((b[2]-b[0])*s)+2, ch=Math.ceil((b[3]-b[1])*s)+2;
+  if (!FAR.cv){ FAR.cv=document.createElement('canvas'); FAR.g=FAR.cv.getContext('2d'); }
+  const g=FAR.g; if (!g) return false;
+  if (FAR.cv.width!==cw || FAR.cv.height!==ch){ FAR.cv.width=cw; FAR.cv.height=ch; }
+  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cw,ch);
+  g.setTransform(s,0,0,s,1-b[0]*s,1-b[1]*s);
+  // with the camera here a record's draw point is its own camera-free one (setEntDrawPoint)
+  const cx0=cam.x, cy0=cam.y; cam.x=W/2; cam.y=H*0.24;
+  try{ const sents=scene.ents; for (let i=0;i<sents.length;i++) drawSceneEnt(sents[i],W,H,season,0,true,g,true); }
+  finally{ cam.x=cx0; cam.y=cy0; }
+  FAR.scene=scene; FAR.base=farLayerBase(season); FAR.zoom=farLayerZoom(); FAR.s=s; FAR.x0=b[0]; FAR.y0=b[1];
+  FAR.again=PSPRITE.waiting>0; FAR.bakes++;
+  return true;
+}
+/* Draw the planting from its kept picture. `settled`: the zoom is at rest, so the
+   picture has to be sharp at it and is baked where it is not; otherwise the one
+   there is, is stretched. Returns the bake's milliseconds, -1 when none was
+   needed, or null when there is no picture for this frame (the caller runs the
+   pass). */
+function farLayerDraw(ctx,W,H,season,settled){
+  const s=DPR*ZOOM, same=FAR.cv && FAR.cv.width && FAR.scene===scene && FAR.base===farLayerBase(season);
+  let ms=-1;
+  if (settled){
+    if (!farLayerFits()) return null;        // render hands the pixels back
+    if (!same || FAR.again || FAR.zoom!==farLayerZoom()){
+      const t0=performance.now();
+      if (!farLayerBake(W,H,season)) return null;
+      ms=performance.now()-t0;                // its own clock: dev() only times while the debug HUD is up
+      dev('far',t0);
+    }
+  } else if (!same || s>FAR.s*FAR.MAX_STRETCH) return null;
+  const k=s/FAR.s, offX=W/2-cam.x, offY=H*0.24-cam.y;
+  ctx.setTransform(1,0,0,1,0,0);
+  if (k===1) ctx.drawImage(FAR.cv,Math.round((FAR.x0+offX)*s)-1,Math.round((FAR.y0+offY)*s)-1);
+  else ctx.drawImage(FAR.cv,(FAR.x0+offX)*s-k,(FAR.y0+offY)*s-k,FAR.cv.width*k,FAR.cv.height*k);
+  ctx.setTransform(s,0,0,s,0,0);
+  FAR.blits++;
+  return ms;
+}
 function render(t){
   if (gardenOpening && !game.photo && !prepareGardenOpen(t)) return;
   if (!game.photo && !preparePendingSkip(t)) return;
@@ -6473,13 +6601,25 @@ function render(t){
   // SCREEN-space reject, not the tile bbox — see setEntScreenBounds. Same four
   // numeric compares as before; they just answer the question that was asked.
   const offX=W/2-cam.x, offY=H*0.24-cam.y;
-  let plantCount=0, drawn=0, di=0;
+  let plantCount=0, drawn=0, di=0, tPlantPass=0;
   /* The pass draws under a plain scale, stated here rather than inherited from
      whatever ran above, because a sheared sprite blit sets the matrix and sets
      this scale back (plantBlitScale, blitPlantSprite). */
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
-  plantBlitScale=DPR*ZOOM;
   editFxFrame(performance.now(),W,H);   // the clock a sprout reads (the one it was stamped on, not rAF's)
+  // where a frame of the planting is dear and nothing in it is moving, it is one kept picture (FAR)
+  const farMay=!dyn.length && farLayerMay(useSprites,ahead);
+  const zoomAtRest=spriteZoomSettled && !viewTweenActive();
+  let far=false;
+  if (farMay && FAR.hot){
+    const ms=farLayerDraw(cx,W,H,cal.season,zoomAtRest);
+    far=ms!==null;
+    // a bake with no sprite work in it is what the pass costs now: cheap again, back to the pass
+    if (far && ms>=0 && !FAR.again && !PSPRITE.rendered && ms<FAR.LO_MS){ FAR.hot=false; FAR.n=0; }
+  }
+  if (!far && FAR.cv && (!FAR.hot || zoomAtRest)) farLayerRelease();   // no use for its pixels now
+  if (!far){
+  plantBlitScale=DPR*ZOOM;
   // the same boxes packed in one array (sceneBuildSteps); a scene from anywhere
   // else has none, and its records are read as before
   // (nor has a list a dev tool swapped in: the boxes belong to the array they were built for)
@@ -6506,14 +6646,17 @@ function render(t){
     while (di<dyn.length){
       plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
   } finally { plantBlitScale=0; }
-  const tPlantPass=performance.now()-tDrawWall;   // the governor's measure: the pass, not the bakes ahead of it
+  tPlantPass=performance.now()-tDrawWall;   // the governor's measure: the pass, not the bakes ahead of it
   if (ring) prebakeRun(cal.season,groundViewIdle(t));
+  farLayerNote(farMay && zoomAtRest && farLayerFits(),tPlantPass-PSPRITE.bakeMs);
+  }
   dmark('draw',tDraw);
   // Diagnostic speculative readiness; explicit skips check their destination
   // scene separately, including its shade, scale and visible working set.
   AHEAD.readyFor=AHEAD.season && !AHEAD.short ? AHEAD.season : null;
   drawBuildingDraftOverlay(cx,W,H);
-  updateSpriteMode(tPlantPass, plantCount,
+  // a frame drawn from the kept picture measured no pass: the governor keeps what it knew
+  if (!far) updateSpriteMode(tPlantPass, plantCount,
     structSampling ? structSampleMs : null);
   structSampling=false;
   if (dbg.on){ dbg.ents=drawn; dbg.tiles=(x1-x0+1)*(y1-y0+1); }

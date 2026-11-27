@@ -19678,6 +19678,147 @@ test('the look-ahead, the ring and the lift all find a small clump in its look',
   });
 });
 
+/* ---- the planting, kept as one picture where a frame of it is dear (0.9.188) ---- */
+// a small planted garden with the sprite cache engaged, the kept picture forgotten, and its limits put back after
+const withFarGarden = fn => {
+  setup(24, 24); game.pausedAt = Date.now(); game.previewMode = 'established';
+  plantGrid('echinacea', 4, 4, 30, 2);
+  const was = { active: PSPRITE.active, off: PSPRITE.off, on: FAR.on, lo: FAR.LO_MS, px: FAR.MAX_PX, own: FAR.MAX_OWN,
+    sprout: sproutLive, photo: game.photo, opening: gardenOpening, settled: spriteZoomSettled };
+  PSPRITE.active = true; PSPRITE.off = false; farLayerDrop(); FAR.on = true; FAR.LO_MS = 0;   // never cheap enough to let go
+  gardenOpening = null; game.photo = false;
+  // the plants just set are still growing in (fxSprout), and a sprouting plant is drawn by the pass
+  EDIT_FX.sprouts.clear(); EDIT_FX.wait.clear(); LENS.grow.clear(); plantFxCount();
+  try { return fn(); }
+  finally { farLayerDrop(); PSPRITE.active = was.active; PSPRITE.off = was.off; FAR.on = was.on; FAR.LO_MS = was.lo; FAR.MAX_PX = was.px;
+    FAR.MAX_OWN = was.own; sproutLive = was.sprout; game.photo = was.photo; gardenOpening = was.opening; spriteZoomSettled = was.settled; }
+};
+// one frame, and what it did: bakes and blits of the kept picture, and entities the pass drew on the live canvas
+const farFrame = t => {
+  const draw = drawSceneEnt, mode = updateSpriteMode, b0 = FAR.bakes, n0 = FAR.blits; let live = 0, governed = 0;
+  // the pass calls it with no context (the garden canvas); a bake hands it the picture's own (the sandbox's two are one stub)
+  drawSceneEnt = function(){ if (arguments.length < 7) live++; return draw.apply(this, arguments); };
+  updateSpriteMode = function(){ governed++; return mode.apply(this, arguments); };
+  try { render(t); } finally { drawSceneEnt = draw; updateSpriteMode = mode; }
+  return { bakes: FAR.bakes - b0, blits: FAR.blits - n0, live, governed };
+};
+
+test('a planting is kept as a picture only once the pass has measured dear, frame after frame', () => {
+  withFarGarden(() => {
+    const dear = FAR.HI_MS + 1;
+    farLayerNote(true, dear); farLayerNote(true, dear);
+    assert(!FAR.hot, 'two dear frames are not yet a pattern');
+    farLayerNote(true, 1); farLayerNote(true, dear); farLayerNote(true, dear);
+    assert(!FAR.hot, 'a cheap frame starts the count again');
+    farLayerNote(true, dear);
+    assert(FAR.hot, `${FAR.HOT_N} in a row and it is kept`);
+    farLayerDrop();
+    for (let i = 0; i < 6; i++) farLayerNote(false, 99);
+    assert(!FAR.hot, 'frames a picture could not have stood in for do not count');
+  });
+});
+
+test('the kept picture stands in only for a planting with nothing moving in it', () => {
+  withFarGarden(() => {
+    assert(farLayerMay(true, null), 'a still planting, drawn from sprites');
+    assert(!farLayerMay(false, null), 'not a planting drawn procedurally');
+    assert(!farLayerMay(true, { season: 'Fall' }), 'not while the coming season is baked ahead in the pass');
+    sproutLive = 1; assert(!farLayerMay(true, null), 'not while a plant sprouts, lifts or grows between lenses'); sproutLive = 0;
+    game.photo = true; assert(!farLayerMay(true, null), 'not in a kept frame'); game.photo = false;
+    gardenOpening = { ready: false }; assert(!farLayerMay(true, null), 'not behind the opening cover'); gardenOpening = null;
+    PSPRITE.off = true; assert(!farLayerMay(true, null), 'not with the sprite cache off'); PSPRITE.off = false;
+    FAR.on = false; assert(!farLayerMay(true, null), 'and not when it is switched off'); FAR.on = true;
+  });
+});
+
+test('the kept picture holds the whole planting, or is not kept', () => {
+  withFarGarden(() => {
+    render(1e6);
+    const box = farSceneBox();
+    assert(box && box[2] > box[0] && box[3] > box[1], 'the planting has a box');
+    for (const e of scene.ents) assert(e.ox0 >= box[0] && e.ox1 <= box[2] && e.oy0 >= box[1] && e.oy1 <= box[3], 'which holds every record');
+    assert(farSceneBox() === box, 'worked out once a scene');
+    assert(farLayerFits(), 'thirty plants at 100% are a small picture');
+    FAR.MAX_PX = 100; assert(!farLayerFits(), 'too many pixels and it is not kept'); FAR.MAX_PX = 4e6;
+    FAR.MAX_OWN = 3;
+    assert(farOwnSprites() > 3 && !farLayerFits(), 'nor while more clumps than MAX_OWN have sprites of their own');
+    setShareScale(0.01);
+    assertEqual(farOwnSprites(), 0, 'zoomed far out they all share looks');
+    assert(farLayerFits(), 'and it fits again');
+    setShareScale(1);
+    // an edit in place hands on a copy of the scene with a new list: the box is worked out again
+    game.tool = 'echinacea'; placePlantAt(22, 22);
+    render(1e6 + 16);
+    const grown = farSceneBox();
+    assert(grown !== box && (grown[2] > box[2] || grown[3] > box[3] || grown[0] < box[0] || grown[1] < box[1]), 'a plant outside the old box grows it');
+  });
+});
+
+test('a kept picture is baked once and then moved, until something in it changes', () => {
+  withFarGarden(() => {
+    let t = 1e7;
+    const first = farFrame(t);
+    assert(first.live > 20 && first.bakes === 0 && first.governed === 1, 'not yet dear: the pass draws every plant and the governor reads it');
+    FAR.hot = true;
+    const baked = farFrame(t += 1000);
+    assertEqual(baked.bakes, 1, 'the first frame bakes the picture');
+    assertEqual(baked.live, 0, 'and draws nothing else on the garden canvas');
+    assertEqual(baked.blits, 1, 'but the picture');
+    assertEqual(baked.governed, 0, 'the governor is not fed a pass that did not run');
+    const again = farFrame(t += 16);
+    assert(again.bakes === 0 && again.blits === 1 && again.live === 0, 'the next frame is the picture again');
+    cam.x += 400; cam.y -= 150;
+    const panned = farFrame(t += 16);
+    assert(panned.bakes === 0 && panned.blits === 1, 'a pan only moves it, however far');
+    // what changes the planting bakes it again
+    game.layerVis.night = true;
+    assertEqual(farFrame(t += 16).bakes, 1, 'the lights');
+    game.layerVis.night = false;
+    assertEqual(farFrame(t += 16).bakes, 1, 'and off again');
+    game.elapsedMs += DAY_MS * 3;
+    assertEqual(farFrame(t += 16).bakes, 1, 'the garden clock');
+    setTile('plants', '20,6', { s: 'echinacea', d: 0, t: 5 });
+    assertEqual(farFrame(t += 16).bakes, 1, 'an edit, which is a new scene');
+    assertEqual(farFrame(t += 16).bakes, 0, 'and then nothing, again');
+    // a zoom gesture stretches the picture it has; the bake waits for the zoom to rest
+    ZOOM = 1.2;
+    const mid = farFrame(t += 16);
+    assert(mid.bakes === 0 && mid.blits === 1 && mid.live === 0, 'mid-gesture it is the old picture, stretched');
+    const rest = farFrame(t += 1000);
+    assertEqual(rest.bakes, 1, 'at rest it is baked sharp at the new zoom');
+    // stand-ins in a bake mean it is not the picture yet
+    FAR.again = true;
+    assertEqual(farFrame(t += 16).bakes, 1, 'a picture baked from stand-ins is baked again');
+    // and the pass comes back the moment something moves
+    const count = plantFxCount; plantFxCount = function(){ sproutLive = 1; }; sproutLive = 1;     // one plant growing in
+    let moving; try { moving = farFrame(t += 16); } finally { plantFxCount = count; plantFxCount(); }
+    assert(moving.blits === 0 && moving.live > 20, 'a sprouting plant is drawn by the pass, with every other plant');
+    FAR.MAX_PX = 100;
+    const big = farFrame(t += 16);
+    assert(big.blits === 0 && big.live > 20 && !FAR.cv, 'too big to keep: the pass, and the picture\'s pixels are handed back');
+    assert(FAR.hot, 'though the planting is still dear, for when it fits again');
+  });
+});
+
+test('the kept picture is let go when a bake comes in cheap, and when the garden is put away', () => {
+  withFarGarden(() => {
+    let t = 2e7;
+    farFrame(t); FAR.hot = true;
+    // the first bakes make the sprites, a few a frame, and a bake with sprite work in it says nothing about the pass
+    for (let i = 0; i < 80 && (i === 0 || FAR.again || PSPRITE.rendered); i++) farFrame(t += 1000);
+    assert(FAR.hot && !FAR.again, 'still kept once every clump has its sprite');
+    FAR.LO_MS = 1e9; FAR.again = true;         // every bake is cheap now, and one is due
+    farFrame(t += 16);
+    assert(!FAR.hot, 'a bake with no sprite work in it, under LO_MS: the pass is cheap again');
+    const back = farFrame(t += 16);
+    assert(back.live > 20 && back.blits === 0 && !FAR.cv, 'so the pass draws, and the pixels go back');
+    FAR.LO_MS = 0; FAR.hot = true; farFrame(t += 16);
+    assert(FAR.cv, 'kept again');
+    releaseGardenSurfaces();
+    assert(!FAR.cv && !FAR.hot, 'quitting to the menu hands it back with the garden\'s other surfaces');
+  });
+});
+
 test('a clump keeps one sprite per season, because comparing seasons is the point', () => {
   setup(20, 20);
   const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');

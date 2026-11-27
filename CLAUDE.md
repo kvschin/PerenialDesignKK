@@ -605,6 +605,23 @@ See §13a.
   how to tell the probe still works. Run it on any change to how the border's
   images are made or drawn. Its last phase plays the entries' pictures' hover
   motion (`menuArtStep`) eight times and reports what a step costs.
+- `node dev/far-verify.cjs [--garden file] [--soft] [--headed]` asks whether the
+  kept picture of the planting (`FAR`, §11's shared-looks note) shows what the
+  entity pass would draw. It walks a garden through what changes the planting
+  (planting, erasing, undo, a path, the lights, two season skips, both lenses, a
+  hidden layer, a turn, zooms, half a garden day) and after each draws one frame
+  with the picture and one with the pass, the wind level (`render` at a `t`
+  where the sway is 0, since the picture is baked with none), each until two
+  draws match. The bar is a CONTROL, the pass against itself half a pixel over
+  each way, because the picture is set down on whole device pixels; an edit
+  step is also compared inside the screen box of the tiles it touched, where
+  one stale plant is all of the pixels and not a few of a frame. On the demo
+  garden it forces the picture on (`HI_MS` 0, never letting go), and the app's
+  own frames between steps hold it, so a step that should have rebaked it and
+  did not shows the old one. **Its first cut rebuilt the picture for every
+  comparison and could not fail**: check it against a deliberate break (an edit
+  that does not rebake fails three steps; the picture two pixels over fails all
+  twenty). It fails if the picture was never used.
 - `node dev/ground-verify.cjs` is the gate on the ground bake's PARTIAL paths
   (§11): a pan re-bakes only the band that came into view and an edit only the
   viewport, so this asks whether either still draws the ground a full bake
@@ -2870,6 +2887,51 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     14% (the largest a shared plant gets). What is left of the fitted frame is
     16,000 `drawImage` calls, 69% of it: fewer calls, not cheaper ones, is the
     next step.
+    **And that step is one picture of the whole planting** (0.9.188; `FAR`,
+    `farLayerMay`/`farLayerFits`/`farLayerNote`/`farLayerBake`/`farLayerDraw`,
+    `farSceneBox`, `farOwnSprites`, renderer.js). Where the entity pass has
+    measured dear (`HI_MS` 14, `HOT_N` 3 frames running), nothing in it is moving,
+    and the WHOLE planting at this zoom is small enough to keep (`MAX_PX` 4M device
+    pixels, and at most `MAX_OWN` 600 clumps drawing a sprite of their own), it is
+    drawn once into a canvas of its own, through the same `drawSceneEnt`, in the
+    same order, from the same sprites, and a frame is one blit of that. It is the
+    ground bake's idea one layer up and simpler: the picture holds everything
+    (`farSceneBox`, the union of the cull boxes), so the camera only says where to
+    put it. A pan never bakes; a zoom gesture stretches the picture it has (to
+    `MAX_STRETCH` 2.5) until the gesture ends. Six rules, each with a test that
+    fails without it. *It is the picture of one scene OBJECT* at one season,
+    rotation, lighting and garden instant (`farLayerBase`), sharp at one zoom
+    (`farLayerZoom`): any edit makes a new scene and it is baked again; while the
+    clock runs it is baked `STEPS` (4) times a garden day. *The pass runs as
+    before, with no picture*, while a plant sprouts, waits in a fill's wave or
+    grows between lenses (`sproutLive`), while the coming season is baked ahead,
+    behind the opening cover, in a photo, and with the House tool's ghost up.
+    *Baked from stand-ins (`PSPRITE.waiting`), it is baked again next frame.* *It
+    lets go* when a bake with no sprite work in it comes in under `LO_MS` (6), and
+    its pixels are handed back once the planting no longer fits or a garden
+    closes. *The sprite governor is not fed a frame that ran no pass.* *Memos kept
+    on the scene are keyed to its ENTS LIST* (`scene.boxFor`, `scene.ownFor`):
+    `sceneApplyEdits` copies the scene object, memos and all. **The first cut
+    kept a screen-and-margin canvas like the ground's and was wrong twice**: it
+    stayed on at middle zooms, where the pass has only part of the planting to
+    draw and the picture cost more than it saved (pans 84 -> 65fps at 45%), and a
+    pan past its margin was a full bake. The whole-planting picture is simply not
+    kept there. `MAX_OWN` is the other measured bound: at ~20% zoom the planting
+    fits but most clumps want their own sprite, and baking the ones off screen
+    for the picture took 7 s to come sharp. **The wind stands still in it**, which
+    is the price and why it waits for the pass to cost 14ms: a garden that
+    already draws at the display's rate keeps moving. It is also set down on
+    whole device pixels, so it sits up to half a pixel from where the pass puts
+    each sprite; `node dev/far-verify.cjs` holds it under that (Run/test).
+    `dev()` returns 0 unless the debug HUD is up, so the bake is timed with
+    `performance.now()`; timed with `dev` it read 0ms, "cheap again", and let go
+    on the next frame. Measured on that garden, headed Chrome at 164Hz, 0.9.187
+    -> 0.9.188: the fitted view 25 -> 164.7fps standing still and 23 -> 163.3fps
+    panning, 32 -> 0.3ms of script a frame; 45% and 100% unchanged (84 and
+    159fps: no picture there); sharp 1.1 s after a wheel zoom out. Firefox 161:
+    accelerated for all 4,602 frames of `ff-accel-check`, fitted pans 44 ->
+    153fps. `dev/webkit-check.cjs` clean. The demo garden and the estate test
+    garden at their usual zooms never engage it.
     **Opening a garden prepares its first picture before revealing it**
     (`beginGardenOpen` / `prepareGardenOpen`, renderer.js). A cold cache has no
     picture of each clump to reuse: borrowing siblings made plants change shape
