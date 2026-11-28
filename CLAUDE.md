@@ -670,8 +670,8 @@ See §13a.
   reported "not kept" for a gesture no hand could make.
 - `node dev/perf-audit.cjs --profile phone --engine chrome` drives the real app
   at a real viewport and reports where a frame goes (`--garden
-  dev/test-gardens/woodland.prairie.json` takes any garden file in the repo; the
-  shrub border outruns its 420s timeout at the phone profile). `--only view` runs the
+  dev/test-gardens/woodland.prairie.json` takes any garden file in the repo, of
+  any size). `--only view` runs the
   view changes alone (§11i) and `--only compare --ab-old <renderer.js>` the comparison
   controls against an eased Fit, plus an idle-frame A/B against an older build's
   entity-pass functions (§11i, the lens note). Two halves, deliberately:
@@ -693,6 +693,35 @@ See §13a.
   above records: past about a hundred reads Chrome keeps that canvas on the
   CPU, so whatever they printed after that described a canvas no gardener has.
   A test holds all three tools to the scratch canvas.
+  **It finishes on any garden** (0.9.191). It did everything and reported once,
+  under a flat 420 s, and "the shrub border outruns its timeout at the phone
+  profile" stood in this file for months as if it were about size. Three
+  things, found by making it say where it was. *The app's `drawProfile` flushed
+  by reading the garden canvas itself*, about fifty times a call, and the audit
+  calls it twice: past a hundred reads Chrome keeps that canvas on the CPU, and
+  on that garden every frame after it took 7 SECONDS to rasterise (4ms of
+  script, 7,200ms in the flush), through 132 frames of the wash arms. It
+  flushes through a 1x1 scratch canvas now, and the tools' test holds it to
+  that with them. Read a "too slow on this garden" as a question about the
+  instrument first. *Several sections cost by the plant*: a dozen micro-probes
+  ran 30 warm and 30 timed calls whatever one cost, live scenarios a fixed
+  number of frames at whatever rate the garden drew, and the sprites-off
+  profile redraws every plant procedurally some eighty times (a procedural
+  frame is 6.4 s on 16,000 plants). Every section is now bounded by TIME as
+  well as count: a micro-probe stops at 400ms (the clock read between batches
+  that grow, so a 1us probe is not timing `performance.now`), a live scenario at
+  10 s, an event at 6 s, the profiles take the frames and rounds that fit 45 s
+  at what a PASS frame costs here, and the sprites-off one is skipped with a
+  note past 3 s a frame. A section cut short says so. *It started timing 1.2 s
+  after `enterWorld`*, with a big garden still being prepared behind its cover,
+  so its first scenarios read 160fps off an empty frame; it waits for the
+  opening to finish. And the limit is a STALL: each section reports as it ends
+  (stderr; `--quiet`), `--stall <s>` (300) with nothing finishing ends the run,
+  under `--timeout <s>` (3600); a stalled run still writes what it had, marked
+  `partial` and naming the section, and exits 1. `--headless` runs it with no
+  window, to check the tool itself (a software raster's numbers, not a
+  window's). Whole run, headless: demo garden 40 s, the shrub border at the
+  phone profile 67 s, a 16,000-plant garden 90 s; the last two used to time out.
 - **Source files are text, and a test holds them to it** (0.9.123).
   `js/tray.js` carried a raw NUL byte inside a string literal (a separator in
   `verifyTrayCache`). It ran, and it made `grep` and ripgrep treat the app's
@@ -3014,6 +3043,21 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     accelerated for all 4,602 frames of `ff-accel-check`, fitted pans 44 ->
     153fps. `dev/webkit-check.cjs` clean. The demo garden and the estate test
     garden at their usual zooms never engage it.
+    **Not under fast-forward, and not for anyone measuring the pass** (0.9.191;
+    `farLayerMay`). Held forward the picture is baked STEPS times a garden day,
+    eight a second, each a whole pass and more. Measured on that garden (4 s of
+    fast-forward at the fitted view, picture on / off): 35-42 against 22-24fps
+    in Established and 26 against 15 in Today, and it looks worse for the higher
+    number: most frames 6ms with one of 100-175ms eight times a second, and the
+    garden itself changing 8 times a second where the pass changes it 23. So a
+    held fast-forward runs the pass. Nor with either sprite cache pinned off
+    (`PSPRITE.off`, `SSPRITE.off`), which is `verifySceneCull` or
+    `verifyStructureSprites` comparing two ways of drawing the pass; and the
+    picture is of one `scene.ents` LIST as well as one scene (`FAR.ents`), so a
+    tool that swaps the list is not answered with a picture of the old one.
+    `drawProfile` turns it off outright and puts it back: its ablations swap
+    the list every run, and with the picture on it read a 16,000-plant garden as
+    a 0.9ms frame with every class nearly free, where the pass is 35-60ms.
     **Opening a garden prepares its first picture before revealing it**
     (`beginGardenOpen` / `prepareGardenOpen`, renderer.js). A cold cache has no
     picture of each clump to reuse: borrowing siblings made plants change shape
@@ -3453,8 +3497,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     in Run/test). Measured: thirty frames of it made 684 reads, and a frame that
     bakes nothing went from 3.7ms to 87ms. So the figures above may describe a
     CPU canvas. Reload after using it, and trust nothing measured later in the
-    same page. `drawProfile` reads about 50 times a call at its defaults, so a
-    second call in one page can reach the same limit.
+    same page. `drawProfile` used to read it about 50 times a call, so a second
+    call in one page reached the same limit, which is what broke
+    `dev/perf-audit.cjs` on the shrub border; since 0.9.191 it flushes through
+    a 1x1 scratch canvas and does not count.
     (A hypothesis this killed: the ground blit copies the whole baked canvas,
     margin included, so source-cropping it to the viewport should be ~2.3x
     cheaper. Measured, 1.39MP -> 0.60MP of source changed the blit by **-1.5us**,

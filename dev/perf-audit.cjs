@@ -19,6 +19,28 @@
                                          (Today/Established, a layer, a scheme switch, a fill,
                                           against an eased Fit; and an idle frame against the old build)
      --repo <dir> serves another checkout (an export of HEAD, for a before/after)
+     --garden <file.json>  any exported garden in the repo, of any size
+
+   IT FINISHES ON ANY GARDEN. It used to do everything and report once, under a
+   flat 420 s, and several sections cost by the plant: a dozen micro-probes ran
+   30 warm and 30 timed calls each whatever one cost, the live scenarios ran a
+   fixed number of frames at whatever rate the garden drew, and the sprites-off
+   draw profile redraws every plant procedurally some eighty times (minutes on
+   16,000 plants). The shrub border outran it at the phone profile and a
+   16,000-plant garden at any, with nothing to show for the run. Now:
+   - every section says when it is done (stderr, `--quiet` to silence) and
+     hands over the results so far;
+   - the limit is a STALL, not a total: `--stall <s>` (300) with no section
+     finishing, under a generous `--timeout <s>` (3600). A run that stalls
+     still writes what it had, marked `partial`, naming the section it was in,
+     and exits 1;
+   - every section is bounded by TIME as well as by count: a micro-probe stops
+     at 400 ms, a live scenario at 10 s (20 frames at least), an event at 6 s,
+     the draw profiles take the frames and rounds that fit 45 s, and the
+     sprites-off one is skipped, with a note, where a single procedural frame
+     costs over 3 s. A section cut short says so (`cutShort`, `followed`).
+   `--headless` runs Chrome without a window, to check the tool itself; its
+   numbers are a software raster's and not a real window's.
 */
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 const { spawn } = require('child_process');
@@ -29,7 +51,9 @@ const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[
 const REPO = path.resolve(opt('repo', path.join(__dirname, '..')));
 const SOFT = flag('soft');
 const OUTFILE = opt('out', null);
-const GARDEN = opt('garden', 'demo');          // demo | stress
+const GARDEN = opt('garden', 'demo');          // demo | stress | a garden file
+const QUIET = flag('quiet'), HEADLESS = flag('headless');
+const STALL_MS = Math.max(30, +opt('stall', 300)) * 1000, TOTAL_MS = Math.max(60, +opt('timeout', 3600)) * 1000;
 
 const PROFILES = {
   phone: { w: 390, h: 844, dpr: 3, frame: 1 },
@@ -53,6 +77,7 @@ const ENGINES = {
       '--window-size=' + (P.frame ? P.w + 40 : P.w) + ',' + (P.frame ? P.h + 130 : P.h), '--window-position=0,0',
       '--force-device-scale-factor=' + P.dpr,
       ...(SOFT ? ['--disable-accelerated-2d-canvas', '--disable-gpu-rasterization', '--disable-gpu-compositing'] : []),
+      ...(HEADLESS ? ['--headless=new'] : []),
       '--new-window', url]
   },
   firefox: {
@@ -95,6 +120,18 @@ function inPage(env) {
       mean: +(s.reduce((x, y) => x + y, 0) / n).toFixed(2) };
   };
   const raf = () => new Promise(r => requestAnimationFrame(r));
+  /* A section is done: say so, and hand over what there is so far. The run is
+     timed out by how long it has been SILENT, and a run that stalls still
+     reports everything up to there. */
+  const tRun = performance.now();
+  out.sections = [];
+  const progress = async name => {
+    const at = Math.round(performance.now() - tRun);
+    out.sections.push([name, at]);
+    try { await fetch('/__progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, at, out }) }); } catch (e) { }
+  };
+  // every loop below stops on the clock as well as on its count, so a garden that draws at 3fps takes minutes and not an hour
+  const LIVE_MAX_MS = 10000, EVENT_MAX_MS = 6000, MICRO_MS = 400, PROFILE_MAX_MS = 45000, PROC_FRAME_MAX_MS = 3000;
   const snapPhases = frames => {
     const ph = {}; let sum = 0;
     for (const k in dbg.acc) { if (k === 'frame') continue; ph[k] = +(dbg.acc[k] / frames).toFixed(3); sum += dbg.acc[k]; }
@@ -115,18 +152,19 @@ function inPage(env) {
     dbg.on = true; dbgReset(); devReset();
     dbg.fpsAt = 1e12;                 // stop frame()'s own 500ms dbgReset from eating the window
     dbg.n = 0;
-    const gaps = []; let prev = null;
+    const gaps = []; let prev = null, cut = false;
     const t0 = performance.now();
     for (let i = 0; i < frames; i++) {
       const t = await raf();
       if (prev !== null) gaps.push(t - prev);
       prev = t;
       step(i, t);
+      if (i >= 19 && performance.now() - t0 > LIVE_MAX_MS) { frames = i + 1; cut = true; break; }
     }
     const wall = performance.now() - t0;
     const drawn = dbg.n || 1;
     const res = {
-      rafGapMs: st(gaps), framesRendered: dbg.n, framesTotal: frames,
+      rafGapMs: st(gaps), framesRendered: dbg.n, framesTotal: frames, cutShort: cut || undefined,
       fps: +(frames * 1000 / wall).toFixed(1),
       phasesPerRenderedFrame: snapPhases(drawn), events: snapEvents(),
       gapMax: +dbg.gapMax.toFixed(1), gapOver: dbg.gapOver,
@@ -137,6 +175,7 @@ function inPage(env) {
     };
     dbg.on = false; dbg.fpsAt = 0;
     out[name] = res;
+    await progress(name);
     return res;
   }
 
@@ -146,29 +185,41 @@ function inPage(env) {
     for (let i = 0; i < 8; i++) { await raf(); step(i, performance.now()); render(performance.now()); }
     flush();
     dbg.on = true; dbgReset(); devReset();
-    const js = [], gaps = []; let prev = null;
+    const js = [], gaps = []; let prev = null, cut = false;
+    const t0 = performance.now();
     for (let i = 0; i < frames; i++) {
       const t = await raf();
       if (prev !== null) gaps.push(t - prev);
       prev = t;
       step(i, t);
       const a = performance.now(); render(t); js.push(performance.now() - a);
+      if (i >= 7 && performance.now() - t0 > LIVE_MAX_MS) { frames = i + 1; cut = true; break; }
     }
     flush();
     const res = { jsMs: st(js), rafGapMs: st(gaps), phases: snapPhases(frames), events: snapEvents(),
-      ents: scene && scene.ents ? scene.ents.length : null };
+      ents: scene && scene.ents ? scene.ents.length : null, frames, cutShort: cut || undefined };
     dbg.on = false;
     out[name] = res;
+    await progress(name);
     return res;
   }
 
+  /* `n` calls, or as many as fit MICRO_MS (three at least). The clock is read
+     between BATCHES that grow while a batch is under a millisecond, so a probe
+     of a 1us function is not timing performance.now(). It ran n warm and n
+     timed calls whatever one cost: 30 + 30 of a 50ms buildScene, a dozen probes
+     over. */
   const micro = (name, fn, n) => {
     n = n || 1500;
     try {
-      for (let i = 0; i < Math.min(n, 150); i++) fn();
-      const t0 = performance.now();
-      for (let i = 0; i < n; i++) fn();
-      out.probe[name] = +((performance.now() - t0) * 1000 / n).toFixed(3);
+      let t0 = performance.now(), done = 0, batch = 1;
+      const warm = Math.min(n, 150);
+      while (done < warm) { const m = Math.min(batch, warm - done); for (let k = 0; k < m; k++) fn(); done += m;
+        const el = performance.now() - t0; if (el >= MICRO_MS / 3) break; if (el < 1) batch *= 4; }
+      t0 = performance.now(); done = 0; batch = 1;
+      while (done < n) { const m = Math.min(batch, n - done); for (let k = 0; k < m; k++) fn(); done += m;
+        const el = performance.now() - t0; if (done >= 3 && el >= MICRO_MS) break; if (el < 1) batch *= 4; }
+      out.probe[name] = +((performance.now() - t0) * 1000 / done).toFixed(3);
     } catch (e) { out.probe[name] = 'ERR ' + (e && e.message); }
   };
 
@@ -209,7 +260,8 @@ function inPage(env) {
         dbg.on = true; dbgReset(); devReset(); dbg.fpsAt = 1e12; dbg.n = 0;
         const gaps = []; let prev = await raf();
         const a = performance.now(); fire(k); const fireMs = performance.now() - a;
-        for (let i = 0; i < n; i++) { const t = await raf(); gaps.push(t - prev); prev = t; }
+        for (let i = 0; i < n; i++) { const t = await raf(); gaps.push(t - prev); prev = t;
+          if (i >= 9 && performance.now() - a > EVENT_MAX_MS) break; }
         const ev = snapEvents();
         if (k >= (warm || 0)) per.push({ fireMs: +fireMs.toFixed(2), gaps, drawn: dbg.n,
           bakes: (ev.bake ? ev.bake.n : 0), bakeMax: ev.bake ? ev.bake.max : 0, sceneMax: ev.scene ? ev.scene.max : 0 });
@@ -217,13 +269,14 @@ function inPage(env) {
       }
       const all = per.flatMap(p => p.gaps), worst = per.map(p => Math.max(...p.gaps));
       const res = {
-        reps, framesFollowed: n,
+        reps, framesFollowed: n, followed: per.map(p => p.gaps.length),
         rafGapMs: st(all), worstGapPerEvent: worst.map(v => +v.toFixed(1)),
         over16: per.map(p => p.gaps.filter(g => g > 16.7).length),
         fireMs: per.map(p => p.fireMs), drawn: per.map(p => p.drawn),
         fullBakes: per.map(p => p.bakes), bakeMaxMs: per.map(p => p.bakeMax), sceneMaxMs: per.map(p => p.sceneMax)
       };
       out[name] = res;
+      await progress(name);
       return res;
     }
     async function viewScenarios() {
@@ -340,6 +393,9 @@ function inPage(env) {
         crashed = true; await settle(300);
         fitPlot(); for (let i = 0; i < 30; i++) render(performance.now());
         const med = a => { const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+        // frames a run, by what one costs here: both arms of an A/B take the same, so the comparison holds
+        const f0 = performance.now(); render(f0); flush(); const oneMs = performance.now() - f0;
+        const abFrames = n => oneMs > 40 ? Math.max(4, Math.round(n / 3)) : n;
         /* The growth's own cost, with the bakes out of it: every plant on screen
            held half way through a growth (its sprites are all baked by now), against
            the same frames with nothing growing, interleaved. */
@@ -355,19 +411,20 @@ function inPage(env) {
           try {
             for (let r = 0; r < 10; r++) for (const a of (r % 2 ? ['off', 'on'] : ['on', 'off'])){
               grow(a === 'on'); const js = [];
-              for (let i = 0; i < 16; i++){ await raf(); const t0 = performance.now(); render(t0); js.push(performance.now() - t0); }
+              for (let i = 0; i < abFrames(16); i++){ await raf(); const t0 = performance.now(); render(t0); js.push(performance.now() - t0); }
               flush(); runsG[a].push(med(js));
             }
           } finally { LENS.MS = ms0; LENS.grow = new Map(); plantFxCount(); }
           out.lensHeldAB = { plants: hold.size,
             growingMs: { min: +Math.min(...runsG.on).toFixed(3), p50: +med(runsG.on).toFixed(3) },
             stillMs: { min: +Math.min(...runsG.off).toFixed(3), p50: +med(runsG.off).toFixed(3) } };
+          await progress('lensHeldAB');
         }
         const runs = { now: [], old: [] };
         for (let r = 0; r < 16; r++){
           for (const a of (r % 2 ? ['old', 'now'] : ['now', 'old'])){
             use(a); const js = [];
-            for (let i = 0; i < 24; i++){ await raf(); const t0 = performance.now(); render(t0); js.push(performance.now() - t0); }
+            for (let i = 0; i < abFrames(24); i++){ await raf(); const t0 = performance.now(); render(t0); js.push(performance.now() - t0); }
             flush(); runs[a].push(med(js));
           }
         }
@@ -375,6 +432,7 @@ function inPage(env) {
         out.idleAB = { idle: !sproutLive && !LENS.armed && !seasonFadeActive(),
           nowMs: { min: +Math.min(...runs.now).toFixed(3), p50: +med(runs.now).toFixed(3) },
           oldMs: { min: +Math.min(...runs.old).toFixed(3), p50: +med(runs.old).toFixed(3) } };
+        await progress('idleAB');
         crashed = false;
       } catch (e) { out.notes.push('idle A/B: ' + e.message); }
     }
@@ -446,24 +504,62 @@ function inPage(env) {
     micro('snapshotState_us', () => snapshotState(), 30);
     micro('buildSaveBlob_us', () => buildSaveBlob(), 15);
     micro('buildToolTray_us', () => buildToolTray(true), 8);
+    await progress('micro');
 
     await pinned('pin-stationary', () => { }, 40);
-    try { out.drawProfile = drawProfile({ frames: 14, rounds: 4 }); } catch (e) { out.drawProfile = 'ERR ' + e.message; }
-    try { out.drawProfileNoSprites = drawProfile({ frames: 10, rounds: 3, sprites: 'off' }); } catch (e) { }
+    /* The draw profile renders the whole scene, and then each class of it alone,
+       rounds x (frames + 1) times apiece. So it takes the frames and rounds that
+       fit PROFILE_MAX_MS at what a frame costs HERE, down to its own floor of 4
+       and 3; counted as three heavy runs (the full scene and its two big classes). */
+    const profileFit = (ms, frames, rounds) => {
+      const cost = () => 3 * rounds * (frames + 1) * ms;
+      while (cost() > PROFILE_MAX_MS && rounds > 3) rounds--;
+      while (cost() > PROFILE_MAX_MS && frames > 4) frames--;
+      return { frames, rounds };
+    };
+    /* What a frame of the PASS costs, which is what the profile renders: on a
+       garden drawn from its kept picture (FAR) a stationary frame is one blit,
+       0.3ms where the pass is 35. Older builds have no FAR and need none of this. */
+    let passMs = out['pin-stationary'].jsMs.p50;
+    if (typeof FAR !== 'undefined') { const on = FAR.on;
+      try { FAR.on = false; render(performance.now()); flush(); const a = performance.now(); render(performance.now()); flush(); passMs = Math.max(passMs, performance.now() - a); }
+      finally { FAR.on = on; } }
+    out.passFrameMs = +passMs.toFixed(2);
+    const frameMs = passMs;
+    try { out.drawProfile = drawProfile(profileFit(frameMs, 14, 4)); } catch (e) { out.drawProfile = 'ERR ' + e.message; }
+    await progress('drawProfile');
+    /* Sprites off, every plant is drawn procedurally on every frame. One such
+       frame is timed first: past PROC_FRAME_MAX_MS the profile is left out,
+       with what that frame cost, where it used to be what ran the clock out. */
+    try {
+      const off = PSPRITE.off, act = PSPRITE.active; let procMs = 0;
+      try { PSPRITE.off = true; PSPRITE.active = false; render(performance.now()); flush();
+        const a = performance.now(); render(performance.now()); flush(); procMs = performance.now() - a; }
+      finally { PSPRITE.off = off; PSPRITE.active = act; }
+      out.proceduralFrameMs = +procMs.toFixed(1);
+      if (procMs > PROC_FRAME_MAX_MS) { out.drawProfileNoSprites = null;
+        out.notes.push('drawProfileNoSprites skipped: one procedural frame costs ' + Math.round(procMs) + 'ms here'); }
+      else out.drawProfileNoSprites = drawProfile(Object.assign(profileFit(procMs, 10, 3), { sprites: 'off' }));
+    } catch (e) { out.notes.push('drawProfileNoSprites: ' + e.message); }
+    await progress('drawProfileNoSprites');
 
     // the season wash arms, on this engine
     try {
       const m0 = SEASON_WASH.mode;
+      // fewer frames where a frame is dear: three modes of 4 + 4x10 renders was 132 of them
+      const wn = frameMs > 80 ? 3 : 10, wr = frameMs > 80 ? 2 : 4;
       const tw = mode => { SEASON_WASH.mode = mode; if (typeof washSurf !== 'undefined') washSurf.key = '';
-        for (let i = 0; i < 4; i++) render(1e6); flush();
+        for (let i = 0; i < Math.min(4, wn); i++) render(1e6); flush();
         let best = Infinity;
-        for (let r = 0; r < 4; r++) { const a = performance.now(); for (let i = 0; i < 10; i++) render(1e6); flush(); const v = (performance.now() - a) / 10; if (v < best) best = v; }
+        for (let r = 0; r < wr; r++) { const a = performance.now(); for (let i = 0; i < wn; i++) render(1e6); flush(); const v = (performance.now() - a) / wn; if (v < best) best = v; }
         return +best.toFixed(2); };
       out.washFrameMs = { live: tw('live'), cached: tw('cached'), surface: tw('surface') };
       SEASON_WASH.mode = m0; if (typeof washSurf !== 'undefined') washSurf.key = '';
     } catch (e) { out.notes.push('wash: ' + e.message); }
+    await progress('wash');
 
     try { dbg.on = true; devReset(); out.groundBench = perfBench({ gw: 46, gh: 46, rounds: 7, edit: true }); dbg.on = false; } catch (e) { out.groundBench = 'ERR ' + e.message; }
+    await progress('groundBench');
     return out;
   })();
 }
@@ -508,13 +604,18 @@ function inPageUI() {
 }
 
 /* ------------------------------------------------------------------- server */
-function server(driverBody) {
+function server(driverBody, onProgress) {
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.png': 'image/png', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon' };
   let resolveResult; const ready = new Promise(r => resolveResult = r);
   const srv = http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/__result') {
       let b = ''; req.on('data', d => b += d);
       req.on('end', () => { res.end('ok'); try { resolveResult(JSON.parse(b)); } catch (e) { resolveResult({ error: String(b).slice(0, 3000) }); } });
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/__progress') {
+      let b = ''; req.on('data', d => b += d);
+      req.on('end', () => { res.end('ok'); try { const p = JSON.parse(b); if (onProgress) onProgress(p.name, p.at, p.out); } catch (e) { } });
       return;
     }
     if (req.url === '/__old.js') {
@@ -567,6 +668,7 @@ const driverFor = (probeFn, boot) => `
     while ((typeof enterWorld!=='function' || typeof PSPRITE==='undefined') && guard++<400) await new Promise(r=>setTimeout(r,25));
     const startup = { marks: window.__marks||[] };
     ${boot}
+    try{ await fetch('/__progress',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'opened'})}); }catch(e){}
     const fn = (${String(probeFn)});
     const out = await fn({startup, only:${JSON.stringify(opt('only', null))}});
     out.profileName = ${JSON.stringify(PROFILE)};
@@ -576,11 +678,19 @@ const driverFor = (probeFn, boot) => `
   }catch(e){ await post({error:String(e&&e.stack||e)}); }
 })();`;
 
+/* The garden has to be OPEN before anything is timed. enterWorld returns with
+   the garden still being prepared behind its cover (prepareGardenOpen), which is
+   0.3 s for the demo garden and several seconds for a big one, and render()
+   draws nothing until it is done: on a 16,000-plant garden the first scenarios
+   ran at 160 fps because they were timing an empty frame. */
 const BOOT_DEMO = `
     const envb = await (await fetch('/demo-garden.json')).json();
     await enterWorld(await installWorldBlob(envb));
     game.pausedAt = game.pausedAt || Date.now();
     game.ffActive = false;
+    { const t0=performance.now();
+      while (typeof gardenOpening!=='undefined' && gardenOpening && performance.now()-t0<240000) await new Promise(r=>setTimeout(r,50));
+      startup.openMs=Math.round(performance.now()-t0); startup.opened=!(typeof gardenOpening!=='undefined' && gardenOpening); }
     await new Promise(r=>setTimeout(r,1200));`;
 
 const BOOT_STRESS = BOOT_DEMO + `
@@ -595,13 +705,26 @@ const bootFor = g => g === 'stress' ? BOOT_STRESS : /\.json$/i.test(g) ? BOOT_FI
 async function run(probeFn, boot) {
   const exe = ENG.exe.find(p => fs.existsSync(p));
   if (!exe) throw new Error('browser not installed');
-  const { srv, port, ready } = await server(driverFor(probeFn, boot));
+  /* The limit is how long the page has been SILENT. A big garden's run is long
+     and keeps reporting; a hung page stops. Either way what it had is kept. */
+  const t0 = Date.now(); let last = t0, lastName = 'page load', partial = null;
+  const { srv, port, ready } = await server(driverFor(probeFn, boot), (name, at, o) => {
+    last = Date.now(); lastName = name; if (o) partial = o;
+    if (!QUIET) process.stderr.write('  ' + ((last - t0) / 1000).toFixed(1).padStart(7) + 's  ' + name + '\n');
+  });
   sweepStaleTestBrowsers('ppaudit-');
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ppaudit-'));
   if (ENG.profilePrefs) fs.writeFileSync(path.join(profile, 'user.js'), ENG.profilePrefs);
   const child = spawn(exe, ENG.args(profile, 'http://127.0.0.1:' + port + '/'), { stdio: 'ignore' });
-  const result = await Promise.race([ready, new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 420000))])
-    .catch(e => ({ error: e.message }));
+  let iv = null;
+  const watchdog = new Promise(res => { iv = setInterval(() => {
+    const now = Date.now();
+    if (now - last > STALL_MS) res({ __stalled: 'nothing finished for ' + Math.round((now - last) / 1000) + 's after "' + lastName + '"' });
+    else if (now - t0 > TOTAL_MS) res({ __stalled: 'over the ' + Math.round(TOTAL_MS / 1000) + 's limit, after "' + lastName + '"' });
+  }, 1000); });
+  const r = await Promise.race([ready, watchdog]);
+  clearInterval(iv);
+  const result = r && r.__stalled ? Object.assign({}, partial || {}, { error: 'timed out: ' + r.__stalled, partial: true }) : r;
   closeTestBrowser(child, profile);
   srv.close();
   await new Promise(r => setTimeout(r, 800));
@@ -615,4 +738,5 @@ async function run(probeFn, boot) {
   const text = JSON.stringify(res, null, 1);
   if (OUTFILE) fs.writeFileSync(OUTFILE, text);
   console.log(OUTFILE ? ('wrote ' + OUTFILE + (res.error ? ('  ERROR: ' + res.error) : '')) : text);
+  if (res.error) { if (!OUTFILE) console.error('ERROR: ' + res.error); process.exitCode = 1; }
 })().catch(e => { console.error(e); process.exit(1); });

@@ -19728,7 +19728,37 @@ test('the kept picture stands in only for a planting with nothing moving in it',
     game.photo = true; assert(!farLayerMay(true, null), 'not in a kept frame'); game.photo = false;
     gardenOpening = { ready: false }; assert(!farLayerMay(true, null), 'not behind the opening cover'); gardenOpening = null;
     PSPRITE.off = true; assert(!farLayerMay(true, null), 'not with the sprite cache off'); PSPRITE.off = false;
+    // either cache pinned off is somebody measuring the pass (verifyStructureSprites, a profile)
+    const sOff = SSPRITE.off; SSPRITE.off = true; assert(!farLayerMay(true, null), 'nor with the structure cache off'); SSPRITE.off = sOff;
+    /* Held forward, the picture is baked eight times a second, each a whole pass
+       and more: on 16,000 plants most frames were 6ms with one of 100-175ms eight
+       times a second, and the garden changed 8 times a second where the pass
+       alone changes it 23. */
+    const ff = game.ffActive; game.ffActive = true; assert(!farLayerMay(true, null), 'not while fast-forward is held'); game.ffActive = ff;
     FAR.on = false; assert(!farLayerMay(true, null), 'and not when it is switched off'); FAR.on = true;
+  });
+});
+
+test('the draw profile measures the pass, not the kept picture, and leaves the picture as it found it', () => {
+  /* The picture is one blit whatever the scene holds. With it on, a profile of a
+     16,000-plant garden read every class as nearly free and the frame as 0.9ms,
+     on a garden whose pass costs 35. */
+  withFarGarden(() => {
+    farFrame(1e7); FAR.hot = true; farFrame(1e7 + 1000);
+    assert(FAR.cv, 'the garden is being drawn from its picture');
+    const draw = farLayerDraw, log = console.log, warn = console.warn; let pictured = 0, on = [];
+    farLayerDraw = function () { pictured++; return draw.apply(this, arguments); };
+    const frameWas = render;
+    render = function () { on.push(FAR.on); return frameWas.apply(this, arguments); };
+    let out = null;
+    try { console.log = () => {}; console.warn = () => {}; out = drawProfile({ frames: 4, rounds: 3 }); }
+    finally { farLayerDraw = draw; render = frameWas; console.log = log; console.warn = warn; }
+    assert(out && out.rows && out.entities > 20, 'it ran: ' + (out && out.entities));
+    assert(on.length > 10 && on.every(v => v === false), 'every frame of it is drawn with the picture off');
+    assertEqual(pictured, 0, 'so none of them is the picture');
+    assert(FAR.on === true, 'and the picture is back on afterwards');
+    const plants = out.rows.find(r => r.kind === 'PLANT');
+    assert(plants && plants.n >= 16, 'the planting is a row of the profile, drawn by the pass: ' + JSON.stringify(plants));
   });
 });
 
@@ -19781,6 +19811,18 @@ test('a kept picture is baked once and then moved, until something in it changes
     setTile('plants', '20,6', { s: 'echinacea', d: 0, t: 5 });
     assertEqual(farFrame(t += 16).bakes, 1, 'an edit, which is a new scene');
     assertEqual(farFrame(t += 16).bakes, 0, 'and then nothing, again');
+    // a dev tool that swaps the scene's list is showing another planting (drawProfile's ablations)
+    const all = scene.ents; scene.ents = all.slice(0, 6);
+    assertEqual(farFrame(t += 16).bakes, 1, 'a swapped list is baked, not answered with the picture of the old one');
+    scene.ents = all;
+    assertEqual(farFrame(t += 16).bakes, 1, 'and so is the list put back');
+    assertEqual(farFrame(t += 16).bakes, 0, 'and then nothing');
+    // fast-forward: the pass, every frame
+    game.ffActive = true;
+    const held = farFrame(t += 16);
+    assert(held.bakes === 0 && held.blits === 0 && held.live > 20, 'held forward, the pass draws the planting');
+    game.ffActive = false;
+    farFrame(t += 16);
     // a zoom gesture stretches the picture it has; the bake waits for the zoom to rest
     ZOOM = 1.2;
     const mid = farFrame(t += 16);
@@ -29168,6 +29210,14 @@ test('the season bar moves by transform, and the dev tools do not read the garde
     assert(/probeCx\.drawImage\(cnv,\s*0,\s*0,\s*1,\s*1\)/.test(src), f + ' flushes through a 1x1 scratch canvas');
     assert(!/const flush\s*=\s*\(\)\s*=>\s*(\{\s*try\s*\{\s*)?cx2?\.getImageData\(0,\s*0,\s*1,\s*1\)/.test(src), f + ' does not flush by reading the garden canvas');
   }
+  /* And the profiler those tools call. It read the garden canvas some fifty times
+     a call, so the audit's second profile left the garden on a software canvas:
+     7 seconds a frame on the shrub border at a phone's size, and the audit's
+     old timeout. */
+  const prof = String(drawProfile);
+  assert(/probeCx\.drawImage\(cnv,0,0,1,1\); probeCx\.getImageData\(0,0,1,1\)/.test(prof), 'drawProfile flushes through a 1x1 scratch canvas');
+  assert(/getContext\('2d',\{willReadFrequently:true\}\)/.test(prof), 'which is a CPU canvas, made to be read');
+  assert(!/[^e]cx\.getImageData/.test(prof), 'and never reads the garden canvas itself');
 });
 
 test('source files are text', () => {

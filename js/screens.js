@@ -5151,7 +5151,7 @@ function drawProfile(opts){
   if (typeof scene==='undefined' || !cnv){ console.warn('drawProfile: needs a live canvas.'); return null; }
   if (document.hidden) console.warn('drawProfile: tab is HIDDEN — canvas timings here are not trustworthy.');
   const frames=Math.max(4,opts.frames||20), rounds=Math.max(3,opts.rounds||5);
-  const wasOff=PSPRITE.off, wasActive=PSPRITE.active, wasDbg=dbg.on;
+  const wasOff=PSPRITE.off, wasActive=PSPRITE.active, wasDbg=dbg.on, wasFar=FAR.on;
   const wasEnts=scene.ents;
   /* Everything below PINS renderer state, and an interrupted or throwing run
      used to leave it pinned. One aborted drawProfile({sprites:'off'}) left
@@ -5162,6 +5162,10 @@ function drawProfile(opts){
      found it is worse than no instrument. */
   try{
   dbg.on=false;                       // the phase timers would tax every ablation
+  /* And the kept picture of the planting (FAR) off: it is one blit whatever the
+     scene holds, so with it on every class read as nearly free and the frame as
+     0.9ms on a garden whose pass costs 35. This measures the pass. */
+  FAR.on=false; farLayerDrop();
   const pinOff = opts.sprites==='off', pinOn = opts.sprites==='on';
   if (pinOff) PSPRITE.off=true;
   if (pinOn) PSPRITE.off=false;
@@ -5173,7 +5177,18 @@ function drawProfile(opts){
   /* One readback after the batch forces the backend to finish what it queued.
      Without it this measures command SUBMISSION and every class reads as nearly
      free — the same blind spot dbg.flush exists for. */
-  const flush=()=>{ try{ cx.getImageData(0,0,1,1); }catch(_){ } };
+  /* Through a 1x1 scratch canvas, never by reading the garden canvas itself
+     (0.9.191). Chrome moves a 2D canvas that is read back to the CPU, for good
+     after about a hundred reads, and this read it some fifty times a call: the
+     second profile in one page, which is how dev/perf-audit.cjs calls it, left
+     the garden on a software canvas where every sprite blit is a readback of
+     its own. On a 1,820-plant garden at a phone's size each frame then took 7
+     seconds to rasterise, which is what "the shrub border outruns the audit's
+     timeout" was. Drawing the garden into the scratch still waits for its
+     queued raster, which is all a flush is for (the ff-bench note in CLAUDE.md). */
+  const probeCv=document.createElement('canvas'); probeCv.width=probeCv.height=1;
+  const probeCx=probeCv.getContext('2d',{willReadFrequently:true});
+  const flush=()=>{ try{ probeCx.drawImage(cnv,0,0,1,1); probeCx.getImageData(0,0,1,1); }catch(_){ } };
   const run=(ents)=>{
     let best=Infinity;
     for (let r=0;r<rounds;r++){
@@ -5221,7 +5236,7 @@ function drawProfile(opts){
   return out;
   } finally {
     scene.ents=wasEnts; game.sceneRev++;   // restore on every path out
-    PSPRITE.off=wasOff; PSPRITE.active=wasActive; dbg.on=wasDbg;
+    PSPRITE.off=wasOff; PSPRITE.active=wasActive; dbg.on=wasDbg; FAR.on=wasFar;
   }
 }
 /* ---- debug-only: the layers the bench could not see ----

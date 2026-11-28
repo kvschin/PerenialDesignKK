@@ -6378,7 +6378,7 @@ function drawShadeWash(ctx,W,H,shadeMap){
    Measured on that garden, headed Chrome at 164Hz: the fitted view 25 -> 164fps
    standing still and 23 -> 163fps panning, 32 -> 0.3ms of script a frame. */
 const FAR={on:true, HI_MS:14, LO_MS:6, HOT_N:3, STEPS:4, MAX_PX:4e6, MAX_SIDE:8192, MAX_STRETCH:2.5, MAX_OWN:600,
-  hot:false, n:0, cv:null, g:null, scene:null, base:'', zoom:'', s:0, x0:0, y0:0, again:false, bakes:0, blits:0};
+  hot:false, n:0, cv:null, g:null, scene:null, ents:null, base:'', zoom:'', s:0, x0:0, y0:0, again:false, bakes:0, blits:0};
 // everything in the scene, as one box with the camera taken out (the cull boxes' own space)
 /* Kept on the scene for the list it was worked out from: an edit in place hands on a
    COPY of the scene object with a new list (sceneApplyEdits), and the copy would carry
@@ -6404,8 +6404,15 @@ function farLayerBase(season){
 }
 function farLayerZoom(){ return ZOOM+'|'+SHARE.scale+'|'+PSPRITE.scale; }
 // nothing in the pass is moving, so a picture of it would be this frame's planting
+/* Not under fast-forward (0.9.191). The picture is baked STEPS times a garden
+   day, which held forward is eight bakes a second, each a whole pass and more:
+   measured on 16,000 plants, most frames were 6ms with one of 100-175ms eight
+   times a second, and the garden itself changed eight times a second where
+   the pass alone changes it 23. A higher average and a worse picture. Nor with
+   either sprite cache pinned off, which is somebody measuring the pass. */
 function farLayerMay(useSprites,ahead){
-  return FAR.on && useSprites && !PSPRITE.off && !game.photo && !sproutLive && !ahead && !gardenOpening;
+  return FAR.on && useSprites && !PSPRITE.off && !SSPRITE.off && !game.photo && !game.ffActive
+    && !sproutLive && !ahead && !gardenOpening;
 }
 /* How many clumps would be drawn from a sprite of their OWN at this zoom (SHARE).
    The picture is of the whole planting, off screen as well as on, so each of
@@ -6431,7 +6438,7 @@ function farLayerNote(may,ms){
 }
 function farLayerRelease(){                    // the pixels, not the decision
   if (FAR.cv){ try{ FAR.cv.width=0; FAR.cv.height=0; }catch(_){ } }
-  FAR.cv=null; FAR.g=null; FAR.scene=null; FAR.base=''; FAR.zoom=''; FAR.again=false;
+  FAR.cv=null; FAR.g=null; FAR.scene=null; FAR.ents=null; FAR.base=''; FAR.zoom=''; FAR.again=false;
 }
 function farLayerDrop(){ farLayerRelease(); FAR.hot=false; FAR.n=0; }
 function farLayerBake(W,H,season){
@@ -6446,7 +6453,7 @@ function farLayerBake(W,H,season){
   const cx0=cam.x, cy0=cam.y; cam.x=W/2; cam.y=H*0.24;
   try{ const sents=scene.ents; for (let i=0;i<sents.length;i++) drawSceneEnt(sents[i],W,H,season,0,true,g,true); }
   finally{ cam.x=cx0; cam.y=cy0; }
-  FAR.scene=scene; FAR.base=farLayerBase(season); FAR.zoom=farLayerZoom(); FAR.s=s; FAR.x0=b[0]; FAR.y0=b[1];
+  FAR.scene=scene; FAR.ents=scene.ents; FAR.base=farLayerBase(season); FAR.zoom=farLayerZoom(); FAR.s=s; FAR.x0=b[0]; FAR.y0=b[1];
   FAR.again=PSPRITE.waiting>0; FAR.bakes++;
   return true;
 }
@@ -6456,7 +6463,8 @@ function farLayerBake(W,H,season){
    needed, or null when there is no picture for this frame (the caller runs the
    pass). */
 function farLayerDraw(ctx,W,H,season,settled){
-  const s=DPR*ZOOM, same=FAR.cv && FAR.cv.width && FAR.scene===scene && FAR.base===farLayerBase(season);
+  // (the list as well as the scene: a dev tool that swaps scene.ents is showing another planting)
+  const s=DPR*ZOOM, same=FAR.cv && FAR.cv.width && FAR.scene===scene && FAR.ents===scene.ents && FAR.base===farLayerBase(season);
   let ms=-1;
   if (settled){
     if (!farLayerFits()) return null;        // render hands the pixels back
