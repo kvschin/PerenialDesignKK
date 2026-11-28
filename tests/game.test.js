@@ -17657,8 +17657,9 @@ test('render lets a picture stand in only where it can, and never in a photo', (
 test('render asks groundZoomDriftDue, not a flat drift', () => {
   const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
   const body = src.slice(src.indexOf('function render(t){'));
-  assert(/\(zoomStale && \(groundZoomDriftDue\(MD\)/.test(body),
+  assert(/let need=zoomStale \? groundZoomNeed\(MD\) : 0/.test(body) && /\(zoomStale && \(driftBake \|\| /.test(body),
     'a zoom bakes at once only when the coverage test finds a gap');
+  assert(/function groundZoomDriftDue\(MD\)\{ return groundZoomNeed\(MD\)!==0; \}/.test(src), 'the one test, as two answers');
   assert(/ensureGroundJob\(seasonOnly\?'season':'zoom'/.test(body),
     'and the settle is baked behind the stale picture instead of on the frame');
   assert(!/GROUND_ZOOM_DRIFT/.test(src), 'and the flat 18% drift is gone');
@@ -20843,6 +20844,350 @@ test('at a season turn a clump keeps its OWN shape, not a sibling\'s', () => {
     const drawn = [...PSPRITE.map.keys()].pop();  // a stand-in is re-inserted last, like any hit
     assert(drawn.startsWith('222|'), 'drew its own sprite, not 111\'s: ' + drawn);
     assert(/\|Summer\|/.test(drawn), 'the one from the season being left, under the crossfade');
+  });
+});
+
+/* ---------- a zoom on a big plot does not bake the ground on its own frames ----------
+   A zoom in progress baked the ground on the spot whenever the old bake went
+   soft or stopped covering the ground on screen. That bake costs by the tile,
+   and zoomed out on a big plot the window holds all of them: one wheel zoom out
+   was 5 bakes and frames to 153ms on a 93x93 plot, 7 and 414ms on a 229x123 one.
+   Where the window holds more than GROUND_SYNC_TILES, a zoom out falls back on a
+   kept picture of the whole plot (groundWide) and a zoom in is baked behind the
+   picture on screen (a chase job). The sandbox cannot rasterise, so these pin
+   the decisions and the bookkeeping; dev/ground-zoom-verify.cjs holds the
+   pictures themselves to a full bake. */
+function zoomGroundCase(gw, gh, fn){
+  setup(gw, gh);
+  const was = { VW, VH, DPR, ZOOM, cx: cam.x, cy: cam.y, w: cnv.width, h: cnv.height,
+    gc: groundCanvas, gx: groundCtx, sp: groundSpare, spx: groundSpareCtx, job: groundJob,
+    gk: groundKey, gks: groundKeyStruct, gz: groundZoom, gcx: groundCamX, gcy: groundCamY, refs: groundRefs,
+    wide: groundWide, wsp: groundWideSpare, dir: groundZoomDir, zp: groundZoomPrev, zt: groundZoomT, stale: groundMarginStale,
+    pg: paintGround, idle: groundViewIdle, ensure: ensureGroundJob, photo: game.photo, opening: gardenOpening, rot: game.rot };
+  const seen = { fulls: 0, bands: 0, jobs: [] };
+  try {
+    VW = 1400; VH = 900; DPR = 1; ZOOM = 1; cnv.width = 1400; cnv.height = 900; gardenOpening = null; game.photo = false;
+    const MD = Math.round(GROUND_MARGIN_CSS * DPR);
+    groundCanvas = null; groundCtx = null; groundSpare = null; groundSpareCtx = null; groundJob = null;
+    groundWide = null; groundWideSpare = null; groundKey = ''; groundZoomDir = 0; groundZoomPrev = -1; groundMarginStale = false;
+    paintGround = function () { if (arguments[10]) seen.bands++; else seen.fulls++; };   // a full bake passes no rectangle
+    groundViewIdle = () => false;
+    const ensure = ensureGroundJob;
+    ensureGroundJob = function (why) { const j = groundJob; const v = ensure.apply(this, arguments); if (groundJob !== j) seen.jobs.push(why); return v; };
+    let t = 5000;
+    // one frame; a zoom given is a wheel tick, and without `rest` the gesture is still going (no settle)
+    const frame = (z, rest) => { if (z !== undefined) ZOOM = z; t += 16; if (!rest) groundZoomT = t; render(t); };
+    const whole = () => { const g = groundWideTarget(MD); ZOOM = g.z; cam.x = g.x; cam.y = g.y; groundKey = ''; frame(undefined, true); seen.fulls = 0; seen.bands = 0; seen.jobs.length = 0; return g; };
+    fn({ MD, seen, frame, whole, struct: () => groundStructKey(calClock().season, game.rot) });
+  } finally {
+    VW = was.VW; VH = was.VH; DPR = was.DPR; ZOOM = was.ZOOM; cam.x = was.cx; cam.y = was.cy; cnv.width = was.w; cnv.height = was.h;
+    groundCanvas = was.gc; groundCtx = was.gx; groundSpare = was.sp; groundSpareCtx = was.spx; groundJob = was.job;
+    groundKey = was.gk; groundKeyStruct = was.gks; groundZoom = was.gz; groundCamX = was.gcx; groundCamY = was.gcy; groundRefs = was.refs;
+    groundWide = was.wide; groundWideSpare = was.wsp; groundZoomDir = was.dir; groundZoomPrev = was.zp; groundZoomT = was.zt; groundMarginStale = was.stale;
+    paintGround = was.pg; groundViewIdle = was.idle; ensureGroundJob = was.ensure; game.photo = was.photo; gardenOpening = was.opening; game.rot = was.rot;
+  }
+}
+
+test('what a zoom in progress needs of the ground is two answers: soft, and ground missing', () => {
+  zoomDriftCase(60, () => {
+    const MD = Math.round(GROUND_MARGIN_CSS * DPR);
+    const need = z => { ZOOM = z; return groundZoomNeed(MD); };
+    assertEqual(need(0.9), 0, 'inside the margin and not magnified: nothing');
+    assertEqual(need(GROUND_ZOOM_IN_MAX * 1.05), 1, 'magnified past the limit: soft, and the bake still covers');
+    assert((need(0.5) & 2) === 2 && (need(0.5) & 1) === 0, 'zoomed out past the bake on a 60-tile plot: ground missing, and not soft');
+    for (const z of [0.3, 0.5, 0.9, 1.2, 1.7, 2.4]) { ZOOM = z; assertEqual(groundZoomDriftDue(MD), groundZoomNeed(MD) !== 0, 'the old question is either answer, at ' + z); }
+    groundCanvas = null;
+    assertEqual(groundZoomNeed(MD), 3, 'with no bake at all it is both');
+  });
+});
+
+test('a bake window is dear by the tiles it holds, so a small plot never is', () => {
+  zoomGroundCase(31, 31, ({ MD }) => {
+    for (const z of [0.1, 0.3, 1, 2]) { ZOOM = z; snapCam(); assert(groundWindowTiles(VW / z, VH / z, MD, 5) <= 31 * 31, 'never more than the plot has, at ' + z); }
+    assert(31 * 31 <= GROUND_SYNC_TILES && !groundPlotDear(), 'the classic plot is under the limit at any zoom');
+  });
+  zoomGroundCase(93, 93, ({ MD }) => {
+    assert(groundPlotDear(), 'a 93x93 plot can be');
+    ZOOM = 0.2; snapCam();
+    assert(groundWindowTiles(VW / ZOOM, VH / ZOOM, MD, 5) > GROUND_SYNC_TILES, 'zoomed out, the window holds most of it');
+    ZOOM = 2.8; snapCam();
+    assert(groundWindowTiles(VW / ZOOM, VH / ZOOM, MD, 5) <= GROUND_SYNC_TILES, 'zoomed right in, it holds few enough to bake on the spot');
+  });
+});
+
+test('the whole-plot target holds all the ground the plot has, at the largest zoom that does', () => {
+  zoomGroundCase(93, 60, ({ MD }) => {
+    ZOOM = 1.3; cam.x = 123; cam.y = -45;
+    const g = groundWideTarget(MD);
+    assert(g && g.z > 0 && g.z < 1, 'a big plot fits the bake canvas only zoomed out: ' + (g && g.z));
+    assert(ZOOM === 1.3 && cam.x === 123 && cam.y === -45, 'working it out moves neither the zoom nor the camera');
+    assert(groundHoldsPlot(g.z, g.x, g.y, MD), 'a bake there holds the whole plot');
+    assert(!groundHoldsPlot(g.z * 1.03, g.x, g.y, MD), 'and one a little closer does not');
+    assert(!groundHoldsPlot(g.z, g.x + 400 / g.z, g.y, MD), 'nor one at that zoom somewhere else');
+    assert(groundWideTarget(MD) === g, 'kept while nothing it reads has moved');
+    game.rot = 1;
+    const r = groundWideTarget(MD);
+    assert(r !== g && groundHoldsPlot(r.z, r.x, r.y, MD), 'a turn of the view is another target, and it holds the plot too');
+    game.rot = 0; cnv.width = 1000; VW = 1000;
+    const n = groundWideTarget(MD);
+    assert(n.z < g.z && groundHoldsPlot(n.z, n.x, n.y, MD), 'a narrower canvas fits it at a smaller zoom');
+    cnv.width = 1400; VW = 1400; cnv.height = 240; VH = 240;
+    const h = groundWideTarget(MD);
+    assert(h.z < g.z && groundHoldsPlot(h.z, h.x, h.y, MD) && !groundHoldsPlot(h.z * 1.03, h.x, h.y, MD), 'and a short one by its height');
+  });
+});
+
+test('a free ground job keeps a zoom of its own, and borrows it to bake', () => {
+  groundJobCase(MD => {
+    const at = [];
+    paintGround = function () { at.push([ZOOM, cam.x, cam.y]); };
+    ZOOM = 1; cam.x = 7; cam.y = 8;
+    ensureGroundJob('chase', 'Summer', 0, 30, 40, MD, 0.5);
+    assert(groundJob.free && groundJob.zoom === 0.5, 'a job given a zoom is free');
+    ZOOM = 1.3;
+    assert(groundJobValid(MD), 'the gesture moving on does not drop it');
+    stepGroundJob(0, 3);
+    assert(at.length === 3 && at.every(a => a[0] === 0.5 && a[1] === 30 && a[2] === 40), 'it bakes at its own zoom and camera');
+    assert(ZOOM === 1.3 && cam.x === 7 && cam.y === 8, 'and the live view is as it was');
+    const job = groundJob;
+    ensureGroundJob('zoom', 'Summer', 0, 7, 8, MD);
+    assert(groundJob !== job && groundJob.zoom === 1.3 && !groundJob.free && groundJob.band === 0, 'the settle wants this zoom: another picture, not that one relabelled');
+    ZOOM = 0.5;
+    ensureGroundJob('chase', 'Summer', 0, 30, 40, MD, 0.5);
+    const chase = groundJob; stepGroundJob(0, 5);
+    ensureGroundJob('zoom', 'Summer', 0, 7, 8, MD);
+    assert(groundJob === chase && groundJob.band === 5 && !groundJob.free, 'a chase that is already at the settled zoom is kept, and is the settle\'s now');
+    // the whole-plot picture is the one job whose camera is part of what it is
+    ensureGroundJob('wide', 'Summer', 0, 1, 2, MD, 0.25);
+    const wide = groundJob; stepGroundJob(0, 2);
+    ensureGroundJob('wide', 'Summer', 0, 1, 2, MD, 0.25);
+    assert(groundJob === wide && groundJob.band === 2, 'asked for again, it carries on');
+    ensureGroundJob('wide', 'Summer', 0, 9, 2, MD, 0.25);
+    assert(groundJob !== wide, 'at another camera it would not hold the plot, so it is started again');
+  });
+});
+
+test('a job behind a gesture stops once its few ms are spent, after at least one chunk', () => {
+  groundJobCase(MD => {
+    const now = performance.now; let clock = 0;
+    paintGround = function () { clock += 4; };            // a chunk that takes 4ms
+    try {
+      performance.now = () => clock;
+      ensureGroundJob('chase', 'Summer', 0, 0, 0, MD, 1);
+      stepGroundJob(0, GROUND_JOB_COLS, 6);
+      assertEqual(groundJob.band, 2, 'two 4ms chunks reach 6ms');
+      stepGroundJob(0, GROUND_JOB_COLS, 1);
+      assertEqual(groundJob.band, 3, 'never fewer than one');
+      stepGroundJob(0, GROUND_JOB_COLS);
+      assertEqual(groundJob.band, 3 + GROUND_JOB_COLS, 'and with no limit, the chunks it was asked for');
+    } finally { performance.now = now; }
+  });
+});
+
+test('ground that holds the whole plot is kept when a job replaces it, on a plot dear enough to want it', () => {
+  zoomGroundCase(93, 93, ({ MD, whole, struct }) => {
+    const g = whole(), main = groundCanvas;
+    assert(groundMainWhole(struct(), MD), 'the ground on screen is the whole plot');
+    ZOOM = 1;
+    ensureGroundJob('zoom', calClock().season, game.rot, cam.x, cam.y, MD);
+    stepGroundJob(0, GROUND_JOB_BANDS);
+    const baked = groundSpare;
+    adoptGroundJob(0);
+    assert(groundCanvas === baked, 'the job is the ground now');
+    assert(groundWide && groundWide.cv === main && groundWide.zoom === g.z && groundWide.camX === g.x, 'and the picture it replaced is kept, with where it was baked');
+    assert(groundWideValid(struct(), MD), 'valid for this ground');
+    assert(groundSpare === null, 'so it is not the next job\'s spare (a new one is made when wanted)');
+    // a picture that does NOT hold the plot is the spare, as ever
+    ensureGroundJob('zoom', calClock().season, game.rot, cam.x + 50, cam.y, MD);
+    stepGroundJob(0, GROUND_JOB_BANDS);
+    const partial = groundCanvas;
+    adoptGroundJob(0);
+    assert(groundSpare === partial && groundWide.cv === main, 'a partial picture goes back to being the spare; the whole one stays');
+    // and an edit makes the kept one a picture of the past
+    setTile('terrain', '3,3', { k: 'bed', c: 'soil', t: 1 });
+    assert(!groundWideValid(struct(), MD), 'an edit to the ground: no longer valid');
+  });
+  zoomGroundCase(31, 31, ({ MD, whole }) => {
+    whole(); const main = groundCanvas;
+    ZOOM = 1;
+    ensureGroundJob('zoom', calClock().season, game.rot, cam.x, cam.y, MD);
+    stepGroundJob(0, GROUND_JOB_BANDS);
+    adoptGroundJob(0);
+    assert(groundWide === null && groundSpare === main, 'a small plot keeps nothing: its bakes are cheap, and a third canvas is not');
+  });
+});
+
+test('the whole-plot picture is swapped in for nothing, and its canvas goes round', () => {
+  zoomGroundCase(93, 93, ({ MD, whole, struct }) => {
+    const g = whole(), wideCv = groundCanvas;
+    // zoomed in, with that picture kept
+    ZOOM = 1;
+    ensureGroundJob('zoom', calClock().season, game.rot, cam.x, cam.y, MD);
+    stepGroundJob(0, GROUND_JOB_BANDS); adoptGroundJob(0);
+    const partial = groundCanvas;
+    adoptGroundWide();
+    assert(groundCanvas === wideCv && groundZoom === g.z && groundCamX === g.x && groundCamY === g.y, 'it is the ground on screen, at its own zoom and camera');
+    assertEqual(groundKey, struct() + '|' + groundDataKey(), 'under the key of the ground it was baked from');
+    assert(groundWide === null && groundWideSpare && groundWideSpare.cv === partial, 'and the canvas it replaced is kept to be painted on');
+    // a finished whole-plot job is stored, and the spare is whatever that leaves
+    groundWide = null; groundSpare = null; groundSpareCtx = null;
+    ensureGroundJob('wide', calClock().season, game.rot, g.x, g.y, MD, g.z);
+    const jobCv = groundSpare;
+    stepGroundJob(0, GROUND_JOB_BANDS);
+    storeGroundWideJob();
+    assert(groundWide && groundWide.cv === jobCv && groundWide.zoom === g.z, 'the job\'s canvas is the whole-plot picture');
+    assert(groundSpare === partial && groundWideSpare === null && groundJob === null, 'and the next job paints on the canvas that was waiting');
+    const before = [groundWide.cv];
+    // a browser out of canvas memory gets it back first: it is a convenience, and a zoom out bakes without it
+    const noted = noteError; noteError = () => {};
+    try { PSPRITE.frame += 2; spriteMemoryPressure(); } finally { noteError = noted; }
+    assert(groundWide === null && groundWideSpare === null && before[0].width === 0, 'handed back under memory pressure');
+    groundWide = { cv: document.createElement('canvas'), ctx: null }; groundWide.cv.width = 10; const again = groundWide.cv;
+    releaseGroundWide();
+    assert(groundWide === null && again.width === 0, 'and when a garden closes');
+    assert(/releaseGroundWide\(\);/.test(String(releaseGardenSurfaces)), 'which quitting to the menu does');
+  });
+});
+
+test('a wheel zoom on a dear plot bakes nothing on its own frames', () => {
+  zoomGroundCase(93, 93, ({ MD, seen, frame, whole }) => {
+    const g = whole(), wideCv = groundCanvas;
+    // ---- in, from the whole view: soft is chased, never baked on the spot
+    let z = g.z;
+    for (let i = 0; i < 400 && z < 1; i++) { z = Math.min(1, z * 1.12); frame(z); for (let k = 0; k < 60; k++) frame(); }
+    assertEqual(seen.fulls, 0, 'no bake on any frame of the zoom in');
+    assert(seen.jobs.includes('chase') && !seen.jobs.includes('wide'), 'the sharper picture was baked behind it: ' + seen.jobs.join(' '));
+    assert(groundWide && groundWide.cv === wideCv, 'and the whole-plot ground it replaced was kept');
+    for (let k = 0; k < 80; k++) frame(undefined, true);       // the gesture ends: the settle's job
+    assert(groundZoom === 1 && seen.fulls === 0, 'the settle is a job too');
+    // ---- out again: the gap is filled by the kept picture
+    seen.jobs.length = 0;
+    cam.x += 260;                                             // a pinch that also pans: further than the bake's margin
+    for (let i = 0; i < 60 && z > g.z * 1.02; i++) { z = Math.max(g.z, z / 1.12); frame(z); }
+    assertEqual(seen.fulls, 0, 'no bake on any frame of the zoom out, nor for the pan in it');
+    assert(groundCanvas === wideCv, 'the ground on screen is the kept picture');
+    assert(!seen.jobs.includes('chase'), 'and nothing chases a zoom out: ' + seen.jobs.join(' '));
+    assertEqual(groundZoomNeed(MD) & 2, 0, 'with no ground missing');
+  });
+});
+
+test('a job behind a gesture is held to a few ms a frame, and a chase does not outlive a zoom in', () => {
+  zoomGroundCase(93, 93, ({ MD, seen, frame, whole }) => {
+    const g = whole();
+    const step = stepGroundJob, asked = [];
+    stepGroundJob = function (t, n, ms) { if (groundJob) asked.push(groundJob.why + ':' + (ms || 0)); return step.apply(this, arguments); };
+    try {
+      frame(g.z * 1.8);                                       // soft, and the window is dear: a chase
+      assert(groundJob && groundJob.why === 'chase' && !groundJobDone(), 'a chase is under way');
+      frame();
+      assert(asked.length && asked.every(a => a === 'chase:' + GROUND_CHASE_MS), 'stepped within GROUND_CHASE_MS: ' + asked.join(' '));
+      frame(g.z * 1.7);                                       // the wheel turns the other way
+      assert(!(groundJob && groundJob.why === 'chase'), 'the chase is dropped: its picture is of nowhere the view is going');
+      // a whole-plot job is held the same way while somebody is steering; with nobody, it is not
+      ZOOM = 1; groundKey = ''; frame(undefined, true); groundWide = null; groundJob = null; asked.length = 0;
+      frame(0.9); frame();
+      assert(asked.length && asked.every(a => a === 'wide:' + GROUND_CHASE_MS), 'a zoom out\'s own: ' + asked.join(' '));
+      groundJob = null; asked.length = 0; groundViewIdle = () => true;
+      for (let i = 0; i < 120; i++) frame(undefined, true);    // the settle and its job, then idle
+      assert(asked.some(a => a === 'wide:0'), 'idle, it bakes a row of chunks a frame, as the rotation does: ' + asked.join(' '));
+      // and the moment somebody steers again, the same job is back to a few ms
+      groundWide = null; groundJob = null; asked.length = 0;
+      frame(undefined, true);                                 // idle: a whole-plot job starts
+      assert(groundJob && groundJob.why === 'wide', 'an idle job is under way');
+      groundViewIdle = () => false; asked.length = 0;
+      frame(undefined, true);
+      assert(asked.length && asked.every(a => a === 'wide:' + GROUND_CHASE_MS), 'a pan begun while it bakes does not pay for it: ' + asked.join(' '));
+    } finally { stepGroundJob = step; }
+  });
+});
+
+test('with no whole-plot picture in hand a zoom out starts one, and finishes it when the gap arrives', () => {
+  zoomGroundCase(93, 93, ({ MD, seen, frame, whole }) => {
+    const g = whole();
+    ZOOM = 1; groundKey = ''; frame(undefined, true);          // a bake at 100%: partial
+    seen.fulls = 0; seen.jobs.length = 0; groundWide = null; groundJob = null;
+    let z = 1, started = -1;
+    for (let i = 0; i < 60 && z > g.z * 1.02; i++) {
+      z = Math.max(g.z, z / 1.12); frame(z);
+      if (started < 0 && groundJob && groundJob.why === 'wide') started = i;
+    }
+    assertEqual(started, 0, 'the whole-plot job starts on the first frame of the zoom out');
+    assertEqual(seen.fulls, 0, 'and the gap is filled by finishing it, which is chunks and not a bake');
+    assert(groundZoom === g.z && groundCamX === g.x && groundHoldsPlot(groundZoom, groundCamX, groundCamY, MD), 'the ground on screen is the whole plot');
+  });
+});
+
+test('where even that is not to be had, the gap is one bake at the whole-plot target and no more', () => {
+  zoomGroundCase(93, 93, ({ MD, seen, frame, whole }) => {
+    const g = whole();
+    ZOOM = 1; groundKey = ''; frame(undefined, true);
+    seen.fulls = 0; groundWide = null; groundJob = null;
+    const ensure = ensureGroundJob;
+    ensureGroundJob = function (why) { if (why === 'wide') return; return ensure.apply(this, arguments); };   // no job gets the chance
+    try {
+      let z = 1;
+      for (let i = 0; i < 60 && z > g.z * 1.02; i++) { z = Math.max(g.z, z / 1.12); frame(z); }
+      assertEqual(seen.fulls, 1, 'one bake for the whole zoom out, where it was one every 1.4x');
+      assert(groundZoom === g.z && groundCamX === g.x && groundCamY === g.y, 'made at the whole-plot target');
+      assert(ZOOM === z, 'with the zoom it borrowed put back');
+    } finally { ensureGroundJob = ensure; }
+  });
+});
+
+test('a bake on the spot keeps the whole-plot picture it paints over', () => {
+  zoomGroundCase(93, 93, ({ MD, seen, frame, whole, struct }) => {
+    const g = whole(), wideCv = groundCanvas;
+    snapCam();
+    frame(2.8);                                               // straight to a window cheap enough to bake here
+    assertEqual(seen.fulls, 1, 'a cheap window bakes on the spot, as it always did');
+    assert(groundZoom === 2.8 && groundCanvas !== wideCv, 'on another canvas');
+    assert(groundWide && groundWide.cv === wideCv && groundWide.zoom === g.z && groundWideValid(struct(), MD), 'and the whole-plot ground is still in hand');
+  });
+});
+
+test('a small plot zooms exactly as it did: a bake when it must, and nothing kept', () => {
+  zoomGroundCase(31, 31, ({ MD, seen, frame }) => {
+    ZOOM = 1; snapCam(); groundKey = ''; frame(undefined, true);
+    seen.fulls = 0; seen.jobs.length = 0;
+    frame(1.7);
+    assertEqual(seen.fulls, 1, 'magnified past the limit: baked on the spot');
+    cam.x += 2000;                                            // the plot runs off the bake
+    frame(1.6);
+    assertEqual(seen.fulls, 2, 'ground missing on screen: baked on the spot');
+    for (let z = 1.5; z > 0.4; z /= 1.12) frame(z);
+    assert(groundWide === null && groundWideSpare === null, 'no whole-plot picture is ever kept');
+    assert(!seen.jobs.includes('chase') && !seen.jobs.includes('wide'), 'and no job is run behind the gesture: ' + seen.jobs.join(' '));
+    // nor while idle: the first idle job is the next rotation, as it always was
+    ZOOM = 1.5; groundKey = ''; frame(undefined, true); groundJob = null; seen.jobs.length = 0;
+    assertEqual(groundWideWanted(calClock().season, MD), null, 'a small plot wants no whole-plot picture');
+    groundViewIdle = () => true;
+    frame(undefined, true);
+    assert(groundJob && groundJob.why === 'rot' && !seen.jobs.includes('wide'), 'idle, it bakes the rotation: ' + seen.jobs.join(' '));
+  });
+});
+
+test('an idle view on a dear plot bakes the whole-plot picture before the next rotation', () => {
+  zoomGroundCase(93, 93, ({ MD, seen, frame, whole, struct }) => {
+    const g = whole();
+    ZOOM = 1; groundKey = ''; frame(undefined, true);          // zoomed in: the ground on screen is partial
+    groundWide = null; groundJob = null; seen.jobs.length = 0;
+    groundViewIdle = () => true;
+    frame(undefined, true);
+    assert(groundJob && groundJob.why === 'wide' && groundJob.zoom === g.z, 'the first idle job is the whole plot');
+    const onScreen = groundCanvas;
+    for (let i = 0; i < 60 && !groundWideValid(struct(), MD); i++) {
+      frame(undefined, true);
+      assert(groundCanvas === onScreen && groundZoom === 1, 'the ground on screen is never the job\'s picture, on any frame of it');
+    }
+    assert(groundWideValid(struct(), MD) && groundWide.zoom === g.z && groundWide.camX === g.x, 'stored when it is done');
+    assert(groundCanvas !== groundWide.cv && groundZoom === 1, 'without touching the ground on screen');
+    frame(undefined, true);
+    assert(groundJob && groundJob.why === 'rot', 'and then the next rotation, as before');
+    // the whole view needs none: the ground on screen is the picture
+    whole(); groundWide = null; groundJob = null; groundViewIdle = () => true;
+    frame(undefined, true);
+    assert(groundJob && groundJob.why === 'rot', 'with the whole plot on screen it goes straight to the rotation');
+    assertEqual(groundWideWanted(calClock().season, MD), null, 'nothing more is wanted');
   });
 });
 
@@ -31202,9 +31547,9 @@ test('an eased Fit zooming out bakes the ground once, at where it is going', () 
     assertEqual(viewTweenGroundTarget(), null, 'and so does a zoom step');
     // the renderer consults it at the two triggers and at the bake
     const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
-    assert(/\(panDev>=MD && !viewTweenGroundHeld\(groundZoom,groundCamX,groundCamY\)\)/.test(src), 'the margin trigger');
+    assert(/\(panDev>=MD && !dear && !viewTweenGroundHeld\(groundZoom,groundCamX,groundCamY\)\)/.test(src), 'the margin trigger');
     assert(/k>GROUND_ZOOM_IN_MAX && !viewTweenGroundHeld\(groundZoom,groundCamX,groundCamY\)/.test(src), 'the magnification trigger');
-    assert(/const ahead=zoomStale && !game\.photo \? viewTweenGroundTarget\(\) : null;/.test(src), 'and the full bake, never for a photo');
+    assert(/const ahead=zoomStale && !game\.photo \? \(viewTweenGroundTarget\(\) \|\| wideAhead\) : null;/.test(src), 'and the full bake, never for a photo');
     assert(/finally \{ if \(ahead\)\{ ZOOM=z0; cam\.x=cx0; cam\.y=cy0; \} \}/.test(src), 'which borrows the zoom and camera and puts them back');
   });
 });

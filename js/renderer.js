@@ -16,6 +16,7 @@ let groundCanvas=null, groundCtx=null, groundKey='', groundKeyStruct='', groundR
 let underlayImage={src:null,img:null,ready:false,error:false};
 let groundCamX=0, groundCamY=0, groundZoom=1;          // camera/zoom at bake time
 let groundZoomPrev=-1, groundZoomT=-1e9;               // last zoom tick, for settle
+let groundZoomDir=0;                                   // the way the zoom last moved: -1 out, 1 in
 let groundCamPrevX=NaN, groundCamPrevY=NaN, groundCamT=-1e9; // last cam tick, for settle
 const GROUND_MARGIN_CSS=200;    // pan headroom baked around the viewport, CSS px
 const GROUND_ZOOM_SETTLE=140;   // ms after the last zoom tick before the crisp rebake
@@ -74,17 +75,22 @@ function groundEditThrottled(t, keyChanged, structMatches){
    Asked in DEVICE pixels with the blit's own arithmetic — the space the blit
    happens in. The 0.8.39 note in CLAUDE.md is about asking a containment
    question in tile space instead, and what that cost. */
-function groundZoomDriftDue(MD){
-  if (!groundCanvas || !(groundZoom>0)) return true;
+function groundZoomDriftDue(MD){ return groundZoomNeed(MD)!==0; }
+/* The same question as two answers, since they want different things done about
+   them on a plot whose ground is dear to bake (GROUND_SYNC_TILES): 1 = SOFT, the
+   old bake is magnified past GROUND_ZOOM_IN_MAX; 2 = GAP, it would leave ground
+   missing on screen. A gap cannot wait a frame; softness can. */
+function groundZoomNeed(MD){
+  if (!groundCanvas || !(groundZoom>0)) return 3;
   const k=ZOOM/groundZoom;
   // an eased Fit holding the bake of where it is going: soft on the way, by design (view.js)
-  if (k>GROUND_ZOOM_IN_MAX && !viewTweenGroundHeld(groundZoom,groundCamX,groundCamY)) return true;
+  const soft=(k>GROUND_ZOOM_IN_MAX && !viewTweenGroundHeld(groundZoom,groundCamX,groundCamY)) ? 1 : 0;
   const bdx=DPR*VW/2*(1-k) - k*MD + DPR*ZOOM*(groundCamX-cam.x);
   const bdy=DPR*VH*0.24*(1-k) - k*MD + DPR*ZOOM*(groundCamY-cam.y);
   const bw=groundCanvas.width*k, bh=groundCanvas.height*k;
-  if (bdx<=0 && bdy<=0 && bdx+bw>=cnv.width && bdy+bh>=cnv.height) return false;
+  if (bdx<=0 && bdy<=0 && bdx+bw>=cnv.width && bdy+bh>=cnv.height) return soft;
   const g=plotGroundExtentDevice();
-  return !(g.x0>=bdx && g.y0>=bdy && g.x1<=bdx+bw && g.y1<=bdy+bh);
+  return soft | ((g.x0>=bdx && g.y0>=bdy && g.x1<=bdx+bw && g.y1<=bdy+bh) ? 0 : 2);
 }
 /* The screen box, in device pixels, that the plot's ground can occupy at the
    current camera: the four corner tiles' diamonds, padded for terraces lifted
@@ -109,6 +115,131 @@ function groundStructKey(season,rot){
 // two struct keys that differ in nothing but the season
 function groundSeasonOnly(a,b){
   return a!==b && a.slice(a.indexOf('|'))===b.slice(b.indexOf('|'));
+}
+/* ---------- zoom gestures on a plot whose ground is dear to bake (0.9.190) ----------
+   A zoom in progress bakes the ground on the spot in two cases (groundZoomNeed):
+   the old bake has gone soft, or it no longer covers the ground on screen. On a
+   31x31 plot that bake is a few ms and nobody feels it. It costs by the TILE,
+   though, and zoomed out on a big plot the window holds all of them: measured,
+   one wheel zoom out was 5 bakes and frames to 153ms on a 93x93 plot, and 7
+   bakes and frames to 414ms on a 229x123 one.
+
+   So where the window to bake holds more than GROUND_SYNC_TILES (`dear`), a
+   gesture stops baking on its own frames:
+   - A picture of the WHOLE plot's ground is kept (`groundWide`), at the zoom
+     where the plot just fits the bake canvas. When a zoom out would leave a gap
+     it is swapped in, which costs nothing: it is soft (magnified) until the
+     gesture ends, and the settle's job bakes the crisp one behind it as after
+     any zoom. It comes from three places: the ground on screen whenever that
+     holds the whole plot and is about to be replaced (a zoom in from the whole
+     view, the commonest way to need it a moment later); a job started as a zoom
+     out begins; and a job while the view is idle. With none of those finished
+     in time, the gap is filled by ONE bake at that same whole-plot target (the
+     eased Fit's idea, viewTweenGroundTarget) in place of one every 1.4x.
+   - A zoom IN gone soft is baked BEHIND the picture on screen (a `chase` job at
+     the zoom and camera of the frame that asked), a few chunks a frame within
+     GROUND_CHASE_MS, and swapped in when done. It lands a little behind the
+     gesture and the next one starts; the last is the settle's.
+   - With a dear window the pan-margin rebake stands down for the gesture: the
+     coverage test above already asks whether ground is missing, in the blit's
+     own arithmetic, and a job's picture is always a camera or two behind.
+   A window at or under the limit bakes on the spot exactly as before, so a plot
+   of 38x38 or less (the classic 31x31 among them) never takes any of this, and
+   nor does a photo. The limit is 1,500 on measurement: at 2,500 a 46x46 plot
+   kept three bakes and 45ms frames in a zoom out; under it, none and 15ms.
+   The price is softness: the whole-plot picture is magnified until the gesture
+   ends (3x on a 93x93 plot at 1440x900, 5x on a 229x123 one), where the old
+   bake was crisp and late. */
+const GROUND_SYNC_TILES=1500;   // tiles in the bake window's bbox past which a gesture does not bake it on its own frame
+const GROUND_CHASE_MS=6;        // JS a frame on a picture being baked behind a gesture
+let groundWide=null;            // {cv,ctx,zoom,camX,camY,struct,data,refs}: the whole plot's ground, or null
+let groundWideSpare=null;       // {cv,ctx}: a ground-sized canvas holding nothing worth keeping
+let groundWideMemo={key:'', v:null};
+// tiles in the bbox a full bake at this zoom and camera would walk (the full bake's own arithmetic)
+function groundWindowTiles(W,H,MD,pad){
+  const Mu=MD/(DPR*ZOOM);
+  const c=[tileAt(-Mu,-Mu,W,H),tileAt(W+Mu,-Mu,W,H),tileAt(-Mu,H+Mu,W,H),tileAt(W+Mu,H+Mu,W,H)];
+  const x0=Math.max(0,Math.min(c[0][0],c[1][0],c[2][0],c[3][0])-pad), x1=Math.min(GW-1,Math.max(c[0][0],c[1][0],c[2][0],c[3][0])+pad);
+  const y0=Math.max(0,Math.min(c[0][1],c[1][1],c[2][1],c[3][1])-pad), y1=Math.min(GH-1,Math.max(c[0][1],c[1][1],c[2][1],c[3][1])+pad);
+  return Math.max(0,x1-x0+1)*Math.max(0,y1-y0+1);
+}
+function groundPlotDear(){ return GW*GH>GROUND_SYNC_TILES; }
+// would a bake at this zoom and camera hold all the ground the plot has?
+function groundHoldsPlot(z,camX,camY,MD){
+  if (!(z>0)) return false;
+  const z0=ZOOM, cx0=cam.x, cy0=cam.y;
+  ZOOM=z; cam.x=camX; cam.y=camY;
+  try{ const g=plotGroundExtentDevice(); return g.x0>=-MD && g.y0>=-MD && g.x1<=cnv.width+MD && g.y1<=cnv.height+MD; }
+  finally{ ZOOM=z0; cam.x=cx0; cam.y=cy0; }
+}
+/* The zoom and camera at which the whole plot's ground just fits the bake
+   canvas, centred in it. plotGroundExtentDevice is the box, so what fits here
+   passes the coverage test at any zoom further out. */
+function groundWideTarget(MD){
+  const key=GW+'x'+GH+'|'+game.rot+'|'+cnv.width+'x'+cnv.height+'|'+MD+'|'+VW+'x'+VH+'|'+DPR;
+  if (groundWideMemo.key===key) return groundWideMemo.v;
+  const z0=ZOOM, cx0=cam.x, cy0=cam.y; let v=null;
+  try{
+    ZOOM=1; cam.x=0; cam.y=0;
+    let g=plotGroundExtentDevice();
+    const z=Math.min((cnv.width+2*MD-4)/(g.x1-g.x0), (cnv.height+2*MD-4)/(g.y1-g.y0));
+    if (z>0 && isFinite(z)){
+      ZOOM=z; g=plotGroundExtentDevice();
+      v={z, x:((g.x0+g.x1)/2-cnv.width/2)/(DPR*z), y:((g.y0+g.y1)/2-cnv.height/2)/(DPR*z)};
+    }
+  } finally { ZOOM=z0; cam.x=cx0; cam.y=cy0; }
+  groundWideMemo={key, v};
+  return v;
+}
+function groundWideValid(struct,MD){
+  const w=groundWide;
+  return !!w && w.struct===struct && w.data===groundDataKey()
+    && w.refs.terrain===game.terrain && w.refs.elevation===game.elevation && w.refs.houses===game.houses
+    && w.cv.width===cnv.width+2*MD && w.cv.height===cnv.height+2*MD;
+}
+// is the ground on screen a picture of the whole plot, of the ground as it is now?
+function groundMainWhole(struct,MD){
+  return !!groundCanvas && groundKey===struct+'|'+groundDataKey() && !groundRefsChanged()
+    && groundCanvas.width===cnv.width+2*MD && groundHoldsPlot(groundZoom,groundCamX,groundCamY,MD);
+}
+// the whole-plot target still worth baking, or null: none on a small plot, nor where one is in hand
+function groundWideWanted(season,MD){
+  if (!groundPlotDear() || game.photo) return null;
+  const struct=groundStructKey(season,game.rot);
+  if (groundWideValid(struct,MD) || groundMainWhole(struct,MD)) return null;
+  return groundWideTarget(MD);
+}
+function releaseGroundCanvas(cv){ if (cv){ try{ cv.width=0; cv.height=0; }catch(_){ } } }
+// keep this canvas as the whole-plot picture; the one it replaces is kept to paint on, or handed back
+function storeGroundWide(cv,ctx,zoom,camX,camY,struct,data,refs){
+  const old=groundWide;
+  groundWide={cv,ctx,zoom,camX,camY,struct,data,refs};
+  if (old && old.cv!==cv){
+    if (!groundWideSpare) groundWideSpare={cv:old.cv,ctx:old.ctx}; else releaseGroundCanvas(old.cv);
+  }
+}
+function takeGroundWideSpare(){ const sp=groundWideSpare; groundWideSpare=null; return sp; }
+// a finished 'wide' job: its canvas is the whole-plot picture, and the spare is whatever that replaced
+function storeGroundWideJob(){
+  const j=groundJob;
+  storeGroundWide(groundSpare,groundSpareCtx,j.zoom,j.camX,j.camY,j.struct,j.data,j.refs);
+  const sp=takeGroundWideSpare();
+  groundSpare=sp?sp.cv:null; groundSpareCtx=sp?sp.ctx:null;
+  groundJob=null;
+}
+// the whole-plot picture becomes the ground on screen; the canvas it replaces is kept to paint on
+function adoptGroundWide(){
+  const w=groundWide, oc=groundCanvas, ox=groundCtx;
+  groundCanvas=w.cv; groundCtx=w.ctx; groundZoom=w.zoom; groundCamX=w.camX; groundCamY=w.camY; groundRefs=w.refs;
+  groundKey=w.struct+'|'+w.data; groundKeyStruct=w.struct; groundMarginStale=false;
+  groundWide=null;
+  if (oc){ if (!groundWideSpare) groundWideSpare={cv:oc,ctx:ox}; else releaseGroundCanvas(oc); }
+  dev('adoptWide',performance.now());
+}
+function releaseGroundWide(){
+  if (groundWide) releaseGroundCanvas(groundWide.cv);
+  if (groundWideSpare) releaseGroundCanvas(groundWideSpare.cv);
+  groundWide=null; groundWideSpare=null;
 }
 /* ---------- the next ground picture, baked a band at a time ----------
    A full bake is ~100ms of GPU raster at 2114x1241 in Chrome — the grain is
@@ -139,7 +270,8 @@ let groundJob=null, groundSpare=null, groundSpareCtx=null;
 function groundJobDone(){ return !!groundJob && groundJob.band>=GROUND_JOB_BANDS; }
 function groundJobValid(MD){
   const j=groundJob;
-  return !!j && j.data===groundDataKey() && j.zoom===ZOOM && j.MD===MD
+  // a FREE job's zoom is its own (a chase behind a gesture, the whole-plot picture); any other is for this one
+  return !!j && j.data===groundDataKey() && (j.free || j.zoom===ZOOM) && j.MD===MD
     && j.w===cnv.width+2*MD && j.h===cnv.height+2*MD
     && j.refs.terrain===game.terrain && j.refs.elevation===game.elevation && j.refs.houses===game.houses
     && j.struct===groundStructKey(j.season,j.rot);    // edge style, landscape layer, canvas size
@@ -147,40 +279,57 @@ function groundJobValid(MD){
 /* Keep a valid job already heading for this picture; otherwise start one. The
    camera is not part of "the same picture": a job baked at another camera is
    still the right ground, and the pan logic scrolls it into place. */
-function ensureGroundJob(why,season,rot,camX,camY,MD){
-  const struct=groundStructKey(season,rot);
-  if (groundJob && groundJob.struct===struct && groundJobValid(MD)){ groundJob.why=why; return; }
+function ensureGroundJob(why,season,rot,camX,camY,MD,zoom){
+  const struct=groundStructKey(season,rot), free=zoom>0, z=free?zoom:ZOOM;
+  // (the whole-plot picture is the one job whose camera is part of what it is)
+  if (groundJob && groundJob.struct===struct && groundJob.zoom===z && groundJobValid(MD)
+      && (why!=='wide' || (groundJob.camX===camX && groundJob.camY===camY))){ groundJob.why=why; groundJob.free=free; return; }
   const w=cnv.width+2*MD, h=cnv.height+2*MD;
   if (!groundSpare){ groundSpare=document.createElement('canvas'); groundSpareCtx=groundSpare.getContext('2d'); }
   if (groundSpare.width!==w || groundSpare.height!==h){ groundSpare.width=w; groundSpare.height=h; }
-  groundJob={why, season, rot, struct, data:groundDataKey(), zoom:ZOOM, camX, camY, MD, w, h,
+  groundJob={why, season, rot, struct, data:groundDataKey(), zoom:z, free, camX, camY, MD, w, h,
     refs:{terrain:game.terrain,elevation:game.elevation,houses:game.houses}, band:0};
 }
 /* Bake the next `n` chunks of the job into the spare canvas. The camera and the
    rotation are borrowed for the call and put back in a finally — the
    gsBorrowCamera pattern — because the ground painters read both; the season
    travels in `amb`, which is all they read of it. */
-function stepGroundJob(t,n){
+function stepGroundJob(t,n,ms){
   const j=groundJob; if (!j) return;
-  const tB=dnow();
-  const W=VW/ZOOM, H=VH/ZOOM, amb=AMBIENCE[j.season], s=DPR*ZOOM;
+  const tB=dnow(), t0=ms>0?performance.now():0;
   const bw=Math.ceil(j.w/GROUND_JOB_COLS), bh=Math.ceil(j.h/GROUND_JOB_ROWS);
-  const cx0=cam.x, cy0=cam.y, r0=game.rot;
-  cam.x=j.camX; cam.y=j.camY; game.rot=j.rot;
+  // the zoom is borrowed with the camera: a free job's is its own, and the painters read all three
+  const z0=ZOOM, cx0=cam.x, cy0=cam.y, r0=game.rot;
+  ZOOM=j.zoom; cam.x=j.camX; cam.y=j.camY; game.rot=j.rot;
   try{
-    for (let i=0; i<n && j.band<GROUND_JOB_BANDS; i++, j.band++){
+    const W=VW/ZOOM, H=VH/ZOOM, amb=AMBIENCE[j.season], s=DPR*ZOOM;
+    for (let i=0; i<n && j.band<GROUND_JOB_BANDS; i++){
       const px=(j.band%GROUND_JOB_COLS)*bw, py=Math.floor(j.band/GROUND_JOB_COLS)*bh;
       if (px<j.w && py<j.h)
         bakeGroundRect(px,py,Math.min(bw,j.w-px),Math.min(bh,j.h-py),W,H,amb,t,j.MD,5,j.MD/s,groundSpareCtx);
+      j.band++;
+      if (ms>0 && performance.now()-t0>=ms) break;    // `ms`: stop once that much JS is spent, after at least one chunk
     }
-  } finally { cam.x=cx0; cam.y=cy0; game.rot=r0; }
+  } finally { ZOOM=z0; cam.x=cx0; cam.y=cy0; game.rot=r0; }
   dev('bakeBand',tB,groundSpareCtx);
 }
 // swap the finished picture in; the old canvas becomes the next job's spare
 function adoptGroundJob(t){
   const j=groundJob;
   const oc=groundCanvas, ox=groundCtx;
-  groundCanvas=groundSpare; groundCtx=groundSpareCtx; groundSpare=oc; groundSpareCtx=ox;
+  /* The picture going out is still this ground when only its zoom or camera
+     differ, and where it holds the whole plot of a dear one it is kept
+     (groundWide): a zoom in from the whole view is the commonest way to want it
+     back a moment later. */
+  const keep=groundPlotDear() && !!oc && groundKey===j.struct+'|'+j.data
+    && groundRefs.terrain===j.refs.terrain && groundRefs.elevation===j.refs.elevation && groundRefs.houses===j.refs.houses
+    && oc.width===j.w && oc.height===j.h && groundHoldsPlot(groundZoom,groundCamX,groundCamY,j.MD);
+  groundCanvas=groundSpare; groundCtx=groundSpareCtx;
+  if (keep){
+    storeGroundWide(oc,ox,groundZoom,groundCamX,groundCamY,j.struct,j.data,groundRefs);
+    const sp=takeGroundWideSpare();
+    groundSpare=sp?sp.cv:null; groundSpareCtx=sp?sp.ctx:null;
+  } else { groundSpare=oc; groundSpareCtx=ox; }
   groundKey=j.struct+'|'+j.data; groundKeyStruct=j.struct; groundZoom=j.zoom;
   groundCamX=j.camX; groundCamY=j.camY; groundRefs=j.refs;
   groundMarginStale=false; clearGroundDamage(); groundEditT=t;
@@ -215,16 +364,26 @@ function groundViewIdle(t){
    Work a frame IS waiting for (a zoom settle, a season already turned) was
    queued by render itself and is never displaced by a guess. */
 function groundJobTick(t,MD,season,ahead){
-  if (!groundJob || groundJob.why==='ahead' || groundJob.why==='rot'){
+  if (!groundJob || groundJob.why==='ahead' || groundJob.why==='rot' || groundJob.why==='wide'){
     if (ahead) ensureGroundJob('ahead',ahead.season,game.rot,cam.x,cam.y,MD);
     else if (groundViewIdle(t)){
-      const r=(game.rot+1)%4, c=snapCamFor(r);
-      ensureGroundJob('rot',season,r,c[0],c[1],MD);
+      // the whole plot's ground first, on a dear plot that has none in hand: a zoom is far commoner than a turn
+      const wt=groundWideWanted(season,MD);
+      if (wt) ensureGroundJob('wide',season,game.rot,wt.x,wt.y,MD,wt.z);
+      else {
+        const r=(game.rot+1)%4, c=snapCamFor(r);
+        ensureGroundJob('rot',season,r,c[0],c[1],MD);
+      }
     }
   }
   if (groundJob && !groundJobDone() && groundJobValid(MD)){
     if (ahead) prepareGroundWithinBudget(t,AHEAD.budget/2);
-    else stepGroundJob(t,GROUND_JOB_COLS);
+    /* Behind a gesture a job is held to a few ms of JS a frame. The whole-plot
+       picture is held the same way whenever somebody is steering, whoever
+       started it: an idle one is a whole plot of chunks, and a pan begun while
+       it bakes should not be the one to pay for them. With nobody steering it
+       bakes a row of chunks a frame, as the rotation does. */
+    else stepGroundJob(t,GROUND_JOB_COLS,(groundJob.why==='chase' || (groundJob.why==='wide' && !groundViewIdle(t)))?GROUND_CHASE_MS:0);
   }
 }
 // Ground and sprites spend the SAME preparation allowance. A single canvas
@@ -2715,6 +2874,7 @@ function spriteMemoryPressure(){
   PREBAKE.gen++;
   for (const [k,e] of SSPRITE.map) if (e.used<SSPRITE.frame-1){ SSPRITE.bytes-=e.bytes; SSPRITE.map.delete(k); retireSpriteImage(e.cv); }
   for (let i=ATLAS.pages.length-1;i>=0;i--) if (!ATLAS.pages[i].live){ releaseSpriteImage(ATLAS.pages[i].cv); ATLAS.pages.splice(i,1); }
+  releaseGroundWide();     // the whole-plot ground is a convenience: a zoom out bakes without it, as it used to
   if (!spritePressureNoted && typeof noteError==='function'){
     spritePressureNoted=true;
     noteError(new Error('The browser refused a sprite canvas (out of canvas memory)'),'sprite-memory');
@@ -3435,6 +3595,7 @@ function releaseGardenSurfaces(){
   closeRetiredSprites();
   for (const cv of [groundCanvas,groundSpare,NIGHT_MAP.cv]) if (cv){ try{ cv.width=0; cv.height=0; }catch(_){ } }
   groundCanvas=null; groundCtx=null; groundSpare=null; groundSpareCtx=null;
+  releaseGroundWide();
   groundJob=null; groundKey=''; groundKeyStruct=''; groundBaked=null; groundMarginStale=false;
   NIGHT_MAP.cv=null; NIGHT_MAP.g=null; NIGHT_MAP.key=''; NIGHT_MAP.scene=null;
   seasonFade.active=false; seasonFade.want=null; dropSeasonFadeCanvas();
@@ -6390,17 +6551,42 @@ function render(t){
      already baked are the saving, and there is nothing to show meanwhile. */
   if (groundJob){
     if (!groundJobValid(MD)) groundJob=null;
+    else if (groundJob.why==='wide'){ if (groundJobDone()) storeGroundWideJob(); }   // never the ground on screen by itself
     else if (groundJob.struct===gStruct){
       if (!groundJobDone() && groundKeyStruct!==gStruct && !groundSeasonOnly(groundKeyStruct,gStruct))
         stepGroundJob(t,GROUND_JOB_BANDS);
       if (groundJobDone()) adoptGroundJob(t);
     }
   }
-  if (ZOOM!==groundZoomPrev){ groundZoomT=t; groundZoomPrev=ZOOM; }        // zoom gesture heat
+  if (ZOOM!==groundZoomPrev){ if (groundZoomPrev>0) groundZoomDir=ZOOM<groundZoomPrev?-1:1; groundZoomT=t; groundZoomPrev=ZOOM; }   // zoom gesture heat
   if (cam.x!==groundCamPrevX||cam.y!==groundCamPrevY){ groundCamT=t; groundCamPrevX=cam.x; groundCamPrevY=cam.y; }
-  const zoomStale=ZOOM!==groundZoom;
-  const camStale=cam.x!==groundCamX||cam.y!==groundCamY;
-  const panDev=Math.max(Math.abs(cam.x-groundCamX),Math.abs(cam.y-groundCamY))*DPR*ZOOM;
+  let zoomStale=ZOOM!==groundZoom;
+  let camStale=cam.x!==groundCamX||cam.y!==groundCamY;
+  let panDev=Math.max(Math.abs(cam.x-groundCamX),Math.abs(cam.y-groundCamY))*DPR*ZOOM;
+  /* What a zoom in progress needs of the ground (groundZoomNeed), and on a plot
+     whose window is dear to bake, what is done about it without a bake on this
+     frame: see the note over GROUND_SYNC_TILES. */
+  const dear=zoomStale && !game.photo && groundWindowTiles(W,H,MD,pad)>GROUND_SYNC_TILES;
+  let need=zoomStale ? groundZoomNeed(MD) : 0, driftBake=false, chase=false, wideAhead=null;
+  if (dear && (need&2)){
+    // a whole-plot job part way through is finished here: the chunks already baked are the saving
+    if (!groundWideValid(gStruct,MD) && groundJob && groundJob.why==='wide' && groundJob.struct===gStruct){
+      stepGroundJob(t,GROUND_JOB_BANDS); storeGroundWideJob();
+    }
+    if (groundWideValid(gStruct,MD)){
+      adoptGroundWide();
+      zoomStale=ZOOM!==groundZoom; camStale=cam.x!==groundCamX||cam.y!==groundCamY;
+      panDev=Math.max(Math.abs(cam.x-groundCamX),Math.abs(cam.y-groundCamY))*DPR*ZOOM;
+      need=zoomStale ? groundZoomNeed(MD) : 0;
+    }
+  }
+  if (need&2){
+    driftBake=true;                                   // ground missing on screen cannot wait
+    if (dear && groundZoomDir<0){ const wt=groundWideTarget(MD); if (wt && wt.z<ZOOM) wideAhead=wt; }
+  } else if (need&1){
+    if (!dear) driftBake=true;                        // cheap: crisp at once, as it always was
+    else if (groundZoomDir>0) chase=true;             // dear, zooming in: baked behind the picture on screen
+  }                                                   // dear, zooming out: the settle bakes it
   /* Edit throttle. A brush drag bumps groundRev on every tile it paints, so
      `gkey!==groundKey` was true on every frame of the stroke and the whole
      viewport rebaked each time — the one gesture the bake-once-blit-forever
@@ -6431,14 +6617,29 @@ function render(t){
   const zoomSettled = zoomStale && t-groundZoomT>GROUND_ZOOM_SETTLE;
   const mustBake = (gkey!==groundKey && !editThrottled && !seasonOnly)
     || groundRefsChanged()
-    || (panDev>=MD && !viewTweenGroundHeld(groundZoom,groundCamX,groundCamY))
+    || (panDev>=MD && !dear && !viewTweenGroundHeld(groundZoom,groundCamX,groundCamY))
     // a stale margin becomes visible the moment the camera moves, so bake at once
     || (camStale && groundMarginStale)
     // a zoom that would leave ground missing on screen cannot wait
-    || (zoomStale && (groundZoomDriftDue(MD) || (zoomSettled && !!game.photo)))
+    || (zoomStale && (driftBake || (zoomSettled && !!game.photo)))
     || (camStale && !zoomStale && t-groundCamT>GROUND_PAN_SETTLE);
   if (!mustBake && (seasonOnly || zoomSettled))
     ensureGroundJob(seasonOnly?'season':'zoom',cal.season,game.rot,cam.x,cam.y,MD);
+  else if (!mustBake && dear && !zoomSettled){
+    /* Behind the gesture, with nothing else being waited for: a zoom in gone soft
+       is chased at this frame's zoom and camera, and a zoom out with no whole-plot
+       picture in hand starts one before the gap arrives. A job of either kind
+       already on its way is left to finish. */
+    // a chase is for a zoom in: once the wheel turns the other way its picture is of nowhere the view is going
+    if (groundJob && groundJob.why==='chase' && groundZoomDir<0) groundJob=null;
+    const waited=groundJob && groundJob.why!=='ahead' && groundJob.why!=='rot' && groundJob.why!=='wide';   // a job a frame is waiting on
+    if (chase){
+      if (!waited) ensureGroundJob('chase',cal.season,game.rot,cam.x,cam.y,MD,ZOOM);
+    } else if (groundZoomDir<0 && !waited && !(groundJob && groundJob.why==='ahead')){
+      const wt=groundWideWanted(cal.season,MD);
+      if (wt && wt.z<ZOOM) ensureGroundJob('wide',cal.season,game.rot,wt.x,wt.y,MD,wt.z);
+    }
+  }
   if (mustBake){
     // this bake supersedes any job heading for the same picture
     if (groundJob && groundJob.struct===gStruct) groundJob=null;
@@ -6468,7 +6669,19 @@ function render(t){
       /* An eased Fit zooming out bakes once, at its destination's zoom and
          camera, which hold every frame on the way (viewTweenGroundTarget,
          view.js). Borrowed and put back like a ground job's camera. */
-      const ahead=zoomStale && !game.photo ? viewTweenGroundTarget() : null;
+      const ahead=zoomStale && !game.photo ? (viewTweenGroundTarget() || wideAhead) : null;
+      /* The picture about to be painted over is kept where it is still this
+         ground and holds the whole plot of a dear one, as a job's swap keeps it
+         (adoptGroundJob): a quick zoom in can reach a window cheap enough to bake
+         here before any job has landed. The bake goes to another canvas. */
+      if (groundPlotDear() && !game.photo && !groundWideValid(gStruct,MD) && groundMainWhole(gStruct,MD)){
+        const sp=takeGroundWideSpare(), ncv=sp?sp.cv:document.createElement('canvas'), nctx=sp?sp.ctx:ncv.getContext('2d');
+        if (nctx){
+          storeGroundWide(groundCanvas,groundCtx,groundZoom,groundCamX,groundCamY,gStruct,groundDataKey(),groundRefs);
+          groundCanvas=ncv; groundCtx=nctx;
+          if (ncv.width!==cnv.width+2*MD || ncv.height!==cnv.height+2*MD){ ncv.width=cnv.width+2*MD; ncv.height=cnv.height+2*MD; }
+        }
+      }
       const z0=ZOOM, cx0=cam.x, cy0=cam.y;
       if (ahead){ ZOOM=ahead.z; cam.x=ahead.x; cam.y=ahead.y; }
       try{

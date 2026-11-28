@@ -1,6 +1,6 @@
 {
   "name": "seedhead-garden-design",
-  "version": "0.9.189",
+  "version": "0.9.190",
   "private": true,
   "description": "A 2.5D Oudolf-style perennial garden planner and game. Plain HTML/CSS/JS, no build step.",
   "scripts": {

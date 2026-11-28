@@ -649,6 +649,25 @@ See §13a.
   a bar of 32 since a same-camera repaint has nothing to excuse a difference; a row
   counts pixels `outside` the rectangle apart, the failure that matters. `--soft`
   rasterises in software, where a difference cannot be the GPU's noise.
+- `node dev/ground-zoom-verify.cjs [--garden file] [--gpu] [--headed] [--trace]`
+  is `ground-verify`'s invariant asked of the pictures a ZOOM swaps in on a big
+  plot (§11, "A zoom on a big plot"): the ground canvas claims to be a bake at
+  (groundZoom, groundCamX, groundCamY), so it bakes there for real and diffs.
+  Four arms: the whole-plot ground `kept` as a zoom in replaced it and swapped
+  back in on the way out, a picture `chased` behind a zoom in, the whole-plot
+  picture baked while `idle`, and one `started` as a zoom out began. It also
+  holds every frame of each zoom out to no ground missing, and counts full
+  bakes inside the gestures. `ground-verify` cannot reach any of this: it runs
+  at 100% on a small plot, where none of it engages. Default garden the estate
+  test garden; it refuses a plot under the limit. **It rasterises in SOFTWARE
+  unless told `--gpu`**: the three ground canvases change places, and an
+  accelerated canvas moves to the CPU on its second readback, so on the GPU a
+  picture was compared with one drawn by another rasteriser (the same bake
+  twice read 20% of pixels apart; in software, 0). The reference bake is the
+  app's own, made as a kept frame is (`game.photo`), where nothing stands in.
+  A job behind a gesture needs frames to land, so its simulated wheel gives
+  each tick several; with two a tick no chase was ever adopted and the arms
+  reported "not kept" for a gesture no hand could make.
 - `node dev/perf-audit.cjs --profile phone --engine chrome` drives the real app
   at a real viewport and reports where a frame goes (`--garden
   dev/test-gardens/woodland.prairie.json` takes any garden file in the repo; the
@@ -2383,6 +2402,69 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     one differs on 6-11% and would swamp it. Left: a wheel zoom OUT still does
     ~4 synchronous ~170ms bakes a gesture, because ground missing on screen
     (`groundZoomDriftDue`) cannot wait for bands.
+    **A zoom on a big plot no longer bakes on its own frames** (0.9.190;
+    `GROUND_SYNC_TILES`, `groundZoomNeed`, `groundWindowTiles`, `groundWide`,
+    `groundWideTarget`/`groundHoldsPlot`/`groundWideValid`/`groundWideWanted`,
+    `adoptGroundWide`/`storeGroundWide`, free jobs in `ensureGroundJob`/
+    `stepGroundJob`). That bake costs by the TILE, and zoomed out on a big plot
+    the window holds all of them: one wheel zoom out was 5 full bakes and frames
+    to 153ms on a 93x93 plot, 7 bakes and 414ms on a 229x123 one; a zoom in, 3-4
+    bakes and 130-352ms. `groundZoomNeed` is `groundZoomDriftDue` as two answers
+    (1 SOFT, the old bake magnified past 1.6x; 2 GAP, ground missing on screen),
+    since they want different things done. Where the bake window's tile bbox
+    holds more than `GROUND_SYNC_TILES` (1,500; `dear`):
+    *A gap is filled by a kept picture of the WHOLE plot* (`groundWide`, at the
+    zoom and camera where the plot's ground just fits the bake canvas,
+    `groundWideTarget`), swapped in for nothing. Once the whole plot is in the
+    bake no further zoom out can uncover ground, so the rest of the gesture
+    bakes nothing; the picture is MAGNIFIED until it ends, and the settle's job
+    bakes the crisp one behind it as after any zoom. It comes from four places:
+    the ground on screen whenever that holds the whole plot and is about to be
+    replaced, by a job's swap (`adoptGroundJob`) or a bake on the spot (the full
+    bake branch goes to another canvas); a job started on the first frame of a
+    zoom out, finished on the spot if the gap arrives first (the chunks already
+    baked are the saving); and a job while the view is idle, ahead of the
+    rotation pre-bake. With none of those, the gap is ONE bake at the whole-plot
+    target (`wideAhead`, the eased Fit's `viewTweenGroundTarget` idea) where it
+    was one every 1.4x.
+    *A zoom IN gone soft is baked behind the picture on screen*: a `chase` job
+    at the zoom and camera of the frame that asked, stepped within
+    `GROUND_CHASE_MS` (6ms of JS a frame, at least one chunk) and swapped in
+    when done. It lands a little behind the gesture and the next starts; the
+    last is the settle's. A chase is dropped when the wheel turns the other way.
+    A whole-plot job is held to the same few ms whenever somebody is steering
+    (`!groundViewIdle`), whoever started it: the idle one is a whole plot of
+    chunks, and a pan begun while it bakes should not pay for them. With nobody
+    steering it bakes a row of chunks a frame, as the rotation job does.
+    *A FREE job's zoom is its own* (`j.free`: chase and wide). `groundJobValid`
+    no longer asks it to equal the live zoom, `stepGroundJob` borrows the zoom
+    with the camera and rotation and puts all three back, and `ensureGroundJob`
+    reuses a job only at the zoom asked for (and, for `wide`, the camera: it is
+    the one job whose camera is part of what it is).
+    *The pan-margin rebake stands down for a dear gesture*: the coverage test
+    already asks whether ground is missing, in the blit's own arithmetic, and a
+    job's picture is always a camera or two behind.
+    A window at or under the limit bakes on the spot exactly as before, so a
+    plot of 38x38 or less, the classic 31x31 among them, takes none of this
+    (a test drives a small plot through a zoom and holds it to full bakes and
+    no third canvas). 1,500 is measured: at 2,500 a 46x46 plot kept three bakes
+    and 45ms frames in a zoom out. **The price is softness and a canvas.** The
+    whole-plot picture is stretched until the gesture ends: about 3x on a 93x93
+    plot at 1440x900 and 5x on a 229x123 one, where paths and bed edges blur
+    while the wheel moves and come sharp a quarter second after it stops. And a
+    dear plot holds a third ground-sized canvas (9.6MB at 1440x900, about 15MB
+    on an iPad), handed back on quitting and under `spriteMemoryPressure`.
+    Measured live with a wheel of 12% ticks (headed Chrome, 164Hz, 1440x900),
+    full bakes in the gesture and worst frame, before -> after. Zoom OUT: 46x46
+    woodland 3 and 45ms -> 0 and 15ms; 69x69 arboretum -> 0 and 17ms; 93x93
+    estate 5 and 153ms -> 0 and 29ms; 229x123, 7 and 414ms -> 0 and 52ms. Zoom
+    IN: woodland 2 and 39ms -> 1 and 22ms; estate 3 and 130ms -> 0 and 25ms;
+    229x123, 4 and 352ms -> 0-1 and 49ms. The demo garden is unchanged (2-3
+    cheap bakes, 16ms). `node dev/ground-zoom-verify.cjs` holds each swapped-in
+    picture to a full bake (Run/test). Firefox 161 stays accelerated on the
+    estate garden (2,049 frames) at the same rates as the build before, and
+    `webkit-check` is clean there. Not measured on a phone, where the viewport
+    is smaller and the same plot is dear at fewer zooms.
     **The margin rebake looks wasteful and is not — do not "optimise" it the way
     0.8.39 did (shipped, broke the garden, reverted in 0.8.40).** Panning is the
     dominant desktop cost: measured on a real 70×39 garden, ONE SECOND of
