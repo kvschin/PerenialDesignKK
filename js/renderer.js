@@ -2308,6 +2308,38 @@ const PSPRITE={ map:new Map(), slot:new Map(), scale:-1, frame:0, rendered:0, by
      before. `spec` maps a sprite key minus its seed to the newest key baked
      for it, so one clump can borrow a sibling's sprite. */
   BAKE_MS:4, BAKE_CAP:24, bakeMs:0, spec:new Map(),
+  /* While nobody is touching the garden a frame may bake more (0.9.189). The
+     allowance above is sized for a frame the gardener is steering: 4ms keeps a
+     pan or a drag at the display's rate while sprites re-bake behind it. After
+     a zoom has come to rest there is nothing to keep smooth but the wind, and
+     at 4ms a frame a big garden stayed soft for seconds. So the loop says when
+     the view is QUIET (`quiet`, set by frame() in screens.js: no input for
+     QUIET.AFTER ms, no gesture, nothing easing, fading or sprouting), and a
+     quiet frame may bake until it has spent `quietMs`: what is left of
+     QUIET.FRAME (30ms, the idle cadence's own interval) after the pass itself
+     (`passMs`, last frame's pass without its bakes), at most QUIET.MS and never
+     under BAKE_MS; and up to QUIET.CAP sprites.
+     The allowance has to follow the pass. A flat 16ms was tried first: where
+     the pass is cheap it is right, and where the pass is already 21ms (16,000
+     plants at 20%) frames went to 60ms for no more bakes a second than 9ms
+     gives, because the frame was waiting on the GPU by then. More is worse
+     everywhere: at 40ms and 200 sprites the frames were 66-130ms and it took
+     as long to come sharp.
+     QUIET.PX is the backstop for what JS time cannot see, as BAKE_CAP is: once
+     a frame has baked that many device pixels of sprite it is back on the
+     ordinary allowance. At a far or middle zoom, where the counts are, a frame
+     bakes 0.02-0.3M; a screen of trees at 100% reaches 2M within a few, and
+     then bakes as it always did.
+     And QUIET.SHARE holds the count to half of what the last pass drew
+     (`quietCap`, `drawn`). That one is for Firefox, whose accelerated canvas
+     fails a frame when most of its draws are first uploads and gives the canvas
+     up for good if enough of its early frames fail (the sprite-bitmap note
+     below): at 96 a frame a garden with a hundred clumps on screen would spend
+     a frame on 80% new sprites after every zoom, where 24 never did. A big
+     garden draws thousands and is not touched by it.
+     Only render() from the loop is ever quiet: a test, a tool or a portrait
+     calling it gets the ordinary allowance. */
+  QUIET:{MS:16, CAP:96, PX:2e6, AFTER:200, FRAME:30, SHARE:0.5}, quiet:false, quietMs:0, quietCap:0, passMs:0, drawn:0, bakePx:0,
   /* `cold`: this pass is the garden being prepared behind its cover, where every
      clump bakes its OWN sprite and nothing stands in (prepareGardenOpen).
      `waiting` counts the clumps a frame drew as something other than their own
@@ -2504,7 +2536,9 @@ function retirePlantSprite(k,e){
 function pspriteFrame(){                        // once per render: age the cache
   closeRetiredSprites();                        // last frame's, which nothing can draw now
   atlasFrame();                                 // last frame's small bakes move into the shared pages
-  PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.bakeMs=0; PSPRITE.waiting=0; PSPRITE.scale=pspriteScale();
+  PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.bakeMs=0; PSPRITE.bakePx=0; PSPRITE.waiting=0; PSPRITE.scale=pspriteScale();
+  PSPRITE.quietMs=PSPRITE.quiet ? Math.min(PSPRITE.QUIET.MS, PSPRITE.QUIET.FRAME-PSPRITE.passMs) : 0;
+  PSPRITE.quietCap=PSPRITE.quiet ? Math.min(PSPRITE.QUIET.CAP, Math.floor(PSPRITE.QUIET.SHARE*PSPRITE.drawn)) : 0;
   /* The scale small plants are judged at (SHARE). Zooming OUT it follows at once:
      more plants become small, and a look their kind shares is a few bakes. Zooming
      IN it waits for the gesture to end, like every other re-bake: a clump going
@@ -3020,8 +3054,11 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
        And behind the opening cover (cold) nothing waits and nothing stands in:
        that pass exists to bake every clump's own picture. */
     const live=!e && rec._pf===PSPRITE.frame-1;
+    // a quiet frame's larger allowance, until it has baked QUIET.PX of sprite (PSPRITE.QUIET)
+    const more=PSPRITE.quiet && ctx===cx && PSPRITE.bakePx<PSPRITE.QUIET.PX;
     const spent=!game.photo && !PSPRITE.cold
-      && (PSPRITE.rendered>=PSPRITE.BAKE_CAP || (!live && PSPRITE.bakeMs>=PSPRITE.BAKE_MS));
+      && (PSPRITE.rendered>=(more?Math.max(PSPRITE.quietCap,PSPRITE.BAKE_CAP):PSPRITE.BAKE_CAP)
+        || (!live && PSPRITE.bakeMs>=(more?Math.max(PSPRITE.quietMs,PSPRITE.BAKE_MS):PSPRITE.BAKE_MS)));
     if (spent && live){
       rec._pf=PSPRITE.frame; PSPRITE.waiting++;
       drawPlantLive(ctx,bx,by,key,growth,season,seed,sway,variant,detail,lB>=0?lB:undefined);
@@ -3040,6 +3077,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
       const ne=makePlantSprite(key,gB,bB,season,seed,variant,detail,lB);
       PSPRITE.bakeMs+=performance.now()-t0;
       if (ne){ if (e){ PSPRITE.bytes-=e.bytes; releasePlantEntry(e); } e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes;
+        PSPRITE.bakePx+=e.bytes>>2;
         PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk); }
     }
     if (!e){ drawPlantLive(ctx,bx,by,key,growth,season,seed,sway,variant,detail,lB>=0?lB:undefined); return; }
@@ -6648,7 +6686,9 @@ function render(t){
   } finally { plantBlitScale=0; }
   tPlantPass=performance.now()-tDrawWall;   // the governor's measure: the pass, not the bakes ahead of it
   if (ring) prebakeRun(cal.season,groundViewIdle(t));
-  farLayerNote(farMay && zoomAtRest && farLayerFits(),tPlantPass-PSPRITE.bakeMs);
+  PSPRITE.passMs=Math.max(0,tPlantPass-PSPRITE.bakeMs);      // what the pass costs without its bakes (PSPRITE.QUIET)
+  PSPRITE.drawn=plantCount;                                  // and how many plants it drew
+  farLayerNote(farMay && zoomAtRest && farLayerFits(),PSPRITE.passMs);
   }
   dmark('draw',tDraw);
   // Diagnostic speculative readiness; explicit skips check their destination

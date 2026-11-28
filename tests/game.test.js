@@ -20846,6 +20846,171 @@ test('at a season turn a clump keeps its OWN shape, not a sibling\'s', () => {
   });
 });
 
+/* ---------- while nobody is touching the garden, a frame bakes more ----------
+   PSPRITE.BAKE_MS (4) and BAKE_CAP (24) are sized for a frame the gardener is
+   steering. After a zoom has come to rest there is only the wind to keep
+   smooth, and at that allowance a 16,000-plant garden stayed soft for 4.1 s at
+   20%. The loop marks a frame QUIET (spriteViewQuiet, screens.js) and a quiet
+   frame may spend what is left of 30ms after the pass itself, up to 16ms, on up
+   to 96 sprites, until it has baked QUIET.PX of them. */
+function quietCase(fn){
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  const was = { ms: PSPRITE.BAKE_MS, cap: PSPRITE.BAKE_CAP, q: Object.assign({}, PSPRITE.QUIET), quiet: PSPRITE.quiet, pass: PSPRITE.passMs,
+    drawn: PSPRITE.drawn, photo: game.photo, cold: PSPRITE.cold, off: PSPRITE.off };
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0; PSPRITE.off = false; PSPRITE.cold = false; game.photo = false;
+  PSPRITE.passMs = 0; PSPRITE.drawn = 1e6;        // a big garden: the share of the last pass is not what limits it
+  // `n` clumps that each have a sprite, then asked for at another growth: every one a bake with its own
+  // stale picture to show meanwhile, which is the kind the allowance holds back
+  const seeds = n => Array.from({ length: n }, (_, i) => 7000 + i * 13);
+  const draw = (ctx, growth, seed) => drawPlantMaybeCached(ctx, 0, 0, key, growth, 'Summer', seed, 0, null, undefined, true);
+  const primed = n => { PSPRITE.quiet = false; PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 1e6; pspriteFrame(); for (const sd of seeds(n)) draw(cx, 0.3, sd); return seeds(n); };
+  const frame = (quiet, sds, ctx) => { PSPRITE.quiet = quiet; pspriteFrame(); for (const sd of sds) draw(ctx || cx, 0.9, sd); return PSPRITE.rendered; };
+  try { fn({ primed, frame, draw }); }
+  finally { PSPRITE.BAKE_MS = was.ms; PSPRITE.BAKE_CAP = was.cap; Object.assign(PSPRITE.QUIET, was.q); PSPRITE.quiet = was.quiet; PSPRITE.passMs = was.pass;
+    PSPRITE.drawn = was.drawn; game.photo = was.photo; PSPRITE.cold = was.cold; PSPRITE.off = was.off; }
+}
+
+test('a quiet frame bakes more sprites than a frame the gardener is steering', () => {
+  quietCase(({ primed, frame, draw }) => {
+    let sds = primed(12);
+    PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 3; PSPRITE.QUIET.CAP = 8; PSPRITE.QUIET.PX = Infinity;
+    assertEqual(frame(false, sds), 3, 'steered: the ordinary count, and the rest show their stale sprites');
+    assertEqual(PSPRITE.waiting, 9, 'nine clumps wait');
+    sds = primed(12);
+    PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 3;
+    assertEqual(frame(true, sds), 8, 'quiet: QUIET.CAP of them');
+    assertEqual(PSPRITE.waiting, 4, 'and four wait for the next frame');
+    // the larger count is never smaller than the ordinary one
+    sds = primed(12); PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 10; PSPRITE.QUIET.CAP = 2;
+    assertEqual(frame(true, sds), 10, 'a quiet frame is never held below the ordinary allowance');
+    // the mark grants it, not the figures a quiet frame left behind: a draw after the loop has taken the
+    // mark back (anything that draws on the garden canvas between frames) is on the ordinary allowance
+    sds = primed(12); PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 3; PSPRITE.QUIET.CAP = 8;
+    PSPRITE.quiet = true; pspriteFrame(); PSPRITE.quiet = false;
+    for (const sd of sds) draw(cx, 0.9, sd);
+    assertEqual(PSPRITE.rendered, 3, 'with the mark gone the count is the ordinary one');
+  });
+});
+
+test('a quiet frame goes on baking once the ordinary bake time is spent, for what the pass leaves of 30ms', () => {
+  quietCase(({ primed, frame }) => {
+    let sds = primed(6);
+    PSPRITE.BAKE_MS = 0; PSPRITE.BAKE_CAP = 1e6; PSPRITE.QUIET.PX = Infinity;
+    assertEqual(frame(false, sds), 0, 'steered, with its time spent: nothing bakes');
+    PSPRITE.QUIET.MS = 1e6; PSPRITE.QUIET.FRAME = 2e6; PSPRITE.passMs = 0;
+    assertEqual(frame(true, sds), 6, 'quiet: they all bake');
+    // the allowance is what is left of QUIET.FRAME after the pass, capped at QUIET.MS
+    PSPRITE.QUIET.MS = 16; PSPRITE.QUIET.FRAME = 30;
+    PSPRITE.quiet = true; PSPRITE.passMs = 0; pspriteFrame(); assertEqual(PSPRITE.quietMs, 16, 'a cheap pass: the whole 16ms');
+    PSPRITE.passMs = 21; pspriteFrame(); assertEqual(PSPRITE.quietMs, 9, 'a 21ms pass leaves 9');
+    PSPRITE.quiet = false; pspriteFrame(); assertEqual(PSPRITE.quietMs, 0, 'and a steered frame has none');
+    // a pass that already costs the whole frame leaves only the ordinary allowance
+    sds = primed(6); PSPRITE.BAKE_MS = 0; PSPRITE.BAKE_CAP = 1e6; PSPRITE.passMs = 1e6;
+    assertEqual(frame(true, sds), 0, 'no time left after the pass: the ordinary allowance, which is spent');
+  });
+});
+
+test('a quiet frame is back on the ordinary allowance once it has baked QUIET.PX of sprite', () => {
+  quietCase(({ primed, frame }) => {
+    let sds = primed(8);
+    PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 2; PSPRITE.QUIET.CAP = 50; PSPRITE.QUIET.PX = 1;
+    assertEqual(frame(true, sds), 2, 'one sprite is past a 1px backstop, so the count is the ordinary two');
+    assert(PSPRITE.bakePx > 1, 'the frame counted the pixels it baked: ' + PSPRITE.bakePx);
+    sds = primed(8); PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 2; PSPRITE.QUIET.PX = Infinity;
+    assertEqual(frame(true, sds), 8, 'with no backstop in the way all eight bake');
+    PSPRITE.quiet = false; pspriteFrame();
+    assertEqual(PSPRITE.bakePx, 0, 'and the count starts again each frame');
+  });
+});
+
+test('a quiet frame bakes at most half of what the last pass drew', () => {
+  /* Firefox fails a frame of its accelerated canvas when most of its draws are
+     first uploads, and gives the canvas up if enough early frames fail. At the
+     quiet count, a garden with a hundred clumps on screen would do that after
+     every zoom; at the ordinary 24 it never did. */
+  quietCase(({ primed, frame }) => {
+    let sds = primed(60);
+    PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 4; PSPRITE.QUIET.CAP = 50; PSPRITE.QUIET.PX = Infinity; PSPRITE.QUIET.SHARE = 0.5;
+    PSPRITE.drawn = 60;
+    assertEqual(frame(true, sds), 30, 'sixty drawn: thirty new sprites, not fifty');
+    sds = primed(60); PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 4; PSPRITE.drawn = 1000;
+    assertEqual(frame(true, sds), 50, 'a thousand drawn: the quiet count itself');
+    sds = primed(60); PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 4; PSPRITE.drawn = 6;
+    assertEqual(frame(true, sds), 4, 'six drawn: the ordinary count, never fewer');
+    assert(/PSPRITE\.drawn=plantCount/.test(String(render)), 'the pass reports how many plants it drew');
+  });
+});
+
+test('only the garden canvas takes the quiet allowance', () => {
+  quietCase(({ primed, frame }) => {
+    const other = Object.create(cx);               // a canvas that is not the garden's (the sandbox's contexts are one stub)
+    let sds = primed(8);
+    PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 2; PSPRITE.QUIET.CAP = 50; PSPRITE.QUIET.PX = Infinity;
+    assertEqual(frame(true, sds, other), 2, 'another canvas: the ordinary count');
+    sds = primed(8); PSPRITE.BAKE_MS = Infinity; PSPRITE.BAKE_CAP = 2;
+    assertEqual(frame(true, sds, cx), 8, 'the garden canvas: the quiet one');
+  });
+});
+
+test('the view is quiet only when nobody is steering and nothing but the wind is moving', () => {
+  setup(20, 20);
+  const was = { i: lastInputAt, ff: game.ffActive, photo: game.photo, fx: game.fx, fade: seasonFade.active, want: seasonFade.want, until: EDIT_FX.until,
+    opening: gardenOpening, armed: LENS.armed, flick: PET_FLICK.until };
+  try {
+    const t = performance.now() + 1e6;             // long after any effect stamped on the real clock
+    gardenOpening = null; game.ffActive = false; game.photo = false; game.fx = []; seasonFade.active = false; seasonFade.want = null;
+    EDIT_FX.until = 0; LENS.armed = false; PET_FLICK.until = 0;
+    lastInputAt = t - PSPRITE.QUIET.AFTER - 1;
+    assert(spriteViewQuiet(t), 'no input for a moment and nothing running: quiet');
+    lastInputAt = t - PSPRITE.QUIET.AFTER + 1;
+    assert(!spriteViewQuiet(t), 'a pointer, wheel or key just now: not quiet');
+    lastInputAt = t - 5000;
+    game.ffActive = true; assert(!spriteViewQuiet(t), 'fast-forward is running'); game.ffActive = false;
+    game.photo = true; assert(!spriteViewQuiet(t), 'a kept frame bakes everything anyway'); game.photo = false;
+    game.fx = [{}]; assert(!spriteViewQuiet(t), 'a planting pulse is drawing'); game.fx = [];
+    seasonFade.active = true; assert(!spriteViewQuiet(t), 'a crossfade is running'); seasonFade.active = false;
+    seasonFade.want = 'rot'; assert(!spriteViewQuiet(t), 'or about to'); seasonFade.want = null;
+    EDIT_FX.until = Infinity; assert(!spriteViewQuiet(t), 'a sprout, a lift or a flash is drawing'); EDIT_FX.until = 0;
+    gardenOpening = {}; assert(!spriteViewQuiet(t), 'the opening pass has its own batch'); gardenOpening = null;
+    assert(spriteViewQuiet(t), 'and quiet again with all of that over');
+  } finally {
+    lastInputAt = was.i; game.ffActive = was.ff; game.photo = was.photo; game.fx = was.fx; seasonFade.active = was.fade; seasonFade.want = was.want;
+    EDIT_FX.until = was.until; gardenOpening = was.opening; LENS.armed = was.armed; PET_FLICK.until = was.flick;
+  }
+});
+
+test('the loop marks a frame quiet for render alone, and keeps quiet frames from the glass governor', () => {
+  setup(20, 20);
+  const was = { render, should: shouldRenderGarden, hud: updateHUD, glass: updateGlassMode, quiet: spriteViewQuiet, prev, i: lastInputAt,
+    c: lastMeaningfulChange, r: lastGardenRender, inG: game.inGarden, q: PSPRITE.quiet };
+  const seen = []; let glass = 0, isQuiet = true;
+  try {
+    game.inGarden = true;
+    render = () => { seen.push(PSPRITE.quiet); }; shouldRenderGarden = () => true; updateHUD = () => {};
+    updateGlassMode = () => { glass++; }; spriteViewQuiet = () => isQuiet;
+    const t = prev + 16;
+    lastMeaningfulChange = t;                       // inside the grace: this frame would feed the governor
+    frame(t);
+    assertEqual(seen.length, 1, 'the frame drew');
+    assert(seen[0] === true, 'render saw a quiet frame');
+    assert(PSPRITE.quiet === false, 'and the mark is gone when render returns: a tool or a portrait calling render is never quiet');
+    assertEqual(glass, 0, 'a quiet frame is long on purpose, so the glass governor is not shown it');
+    isQuiet = false; lastMeaningfulChange = t + 16;
+    frame(t + 16);
+    assert(seen[1] === false, 'a steered frame is not quiet');
+    assertEqual(glass, 1, 'and its spacing is sampled as before');
+    // a render that throws must not leave the next frame quiet
+    isQuiet = true; render = () => { throw new Error('boom'); };
+    let threw = false; try { frame(t + 32); } catch (e) { threw = /boom/.test(String(e)); }
+    assert(threw, 'the crash boundary still sees the throw');
+    assert(PSPRITE.quiet === false, 'and the mark does not outlive it');
+  } finally {
+    render = was.render; shouldRenderGarden = was.should; updateHUD = was.hud; updateGlassMode = was.glass; spriteViewQuiet = was.quiet; prev = was.prev;
+    lastInputAt = was.i; lastMeaningfulChange = was.c; lastGardenRender = was.r; game.inGarden = was.inG; PSPRITE.quiet = was.q;
+  }
+});
+
 /* ---------- the coming season is baked before it arrives ----------
    With stand-ins alone a season turn was smooth but the plants changed colour
    one by one after it. While the clock runs towards a boundary, each frame now

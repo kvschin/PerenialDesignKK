@@ -4735,6 +4735,16 @@ function hasActiveGesture(){
     || (typeof selResize!=='undefined' && !!selResize)
     || (typeof sweep!=='undefined' && !!sweep);
 }
+/* Nobody is steering and nothing is animating but the wind, so a frame that has
+   sprites to re-bake may take longer over it (PSPRITE.QUIET, renderer.js). Not
+   the same question as groundViewIdle: that one waits out GROUND_IDLE_MS before
+   guessing at work nobody has asked for; this is work the picture is waiting
+   on, and all it needs is that a longer frame will not be felt. */
+function spriteViewQuiet(t){
+  return !gardenOpening && !game.ffActive && !game.photo && t-lastInputAt>PSPRITE.QUIET.AFTER
+    && !hasActiveGesture() && !viewTweenActive() && !seasonFadeActive() && !editFxBusy() && !petFlickBusy()
+    && !(game.fx&&game.fx.length) && !(game.shrubFx&&game.shrubFx.length) && !skipPending();
+}
 function hasTransientGardenWork(){
   return !!(gardenOpening || game.ffActive || hasActiveGesture()
     || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length)
@@ -5447,8 +5457,12 @@ function frame(t){
       // glass governor samples frame SPACING, but only while the user is
       // actively interacting — idle frames run at a deliberate 30fps cadence
       // and would read as jank.
-      if (hasTransientGardenWork() || t-lastMeaningfulChange<IDLE_GRACE_MS){ updateGlassMode(dt); dgap(rawGap); }
-      render(t);                                   // render adds its own phase marks
+      // (nor a quiet frame: it is allowed to take longer over its sprite bakes, on purpose)
+      const quiet=spriteViewQuiet(t);
+      if (!quiet && (hasTransientGardenWork() || t-lastMeaningfulChange<IDLE_GRACE_MS)){ updateGlassMode(dt); dgap(rawGap); }
+      PSPRITE.quiet=quiet;
+      try{ render(t); }                            // render adds its own phase marks
+      finally{ PSPRITE.quiet=false; }
       lastGardenRender=t;
       const tHud=dnow(); updateHUD(); lastHudUpdate=t; dmark('hud',tHud);
       dmark('frame',tFrame);

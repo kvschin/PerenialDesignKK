@@ -3099,6 +3099,46 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     303-309 → 206ms, panning unchanged. What remained in those worst frames was
     the full ground bake, since moved into ground jobs (§11, beside the mid-zoom
     note), and the season turn's own sprite burst, since baked ahead (below).
+    **While nobody is touching the garden, a frame bakes more** (0.9.189;
+    `PSPRITE.QUIET`, `quiet`/`quietMs`/`quietCap`/`passMs`/`drawn`/`bakePx`,
+    renderer.js; `spriteViewQuiet`, screens.js). `BAKE_MS` and `BAKE_CAP` are
+    sized for a frame the gardener is steering. After a zoom has come to rest
+    there is only the wind to keep smooth, and at that allowance a big garden
+    stayed soft for seconds. So `frame()` marks a frame QUIET (no input for
+    `QUIET.AFTER` 200ms, no gesture, nothing easing, fading, sprouting or
+    fast-forwarding, no Skip pending, not opening) and takes the mark back when
+    `render` returns, so a test, a tool or a portrait calling `render` is never
+    quiet. A quiet frame may bake until it has spent what is left of
+    `QUIET.FRAME` (30ms, the idle cadence's own interval) after the pass itself
+    (`passMs`, last frame's pass without its bakes), at most `QUIET.MS` (16) and
+    never under `BAKE_MS`; and up to `QUIET.CAP` (96) sprites, never fewer than
+    `BAKE_CAP`. Three bounds, each measured or reasoned. *The allowance follows
+    the pass*: a flat 16ms was right where the pass is cheap, and where it is
+    already 21ms (16,000 plants at 20%) frames went to 60ms for no more bakes a
+    second than 9ms gives, the frame waiting on the GPU by then; 40ms and 200
+    sprites was 66-130ms frames and no faster. *`QUIET.PX` (2M device pixels of
+    sprite a frame) is the backstop for what JS time cannot see*: at far and
+    middle zooms a frame bakes 0.02-0.3M, a screen of trees at 100% reaches it
+    in a few and then bakes as it always did. A first cut at 0.6M was no
+    backstop but the limit. *`QUIET.SHARE` holds the count to half of what the
+    last pass drew*, for Firefox, which fails a frame whose draws are mostly
+    first uploads: at 96 a garden with a hundred clumps on screen would do that
+    after every zoom, where 24 never did. **Quiet frames are kept from the glass
+    governor**: they are long on purpose, and 1.2 s of 34ms frames would have
+    switched blur off for the session. The prebake ring keeps the ordinary
+    allowance. **Measure "sharp" as no clump waiting** (`PSPRITE.waiting`), not
+    as no bakes: the ring goes on baking off-screen clumps for seconds after the
+    view is sharp, and timing that made this look half as good as it is.
+    Measured in headed Chrome at 164Hz, 1440x900, time from the last wheel tick
+    until every clump on screen has its own sprite, before -> after. The
+    16,000-plant garden: to 45% 1.29 -> 0.84 s, 45% to 20% 4.08 -> 2.68 s, 100% to
+    30% 3.53 -> 1.86 s. Estate test garden: 1.08 -> 0.61, 2.46 -> 1.32, 2.21 ->
+    1.19 s. Woodland: 0.62 -> 0.47, 0.68 -> 0.47 s. Demo garden: 0.33 -> 0.29 s.
+    Frame spacing while it sharpens goes from 11-26ms to 15-38ms median, the
+    idle cadence. A pan with the real mouse begun straight after the zoom is
+    unchanged (77 against 76fps, no quiet frame in it). Firefox stays
+    accelerated (`ff-accel-check`: 4,393 frames on that garden, 6,577 on the
+    demo, 5,309 on the woodland); `webkit-check` clean. Not measured on a phone.
     **The coming season's sprites are baked before it arrives** (`AHEAD`,
     `aheadBakePlant`/`aheadBakeStruct`; Sep 2026). The stand-ins made a turn
     smooth but not pretty: ~375 bakes spread over the frames after it meant the
